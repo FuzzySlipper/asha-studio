@@ -6,9 +6,9 @@
 
 - `boundary-policy.json` is the machine-readable source for `pnpm run check:boundaries`.
 - Use public ASHA package roots only.
-- Allowed in source now: `@asha/command-registry`.
-- Local package-manager links may include `@asha/contracts` only as a transitive unpublished-package support link; do not import it from source until a task explicitly promotes it.
-- Planned later public packages: `@asha/studio-evidence`, `@asha/runtime-bridge`, `@asha/editor-tools`, `@asha/devtools`, `@asha/renderer-three`.
+- Allowed in source now: `@asha/command-registry`, `@asha/contracts`, `@asha/editor-tools`.
+- Local package-manager links must match the allowed public package roots in `boundary-policy.json`.
+- Deferred later public packages: `@asha/studio-evidence`, `@asha/runtime-bridge`, `@asha/devtools`, `@asha/renderer-three`.
 - Do not import ASHA internals, generated files by path, native/raw transports, engine Rust paths, package `src/**` subpaths, or aliases into `/home/dev/asha`.
 - Do not add arbitrary JSON command hatches such as `call(methodName, json)` or private UI-only mutation callbacks.
 - GUI and agent surfaces must use the same command identities and visible timeline/readout model.
@@ -17,8 +17,9 @@
 - Session/workspace timeline logic lives in `src/session-workspace.ts`; GUI and agent-originated commands must continue through the same `invokeStudioCommand` path and exported readout fixture.
 - Voxel workflow logic lives in `src/voxel-workflow.ts`; preview must stay editor-local while apply uses typed public `VoxelCommand` proposal/apply evidence and records before/after hashes.
 - Visual evidence/review export logic lives in `src/visual-evidence.ts`; exports must fail closed when timeline/results, visual refs, render deltas, sequence correlation, or compatibility evidence are missing/stale.
+- V1 proof command logic lives in `scripts/v1-proof.ts` with readback validation in `scripts/readback-v1-proof.mjs`; generated `artifacts/` output is reproducible and git-ignored.
 - Native/WASM runtime modes must fail closed until `@asha/runtime-bridge` is approved for Studio and reports `runtime-bridge.v0` compatibility.
 
 ## Current task scope
 
-Task `asha#2735` adds software visual evidence and fail-closed review artifact export. Task `asha#2734` added the visible voxel inspect/select/preview/apply workflow. Task `asha#2733` added the session/workspace model and shared command timeline. Task `asha#2732` added compatibility metadata/readback and fail-closed checks. Task `asha#2731` hardened the boundary policy/checker. Task `asha#2730` created the real frontend shell baseline. Later tasks own native runtime bridge integration, browser/Agora capture, hardware render evidence, and richer visual domains.
+Task `asha#2738` adds the end-to-end `pnpm run proof:v1` visual edit proof command and generated artifact readback. Task `asha#2735` added software visual evidence and fail-closed review artifact export. Task `asha#2734` added the visible voxel inspect/select/preview/apply workflow. Task `asha#2733` added the session/workspace model and shared command timeline. Task `asha#2732` added compatibility metadata/readback and fail-closed checks. Task `asha#2731` hardened the boundary policy/checker. Task `asha#2730` created the real frontend shell baseline. Later tasks own native runtime bridge integration, browser/Agora capture, hardware render evidence, and richer visual domains.

@@ -20,7 +20,7 @@ Task `asha#2730` establishes a Vite/TypeScript shell with visible regions requir
 - inspector/readout panel;
 - evidence/export panel.
 
-The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. It does **not** execute commands, call the runtime bridge, capture screenshots, or define local evidence artifact schemas.
+The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. It does **not** call the native runtime bridge or claim browser/Agora/hardware-GPU evidence; the V1 proof exports software-snapshot visual evidence and machine-readable review artifacts with explicit limitations.
 
 ## Local development
 
@@ -28,6 +28,7 @@ The app consumes `@asha/command-registry` through the package root and projects 
 pnpm install
 pnpm run dev
 pnpm run verify
+pnpm run proof:v1
 ```
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
@@ -69,6 +70,25 @@ Preview remains editor-local and reports `authority unchanged`; the apply step i
 Task `asha#2735` adds review-grade software visual evidence for the V1 Studio path. The workspace now records a classified `software_snapshot` before/after visual evidence ref, stable relative before/after artifact paths, render hashes, command-sequence correlation, and a fail-closed `review_export` artifact. The export validates that timeline/results are current, visual evidence exists, before/after render hashes changed, and ASHA compatibility evidence is present before reporting `captureReadiness: "ready"`.
 
 This is functional proof-content evidence only. It is intentionally not browser screenshot, Agora capture, hardware GPU, or performance evidence; those remain later capture-backend tasks.
+
+## End-to-end V1 proof
+
+A reviewer can run the complete V1 visual edit proof with one command:
+
+```bash
+pnpm run proof:v1
+```
+
+The proof command runs the normal verifier, serves the built `dist/` app over a local static HTTP server, checks required UI markers, verifies boundary policy, creates before/after SVG software-snapshot evidence, writes `artifacts/v1-proof/latest/index.json`, and runs `scripts/readback-v1-proof.mjs` against the generated artifact.
+
+Expected success markers:
+
+```text
+asha-studio V1 proof: OK (artifacts/v1-proof/latest/index.json)
+asha-studio V1 proof readback: OK (9 proof steps, 3 artifact file(s))
+```
+
+Generated `artifacts/` output is intentionally git-ignored; rerun `pnpm run proof:v1` to reproduce the review artifact and visual evidence files.
 
 ## Verification
 
