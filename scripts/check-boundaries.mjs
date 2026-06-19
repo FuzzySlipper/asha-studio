@@ -54,7 +54,7 @@ for (const file of walk(root)) {
       throw new Error(`${rel} imports forbidden raw ASHA package ${forbidden}`);
     }
   }
-  const importMatches = text.matchAll(/(?:from\s+|import\()(['"])(@asha\/[A-Za-z0-9_-]+(?:[^'"]*)?)/g);
+  const importMatches = text.matchAll(/(?:from\s+|import\s*(?:\(\s*)?)(['"])(@asha\/[A-Za-z0-9_-]+(?:\/[^'"]*)?)\1/g);
   for (const match of importMatches) {
     const specifier = match[2];
     if (specifier === undefined) continue;
