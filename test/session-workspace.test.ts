@@ -21,6 +21,10 @@ test('studio workspace starts with a loaded scenario and visible shared timeline
     'session.start',
     'session.load_scenario',
     'inspection.session_status',
+    'inspection.voxel',
+    'selection.voxel_from_screen_point',
+    'preview.voxel_brush',
+    'authority.voxel.apply_brush',
   ]);
   assert.ok(workspace.timeline.some((entry) => entry.requestedBy === 'agent'));
   assert.equal(workspace.commandResults.length, workspace.timeline.length);
@@ -116,7 +120,15 @@ test('sample agent readout fixture includes exported timeline and command result
   };
   assert.equal(artifact.artifactKind, 'agent_readout');
   assert.equal(artifact.session?.compatibility?.commandRegistryVersion, 'command-registry.v0');
-  assert.deepEqual(artifact.commandTimeline?.map((entry) => entry.commandId), ['session.start', 'session.load_scenario', 'inspection.session_status']);
+  assert.deepEqual(artifact.commandTimeline?.map((entry) => entry.commandId), [
+    'session.start',
+    'session.load_scenario',
+    'inspection.session_status',
+    'inspection.voxel',
+    'selection.voxel_from_screen_point',
+    'preview.voxel_brush',
+    'authority.voxel.apply_brush',
+  ]);
   assert.ok(artifact.commandTimeline?.some((entry) => entry.requestedBy === 'agent'));
   assert.equal(artifact.commandResults?.length, artifact.commandTimeline?.length);
 });

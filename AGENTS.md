@@ -15,8 +15,9 @@
 - If the studio needs a missing capability, create/request a public ASHA surface rather than bypassing the boundary.
 - Compatibility metadata lives in `src/compatibility.ts`; update it with tests and the sample session artifact whenever ASHA public compatibility markers change.
 - Session/workspace timeline logic lives in `src/session-workspace.ts`; GUI and agent-originated commands must continue through the same `invokeStudioCommand` path and exported readout fixture.
+- Voxel workflow logic lives in `src/voxel-workflow.ts`; preview must stay editor-local while apply uses typed public `VoxelCommand` proposal/apply evidence and records before/after hashes.
 - Native/WASM runtime modes must fail closed until `@asha/runtime-bridge` is approved for Studio and reports `runtime-bridge.v0` compatibility.
 
 ## Current task scope
 
-Task `asha#2733` adds the session/workspace model and shared command timeline. Task `asha#2732` added compatibility metadata/readback and fail-closed checks. Task `asha#2731` hardened the boundary policy/checker. Task `asha#2730` created the real frontend shell baseline. Later tasks own voxel workflow, render/evidence export, and richer visual domains.
+Task `asha#2734` adds the visible voxel inspect/select/preview/apply workflow. Task `asha#2733` added the session/workspace model and shared command timeline. Task `asha#2732` added compatibility metadata/readback and fail-closed checks. Task `asha#2731` hardened the boundary policy/checker. Task `asha#2730` created the real frontend shell baseline. Later tasks own native runtime bridge integration, render/evidence export, and richer visual domains.

@@ -3,6 +3,8 @@ import type { OperationClass, StudioCommandCatalog, StudioCommandCatalogEntry, S
 
 import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
+import { createVoxelWorkflowModel } from './voxel-workflow';
+import type { StudioVoxelWorkflowModel } from './voxel-workflow';
 
 export type StudioActorKind = 'gui' | 'agent' | 'test' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded' | 'unavailable';
@@ -180,6 +182,7 @@ export interface StudioWorkspaceModel {
   readonly scenarios: readonly StudioScenarioSummary[];
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
+  readonly voxelWorkflow: StudioVoxelWorkflowModel;
   readonly exportedReadout: StudioAgentReadoutArtifact;
 }
 
@@ -440,12 +443,19 @@ export function createStudioWorkspaceModel(options: {
     timeline.push(executed.timelineEntry);
     results.push(executed.result);
   }
+  const voxelWorkflow = createVoxelWorkflowModel({
+    sessionId: session.sessionId,
+    scenarioId: activeScenarioId,
+    compatibility: session.compatibility,
+  });
+  timeline.push(...voxelWorkflow.timelineEntries);
+  results.push(...voxelWorkflow.commandResults);
   const readout = createAgentReadoutArtifact({
     session,
     timeline,
     results,
-    generatedAtIso: '1970-01-01T00:00:03.000Z',
-    knownLimitations: ['Mock/reference session model only; runtime bridge command execution is deferred.', 'Visual evidence export is reserved for the later render/evidence task.'],
+    generatedAtIso: '1970-01-01T00:00:08.000Z',
+    knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge execution is deferred; before/after hashes are deterministic Studio evidence hashes.'],
   });
   return {
     session,
@@ -454,6 +464,7 @@ export function createStudioWorkspaceModel(options: {
     scenarios: DEFAULT_SCENARIOS.map((scenario) => scenario.scenarioId === activeScenarioId ? { ...scenario, status: 'loaded' } : scenario),
     timeline,
     commandResults: results,
+    voxelWorkflow,
     exportedReadout: readout,
   };
 }

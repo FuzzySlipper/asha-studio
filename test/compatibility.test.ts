@@ -31,7 +31,7 @@ test('current Studio compatibility metadata records ASHA public surfaces', () =>
   assert.deepEqual(evidence.supportedRuntimeModes, ['mock', 'reference', 'unavailable']);
   assert.deepEqual(
     evidence.ashaPackageVersions.map((item) => `${item.packageName}@${item.version}`),
-    ['@asha/contracts@0.1.0', '@asha/command-registry@0.1.0'],
+    ['@asha/contracts@0.1.0', '@asha/command-registry@0.1.0', '@asha/editor-tools@0.1.0'],
   );
 });
 

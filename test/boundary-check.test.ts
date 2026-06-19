@@ -15,6 +15,7 @@ function makeFixture(
   packageDependencies: Record<string, string> = {
     '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
     '@asha/contracts': 'link:../asha/ts/packages/contracts',
+    '@asha/editor-tools': 'link:../asha/ts/packages/editor-tools',
   },
   extraFiles: Record<string, string> = {},
   extraPackageJson: Record<string, unknown> = {},
@@ -64,7 +65,7 @@ test('boundary checker rejects ASHA package subpath imports', () => {
 });
 
 test('boundary checker rejects unapproved ASHA package-root imports from source', () => {
-  const badImport = `import type { VoxelCoord } from '${'@asha/contracts'}';\nconst coord: VoxelCoord = { x: 0, y: 0, z: 0 };\nconsole.log(coord);\n`;
+  const badImport = `import { createRuntimeBridge } from '${'@asha/runtime-bridge'}';\nconsole.log(createRuntimeBridge);\n`;
   const root = makeFixture(badImport);
   try {
     assertRejected(root, /unapproved ASHA package/);
@@ -78,6 +79,8 @@ test('boundary checker rejects explicitly forbidden raw package imports', () => 
   const badImport = `import { createNativeRuntimeBridge } from '${forbiddenPackage}';\nconsole.log(createNativeRuntimeBridge);\n`;
   const root = makeFixture(badImport, {
     '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+    '@asha/contracts': 'link:../asha/ts/packages/contracts',
+    '@asha/editor-tools': 'link:../asha/ts/packages/editor-tools',
     [forbiddenPackage]: 'link:../asha/ts/packages/native-bridge',
   });
   try {

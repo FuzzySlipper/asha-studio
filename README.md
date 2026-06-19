@@ -58,6 +58,12 @@ Task `asha#2733` adds a mock/reference Studio workspace model with a shared huma
 
 Current supported readout commands are session/workspace oriented: `session.start`, `session.load_scenario`, and `inspection.session_status`. Runtime bridge/native execution and visual evidence capture remain deferred, but the exported readout already includes session metadata, compatibility metadata, command timeline entries, command results, state evidence placeholders, diagnostics, artifact refs, and known limitations.
 
+## Voxel inspect/select/preview/apply workflow
+
+Task `asha#2734` adds the first visible voxel workflow in the Studio mock/reference workspace. The workflow selects voxel `(0, 0, 0)`, previews a `VoxelCommand.setVoxel` edit at anchor `(1, 0, 0)`, applies it through the public typed command proposal path from `@asha/editor-tools` / `@asha/contracts`, records timeline entries for inspect/select/preview/apply, and exports before/after structured evidence in `fixtures/studio-voxel-workflow-evidence.sample.json`.
+
+Preview remains editor-local and reports `authority unchanged`; the apply step is the only authority-mutating timeline row and records accepted/rejected counts plus deterministic before/after evidence hashes. Native `@asha/runtime-bridge` execution remains deferred until that public surface is approved for Studio.
+
 ## Verification
 
 ```bash

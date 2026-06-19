@@ -111,9 +111,9 @@ export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_C
     appTitle: 'ASHA Studio',
     repoRole: 'frontend-heavy-public-consumer',
     ashaBoundary: {
-      allowedImports: ['@asha/command-registry'],
+      allowedImports: ['@asha/command-registry', '@asha/contracts', '@asha/editor-tools'],
       forbiddenImportExamples: FORBIDDEN_IMPORT_EXAMPLES,
-      deferredPublicPackages: ['@asha/studio-evidence', '@asha/runtime-bridge', '@asha/editor-tools', '@asha/devtools', '@asha/renderer-three'],
+      deferredPublicPackages: ['@asha/studio-evidence', '@asha/runtime-bridge', '@asha/devtools', '@asha/renderer-three'],
     },
     panels: PANEL_MODELS,
     commandCatalog: catalog,

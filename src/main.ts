@@ -65,6 +65,22 @@ function renderApp(): void {
   palette.append(list);
   shell.append(palette);
 
+  const voxel = el('section', 'voxel-workflow');
+  voxel.setAttribute('aria-label', 'studio-voxel-workflow-readout');
+  voxel.append(el('h2', undefined, 'Voxel Inspect / Select / Preview / Apply'));
+  voxel.append(el('p', undefined, `Selected voxel: (${model.workspace.voxelWorkflow.evidence.selectedVoxel.x}, ${model.workspace.voxelWorkflow.evidence.selectedVoxel.y}, ${model.workspace.voxelWorkflow.evidence.selectedVoxel.z}) · face ${model.workspace.voxelWorkflow.evidence.selectedFace}`));
+  voxel.append(el('p', undefined, `Preview target: (${model.workspace.voxelWorkflow.evidence.editAnchor.x}, ${model.workspace.voxelWorkflow.evidence.editAnchor.y}, ${model.workspace.voxelWorkflow.evidence.editAnchor.z}) · command ${model.workspace.voxelWorkflow.evidence.typedVoxelCommands[0]?.op ?? 'none'}`));
+  voxel.append(el('p', undefined, `Apply result: accepted ${model.workspace.voxelWorkflow.evidence.acceptedCommandCount}; rejected ${model.workspace.voxelWorkflow.evidence.rejectedCommandCount}; before ${model.workspace.voxelWorkflow.evidence.authorityBeforeHash}; after ${model.workspace.voxelWorkflow.evidence.authorityAfterHash}`));
+  const gridReadout = el('div', 'voxel-grid');
+  for (const cell of model.workspace.voxelWorkflow.afterGrid) {
+    const cellNode = el('span', `voxel-cell${cell.selected ? ' voxel-cell--selected' : ''}${cell.preview !== null ? ' voxel-cell--preview' : ''}${cell.changed ? ' voxel-cell--changed' : ''}`);
+    cellNode.textContent = cell.after.kind === 'solid' ? String(cell.after.material) : '·';
+    cellNode.title = `(${cell.coord.x},${cell.coord.y},${cell.coord.z}) before=${cell.before.kind} after=${cell.after.kind}`;
+    gridReadout.append(cellNode);
+  }
+  voxel.append(gridReadout);
+  shell.append(voxel);
+
   const timeline = el('section', 'timeline-preview');
   timeline.setAttribute('aria-label', 'studio-command-timeline-readout');
   timeline.append(el('h2', undefined, 'Command Timeline'));

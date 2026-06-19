@@ -2,15 +2,19 @@
   "schemaVersion": 1,
   "summary": "ASHA Studio may consume approved public ASHA package roots only. Request new public ASHA surfaces in ASHA instead of importing internals or raw transports.",
   "allowedSourceImports": [
-    "@asha/command-registry"
+    "@asha/command-registry",
+    "@asha/contracts",
+    "@asha/editor-tools"
   ],
   "allowedLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
-    "@asha/contracts": "link:../asha/ts/packages/contracts"
+    "@asha/contracts": "link:../asha/ts/packages/contracts",
+    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools"
   },
   "requiredLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
-    "@asha/contracts": "link:../asha/ts/packages/contracts"
+    "@asha/contracts": "link:../asha/ts/packages/contracts",
+    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools"
   },
   "forbiddenPackages": [
     "@asha/native-bridge",

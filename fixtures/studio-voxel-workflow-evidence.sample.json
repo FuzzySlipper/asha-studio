@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "voxel_workflow_evidence",
+  "artifactId": "artifact-voxel-workflow-0001",
+  "sessionId": "session-preview-0001",
+  "scenarioId": "voxel-basic",
+  "selectedVoxel": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "selectedFace": "posX",
+  "editAnchor": {
+    "x": 1,
+    "y": 0,
+    "z": 0
+  },
+  "commandId": "authority.voxel.apply_brush",
+  "previewCommandId": "preview.voxel_brush",
+  "selectionCommandId": "selection.voxel_from_screen_point",
+  "typedVoxelCommands": [
+    {
+      "op": "setVoxel",
+      "grid": 0,
+      "coord": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      },
+      "value": {
+        "kind": "solid",
+        "material": 1
+      }
+    }
+  ],
+  "acceptedCommandCount": 1,
+  "rejectedCommandCount": 0,
+  "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+  "authorityAfterHash": "grid-fnv1a-8eb9594b",
+  "previewTargets": [
+    {
+      "x": 1,
+      "y": 0,
+      "z": 0
+    }
+  ],
+  "changedVoxels": [
+    {
+      "x": 1,
+      "y": 0,
+      "z": 0
+    }
+  ],
+  "meshEvidence": {
+    "beforeOccupiedCount": 1,
+    "afterOccupiedCount": 2,
+    "beforeSummary": "1 occupied voxel before apply.",
+    "afterSummary": "2 occupied voxel(s) after apply."
+  },
+  "renderEvidence": {
+    "beforeRenderHash": "render-grid-fnv1a-cc815eb0",
+    "afterRenderHash": "render-grid-fnv1a-8eb9594b",
+    "visualState": "changed",
+    "summary": "Preview/apply visibly fills voxel (1, 0, 0)."
+  },
+  "diagnostics": [],
+  "compatibility": {
+    "contractsVersion": "contracts.v0",
+    "commandRegistryVersion": "command-registry.v0",
+    "studioEvidenceVersion": "studio-evidence.deferred-v0",
+    "runtimeBridgeVersion": null,
+    "ashaCommit": null,
+    "ashaPackageVersions": [
+      {
+        "packageName": "@asha/contracts",
+        "version": "0.1.0",
+        "commit": null
+      },
+      {
+        "packageName": "@asha/command-registry",
+        "version": "0.1.0",
+        "commit": null
+      },
+      {
+        "packageName": "@asha/editor-tools",
+        "version": "0.1.0",
+        "commit": null
+      }
+    ],
+    "studioCommit": null,
+    "supportedRuntimeModes": [
+      "mock",
+      "reference",
+      "unavailable"
+    ]
+  }
+}

@@ -23,14 +23,90 @@
         "packageName": "@asha/command-registry",
         "version": "0.1.0",
         "commit": null
+      },
+      {
+        "packageName": "@asha/editor-tools",
+        "version": "0.1.0",
+        "commit": null
       }
     ],
     "studioCommit": null,
-    "supportedRuntimeModes": ["mock", "reference", "unavailable"]
+    "supportedRuntimeModes": [
+      "mock",
+      "reference",
+      "unavailable"
+    ]
   },
-  "capabilities": [],
+  "capabilities": [
+    {
+      "commandId": "session.list_scenarios",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "session.start",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "session.load_scenario",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "inspection.session_status",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "inspection.world_summary",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "inspection.editor_state",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "selection.voxel_from_screen_point",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "inspection.voxel",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "preview.voxel_brush",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "authority.voxel.apply_brush",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "inspection.last_command_result",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "render.capture_before_after",
+      "available": true,
+      "degradedReason": null
+    },
+    {
+      "commandId": "export.agent_readout",
+      "available": true,
+      "degradedReason": null
+    }
+  ],
   "knownLimitations": [
-    "Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface."
+    "Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface.",
+    "Studio evidence schema package is deferred; session metadata records compatibility only."
   ],
   "diagnostics": [
     {

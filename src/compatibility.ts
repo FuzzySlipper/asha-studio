@@ -117,6 +117,16 @@ export const ASHA_COMPATIBILITY_REQUIREMENTS: readonly StudioCompatibilityRequir
     source: 'ts/packages/command-registry/package.json asha.compatibility.version plus COMMAND_CATALOG.commandRegistryVersion',
   },
   {
+    packageName: '@asha/editor-tools',
+    compatibilityVersion: 'editor-tools.v0',
+    packageVersion: '0.1.0',
+    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/editor-tools`,
+    requiredForStartup: true,
+    presentInStudio: true,
+    owningLane: 'ts-shell',
+    source: 'ts/packages/editor-tools/package.json plus public editor tool proposal helpers',
+  },
+  {
     packageName: '@asha/runtime-bridge',
     compatibilityVersion: 'runtime-bridge.v0',
     packageVersion: '0.1.0',
