@@ -64,6 +64,12 @@ Task `asha#2734` adds the first visible voxel workflow in the Studio mock/refere
 
 Preview remains editor-local and reports `authority unchanged`; the apply step is the only authority-mutating timeline row and records accepted/rejected counts plus deterministic before/after evidence hashes. Native `@asha/runtime-bridge` execution remains deferred until that public surface is approved for Studio.
 
+## Visual evidence and review export workflow
+
+Task `asha#2735` adds review-grade software visual evidence for the V1 Studio path. The workspace now records a classified `software_snapshot` before/after visual evidence ref, stable relative before/after artifact paths, render hashes, command-sequence correlation, and a fail-closed `review_export` artifact. The export validates that timeline/results are current, visual evidence exists, before/after render hashes changed, and ASHA compatibility evidence is present before reporting `captureReadiness: "ready"`.
+
+This is functional proof-content evidence only. It is intentionally not browser screenshot, Agora capture, hardware GPU, or performance evidence; those remain later capture-backend tasks.
+
 ## Verification
 
 ```bash

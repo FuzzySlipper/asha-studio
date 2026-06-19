@@ -25,6 +25,8 @@ test('studio workspace starts with a loaded scenario and visible shared timeline
     'selection.voxel_from_screen_point',
     'preview.voxel_brush',
     'authority.voxel.apply_brush',
+    'render.capture_before_after',
+    'export.agent_readout',
   ]);
   assert.ok(workspace.timeline.some((entry) => entry.requestedBy === 'agent'));
   assert.equal(workspace.commandResults.length, workspace.timeline.length);
@@ -128,6 +130,8 @@ test('sample agent readout fixture includes exported timeline and command result
     'selection.voxel_from_screen_point',
     'preview.voxel_brush',
     'authority.voxel.apply_brush',
+    'render.capture_before_after',
+    'export.agent_readout',
   ]);
   assert.ok(artifact.commandTimeline?.some((entry) => entry.requestedBy === 'agent'));
   assert.equal(artifact.commandResults?.length, artifact.commandTimeline?.length);

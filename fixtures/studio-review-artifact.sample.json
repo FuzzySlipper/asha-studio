@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "artifactKind": "agent_readout",
-  "artifactId": "artifact-agent-readout-0001",
-  "generatedAtIso": "1970-01-01T00:00:08.000Z",
+  "artifactKind": "review_export",
+  "artifactId": "artifact-review-export-0001",
+  "generatedAtIso": "1970-01-01T00:00:09.000Z",
   "session": {
     "schemaVersion": 1,
     "artifactKind": "session_metadata",
@@ -122,6 +122,48 @@
         "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
         "remediation": "Track the runtime bridge integration task before enabling command execution."
       }
+    ]
+  },
+  "studio": {
+    "repo": "FuzzySlipper/asha-studio",
+    "branch": null,
+    "commit": null,
+    "path": "/home/dev/asha-studio"
+  },
+  "asha": {
+    "repo": "asha",
+    "branch": null,
+    "commit": null,
+    "path": "/home/dev/asha"
+  },
+  "compatibility": {
+    "contractsVersion": "contracts.v0",
+    "commandRegistryVersion": "command-registry.v0",
+    "studioEvidenceVersion": "studio-evidence.deferred-v0",
+    "runtimeBridgeVersion": null,
+    "ashaCommit": null,
+    "ashaPackageVersions": [
+      {
+        "packageName": "@asha/contracts",
+        "version": "0.1.0",
+        "commit": null
+      },
+      {
+        "packageName": "@asha/command-registry",
+        "version": "0.1.0",
+        "commit": null
+      },
+      {
+        "packageName": "@asha/editor-tools",
+        "version": "0.1.0",
+        "commit": null
+      }
+    ],
+    "studioCommit": null,
+    "supportedRuntimeModes": [
+      "mock",
+      "reference",
+      "unavailable"
     ]
   },
   "commandCatalogHash": null,
@@ -1661,6 +1703,17 @@
       "byteLength": null,
       "producedBySequenceId": "seq-0007",
       "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
+    },
+    {
+      "artifactId": "artifact-review-export-0001",
+      "artifactKind": "review_export",
+      "pathKind": "relative_path",
+      "path": "artifacts/session-preview-0001/review-export.json",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0009",
+      "summary": "Review-grade export artifact with command timeline, state evidence, visual evidence refs, compatibility, and limitations."
     }
   ],
   "diagnostics": [
@@ -1714,8 +1767,9 @@
     }
   ],
   "knownLimitations": [
-    "Mock/reference session model with typed public VoxelCommand proposal/apply evidence.",
-    "Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content."
+    "Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence.",
+    "Native runtime bridge/browser screenshot capture remains deferred."
   ],
-  "reviewSummary": "9 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
+  "captureReadiness": "ready",
+  "reviewSummary": "9 command(s), 1 visual evidence item(s), and 9 artifact ref(s) ready for review."
 }

@@ -24,7 +24,7 @@
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 2734,
+    "task": 2735,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -37,7 +37,7 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
-      "Task 2734 provides a real visible voxel edit in the Studio mock/reference workspace using public typed VoxelCommand proposal/apply evidence; native runtime bridge execution remains deferred.",
+      "Task 2735 provides software_snapshot visual evidence and a fail-closed review_export artifact over the typed voxel workflow; native runtime bridge/browser capture remains deferred.",
       "@asha/studio-evidence is represented as a deferred public package until its implementation lands; this repo does not invent local artifact schemas."
     ]
   }

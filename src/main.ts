@@ -81,6 +81,25 @@ function renderApp(): void {
   voxel.append(gridReadout);
   shell.append(voxel);
 
+  const evidence = el('section', 'visual-evidence');
+  evidence.setAttribute('aria-label', 'studio-visual-evidence-review-export');
+  evidence.append(el('h2', undefined, 'Visual Evidence / Review Export'));
+  evidence.append(el('p', undefined, `Capture readiness: ${model.workspace.reviewArtifact.captureReadiness}; classification ${model.workspace.visualEvidence[0]?.evidenceClassification ?? 'unavailable'}; mode ${model.workspace.visualEvidence[0]?.captureMode ?? 'unavailable'}`));
+  evidence.append(el('p', undefined, `Review artifact: ${model.workspace.reviewArtifact.artifactId}; ${model.workspace.reviewArtifact.reviewSummary}`));
+  for (const visualRef of model.workspace.visualEvidence) {
+    const visualCard = el('div', 'visual-card');
+    visualCard.append(el('strong', undefined, visualRef.artifactId));
+    visualCard.append(el('span', 'command-id', visualRef.commandSequenceIds.join(', ')));
+    visualCard.append(el('p', undefined, visualRef.summary));
+    visualCard.append(el('p', undefined, `Before: ${visualRef.beforeArtifact?.path ?? 'missing'} · ${visualRef.beforeRenderHash ?? 'missing'}`));
+    visualCard.append(el('p', undefined, `After: ${visualRef.afterArtifact?.path ?? 'missing'} · ${visualRef.afterRenderHash ?? 'missing'}`));
+    evidence.append(visualCard);
+  }
+  for (const diagnostic of model.workspace.reviewArtifact.diagnostics.filter((item) => item.severity === 'error')) {
+    evidence.append(el('p', 'boundary-diagnostic', `${diagnostic.code}: ${diagnostic.message}`));
+  }
+  shell.append(evidence);
+
   const timeline = el('section', 'timeline-preview');
   timeline.setAttribute('aria-label', 'studio-command-timeline-readout');
   timeline.append(el('h2', undefined, 'Command Timeline'));

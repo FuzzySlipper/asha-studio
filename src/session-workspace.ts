@@ -5,11 +5,13 @@ import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
 import { createVoxelWorkflowModel } from './voxel-workflow';
 import type { StudioVoxelWorkflowModel } from './voxel-workflow';
+import { createStudioReviewArtifact, createVisualEvidenceForVoxelWorkflow } from './visual-evidence';
+import type { StudioReviewArtifact, StudioVisualEvidenceRef } from './visual-evidence';
 
 export type StudioActorKind = 'gui' | 'agent' | 'test' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded' | 'unavailable';
 export type StudioCommandStatus = 'ok' | 'rejected' | 'partial' | 'failed' | 'unavailable';
-export type StudioArtifactKind = 'session_metadata' | 'command_invocation' | 'command_result' | 'timeline' | 'state_evidence' | 'agent_readout';
+export type StudioArtifactKind = 'session_metadata' | 'command_invocation' | 'command_result' | 'timeline' | 'state_evidence' | 'selection_evidence' | 'visual_before_after' | 'render_evidence' | 'screenshot' | 'agent_readout' | 'review_export';
 export type StudioArtifactPathKind = 'relative_path' | 'absolute_path' | 'url' | 'inline_summary';
 
 export interface StudioScenarioSummary {
@@ -168,7 +170,7 @@ export interface StudioAgentReadoutArtifact {
   readonly commandTimeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
   readonly finalState: StudioStateEvidence;
-  readonly visualEvidence: readonly [];
+  readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly knownLimitations: readonly string[];
@@ -183,6 +185,8 @@ export interface StudioWorkspaceModel {
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
   readonly voxelWorkflow: StudioVoxelWorkflowModel;
+  readonly visualEvidence: readonly StudioVisualEvidenceRef[];
+  readonly reviewArtifact: StudioReviewArtifact;
   readonly exportedReadout: StudioAgentReadoutArtifact;
 }
 
@@ -270,6 +274,8 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
       return { kind: 'ok' };
     case 'inspection.session_status':
       return { sessionId, status };
+    case 'render.capture_before_after':
+      return { artifactId: 'artifact-visual-before-after-0001', commandCount };
     case 'export.agent_readout':
       return { artifactId: 'artifact-agent-readout-0001', commandCount };
     default:
@@ -296,7 +302,13 @@ function artifactFor(command: StudioCommandCatalogEntry, sequence: string): read
   if (command.artifacts.length === 0) return [];
   return command.artifacts.map((artifact, index) => ({
     artifactId: `artifact-${sequence}-${index + 1}`,
-    artifactKind: artifact.type === 'agent_readout' ? 'agent_readout' : artifact.type === 'command_result' ? 'command_result' : 'state_evidence',
+    artifactKind: artifact.type === 'agent_readout'
+      ? 'agent_readout'
+      : artifact.type === 'command_result'
+        ? 'command_result'
+        : artifact.type === 'render_before_after'
+          ? 'visual_before_after'
+          : 'state_evidence',
     pathKind: 'inline_summary',
     path: `${artifact.type}:${sequence}`,
     mediaType: 'application/json',
@@ -388,9 +400,12 @@ export function createAgentReadoutArtifact(options: {
   readonly results: readonly StudioCommandResult[];
   readonly generatedAtIso: string;
   readonly knownLimitations: readonly string[];
+  readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
   const finalState = options.results.at(-1)?.state ?? stateEvidence(options.session.compatibility, 'editor.v0.0');
-  const exportedArtifacts = options.results.flatMap((result) => result.artifacts);
+  const visualEvidence = options.visualEvidence ?? [];
+  const visualArtifacts = visualEvidence.flatMap((evidence) => [evidence.beforeArtifact, evidence.afterArtifact].filter((artifact): artifact is StudioArtifactRef => artifact !== null));
+  const exportedArtifacts = [...options.results.flatMap((result) => result.artifacts), ...visualArtifacts];
   return {
     schemaVersion: 1,
     artifactKind: 'agent_readout',
@@ -401,7 +416,7 @@ export function createAgentReadoutArtifact(options: {
     commandTimeline: options.timeline,
     commandResults: options.results,
     finalState,
-    visualEvidence: [],
+    visualEvidence,
     exportedArtifacts,
     diagnostics: [...options.session.diagnostics, ...options.results.flatMap((result) => result.diagnostics)],
     knownLimitations: options.knownLimitations,
@@ -452,12 +467,30 @@ export function createStudioWorkspaceModel(options: {
   });
   timeline.push(...voxelWorkflow.timelineEntries);
   results.push(...voxelWorkflow.commandResults);
+  const visualEvidence = createVisualEvidenceForVoxelWorkflow(voxelWorkflow);
+  for (const request of [
+    { commandId: 'render.capture_before_after' as const, requestedBy: 'gui' as const, sourceLabel: 'Evidence panel', input: { sessionId: session.sessionId, includeVisualEvidence: true }, requestedAtIso: '1970-01-01T00:00:07.000Z', completedAtIso: '1970-01-01T00:00:07.000Z' },
+    { commandId: 'export.agent_readout' as const, requestedBy: 'agent' as const, sourceLabel: 'Review export', input: { sessionId: session.sessionId, includeVisualEvidence: true }, requestedAtIso: '1970-01-01T00:00:08.000Z', completedAtIso: '1970-01-01T00:00:08.000Z' },
+  ] satisfies readonly StudioCommandRequest[]) {
+    const executed = invokeStudioCommand({ catalog, session, request, sequenceIndex: timeline.length, status, previousResults: results });
+    timeline.push(executed.timelineEntry);
+    results.push(executed.result);
+  }
+  const reviewArtifact = createStudioReviewArtifact({
+    session,
+    timeline,
+    results,
+    visualEvidence,
+    generatedAtIso: '1970-01-01T00:00:09.000Z',
+    knownLimitations: ['Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence.', 'Native runtime bridge/browser screenshot capture remains deferred.'],
+  });
   const readout = createAgentReadoutArtifact({
     session,
     timeline,
     results,
+    visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
-    knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge execution is deferred; before/after hashes are deterministic Studio evidence hashes.'],
+    knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.'],
   });
   return {
     session,
@@ -467,6 +500,8 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     commandResults: results,
     voxelWorkflow,
+    visualEvidence,
+    reviewArtifact,
     exportedReadout: readout,
   };
 }

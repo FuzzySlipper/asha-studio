@@ -74,8 +74,8 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
   {
     id: 'evidence',
     title: 'Evidence / Export',
-    summary: 'Reserved for before/after visual evidence and review artifact export.',
-    status: 'deferred',
+    summary: 'Shows before/after software visual evidence and the fail-closed review export artifact.',
+    status: 'ready',
     automationLabel: 'studio-panel-evidence-export',
   },
 ] as const;
@@ -126,8 +126,8 @@ export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_C
     workspace,
     knownLimitations: [
       'Runtime bridge command execution is deferred; session/timeline entries are mock/reference structured readouts.',
-      'Evidence/export panel is present but waits for @asha/studio-evidence implementation.',
-      'Viewport is a public renderer placeholder; screenshots/render artifacts are evidence only, never authority.',
+      'Visual evidence is software_snapshot proof content with stable before/after refs, not browser/GPU/performance evidence.',
+      'Native browser/Agora screenshot capture is reserved for a later capture-backend task.',
     ],
   };
 }

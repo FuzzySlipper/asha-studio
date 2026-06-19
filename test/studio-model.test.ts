@@ -32,7 +32,7 @@ test('studio boundary model forbids internals and records deferred public packag
   assert.deepEqual(model.ashaBoundary.allowedImports, ['@asha/command-registry', '@asha/contracts', '@asha/editor-tools']);
   assert.ok(model.ashaBoundary.deferredPublicPackages.includes('@asha/studio-evidence'));
   assert.ok(model.ashaBoundary.forbiddenImportExamples.includes('@asha/native-bridge'));
-  assert.ok(model.knownLimitations.some((limitation) => limitation.includes('@asha/studio-evidence')));
+  assert.ok(model.knownLimitations.some((limitation) => limitation.includes('software_snapshot')));
 });
 
 test('timeline preview reflects executed workspace commands', () => {
