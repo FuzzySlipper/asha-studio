@@ -1,8 +1,9 @@
 import { COMMAND_CATALOG } from '@asha/command-registry';
 import type { StudioCommandCatalog, StudioCommandCatalogEntry } from '@asha/command-registry';
 
-import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
+import { createStudioWorkspaceModel } from './session-workspace';
+import type { StudioWorkspaceModel } from './session-workspace';
 
 export type StudioPanelId = 'scenario' | 'viewport' | 'palette' | 'timeline' | 'inspector' | 'evidence';
 
@@ -31,14 +32,15 @@ export interface StudioShellModel {
   readonly compatibility: StudioCompatibilityEvidence;
   readonly compatibilityDiagnostics: readonly StudioDiagnostic[];
   readonly sessionMetadata: StudioSessionMetadata;
+  readonly workspace: StudioWorkspaceModel;
 }
 
 const PANEL_MODELS: readonly StudioPanelModel[] = [
   {
     id: 'scenario',
     title: 'Scenario / Session',
-    summary: 'Select or load a named ASHA studio scenario before command execution is wired.',
-    status: 'placeholder',
+    summary: 'Active mock/reference workspace with a loaded named ASHA studio scenario and shared command timeline.',
+    status: 'ready',
     automationLabel: 'studio-panel-scenario-session',
   },
   {
@@ -59,14 +61,14 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
     id: 'timeline',
     title: 'Command Timeline',
     summary: 'Visible audit surface for sequence id, actor, status, diagnostics, artifacts, and retry/undo posture.',
-    status: 'placeholder',
+    status: 'ready',
     automationLabel: 'studio-panel-command-timeline',
   },
   {
     id: 'inspector',
     title: 'Inspector / Readout',
-    summary: 'Reserved for world, selection, and command-result readouts through public ASHA packages.',
-    status: 'placeholder',
+    summary: 'Shows session, scenario, and latest structured command-result readouts from the shared timeline.',
+    status: 'ready',
     automationLabel: 'studio-panel-inspector-readout',
   },
   {
@@ -97,16 +99,14 @@ export function buildTimelinePreview(commands: readonly StudioCommandCatalogEntr
   });
 }
 
+export function buildWorkspaceTimelinePreview(workspace: StudioWorkspaceModel): readonly string[] {
+  return workspace.timeline.map((entry) => `${entry.sequenceId} · ${entry.requestedBy} · ${entry.commandId} · ${entry.status} · ${entry.outputSummary}`);
+}
+
 export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_CATALOG): StudioShellModel {
   const visibleCommands = getVisibleCommands(catalog);
-  const sessionMetadata = createStudioSessionMetadata({
-    sessionId: 'session-preview-0001',
-    scenarioId: 'scenario-placeholder',
-    scenarioLabel: 'Placeholder Studio scenario',
-    runtimeMode: 'mock',
-    startedAtIso: '1970-01-01T00:00:00.000Z',
-    catalog,
-  });
+  const workspace = createStudioWorkspaceModel({ catalog });
+  const sessionMetadata = workspace.session;
   return {
     appTitle: 'ASHA Studio',
     repoRole: 'frontend-heavy-public-consumer',
@@ -118,13 +118,14 @@ export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_C
     panels: PANEL_MODELS,
     commandCatalog: catalog,
     visibleCommands,
-    timelinePreview: buildTimelinePreview(visibleCommands),
+    timelinePreview: buildWorkspaceTimelinePreview(workspace),
     runtimeMode: sessionMetadata.runtimeMode,
     compatibility: sessionMetadata.compatibility,
     compatibilityDiagnostics: sessionMetadata.diagnostics,
     sessionMetadata,
+    workspace,
     knownLimitations: [
-      'Shell-only: command execution and runtime session lifecycle are follow-up tasks.',
+      'Runtime bridge command execution is deferred; session/timeline entries are mock/reference structured readouts.',
       'Evidence/export panel is present but waits for @asha/studio-evidence implementation.',
       'Viewport is a public renderer placeholder; screenshots/render artifacts are evidence only, never authority.',
     ],

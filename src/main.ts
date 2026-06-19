@@ -37,6 +37,8 @@ function renderApp(): void {
   boundary.append(el('p', undefined, `Deferred public packages: ${model.ashaBoundary.deferredPublicPackages.join(', ')}`));
   boundary.append(el('p', undefined, `Forbidden examples: ${model.ashaBoundary.forbiddenImportExamples.join(', ')}`));
   boundary.append(el('p', undefined, `Compatibility: contracts ${model.compatibility.contractsVersion}; command registry ${model.compatibility.commandRegistryVersion}; runtime bridge ${model.compatibility.runtimeBridgeVersion ?? 'deferred'}; mode ${model.runtimeMode}`));
+  boundary.append(el('p', undefined, `Active workspace: ${model.workspace.session.sessionId}; ${model.workspace.scenario.label}; status ${model.workspace.status}`));
+  boundary.append(el('p', undefined, `Export readout: ${model.workspace.exportedReadout.artifactId}; ${model.workspace.exportedReadout.commandTimeline.length} timeline entries`));
   for (const diagnostic of model.compatibilityDiagnostics) {
     boundary.append(el('p', 'boundary-diagnostic', `${diagnostic.severity}: ${diagnostic.code} — ${diagnostic.message}`));
   }
@@ -64,11 +66,16 @@ function renderApp(): void {
   shell.append(palette);
 
   const timeline = el('section', 'timeline-preview');
-  timeline.setAttribute('aria-label', 'studio-timeline-preview');
-  timeline.append(el('h2', undefined, 'Timeline Preview'));
+  timeline.setAttribute('aria-label', 'studio-command-timeline-readout');
+  timeline.append(el('h2', undefined, 'Command Timeline'));
   const timelineList = el('ul');
-  for (const entry of model.timelinePreview) {
-    timelineList.append(el('li', undefined, entry));
+  for (const entry of model.workspace.timeline) {
+    const row = el('li');
+    row.append(el('strong', undefined, `${entry.sequenceId} · ${entry.label}`));
+    row.append(el('span', 'command-id', `${entry.commandId} · ${entry.requestedBy} · ${entry.status}`));
+    row.append(el('span', 'command-meta', `${entry.operationClass} · ${entry.menuPath.join(' / ')}`));
+    row.append(el('p', undefined, `${entry.inputSummary} → ${entry.outputSummary}`));
+    timelineList.append(row);
   }
   timeline.append(timelineList);
   shell.append(timeline);

@@ -52,6 +52,12 @@ Task `asha#2732` adds startup/session compatibility readback for public ASHA sur
 
 Native/WASM runtime modes fail closed until runtime bridge compatibility metadata is present. Update `src/compatibility.ts`, `fixtures/studio-session-metadata.sample.json`, and the compatibility tests when ASHA generated contracts, command registry compatibility, or runtime bridge compatibility changes.
 
+## Session workspace and command timeline
+
+Task `asha#2733` adds a mock/reference Studio workspace model with a shared human/agent command timeline. The shell now starts a deterministic preview session, loads the `voxel-basic` scenario through the same command registry path used for agent-originated calls, records structured command results, and exports `fixtures/studio-agent-readout.sample.json`.
+
+Current supported readout commands are session/workspace oriented: `session.start`, `session.load_scenario`, and `inspection.session_status`. Runtime bridge/native execution and visual evidence capture remain deferred, but the exported readout already includes session metadata, compatibility metadata, command timeline entries, command results, state evidence placeholders, diagnostics, artifact refs, and known limitations.
+
 ## Verification
 
 ```bash

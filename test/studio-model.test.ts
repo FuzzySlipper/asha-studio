@@ -35,9 +35,10 @@ test('studio boundary model forbids internals and records deferred public packag
   assert.ok(model.knownLimitations.some((limitation) => limitation.includes('@asha/studio-evidence')));
 });
 
-test('timeline preview is a projection, not command execution', () => {
+test('timeline preview reflects executed workspace commands', () => {
   const model = createStudioShellModel();
   assert.ok(model.timelinePreview.length > 0);
   assert.ok(model.timelinePreview.every((entry) => entry.startsWith('seq-')));
-  assert.ok(model.knownLimitations.some((limitation) => limitation.includes('Shell-only')));
+  assert.equal(model.workspace.timeline.length, model.timelinePreview.length);
+  assert.ok(model.workspace.exportedReadout.commandTimeline.length > 0);
 });
