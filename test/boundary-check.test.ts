@@ -87,6 +87,17 @@ test('boundary checker rejects explicitly forbidden raw package imports', () => 
   }
 });
 
+test('boundary checker rejects missing required ASHA public surfaces', () => {
+  const root = makeFixture("import { COMMAND_CATALOG } from '@asha/command-registry';\nconsole.log(COMMAND_CATALOG);\n", {
+    '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+  });
+  try {
+    assertRejected(root, /missing required ASHA public surface @asha\/contracts/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('boundary checker rejects dynamic imports and CommonJS requires', () => {
   const root = makeFixture(`
     async function load() { return import('${'@asha/command-registry'}/src/internal'); }

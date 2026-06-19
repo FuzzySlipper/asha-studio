@@ -8,6 +8,7 @@ const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 const configExts = new Set(['.json', '.yaml', '.yml', '.toml']);
 const allowedAshaImports = new Set(policy.allowedSourceImports);
 const allowedLocalPackageLinks = new Map(Object.entries(policy.allowedLocalPackageLinks));
+const requiredLocalPackageLinks = new Map(Object.entries(policy.requiredLocalPackageLinks ?? {}));
 const forbiddenPackageImports = new Set(policy.forbiddenPackages);
 const docsOnlyFiles = new Set(policy.docsOnlyFiles);
 const allowedConfigPathFiles = new Set(policy.allowedConfigPathFiles);
@@ -50,6 +51,15 @@ function validatePackageJson() {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   for (const sectionPath of policy.dependencySections) {
     validatePackageSection(pkg, sectionPath);
+  }
+  const dependencies = pkg.dependencies ?? {};
+  if (dependencies === null || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
+    throw new Error('package.json dependencies must be an object because ASHA public surfaces are required');
+  }
+  for (const [name, version] of requiredLocalPackageLinks) {
+    if (dependencies[name] !== version) {
+      throw new Error(`package.json dependencies is missing required ASHA public surface ${name}@${version}; do not claim compatibility without the package-root link`);
+    }
   }
 }
 

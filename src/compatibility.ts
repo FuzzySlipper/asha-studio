@@ -1,6 +1,8 @@
 import { COMMAND_CATALOG } from '@asha/command-registry';
 import type { StudioCommandCatalog } from '@asha/command-registry';
 
+import studioPackageJson from '../package.json';
+
 export type StudioRuntimeMode = 'native' | 'wasm' | 'reference' | 'mock' | 'degraded' | 'unavailable';
 export type StudioDiagnosticSeverity = 'info' | 'warning' | 'error';
 
@@ -41,6 +43,7 @@ export interface StudioCompatibilityRequirement {
   readonly packageName: string;
   readonly compatibilityVersion: string;
   readonly packageVersion: string | null;
+  readonly packageLink: string | null;
   readonly requiredForStartup: boolean;
   readonly presentInStudio: boolean;
   readonly owningLane: StudioDiagnostic['owningLane'];
@@ -71,14 +74,33 @@ export interface CompatibilityCheckResult {
   readonly diagnostics: readonly StudioDiagnostic[];
 }
 
+interface StudioPackageJsonLike {
+  readonly dependencies?: Readonly<Record<string, string>>;
+  readonly devDependencies?: Readonly<Record<string, string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
+  readonly optionalDependencies?: Readonly<Record<string, string>>;
+}
+
+export interface StudioPackageSurfaceReadback {
+  readonly presentPackageVersions: readonly StudioAshaPackageVersion[];
+  readonly missingRequiredPackages: readonly StudioCompatibilityRequirement[];
+  readonly mismatchedRequiredPackages: readonly {
+    readonly requirement: StudioCompatibilityRequirement;
+    readonly actualLink: string;
+  }[];
+}
+
 export const STUDIO_EVIDENCE_DEFERRED_VERSION = 'studio-evidence.deferred-v0';
 export const SUPPORTED_RUNTIME_MODES: readonly StudioRuntimeMode[] = ['mock', 'reference', 'unavailable'];
+
+const ASHA_PACKAGE_LINK_ROOT = ['link:..', 'asha', 'ts', 'packages'].join('/');
 
 export const ASHA_COMPATIBILITY_REQUIREMENTS: readonly StudioCompatibilityRequirement[] = [
   {
     packageName: '@asha/contracts',
     compatibilityVersion: 'contracts.v0',
     packageVersion: '0.1.0',
+    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/contracts`,
     requiredForStartup: true,
     presentInStudio: true,
     owningLane: 'contract-steward',
@@ -88,6 +110,7 @@ export const ASHA_COMPATIBILITY_REQUIREMENTS: readonly StudioCompatibilityRequir
     packageName: '@asha/command-registry',
     compatibilityVersion: 'command-registry.v0',
     packageVersion: '0.1.0',
+    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/command-registry`,
     requiredForStartup: true,
     presentInStudio: true,
     owningLane: 'ts-command-registry',
@@ -97,6 +120,7 @@ export const ASHA_COMPATIBILITY_REQUIREMENTS: readonly StudioCompatibilityRequir
     packageName: '@asha/runtime-bridge',
     compatibilityVersion: 'runtime-bridge.v0',
     packageVersion: '0.1.0',
+    packageLink: null,
     requiredForStartup: false,
     presentInStudio: false,
     owningLane: 'rust-bridge',
@@ -115,33 +139,80 @@ function diagnostic(
   return { severity, code, message, owningLane, source, remediation };
 }
 
-function packageVersionsFromRequirements(requirements: readonly StudioCompatibilityRequirement[]): readonly StudioAshaPackageVersion[] {
-  return requirements
-    .filter((requirement) => requirement.presentInStudio && requirement.packageVersion !== null)
-    .map((requirement) => ({
+function packageSections(packageJson: StudioPackageJsonLike): readonly Readonly<Record<string, string>>[] {
+  return [
+    packageJson.dependencies ?? {},
+    packageJson.devDependencies ?? {},
+    packageJson.peerDependencies ?? {},
+    packageJson.optionalDependencies ?? {},
+  ];
+}
+
+function findDeclaredPackageLink(packageJson: StudioPackageJsonLike, packageName: string): string | undefined {
+  for (const section of packageSections(packageJson)) {
+    const value = section[packageName];
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+export function readStudioPackageSurfaces(
+  requirements: readonly StudioCompatibilityRequirement[] = ASHA_COMPATIBILITY_REQUIREMENTS,
+  packageJson: StudioPackageJsonLike = studioPackageJson,
+): StudioPackageSurfaceReadback {
+  const presentPackageVersions: StudioAshaPackageVersion[] = [];
+  const missingRequiredPackages: StudioCompatibilityRequirement[] = [];
+  const mismatchedRequiredPackages: { requirement: StudioCompatibilityRequirement; actualLink: string }[] = [];
+
+  for (const requirement of requirements) {
+    if (!requirement.presentInStudio || requirement.packageVersion === null) continue;
+    const actualLink = findDeclaredPackageLink(packageJson, requirement.packageName);
+    if (actualLink === undefined) {
+      if (requirement.requiredForStartup) missingRequiredPackages.push(requirement);
+      continue;
+    }
+    if (requirement.packageLink !== null && actualLink !== requirement.packageLink) {
+      if (requirement.requiredForStartup) mismatchedRequiredPackages.push({ requirement, actualLink });
+      continue;
+    }
+    presentPackageVersions.push({
       packageName: requirement.packageName,
-      version: requirement.packageVersion ?? 'unknown',
+      version: requirement.packageVersion,
       commit: null,
-    }));
+    });
+  }
+
+  return { presentPackageVersions, missingRequiredPackages, mismatchedRequiredPackages };
+}
+
+function compatibilityVersionForPresentPackage(
+  readback: StudioPackageSurfaceReadback,
+  requirements: readonly StudioCompatibilityRequirement[],
+  packageName: string,
+): string {
+  const requirement = requirements.find((item) => item.packageName === packageName);
+  if (requirement === undefined) return 'missing';
+  return readback.presentPackageVersions.some((item) => item.packageName === packageName) ? requirement.compatibilityVersion : 'missing';
 }
 
 export function buildCurrentCompatibilityEvidence(options: {
   readonly catalog?: StudioCommandCatalog;
   readonly requirements?: readonly StudioCompatibilityRequirement[];
+  readonly packageJson?: StudioPackageJsonLike;
   readonly ashaCommit?: string | null;
   readonly studioCommit?: string | null;
 } = {}): StudioCompatibilityEvidence {
   const catalog = options.catalog ?? COMMAND_CATALOG;
   const requirements = options.requirements ?? ASHA_COMPATIBILITY_REQUIREMENTS;
-  const contracts = requirements.find((requirement) => requirement.packageName === '@asha/contracts');
+  const readback = readStudioPackageSurfaces(requirements, options.packageJson ?? studioPackageJson);
   const runtimeBridge = requirements.find((requirement) => requirement.packageName === '@asha/runtime-bridge');
   return {
-    contractsVersion: contracts?.compatibilityVersion ?? 'missing',
-    commandRegistryVersion: catalog.commandRegistryVersion,
+    contractsVersion: compatibilityVersionForPresentPackage(readback, requirements, '@asha/contracts'),
+    commandRegistryVersion: readback.presentPackageVersions.some((item) => item.packageName === '@asha/command-registry') ? catalog.commandRegistryVersion : 'missing',
     studioEvidenceVersion: STUDIO_EVIDENCE_DEFERRED_VERSION,
-    runtimeBridgeVersion: runtimeBridge?.presentInStudio === true ? runtimeBridge.compatibilityVersion : null,
+    runtimeBridgeVersion: runtimeBridge?.presentInStudio === true && readback.presentPackageVersions.some((item) => item.packageName === '@asha/runtime-bridge') ? runtimeBridge.compatibilityVersion : null,
     ashaCommit: options.ashaCommit ?? null,
-    ashaPackageVersions: packageVersionsFromRequirements(requirements),
+    ashaPackageVersions: readback.presentPackageVersions,
     studioCommit: options.studioCommit ?? null,
     supportedRuntimeModes: SUPPORTED_RUNTIME_MODES,
   };
@@ -213,7 +284,16 @@ export function checkCompatibility(
   for (const requirement of requirements) {
     if (!requirement.requiredForStartup) continue;
     const packageVersion = evidence.ashaPackageVersions.find((item) => item.packageName === requirement.packageName);
-    if (packageVersion === undefined || packageVersion.version !== requirement.packageVersion) {
+    if (packageVersion === undefined) {
+      diagnostics.push(diagnostic(
+        'error',
+        'asha.compatibility.required_surface_missing',
+        `Required ASHA public surface ${requirement.packageName} is missing from Studio package metadata.`,
+        requirement.owningLane,
+        requirement.source,
+        `Add ${requirement.packageName}${requirement.packageLink === null ? '' : ` as ${requirement.packageLink}`} before claiming this compatibility surface.`,
+      ));
+    } else if (packageVersion.version !== requirement.packageVersion) {
       diagnostics.push(diagnostic(
         'error',
         'asha.compatibility.package_version_mismatch',
@@ -240,10 +320,11 @@ export function createStudioSessionMetadata(options: {
   readonly endedAtIso?: string | null;
   readonly catalog?: StudioCommandCatalog;
   readonly compatibility?: StudioCompatibilityEvidence;
+  readonly packageJson?: StudioPackageJsonLike;
   readonly knownLimitations?: readonly string[];
 }): StudioSessionMetadata {
   const catalog = options.catalog ?? COMMAND_CATALOG;
-  const compatibility = options.compatibility ?? buildCurrentCompatibilityEvidence({ catalog });
+  const compatibility = options.compatibility ?? buildCurrentCompatibilityEvidence(options.packageJson === undefined ? { catalog } : { catalog, packageJson: options.packageJson });
   const compatibilityCheck = checkCompatibility(compatibility, options.runtimeMode);
   return {
     schemaVersion: 1,

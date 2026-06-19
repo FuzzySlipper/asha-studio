@@ -13,6 +13,7 @@ import {
 import type { StudioCompatibilityEvidence } from '../src/compatibility';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const ashaPackageLinkRoot = ['link:..', 'asha', 'ts', 'packages'].join('/');
 
 function cloneEvidence(overrides: Partial<StudioCompatibilityEvidence> = {}): StudioCompatibilityEvidence {
   return {
@@ -58,6 +59,42 @@ test('native runtime mode fails closed until runtime bridge metadata is present'
   assert.equal(result.ok, false);
   assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.unsupported_runtime_mode'));
   assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.runtime_bridge_missing'));
+});
+
+test('missing required package surface fails closed in generated evidence', () => {
+  const evidence = buildCurrentCompatibilityEvidence({
+    packageJson: {
+      dependencies: {
+        '@asha/command-registry': `${ashaPackageLinkRoot}/command-registry`,
+      },
+    },
+  });
+  assert.equal(evidence.contractsVersion, 'missing');
+  assert.deepEqual(
+    evidence.ashaPackageVersions.map((item) => item.packageName),
+    ['@asha/command-registry'],
+  );
+  const result = checkCompatibility(evidence, 'mock');
+  assert.equal(result.ok, false);
+  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.required_surface_missing'));
+  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.contracts_mismatch'));
+});
+
+test('session metadata fails closed when required package surface is absent', () => {
+  const metadata = createStudioSessionMetadata({
+    sessionId: 'session-missing-contracts',
+    scenarioId: 'scenario-test',
+    scenarioLabel: 'Test scenario',
+    runtimeMode: 'mock',
+    startedAtIso: '1970-01-01T00:00:00.000Z',
+    packageJson: {
+      dependencies: {
+        '@asha/command-registry': `${ashaPackageLinkRoot}/command-registry`,
+      },
+    },
+  });
+  assert.ok(metadata.capabilities.every((capability) => !capability.available));
+  assert.ok(metadata.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.required_surface_missing'));
 });
 
 test('required package version mismatch fails closed', () => {

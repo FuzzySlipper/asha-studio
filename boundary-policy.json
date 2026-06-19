@@ -8,6 +8,10 @@
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts"
   },
+  "requiredLocalPackageLinks": {
+    "@asha/command-registry": "link:../asha/ts/packages/command-registry",
+    "@asha/contracts": "link:../asha/ts/packages/contracts"
+  },
   "forbiddenPackages": [
     "@asha/native-bridge",
     "@asha/wasm-replay-bridge"

@@ -64,5 +64,5 @@ git diff --check
 
 ## Known limitations
 
-- Command execution, runtime/session lifecycle, compatibility metadata, timeline persistence, real voxel workflow, visual evidence capture, and review export are planned follow-up tasks.
+- Command execution, runtime/session lifecycle, native/WASM runtime-bridge integration, timeline persistence, real voxel workflow, visual evidence capture, and review export are planned follow-up tasks.
 - `@asha/studio-evidence` is a deferred public package from the schema design; this scaffold shows its panel affordance but does not invent a local substitute schema.
