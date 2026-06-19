@@ -136,8 +136,10 @@ export function validateReviewArtifactCandidate(args: {
   if (args.visualEvidence.length === 0) {
     diagnostics.push(diagnostic('error', 'asha-studio.review_export.missing_visual_evidence', 'Review export requires visual evidence refs.', 'Capture or synthesize a classified before/after visual evidence ref before exporting.'));
   }
-  const resultSequences = new Set(args.results.map((result) => result.sequenceId));
-  const timelineSequences = new Set(args.timeline.map((entry) => entry.sequenceId));
+  const resultsBySequence = new Map(args.results.map((result) => [result.sequenceId, result]));
+  const timelineBySequence = new Map(args.timeline.map((entry) => [entry.sequenceId, entry]));
+  const resultSequences = new Set(resultsBySequence.keys());
+  const timelineSequences = new Set(timelineBySequence.keys());
   for (const entry of args.timeline) {
     if (!resultSequences.has(entry.sequenceId)) {
       diagnostics.push(diagnostic('error', 'asha-studio.review_export.stale_timeline', `Timeline sequence ${entry.sequenceId} has no matching command result.`, 'Regenerate the review artifact from the current workspace model.'));
@@ -161,6 +163,23 @@ export function validateReviewArtifactCandidate(args: {
     for (const sequenceId of evidence.commandSequenceIds) {
       if (!timelineSequences.has(sequenceId) || !resultSequences.has(sequenceId)) {
         diagnostics.push(diagnostic('error', 'asha-studio.review_export.visual_sequence_missing', `Visual evidence ${evidence.artifactId} references missing command sequence ${sequenceId}.`, 'Reference only command sequence ids present in both timeline and results.'));
+        continue;
+      }
+      const result = resultsBySequence.get(sequenceId);
+      const entry = timelineBySequence.get(sequenceId);
+      const state = result?.state;
+      const missingAuthorityReadback = state?.authorityBeforeHash === null || state?.authorityAfterHash === null;
+      const missingRenderReadback = state?.renderBeforeHash === null || state?.renderAfterHash === null;
+      const staleAuthorityReadback = state?.authorityBeforeHash !== null && state?.authorityAfterHash !== null && state?.authorityBeforeHash === state?.authorityAfterHash;
+      const staleRenderReadback = state?.renderBeforeHash !== null && state?.renderAfterHash !== null && state?.renderBeforeHash === state?.renderAfterHash;
+      const notAuthorityMutation = result?.operationClass !== 'authority_mutating' || entry?.changed.authorityChanged !== true;
+      if (state === undefined || result === undefined || entry === undefined || missingAuthorityReadback || missingRenderReadback || staleAuthorityReadback || staleRenderReadback || notAuthorityMutation) {
+        diagnostics.push(diagnostic(
+          'error',
+          'asha-studio.review_export.missing_asha_readback',
+          `Visual evidence ${evidence.artifactId} references ${sequenceId}, but its ASHA authority/render readback is missing, stale, or not tied to an authority-mutating command.`,
+          'Regenerate visual evidence from the authority-mutating command result with non-null changed authority and render before/after hashes.',
+        ));
       }
     }
   }

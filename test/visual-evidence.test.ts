@@ -75,6 +75,60 @@ test('review artifact validation fails closed for stale visual sequence correlat
   assert.ok(diagnostics.some((item) => item.code === 'asha-studio.review_export.visual_sequence_missing'));
 });
 
+test('review artifact validation fails closed when ASHA authority/render readback is missing', () => {
+  const workspace = createStudioWorkspaceModel();
+  const strippedResults = workspace.commandResults.map((result) => result.commandId === 'authority.voxel.apply_brush'
+    ? {
+      ...result,
+      state: {
+        ...result.state,
+        authorityBeforeHash: null,
+        authorityAfterHash: null,
+        renderBeforeHash: null,
+        renderAfterHash: null,
+      },
+    }
+    : result);
+  const diagnostics = validateReviewArtifactCandidate({
+    session: workspace.session,
+    timeline: workspace.timeline,
+    results: strippedResults,
+    visualEvidence: workspace.visualEvidence,
+  });
+  assert.ok(diagnostics.some((item) => item.code === 'asha-studio.review_export.missing_asha_readback'));
+  const artifact = createStudioReviewArtifact({
+    session: workspace.session,
+    timeline: workspace.timeline,
+    results: strippedResults,
+    visualEvidence: workspace.visualEvidence,
+    generatedAtIso: '1970-01-01T00:04:00.000Z',
+    knownLimitations: [],
+  });
+  assert.equal(artifact.captureReadiness, 'failed_closed');
+  assert.match(artifact.reviewSummary, /failed closed/);
+});
+
+test('review artifact validation fails closed when ASHA readback hashes do not show a delta', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleResults = workspace.commandResults.map((result) => result.commandId === 'authority.voxel.apply_brush'
+    ? {
+      ...result,
+      state: {
+        ...result.state,
+        authorityAfterHash: result.state.authorityBeforeHash,
+        renderAfterHash: result.state.renderBeforeHash,
+      },
+    }
+    : result);
+  const diagnostics = validateReviewArtifactCandidate({
+    session: workspace.session,
+    timeline: workspace.timeline,
+    results: staleResults,
+    visualEvidence: workspace.visualEvidence,
+  });
+  assert.ok(diagnostics.some((item) => item.code === 'asha-studio.review_export.missing_asha_readback'));
+});
+
 test('review artifact validation fails closed for stale timeline/result mismatch', () => {
   const workspace = createStudioWorkspaceModel();
   const diagnostics = validateReviewArtifactCandidate({
