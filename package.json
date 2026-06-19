@@ -1,0 +1,42 @@
+{
+  "name": "asha-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent-observable ASHA Studio frontend shell.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "test": "tsx --test test/**/*.test.ts",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "smoke:static": "node scripts/static-smoke.mjs",
+    "verify": "pnpm run check:boundaries && pnpm run test && pnpm run build && pnpm run smoke:static"
+  },
+  "dependencies": {
+    "@asha/command-registry": "link:../asha/ts/packages/command-registry",
+    "@asha/contracts": "link:../asha/ts/packages/contracts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0"
+  },
+  "ashaStudio": {
+    "task": 2730,
+    "allowedAshaPackages": [
+      "@asha/command-registry"
+    ],
+    "deferredPublicPackages": [
+      "@asha/studio-evidence",
+      "@asha/runtime-bridge",
+      "@asha/editor-tools",
+      "@asha/devtools",
+      "@asha/renderer-three"
+    ],
+    "knownLimitations": [
+      "Task 2730 is a frontend shell scaffold; command execution, session timeline persistence, compatibility runtime checks, and real evidence export are follow-up tasks.",
+      "@asha/studio-evidence is represented as a deferred public package until its implementation lands; this repo does not invent local artifact schemas."
+    ]
+  }
+}
