@@ -1,27 +1,45 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { test } from 'node:test';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { test } from 'node:test';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const checker = join(repoRoot, 'scripts', 'check-boundaries.mjs');
+const policy = join(repoRoot, 'boundary-policy.json');
 
-function makeFixture(sourceText: string, packageDependencies: Record<string, string> = {
-  '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
-  '@asha/contracts': 'link:../asha/ts/packages/contracts',
-}): string {
+function makeFixture(
+  sourceText: string,
+  packageDependencies: Record<string, string> = {
+    '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+    '@asha/contracts': 'link:../asha/ts/packages/contracts',
+  },
+  extraFiles: Record<string, string> = {},
+  extraPackageJson: Record<string, unknown> = {},
+): string {
   const root = mkdtempSync(join(tmpdir(), 'asha-studio-boundary-'));
   mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module', dependencies: packageDependencies }, null, 2));
+  cpSync(policy, join(root, 'boundary-policy.json'));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module', dependencies: packageDependencies, ...extraPackageJson }, null, 2));
   writeFileSync(join(root, 'src', 'fixture.ts'), sourceText);
+  for (const [path, text] of Object.entries(extraFiles)) {
+    const fullPath = join(root, path);
+    mkdirSync(dirname(fullPath), { recursive: true });
+    writeFileSync(fullPath, text);
+  }
   return root;
 }
 
 function runChecker(root: string) {
   return spawnSync(process.execPath, [checker], { cwd: root, encoding: 'utf8' });
+}
+
+function assertRejected(root: string, pattern: RegExp): void {
+  const result = runChecker(root);
+  assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, pattern);
 }
 
 test('boundary checker accepts package-root command registry imports', () => {
@@ -39,9 +57,7 @@ test('boundary checker rejects ASHA package subpath imports', () => {
   const badImport = `import { x } from '${'@asha/command-registry'}/src/internal';\nconsole.log(x);\n`;
   const root = makeFixture(badImport);
   try {
-    const result = runChecker(root);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /package subpath/);
+    assertRejected(root, /package subpath/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -51,9 +67,7 @@ test('boundary checker rejects unapproved ASHA package-root imports from source'
   const badImport = `import type { VoxelCoord } from '${'@asha/contracts'}';\nconst coord: VoxelCoord = { x: 0, y: 0, z: 0 };\nconsole.log(coord);\n`;
   const root = makeFixture(badImport);
   try {
-    const result = runChecker(root);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /unapproved ASHA package/);
+    assertRejected(root, /unapproved ASHA package/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -67,9 +81,58 @@ test('boundary checker rejects explicitly forbidden raw package imports', () => 
     [forbiddenPackage]: 'link:../asha/ts/packages/native-bridge',
   });
   try {
-    const result = runChecker(root);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /not an allowed public package-root link|forbidden raw ASHA package|unapproved ASHA package/);
+    assertRejected(root, /only explicit public package-root links|forbidden raw ASHA package|unapproved ASHA package/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('boundary checker rejects dynamic imports and CommonJS requires', () => {
+  const root = makeFixture(`
+    async function load() { return import('${'@asha/command-registry'}/src/internal'); }
+    const raw = require('${'@asha/wasm-replay-bridge'}');
+    console.log(load, raw);
+  `);
+  try {
+    assertRejected(root, /package subpath|forbidden raw ASHA package/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('boundary checker rejects package dependency bypasses outside dependencies', () => {
+  const root = makeFixture("import { COMMAND_CATALOG } from '@asha/command-registry';\nconsole.log(COMMAND_CATALOG);\n", undefined, {}, {
+    devDependencies: {
+      '@asha/native-bridge': 'link:../asha/ts/packages/native-bridge',
+    },
+  });
+  try {
+    assertRejected(root, /devDependencies contains ASHA dependency/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('boundary checker rejects config alias paths into ASHA source roots', () => {
+  const root = makeFixture("import { COMMAND_CATALOG } from '@asha/command-registry';\nconsole.log(COMMAND_CATALOG);\n", undefined, {
+    'tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@asha/command-registry': ['../asha/ts/packages/command-registry/src/index.ts'] } } }, null, 2),
+  });
+  try {
+    assertRejected(root, /forbidden ASHA source path fragment/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('boundary checker rejects arbitrary JSON command hatches', () => {
+  const hatch = 'call' + '(methodName, json)';
+  const root = makeFixture(`
+    export function unsafe(methodName: string, json: object) {
+      return ${hatch};
+    }
+  `);
+  try {
+    assertRejected(root, /forbidden boundary token/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

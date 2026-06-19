@@ -32,6 +32,14 @@ pnpm run verify
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
 
+## Boundary policy
+
+`boundary-policy.json` is the machine-readable import/dependency policy used by `pnpm run check:boundaries`.
+
+Current source imports may use only the public package root `@asha/command-registry`. The package manager may also keep an explicit local package-root link to `@asha/contracts` while ASHA packages are unpublished, but source code must not import it directly until a task promotes that surface for studio use.
+
+If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
+
 ## Verification
 
 ```bash

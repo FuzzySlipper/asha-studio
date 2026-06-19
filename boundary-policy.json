@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "summary": "ASHA Studio may consume approved public ASHA package roots only. Request new public ASHA surfaces in ASHA instead of importing internals or raw transports.",
+  "allowedSourceImports": [
+    "@asha/command-registry"
+  ],
+  "allowedLocalPackageLinks": {
+    "@asha/command-registry": "link:../asha/ts/packages/command-registry",
+    "@asha/contracts": "link:../asha/ts/packages/contracts"
+  },
+  "forbiddenPackages": [
+    "@asha/native-bridge",
+    "@asha/wasm-replay-bridge"
+  ],
+  "dependencySections": [
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+    "pnpm.overrides",
+    "overrides",
+    "resolutions"
+  ],
+  "forbiddenText": [
+    "/home/dev/asha/engine-rs",
+    "engine-rs/crates",
+    "src/generated",
+    "call(methodName, json)",
+    "postMessage({type, payload:any})",
+    "payload: any",
+    "payload:any",
+    "Record<string, unknown> command"
+  ],
+  "forbiddenConfigPathFragments": [
+    "../asha/ts/packages",
+    "..\\asha\\ts\\packages",
+    "/home/dev/asha/ts/packages",
+    "../asha/engine-rs",
+    "/home/dev/asha/engine-rs"
+  ],
+  "allowedConfigPathFiles": [
+    "package.json",
+    "pnpm-lock.yaml",
+    "boundary-policy.json"
+  ],
+  "docsOnlyFiles": [
+    "README.md",
+    "AGENTS.md",
+    "test/boundary-check.test.ts"
+  ]
+}

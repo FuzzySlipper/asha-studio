@@ -1,25 +1,16 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { extname, join, relative } from 'node:path';
 
 const root = process.cwd();
-const allowedAshaImports = new Set(['@asha/command-registry']);
-const allowedLocalPackageLinks = new Map([
-  ['@asha/command-registry', 'link:../asha/ts/packages/command-registry'],
-  ['@asha/contracts', 'link:../asha/ts/packages/contracts'],
-]);
-const forbiddenPackageImports = [
-  '@asha/native-bridge',
-  '@asha/wasm-replay-bridge',
-];
-const forbiddenText = [
-  '/home/dev/asha/engine-rs',
-  '/home/dev/asha/ts/packages',
-  'engine-rs/crates',
-  'src/generated',
-  'call(methodName, json)',
-  'postMessage({type, payload:any})',
-];
+const policy = JSON.parse(readFileSync(join(root, 'boundary-policy.json'), 'utf8'));
+
 const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const configExts = new Set(['.json', '.yaml', '.yml', '.toml']);
+const allowedAshaImports = new Set(policy.allowedSourceImports);
+const allowedLocalPackageLinks = new Map(Object.entries(policy.allowedLocalPackageLinks));
+const forbiddenPackageImports = new Set(policy.forbiddenPackages);
+const docsOnlyFiles = new Set(policy.docsOnlyFiles);
+const allowedConfigPathFiles = new Set(policy.allowedConfigPathFiles);
 
 function walk(dir) {
   const out = [];
@@ -33,44 +24,94 @@ function walk(dir) {
   return out;
 }
 
-const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-for (const [name, version] of Object.entries(pkg.dependencies ?? {})) {
-  if (name.startsWith('@asha/')) {
+function getPathValue(object, dottedPath) {
+  return dottedPath.split('.').reduce((value, segment) => {
+    if (value === undefined || value === null || typeof value !== 'object') return undefined;
+    return value[segment];
+  }, object);
+}
+
+function validatePackageSection(pkg, sectionPath) {
+  const section = getPathValue(pkg, sectionPath);
+  if (section === undefined) return;
+  if (section === null || typeof section !== 'object' || Array.isArray(section)) {
+    throw new Error(`package.json ${sectionPath} must be an object when present`);
+  }
+  for (const [name, version] of Object.entries(section)) {
+    if (!name.startsWith('@asha/')) continue;
     const allowedLink = allowedLocalPackageLinks.get(name);
     if (allowedLink === undefined || version !== allowedLink) {
-      throw new Error(`ASHA dependency ${name}@${version} is not an allowed public package-root link`);
+      throw new Error(`package.json ${sectionPath} contains ASHA dependency ${name}@${version}; only explicit public package-root links from boundary-policy.json are allowed`);
     }
   }
 }
 
-for (const file of walk(root)) {
-  const rel = relative(root, file);
-  const ext = file.slice(file.lastIndexOf('.'));
-  if (!sourceExts.has(ext) && rel !== 'package.json' && rel !== 'README.md' && rel !== 'AGENTS.md') continue;
-  const text = readFileSync(file, 'utf8');
-  for (const forbidden of forbiddenPackageImports) {
-    const importPattern = new RegExp(`(?:from\\s+|import\\()(['\"])${forbidden.replace('/', '\\/')}\\1`);
-    if (importPattern.test(text)) {
-      throw new Error(`${rel} imports forbidden raw ASHA package ${forbidden}`);
+function validatePackageJson() {
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  for (const sectionPath of policy.dependencySections) {
+    validatePackageSection(pkg, sectionPath);
+  }
+}
+
+function rootPackageOf(specifier) {
+  return specifier.split('/').slice(0, 2).join('/');
+}
+
+function validateAshaSpecifier(rel, specifier) {
+  const rootPackage = rootPackageOf(specifier);
+  if (forbiddenPackageImports.has(rootPackage)) {
+    throw new Error(`${rel} imports forbidden raw ASHA package ${rootPackage}`);
+  }
+  if (!allowedAshaImports.has(rootPackage)) {
+    throw new Error(`${rel} imports unapproved ASHA package ${specifier}`);
+  }
+  if (specifier !== rootPackage) {
+    throw new Error(`${rel} imports ASHA package subpath ${specifier}; use package root only`);
+  }
+}
+
+function scanImportSpecifiers(rel, text) {
+  const patterns = [
+    /\b(?:import|export)\s+(?:type\s+)?[^'"\n]*?\s+from\s+(['"])(@asha\/[A-Za-z0-9_-]+(?:\/[^'"]*)?)\1/g,
+    /\bimport\s+(['"])(@asha\/[A-Za-z0-9_-]+(?:\/[^'"]*)?)\1/g,
+    /\bimport\s*\(\s*(['"])(@asha\/[A-Za-z0-9_-]+(?:\/[^'"]*)?)\1\s*\)/g,
+    /\brequire\s*\(\s*(['"])(@asha\/[A-Za-z0-9_-]+(?:\/[^'"]*)?)\1\s*\)/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const specifier = match[2];
+      if (specifier !== undefined) validateAshaSpecifier(rel, specifier);
     }
   }
-  const importMatches = text.matchAll(/(?:from\s+|import\s*(?:\(\s*)?)(['"])(@asha\/[A-Za-z0-9_-]+(?:\/[^'"]*)?)\1/g);
-  for (const match of importMatches) {
-    const specifier = match[2];
-    if (specifier === undefined) continue;
-    const rootPackage = specifier.split('/').slice(0, 2).join('/');
-    if (!allowedAshaImports.has(rootPackage)) {
-      throw new Error(`${rel} imports unapproved ASHA package ${specifier}`);
-    }
-    if (specifier !== rootPackage) {
-      throw new Error(`${rel} imports ASHA package subpath ${specifier}; use package root only`);
-    }
-  }
-  for (const token of forbiddenText) {
-    if (text.includes(token) && rel !== 'README.md' && rel !== 'AGENTS.md' && rel !== 'scripts/check-boundaries.mjs') {
+}
+
+function scanForbiddenTokens(rel, text) {
+  const docsOnly = docsOnlyFiles.has(rel);
+  for (const token of policy.forbiddenText) {
+    if (text.includes(token) && !docsOnly && rel !== 'scripts/check-boundaries.mjs' && rel !== 'boundary-policy.json') {
       throw new Error(`${rel} contains forbidden boundary token ${token}`);
     }
   }
+  if (!allowedConfigPathFiles.has(rel) && !docsOnly) {
+    for (const token of policy.forbiddenConfigPathFragments) {
+      if (text.includes(token)) {
+        throw new Error(`${rel} contains forbidden ASHA source path fragment ${token}; use an approved package-root dependency instead`);
+      }
+    }
+  }
+}
+
+validatePackageJson();
+
+for (const file of walk(root)) {
+  const rel = relative(root, file);
+  const ext = extname(file);
+  const shouldScanSource = sourceExts.has(ext);
+  const shouldScanConfig = configExts.has(ext) || rel === 'package.json' || rel === 'README.md' || rel === 'AGENTS.md' || rel === 'boundary-policy.json';
+  if (!shouldScanSource && !shouldScanConfig) continue;
+  const text = readFileSync(file, 'utf8');
+  if (shouldScanSource) scanImportSpecifiers(rel, text);
+  scanForbiddenTokens(rel, text);
 }
 
 console.log('asha-studio boundary check: OK');
