@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "session_metadata",
+  "sessionId": "session-sample-0001",
+  "scenarioId": "scenario-placeholder",
+  "scenarioLabel": "Placeholder Studio scenario",
+  "runtimeMode": "mock",
+  "startedAtIso": "1970-01-01T00:00:00.000Z",
+  "endedAtIso": null,
+  "compatibility": {
+    "contractsVersion": "contracts.v0",
+    "commandRegistryVersion": "command-registry.v0",
+    "studioEvidenceVersion": "studio-evidence.deferred-v0",
+    "runtimeBridgeVersion": null,
+    "ashaCommit": null,
+    "ashaPackageVersions": [
+      {
+        "packageName": "@asha/contracts",
+        "version": "0.1.0",
+        "commit": null
+      },
+      {
+        "packageName": "@asha/command-registry",
+        "version": "0.1.0",
+        "commit": null
+      }
+    ],
+    "studioCommit": null,
+    "supportedRuntimeModes": ["mock", "reference", "unavailable"]
+  },
+  "capabilities": [],
+  "knownLimitations": [
+    "Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface."
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "asha.compatibility.runtime_bridge_deferred",
+      "message": "@asha/runtime-bridge is not present in this Studio build; command execution must remain unavailable or mock/reference only.",
+      "owningLane": "rust-bridge",
+      "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
+      "remediation": "Track the runtime bridge integration task before enabling command execution."
+    }
+  ]
+}

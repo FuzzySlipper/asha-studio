@@ -1,6 +1,9 @@
 import { COMMAND_CATALOG } from '@asha/command-registry';
 import type { StudioCommandCatalog, StudioCommandCatalogEntry } from '@asha/command-registry';
 
+import { createStudioSessionMetadata } from './compatibility';
+import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
+
 export type StudioPanelId = 'scenario' | 'viewport' | 'palette' | 'timeline' | 'inspector' | 'evidence';
 
 export interface StudioPanelModel {
@@ -24,6 +27,10 @@ export interface StudioShellModel {
   readonly visibleCommands: readonly StudioCommandCatalogEntry[];
   readonly timelinePreview: readonly string[];
   readonly knownLimitations: readonly string[];
+  readonly runtimeMode: StudioRuntimeMode;
+  readonly compatibility: StudioCompatibilityEvidence;
+  readonly compatibilityDiagnostics: readonly StudioDiagnostic[];
+  readonly sessionMetadata: StudioSessionMetadata;
 }
 
 const PANEL_MODELS: readonly StudioPanelModel[] = [
@@ -92,6 +99,14 @@ export function buildTimelinePreview(commands: readonly StudioCommandCatalogEntr
 
 export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_CATALOG): StudioShellModel {
   const visibleCommands = getVisibleCommands(catalog);
+  const sessionMetadata = createStudioSessionMetadata({
+    sessionId: 'session-preview-0001',
+    scenarioId: 'scenario-placeholder',
+    scenarioLabel: 'Placeholder Studio scenario',
+    runtimeMode: 'mock',
+    startedAtIso: '1970-01-01T00:00:00.000Z',
+    catalog,
+  });
   return {
     appTitle: 'ASHA Studio',
     repoRole: 'frontend-heavy-public-consumer',
@@ -104,6 +119,10 @@ export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_C
     commandCatalog: catalog,
     visibleCommands,
     timelinePreview: buildTimelinePreview(visibleCommands),
+    runtimeMode: sessionMetadata.runtimeMode,
+    compatibility: sessionMetadata.compatibility,
+    compatibilityDiagnostics: sessionMetadata.diagnostics,
+    sessionMetadata,
     knownLimitations: [
       'Shell-only: command execution and runtime session lifecycle are follow-up tasks.',
       'Evidence/export panel is present but waits for @asha/studio-evidence implementation.',

@@ -40,6 +40,18 @@ Current source imports may use only the public package root `@asha/command-regis
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
 
+## Compatibility metadata
+
+Task `asha#2732` adds startup/session compatibility readback for public ASHA surfaces. The shell records:
+
+- `@asha/contracts` compatibility: `contracts.v0`;
+- `@asha/command-registry` compatibility: `command-registry.v0`;
+- deferred `@asha/studio-evidence` marker: `studio-evidence.deferred-v0`;
+- `@asha/runtime-bridge` as `null` until a later task promotes that public surface for Studio runtime use;
+- supported runtime modes for this shell: `mock`, `reference`, and `unavailable`.
+
+Native/WASM runtime modes fail closed until runtime bridge compatibility metadata is present. Update `src/compatibility.ts`, `fixtures/studio-session-metadata.sample.json`, and the compatibility tests when ASHA generated contracts, command registry compatibility, or runtime bridge compatibility changes.
+
 ## Verification
 
 ```bash

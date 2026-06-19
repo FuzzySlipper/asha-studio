@@ -13,7 +13,9 @@
 - Do not add arbitrary JSON command hatches such as `call(methodName, json)` or private UI-only mutation callbacks.
 - GUI and agent surfaces must use the same command identities and visible timeline/readout model.
 - If the studio needs a missing capability, create/request a public ASHA surface rather than bypassing the boundary.
+- Compatibility metadata lives in `src/compatibility.ts`; update it with tests and the sample session artifact whenever ASHA public compatibility markers change.
+- Native/WASM runtime modes must fail closed until `@asha/runtime-bridge` is approved for Studio and reports `runtime-bridge.v0` compatibility.
 
 ## Current task scope
 
-Task `asha#2731` hardens the boundary policy/checker. Task `asha#2730` created the real frontend shell baseline. Later tasks own compatibility plumbing, session timeline execution, voxel workflow, and evidence export.
+Task `asha#2732` adds compatibility metadata/readback and fail-closed checks. Task `asha#2731` hardened the boundary policy/checker. Task `asha#2730` created the real frontend shell baseline. Later tasks own session timeline execution, voxel workflow, and evidence export.

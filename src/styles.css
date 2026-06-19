@@ -70,6 +70,7 @@ p { margin: 0 0 10px; color: #b9c4d5; }
 .command-id,
 .command-meta { display: block; color: #8fb8ff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; }
 .command-meta { color: #a5b4fc; }
+.boundary-diagnostic { color: #fbbf24; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88rem; }
 
 @media (max-width: 900px) {
   .studio-shell { padding: 20px; }
