@@ -4,6 +4,9 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { COMMAND_CATALOG } from '@asha/command-registry';
+import type { StudioCommandCatalog } from '@asha/command-registry';
+
 import { createStudioWorkspaceModel } from '../src/session-workspace';
 import { createVoxelWorkflowModel } from '../src/voxel-workflow';
 
@@ -87,4 +90,40 @@ test('voxel workflow can be constructed independently from session workspace', (
   assert.equal(workflow.evidence.commandId, 'authority.voxel.apply_brush');
   assert.equal(workflow.evidence.meshEvidence.beforeOccupiedCount, 1);
   assert.equal(workflow.evidence.meshEvidence.afterOccupiedCount, 2);
+});
+
+test('voxel workflow timeline metadata is resolved from the command catalog', () => {
+  const customCatalog: StudioCommandCatalog = {
+    ...COMMAND_CATALOG,
+    commands: COMMAND_CATALOG.commands.map((command) => {
+      if (command.id !== 'preview.voxel_brush') return command;
+      return {
+        ...command,
+        label: 'Catalog Preview Override',
+        menuPath: ['Catalog', 'Preview Override'],
+        operationClass: 'read_only',
+        stateImpact: { ...command.stateImpact, editor: 'read' },
+      };
+    }),
+  };
+  const workspace = createStudioWorkspaceModel({ catalog: customCatalog });
+  const preview = workspace.voxelWorkflow.timelineEntries.find((entry) => entry.commandId === 'preview.voxel_brush');
+  assert.ok(preview);
+  assert.equal(preview.label, 'Catalog Preview Override');
+  assert.deepEqual(preview.menuPath, ['Catalog', 'Preview Override']);
+  assert.equal(preview.operationClass, 'read_only');
+  assert.equal(preview.changed.editorChanged, false);
+});
+
+test('custom session id flows through voxel command results and exported readout', () => {
+  const workspace = createStudioWorkspaceModel({ sessionId: 'session-custom-2734' });
+  assert.equal(workspace.voxelWorkflow.sessionId, 'session-custom-2734');
+  assert.equal(workspace.voxelWorkflow.evidence.sessionId, 'session-custom-2734');
+  const voxelResults = workspace.voxelWorkflow.commandResults;
+  assert.ok(voxelResults.length > 0);
+  assert.ok(voxelResults.every((result) => result.sessionId === 'session-custom-2734'));
+  assert.ok(workspace.exportedReadout.commandResults
+    .filter((result) => ['inspection.voxel', 'selection.voxel_from_screen_point', 'preview.voxel_brush', 'authority.voxel.apply_brush'].includes(result.commandId))
+    .every((result) => result.sessionId === 'session-custom-2734'));
+  assert.equal(workspace.exportedReadout.exportedArtifacts.find((artifact) => artifact.artifactId === 'artifact-voxel-workflow-0001')?.path, 'voxel_workflow:session-custom-2734');
 });

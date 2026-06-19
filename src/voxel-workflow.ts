@@ -1,3 +1,5 @@
+import { COMMAND_CATALOG, requireCatalogCommand } from '@asha/command-registry';
+import type { StudioCommandCatalog, StudioCommandCatalogEntry } from '@asha/command-registry';
 import { initialEditorContext, previewTargets, proposeCommand, reduce } from '@asha/editor-tools';
 import type { EditorContext, VoxelSelection } from '@asha/editor-tools';
 import type { CameraHandle, VoxelCommand, VoxelCoord, VoxelSelectionSnapshot, VoxelValue } from '@asha/contracts';
@@ -193,7 +195,7 @@ function gridCells(beforeGrid: MutableGrid, afterGrid: MutableGrid, preview: rea
   });
 }
 
-function artifactRef(sessionId: string): StudioArtifactRef {
+function artifactRef(sessionId: string, producedBySequenceId: string): StudioArtifactRef {
   return {
     artifactId: 'artifact-voxel-workflow-0001',
     artifactKind: 'state_evidence',
@@ -202,85 +204,108 @@ function artifactRef(sessionId: string): StudioArtifactRef {
     mediaType: 'application/json',
     contentHash: null,
     byteLength: null,
-    producedBySequenceId: 'seq-0007',
+    producedBySequenceId,
     summary: 'Voxel inspect/select/preview/apply structured before/after evidence.',
   };
 }
 
+function sequenceId(index: number): string {
+  return `seq-${String(index + 1).padStart(4, '0')}`;
+}
+
+function timestampForSequence(sequence: string): string {
+  const second = Number(sequence.slice(-4));
+  return `1970-01-01T00:00:${String(second).padStart(2, '0')}.000Z`;
+}
+
+function changedFor(command: StudioCommandCatalogEntry, artifactsWritten: boolean): StudioCommandTimelineEntry['changed'] {
+  return {
+    authorityChanged: command.stateImpact.authority === 'mutate',
+    editorChanged: command.stateImpact.editor === 'mutate',
+    renderChanged: command.stateImpact.render === 'capture',
+    workspaceChanged: command.stateImpact.workspace === 'write',
+    artifactsWritten,
+  };
+}
+
+function retryFor(command: StudioCommandCatalogEntry): StudioCommandResult['retry'] {
+  if (command.operationClass === 'authority_mutating') {
+    return { safe: false, classification: 'safe_to_retry_if_state_hash_unchanged', reason: 'Authority mutation requires unchanged public state hash before retry.', requiredReadback: 'state_hash' };
+  }
+  return { safe: true, classification: 'safe_to_retry', reason: 'Read-only/editor-local voxel workflow command is safe in this deterministic reference workflow.', requiredReadback: null };
+}
+
 function timelineEntry(args: {
+  readonly command: StudioCommandCatalogEntry;
   readonly sequenceId: string;
-  readonly commandId: StudioCommandTimelineEntry['commandId'];
-  readonly label: string;
-  readonly menuPath: readonly string[];
   readonly requestedBy: StudioCommandTimelineEntry['requestedBy'];
-  readonly operationClass: StudioCommandTimelineEntry['operationClass'];
   readonly inputSummary: string;
   readonly outputSummary: string;
-  readonly authorityChanged?: boolean;
-  readonly editorChanged?: boolean;
-  readonly renderChanged?: boolean;
-  readonly artifactsWritten?: boolean;
   readonly artifactRefs?: readonly StudioArtifactRef[];
 }): StudioCommandTimelineEntry {
-  const second = Number(args.sequenceId.slice(-4));
-  const iso = `1970-01-01T00:00:0${second}.000Z`;
+  const artifactRefs = args.artifactRefs ?? [];
+  const iso = timestampForSequence(args.sequenceId);
   return {
     schemaVersion: 1,
     sequenceId: args.sequenceId,
-    commandId: args.commandId,
-    label: args.label,
-    menuPath: args.menuPath,
+    commandId: args.command.id,
+    label: args.command.label,
+    menuPath: args.command.menuPath,
     requestedBy: args.requestedBy,
     requestedAtIso: iso,
     completedAtIso: iso,
     status: 'ok',
-    operationClass: args.operationClass,
+    operationClass: args.command.operationClass,
     inputSummary: args.inputSummary,
     outputSummary: args.outputSummary,
-    changed: {
-      authorityChanged: args.authorityChanged ?? false,
-      editorChanged: args.editorChanged ?? false,
-      renderChanged: args.renderChanged ?? false,
-      workspaceChanged: false,
-      artifactsWritten: args.artifactsWritten ?? false,
-    },
+    changed: changedFor(args.command, artifactRefs.length > 0),
     diagnostics: [],
-    artifactRefs: args.artifactRefs ?? [],
+    artifactRefs,
   };
 }
 
-function commandResult(entry: StudioCommandTimelineEntry, compatibility: StudioCompatibilityEvidence, artifacts: readonly StudioArtifactRef[]): StudioCommandResult {
+function commandResult(args: {
+  readonly entry: StudioCommandTimelineEntry;
+  readonly command: StudioCommandCatalogEntry;
+  readonly sessionId: string;
+  readonly compatibility: StudioCompatibilityEvidence;
+  readonly artifacts: readonly StudioArtifactRef[];
+  readonly authorityBeforeHash: string | null;
+  readonly authorityAfterHash: string | null;
+  readonly renderBeforeHash: string | null;
+  readonly renderAfterHash: string | null;
+}): StudioCommandResult {
   return {
     schemaVersion: 1,
     artifactKind: 'command_result',
-    commandId: entry.commandId,
-    commandVersion: 1,
-    sequenceId: entry.sequenceId,
+    commandId: args.command.id,
+    commandVersion: args.command.version,
+    sequenceId: args.entry.sequenceId,
     batchId: null,
-    sessionId: 'session-preview-0001',
-    requestedBy: entry.requestedBy,
-    status: entry.status,
-    operationClass: entry.operationClass,
-    changed: entry.changed,
+    sessionId: args.sessionId,
+    requestedBy: args.entry.requestedBy,
+    status: args.entry.status,
+    operationClass: args.command.operationClass,
+    changed: args.entry.changed,
     state: {
-      authorityBeforeHash: null,
-      authorityAfterHash: null,
+      authorityBeforeHash: args.authorityBeforeHash,
+      authorityAfterHash: args.authorityAfterHash,
       editorBeforeVersion: 'editor.v0.voxel-before',
       editorAfterVersion: 'editor.v0.voxel-after',
-      renderBeforeHash: null,
-      renderAfterHash: null,
+      renderBeforeHash: args.renderBeforeHash,
+      renderAfterHash: args.renderAfterHash,
       selectedBefore: null,
       selectedAfter: null,
       replay: { replayArtifactId: null, replayPath: null, replayHash: null, replayMode: 'unavailable', summary: 'unavailable: runtime bridge replay integration is deferred.' },
-      compatibility,
+      compatibility: args.compatibility,
     },
     output: null,
-    outputSummary: entry.outputSummary,
-    diagnostics: entry.diagnostics,
-    artifacts,
-    retry: { safe: entry.operationClass !== 'authority_mutating', classification: entry.operationClass === 'authority_mutating' ? 'safe_to_retry_if_state_hash_unchanged' : 'safe_to_retry', reason: entry.operationClass === 'authority_mutating' ? 'Retry only if authority hash is unchanged.' : 'Safe deterministic read/editor operation.', requiredReadback: entry.operationClass === 'authority_mutating' ? 'state_hash' : null },
+    outputSummary: args.entry.outputSummary,
+    diagnostics: args.entry.diagnostics,
+    artifacts: args.artifacts,
+    retry: retryFor(args.command),
     undo: null,
-    timing: { queuedAtIso: entry.requestedAtIso, startedAtIso: entry.requestedAtIso, completedAtIso: entry.completedAtIso, durationMs: 0 },
+    timing: { queuedAtIso: args.entry.requestedAtIso, startedAtIso: args.entry.requestedAtIso, completedAtIso: args.entry.completedAtIso, durationMs: 0 },
   };
 }
 
@@ -288,7 +313,10 @@ export function createVoxelWorkflowModel(options: {
   readonly sessionId: string;
   readonly scenarioId: string;
   readonly compatibility: StudioCompatibilityEvidence;
+  readonly catalog?: StudioCommandCatalog;
+  readonly sequenceStartIndex?: number;
 }): StudioVoxelWorkflowModel {
+  const catalog = options.catalog ?? COMMAND_CATALOG;
   const beforeAuthority = initialGrid();
   const afterAuthority = cloneGrid(beforeAuthority);
   const editor = buildEditorContext();
@@ -301,7 +329,15 @@ export function createVoxelWorkflowModel(options: {
   const beforeHash = hashGrid(beforeAuthority);
   const afterHash = hashGrid(afterAuthority);
   const changed = applied.changed;
-  const artifact = artifactRef(options.sessionId);
+  const inspectCommand = requireCatalogCommand('inspection.voxel', catalog);
+  const selectionCommand = requireCatalogCommand('selection.voxel_from_screen_point', catalog);
+  const previewCommand = requireCatalogCommand('preview.voxel_brush', catalog);
+  const applyCommand = requireCatalogCommand('authority.voxel.apply_brush', catalog);
+  const inspectSequenceId = sequenceId(options.sequenceStartIndex ?? 3);
+  const selectionSequenceId = sequenceId((options.sequenceStartIndex ?? 3) + 1);
+  const previewSequenceId = sequenceId((options.sequenceStartIndex ?? 3) + 2);
+  const applySequenceId = sequenceId((options.sequenceStartIndex ?? 3) + 3);
+  const artifact = artifactRef(options.sessionId, applySequenceId);
   const evidence: StudioVoxelWorkflowEvidence = {
     schemaVersion: 1,
     artifactKind: 'voxel_workflow_evidence',
@@ -336,11 +372,16 @@ export function createVoxelWorkflowModel(options: {
     diagnostics,
     compatibility: options.compatibility,
   };
-  const timelineEntries = [
-    timelineEntry({ sequenceId: 'seq-0004', commandId: 'inspection.voxel', label: 'Inspect Voxel', menuPath: ['Inspect', 'Voxel'], requestedBy: 'gui', operationClass: 'read_only', inputSummary: 'voxel=(0,0,0)', outputSummary: 'occupied material=1 at selected voxel' }),
-    timelineEntry({ sequenceId: 'seq-0005', commandId: 'selection.voxel_from_screen_point', label: 'Select Voxel From Screen Point', menuPath: ['Select', 'Voxel From Screen Point'], requestedBy: 'agent', operationClass: 'editor_local', inputSummary: 'screen=(0.5,0.5)', outputSummary: 'selected voxel=(0,0,0) face=posX editAnchor=(1,0,0)', editorChanged: true }),
-    timelineEntry({ sequenceId: 'seq-0006', commandId: 'preview.voxel_brush', label: 'Preview Voxel Brush', menuPath: ['Edit', 'Preview Voxel Brush'], requestedBy: 'gui', operationClass: 'editor_local', inputSummary: 'place material=1 at editAnchor=(1,0,0)', outputSummary: 'preview target count=1; authority unchanged', editorChanged: true }),
-    timelineEntry({ sequenceId: 'seq-0007', commandId: 'authority.voxel.apply_brush', label: 'Apply Voxel Brush', menuPath: ['Edit', 'Apply Voxel Brush'], requestedBy: 'agent', operationClass: 'authority_mutating', inputSummary: 'VoxelCommand.setVoxel grid=0 coord=(1,0,0) material=1', outputSummary: `accepted=${evidence.acceptedCommandCount}; before=${beforeHash}; after=${afterHash}`, authorityChanged: true, artifactsWritten: true, artifactRefs: [artifact] }),
+  const inspectEntry = timelineEntry({ command: inspectCommand, sequenceId: inspectSequenceId, requestedBy: 'gui', inputSummary: 'voxel=(0,0,0)', outputSummary: 'occupied material=1 at selected voxel' });
+  const selectionEntry = timelineEntry({ command: selectionCommand, sequenceId: selectionSequenceId, requestedBy: 'agent', inputSummary: 'screen=(0.5,0.5)', outputSummary: 'selected voxel=(0,0,0) face=posX editAnchor=(1,0,0)' });
+  const previewEntry = timelineEntry({ command: previewCommand, sequenceId: previewSequenceId, requestedBy: 'gui', inputSummary: 'place material=1 at editAnchor=(1,0,0)', outputSummary: 'preview target count=1; authority unchanged' });
+  const applyEntry = timelineEntry({ command: applyCommand, sequenceId: applySequenceId, requestedBy: 'agent', inputSummary: 'VoxelCommand.setVoxel grid=0 coord=(1,0,0) material=1', outputSummary: `accepted=${evidence.acceptedCommandCount}; before=${beforeHash}; after=${afterHash}`, artifactRefs: [artifact] });
+  const timelineEntries = [inspectEntry, selectionEntry, previewEntry, applyEntry];
+  const commandResults = [
+    commandResult({ entry: inspectEntry, command: inspectCommand, sessionId: options.sessionId, compatibility: options.compatibility, artifacts: inspectEntry.artifactRefs, authorityBeforeHash: beforeHash, authorityAfterHash: beforeHash, renderBeforeHash: `render-${beforeHash}`, renderAfterHash: `render-${beforeHash}` }),
+    commandResult({ entry: selectionEntry, command: selectionCommand, sessionId: options.sessionId, compatibility: options.compatibility, artifacts: selectionEntry.artifactRefs, authorityBeforeHash: beforeHash, authorityAfterHash: beforeHash, renderBeforeHash: `render-${beforeHash}`, renderAfterHash: `render-${beforeHash}` }),
+    commandResult({ entry: previewEntry, command: previewCommand, sessionId: options.sessionId, compatibility: options.compatibility, artifacts: previewEntry.artifactRefs, authorityBeforeHash: beforeHash, authorityAfterHash: beforeHash, renderBeforeHash: `render-${beforeHash}`, renderAfterHash: `render-${beforeHash}` }),
+    commandResult({ entry: applyEntry, command: applyCommand, sessionId: options.sessionId, compatibility: options.compatibility, artifacts: applyEntry.artifactRefs, authorityBeforeHash: beforeHash, authorityAfterHash: afterHash, renderBeforeHash: `render-${beforeHash}`, renderAfterHash: `render-${afterHash}` }),
   ];
   return {
     sessionId: options.sessionId,
@@ -353,7 +394,7 @@ export function createVoxelWorkflowModel(options: {
     afterGrid: gridCells(beforeAuthority, afterAuthority, preview),
     evidence,
     timelineEntries,
-    commandResults: timelineEntries.map((entry) => commandResult(entry, options.compatibility, entry.artifactRefs)),
+    commandResults,
     artifactRefs: [artifact],
   };
 }

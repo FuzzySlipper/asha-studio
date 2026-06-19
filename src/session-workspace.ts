@@ -447,6 +447,8 @@ export function createStudioWorkspaceModel(options: {
     sessionId: session.sessionId,
     scenarioId: activeScenarioId,
     compatibility: session.compatibility,
+    catalog,
+    sequenceStartIndex: timeline.length,
   });
   timeline.push(...voxelWorkflow.timelineEntries);
   results.push(...voxelWorkflow.commandResults);

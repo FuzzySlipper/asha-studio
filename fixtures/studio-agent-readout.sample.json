@@ -789,12 +789,12 @@
         "artifactsWritten": false
       },
       "state": {
-        "authorityBeforeHash": null,
-        "authorityAfterHash": null,
+        "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+        "authorityAfterHash": "grid-fnv1a-cc815eb0",
         "editorBeforeVersion": "editor.v0.voxel-before",
         "editorAfterVersion": "editor.v0.voxel-after",
-        "renderBeforeHash": null,
-        "renderAfterHash": null,
+        "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+        "renderAfterHash": "render-grid-fnv1a-cc815eb0",
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
@@ -842,7 +842,7 @@
       "retry": {
         "safe": true,
         "classification": "safe_to_retry",
-        "reason": "Safe deterministic read/editor operation.",
+        "reason": "Read-only/editor-local voxel workflow command is safe in this deterministic reference workflow.",
         "requiredReadback": null
       },
       "undo": null,
@@ -872,12 +872,12 @@
         "artifactsWritten": false
       },
       "state": {
-        "authorityBeforeHash": null,
-        "authorityAfterHash": null,
+        "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+        "authorityAfterHash": "grid-fnv1a-cc815eb0",
         "editorBeforeVersion": "editor.v0.voxel-before",
         "editorAfterVersion": "editor.v0.voxel-after",
-        "renderBeforeHash": null,
-        "renderAfterHash": null,
+        "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+        "renderAfterHash": "render-grid-fnv1a-cc815eb0",
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
@@ -925,7 +925,7 @@
       "retry": {
         "safe": true,
         "classification": "safe_to_retry",
-        "reason": "Safe deterministic read/editor operation.",
+        "reason": "Read-only/editor-local voxel workflow command is safe in this deterministic reference workflow.",
         "requiredReadback": null
       },
       "undo": null,
@@ -955,12 +955,12 @@
         "artifactsWritten": false
       },
       "state": {
-        "authorityBeforeHash": null,
-        "authorityAfterHash": null,
+        "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+        "authorityAfterHash": "grid-fnv1a-cc815eb0",
         "editorBeforeVersion": "editor.v0.voxel-before",
         "editorAfterVersion": "editor.v0.voxel-after",
-        "renderBeforeHash": null,
-        "renderAfterHash": null,
+        "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+        "renderAfterHash": "render-grid-fnv1a-cc815eb0",
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
@@ -1008,7 +1008,7 @@
       "retry": {
         "safe": true,
         "classification": "safe_to_retry",
-        "reason": "Safe deterministic read/editor operation.",
+        "reason": "Read-only/editor-local voxel workflow command is safe in this deterministic reference workflow.",
         "requiredReadback": null
       },
       "undo": null,
@@ -1038,12 +1038,12 @@
         "artifactsWritten": true
       },
       "state": {
-        "authorityBeforeHash": null,
-        "authorityAfterHash": null,
+        "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+        "authorityAfterHash": "grid-fnv1a-8eb9594b",
         "editorBeforeVersion": "editor.v0.voxel-before",
         "editorAfterVersion": "editor.v0.voxel-after",
-        "renderBeforeHash": null,
-        "renderAfterHash": null,
+        "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+        "renderAfterHash": "render-grid-fnv1a-8eb9594b",
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
@@ -1103,7 +1103,7 @@
       "retry": {
         "safe": false,
         "classification": "safe_to_retry_if_state_hash_unchanged",
-        "reason": "Retry only if authority hash is unchanged.",
+        "reason": "Authority mutation requires unchanged public state hash before retry.",
         "requiredReadback": "state_hash"
       },
       "undo": null,
@@ -1116,12 +1116,12 @@
     }
   ],
   "finalState": {
-    "authorityBeforeHash": null,
-    "authorityAfterHash": null,
+    "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+    "authorityAfterHash": "grid-fnv1a-8eb9594b",
     "editorBeforeVersion": "editor.v0.voxel-before",
     "editorAfterVersion": "editor.v0.voxel-after",
-    "renderBeforeHash": null,
-    "renderAfterHash": null,
+    "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+    "renderAfterHash": "render-grid-fnv1a-8eb9594b",
     "selectedBefore": null,
     "selectedAfter": null,
     "replay": {
