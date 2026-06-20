@@ -147,6 +147,13 @@ export function createStudioViewportEditorPanelModel(options: {
     visualEvidenceRefs: visualEvidence.map((item) => item.artifactId),
     automationMarkers: [
       'studio-viewport-editor-panel',
+      'studio-central-reference-viewport-canvas',
+      'viewport-reference-toolbar',
+      'viewport-reference-meta',
+      'viewport-selection-overlay',
+      'viewport-preview-ghost',
+      'viewport-axis-gizmo',
+      'viewport-reference-footer',
       'viewport-selected-target-readout',
       'viewport-preview-state-readout',
       'viewport-applied-state-readout',

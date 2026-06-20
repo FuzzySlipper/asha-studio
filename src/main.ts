@@ -75,21 +75,71 @@ function renderBoundaryCard(model: StudioShell): HTMLElement {
 }
 
 function renderViewportReadout(model: StudioShell): HTMLElement {
-  const viewport = el('section', 'viewport-editor-panel');
-  viewport.setAttribute('aria-label', model.workspace.viewportEditor.automationLabel);
-  viewport.append(el('h2', undefined, model.workspace.viewportEditor.title));
-  viewport.append(el('p', 'panel-summary', `${model.workspace.viewportEditor.projectionMode}; readiness ${model.workspace.viewportEditor.readiness}`));
-  viewport.append(el('p', 'viewport-selected-target-readout', `Selected target: ${model.workspace.viewportEditor.selectedTarget.selectedVoxel} face ${model.workspace.viewportEditor.selectedTarget.selectedFace}; edit anchor ${model.workspace.viewportEditor.selectedTarget.editAnchor}`));
-  viewport.append(el('p', undefined, `Model/material context: ${model.workspace.viewportEditor.selectedTarget.modelAsset} · ${model.workspace.viewportEditor.selectedTarget.materialAsset}`));
-  viewport.append(el('p', 'viewport-preview-state-readout', `Preview: ${model.workspace.viewportEditor.previewState.authorityHash}; ${model.workspace.viewportEditor.previewState.summary}`));
-  viewport.append(el('p', 'viewport-applied-state-readout', `Applied: ${model.workspace.viewportEditor.appliedState.authorityHash}; ${model.workspace.viewportEditor.appliedState.summary}`));
-  viewport.append(el('p', undefined, `Render hashes: ${model.workspace.viewportEditor.previewState.renderHash} → ${model.workspace.viewportEditor.appliedState.renderHash}`));
+  const viewportModel = model.workspace.viewportEditor;
+  const viewport = el('section', 'viewport-editor-panel viewport-reference-projection');
+  viewport.setAttribute('aria-label', viewportModel.automationLabel);
+
+  const header = el('div', 'viewport-reference-header');
+  const titleBlock = el('div');
+  titleBlock.append(el('h2', undefined, 'Viewport Editor Panel'));
+  titleBlock.append(el('p', 'viewport-reference-title-marker', 'Viewport — terrain-test-grid'));
+  titleBlock.append(el('p', 'panel-summary', `${viewportModel.projectionMode}; readiness ${viewportModel.readiness}; source: shared workspace readout`));
+  header.append(titleBlock);
+  const toolbar = el('div', 'viewport-reference-toolbar');
+  for (const tool of ['⌖ select', '✛ pan', '⟳ orbit', '⤢ frame', '⊞ voxel brush']) {
+    toolbar.append(el('span', 'viewport-tool-chip', tool));
+  }
+  header.append(toolbar);
+  viewport.append(header);
+
+  const canvas = el('div', 'viewport-reference-canvas');
+  canvas.setAttribute('aria-label', 'studio-central-reference-viewport-canvas');
+  const meta = el('div', 'viewport-reference-meta');
+  for (const label of ['persp · 35mm', 'grid ✓', 'gizmos ✓', 'shading: flat']) {
+    meta.append(el('span', 'viewport-meta-chip', label));
+  }
+  canvas.append(meta);
+
+  const gridPlane = el('div', 'viewport-grid-plane');
+  const appliedBlock = el('div', 'viewport-isometric-block viewport-isometric-block--applied');
+  appliedBlock.append(el('span', undefined, viewportModel.selectedTarget.materialAsset.replace('material/', '')));
+  gridPlane.append(appliedBlock);
+  const selectedTarget = el('div', 'viewport-selection-overlay', `selected ${viewportModel.selectedTarget.selectedVoxel}`);
+  gridPlane.append(selectedTarget);
+  const previewGhost = el('div', 'viewport-preview-ghost', `preview ghost ${viewportModel.selectedTarget.editAnchor}`);
+  gridPlane.append(previewGhost);
+  const anchor = el('div', 'viewport-edit-anchor', `edit anchor: ${viewportModel.selectedTarget.selectedFace} face`);
+  gridPlane.append(anchor);
+  canvas.append(gridPlane);
+
+  const axis = el('div', 'viewport-axis-gizmo');
+  axis.append(el('span', 'axis-x', 'X'));
+  axis.append(el('span', 'axis-y', 'Y'));
+  axis.append(el('span', 'axis-z', 'Z'));
+  canvas.append(axis);
+
+  const overlay = el('div', 'viewport-state-overlay');
+  overlay.append(el('p', 'viewport-selected-target-readout', `Selected target: ${viewportModel.selectedTarget.selectedVoxel} · face ${viewportModel.selectedTarget.selectedFace} · edit anchor ${viewportModel.selectedTarget.editAnchor}`));
+  overlay.append(el('p', undefined, `Model/material context: ${viewportModel.selectedTarget.modelAsset} · ${viewportModel.selectedTarget.materialAsset}`));
+  overlay.append(el('p', 'viewport-preview-state-readout', `Preview: ${viewportModel.previewState.authorityHash}; ${viewportModel.previewState.summary}`));
+  overlay.append(el('p', 'viewport-applied-state-readout', `Applied: ${viewportModel.appliedState.authorityHash}; ${viewportModel.appliedState.summary}`));
+  overlay.append(el('p', 'viewport-render-hash-readout', `Render hashes: ${viewportModel.previewState.renderHash} → ${viewportModel.appliedState.renderHash}`));
+  canvas.append(overlay);
+  viewport.append(canvas);
+
+  const footer = el('div', 'viewport-reference-footer');
+  footer.append(el('span', 'viewport-limitation-chip', 'projection: software_snapshot_reference'));
+  footer.append(el('span', 'viewport-limitation-chip', 'source: shared workspace/readout state'));
+  footer.append(el('span', 'viewport-limitation-chip', 'runtime bridge: deferred — no live execution claimed'));
+  footer.append(el('span', 'viewport-limitation-chip', 'native / Agora / GPU: not claimed'));
+  viewport.append(footer);
+
   const viewportTimeline = el('ol', 'viewport-timeline-correlation-readout');
-  for (const correlation of model.workspace.viewportEditor.timelineCorrelation) {
+  for (const correlation of viewportModel.timelineCorrelation) {
     viewportTimeline.append(el('li', undefined, `${correlation.sequenceId}: ${correlation.role} · ${correlation.commandId} · ${correlation.status}`));
   }
   viewport.append(viewportTimeline);
-  viewport.append(el('p', undefined, `Evidence refs: ${model.workspace.viewportEditor.evidenceRefs.map((ref) => ref.artifactId).join(', ')}`));
+  viewport.append(el('p', undefined, `Evidence refs: ${viewportModel.evidenceRefs.map((ref) => ref.artifactId).join(', ')}`));
   return viewport;
 }
 

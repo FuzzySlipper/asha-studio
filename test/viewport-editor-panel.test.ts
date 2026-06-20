@@ -38,6 +38,8 @@ test('viewport editor panel correlates with the shared command timeline and agen
   assert.equal(workspace.exportedReadout.viewportEditor.panelId, 'viewport');
   assert.equal(workspace.exportedReadout.viewportEditor.appliedState.authorityHash, workspace.viewportEditor.appliedState.authorityHash);
   assert.ok(workspace.exportedReadout.viewportEditor.automationMarkers.includes('viewport-timeline-correlation-readout'));
+  assert.ok(workspace.exportedReadout.viewportEditor.automationMarkers.includes('studio-central-reference-viewport-canvas'));
+  assert.ok(workspace.exportedReadout.viewportEditor.automationMarkers.includes('viewport-preview-ghost'));
 });
 
 test('viewport editor panel fails closed when visual evidence is absent', () => {
@@ -68,4 +70,6 @@ test('sample viewport editor fixture records shared panel state for agent/review
   assert.equal(fixture.selectedTarget?.materialAsset, 'material/studio-brushed-copper');
   assert.ok(fixture.timelineCorrelation?.some((entry) => entry.role === 'preview' && entry.commandId === 'preview.voxel_brush'));
   assert.ok(fixture.automationMarkers?.includes('studio-viewport-editor-panel'));
+  assert.ok(fixture.automationMarkers?.includes('studio-central-reference-viewport-canvas'));
+  assert.ok(fixture.automationMarkers?.includes('viewport-axis-gizmo'));
 });

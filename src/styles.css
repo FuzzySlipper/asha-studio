@@ -153,6 +153,82 @@ p { margin: 0 0 10px; color: #b9c4d5; }
 .visual-card { border: 1px solid rgba(96, 165, 250, 0.28); border-radius: 14px; padding: 14px; margin-top: 12px; background: rgba(9, 14, 28, 0.45); }
 .visual-card strong { display: block; margin-bottom: 6px; color: #bfdbfe; }
 .viewport-editor-panel { border-color: rgba(34, 197, 94, 0.34); background: linear-gradient(135deg, rgba(16, 26, 50, 0.86), rgba(15, 46, 38, 0.68)); }
+.viewport-reference-header,
+.viewport-reference-toolbar,
+.viewport-reference-meta,
+.viewport-reference-footer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.viewport-reference-header { justify-content: space-between; margin-bottom: 12px; }
+.viewport-reference-canvas {
+  position: relative;
+  min-height: 430px;
+  overflow: hidden;
+  border: 1px solid rgba(137, 164, 212, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(224, 162, 60, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(20, 25, 32, 0.96), rgba(8, 11, 16, 0.96));
+}
+.viewport-reference-meta { position: absolute; top: 12px; left: 12px; z-index: 3; }
+.viewport-tool-chip,
+.viewport-meta-chip,
+.viewport-limitation-chip { border: 1px solid rgba(137, 164, 212, 0.26); border-radius: 999px; padding: 5px 9px; background: rgba(9, 14, 28, 0.72); color: #d7e0ef; font-size: 0.8rem; white-space: nowrap; }
+.viewport-tool-chip:last-child,
+.viewport-limitation-chip { color: #fde68a; border-color: rgba(224, 162, 60, 0.42); }
+.viewport-grid-plane {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: min(58vw, 560px);
+  height: 260px;
+  transform: translate(-50%, -50%) rotateX(60deg) rotateZ(-38deg);
+  transform-style: preserve-3d;
+  border: 1px solid rgba(96, 165, 250, 0.26);
+  background:
+    linear-gradient(rgba(96, 165, 250, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(96, 165, 250, 0.12) 1px, transparent 1px),
+    rgba(13, 24, 38, 0.55);
+  background-size: 42px 42px;
+}
+.viewport-isometric-block {
+  position: absolute;
+  left: 42%;
+  top: 28%;
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 92px;
+  transform: translateZ(38px);
+  border: 2px solid rgba(224, 162, 60, 0.72);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(240, 192, 116, 0.92), rgba(160, 106, 57, 0.88));
+  color: #1f160b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.38);
+}
+.viewport-selection-overlay,
+.viewport-preview-ghost,
+.viewport-edit-anchor {
+  position: absolute;
+  z-index: 2;
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  transform: rotateZ(38deg) rotateX(-60deg);
+}
+.viewport-selection-overlay { left: 36%; top: 16%; border: 1px solid #60a5fa; color: #bfdbfe; background: rgba(37, 99, 235, 0.22); }
+.viewport-preview-ghost { left: 56%; top: 46%; border: 1px dashed #facc15; color: #fde68a; background: rgba(250, 204, 21, 0.14); }
+.viewport-edit-anchor { left: 55%; top: 64%; color: #bbf7d0; background: rgba(22, 101, 52, 0.45); }
+.viewport-axis-gizmo { position: absolute; right: 16px; top: 16px; display: grid; gap: 4px; z-index: 4; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.viewport-axis-gizmo span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: rgba(9, 14, 28, 0.72); border: 1px solid rgba(137, 164, 212, 0.34); }
+.axis-x { color: #fca5a5; }
+.axis-y { color: #86efac; }
+.axis-z { color: #93c5fd; }
+.viewport-state-overlay { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 3; display: grid; gap: 4px; padding: 12px; border: 1px solid rgba(137, 164, 212, 0.22); border-radius: 14px; background: rgba(9, 14, 28, 0.78); }
+.viewport-state-overlay p { margin: 0; font-size: 0.86rem; }
+.viewport-reference-footer { margin-top: 12px; }
 .viewport-editor-panel ol { padding-left: 1.25rem; }
 .viewport-editor-panel li { margin-bottom: 6px; color: #d1fae5; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; }
 .viewport-selected-target-readout,
