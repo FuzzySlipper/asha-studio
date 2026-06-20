@@ -15,7 +15,7 @@ const bundleText = jsFiles.map((file) => readFileSync(join(assetDir, file), 'utf
 for (const expected of [
   'ASHA Studio',
   'Scenario / Session',
-  'Viewport',
+  'Viewport Editor Panel',
   'Command Palette / Menu Mirror',
   'Command Timeline',
   'Inspector / Readout',

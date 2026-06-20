@@ -7,6 +7,8 @@ import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
 import { createStudioModelMaterialPreviewModel } from './model-material-preview';
 import type { StudioModelMaterialPreviewModel } from './model-material-preview';
+import { createStudioViewportEditorPanelModel } from './viewport-editor-panel';
+import type { StudioViewportEditorPanelModel } from './viewport-editor-panel';
 import { createVoxelWorkflowModel } from './voxel-workflow';
 import type { StudioVoxelWorkflowModel } from './voxel-workflow';
 import { createStudioReviewArtifact, createVisualEvidenceForVoxelWorkflow } from './visual-evidence';
@@ -174,6 +176,7 @@ export interface StudioAgentReadoutArtifact {
   readonly commandTimeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
   readonly finalState: StudioStateEvidence;
+  readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
   readonly diagnostics: readonly StudioDiagnostic[];
@@ -191,6 +194,7 @@ export interface StudioWorkspaceModel {
   readonly voxelWorkflow: StudioVoxelWorkflowModel;
   readonly commandBatch: StudioCommandBatchModel;
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
+  readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
   readonly exportedReadout: StudioAgentReadoutArtifact;
@@ -406,6 +410,7 @@ export function createAgentReadoutArtifact(options: {
   readonly results: readonly StudioCommandResult[];
   readonly generatedAtIso: string;
   readonly knownLimitations: readonly string[];
+  readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
   const finalState = options.results.at(-1)?.state ?? stateEvidence(options.session.compatibility, 'editor.v0.0');
@@ -422,6 +427,7 @@ export function createAgentReadoutArtifact(options: {
     commandTimeline: options.timeline,
     commandResults: options.results,
     finalState,
+    viewportEditor: options.viewportEditor,
     visualEvidence,
     exportedArtifacts,
     diagnostics: [...options.session.diagnostics, ...options.results.flatMap((result) => result.diagnostics)],
@@ -484,6 +490,12 @@ export function createStudioWorkspaceModel(options: {
     timeline.push(executed.timelineEntry);
     results.push(executed.result);
   }
+  const viewportEditor = createStudioViewportEditorPanelModel({
+    voxelWorkflow,
+    modelMaterialPreview,
+    timeline,
+    visualEvidence,
+  });
   const reviewArtifact = createStudioReviewArtifact({
     session,
     timeline,
@@ -496,6 +508,7 @@ export function createStudioWorkspaceModel(options: {
     session,
     timeline,
     results,
+    viewportEditor,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
     knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.'],
@@ -510,6 +523,7 @@ export function createStudioWorkspaceModel(options: {
     voxelWorkflow,
     commandBatch,
     modelMaterialPreview,
+    viewportEditor,
     visualEvidence,
     reviewArtifact,
     exportedReadout: readout,

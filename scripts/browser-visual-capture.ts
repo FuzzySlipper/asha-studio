@@ -85,6 +85,8 @@ const v1ProofPath = join(v1ProofDir, 'index.json');
 const outDir = join(root, 'artifacts', 'browser-capture', 'latest');
 const requiredAppMarkers = [
   'ASHA Studio',
+  'Viewport Editor Panel',
+  'studio-viewport-editor-panel',
   'Voxel Inspect / Select / Preview / Apply',
   'Visual Evidence / Review Export',
   'Command Timeline',

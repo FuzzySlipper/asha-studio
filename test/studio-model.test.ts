@@ -6,6 +6,8 @@ import { createStudioShellModel, getVisibleCommands } from '../src/studio-model'
 test('studio shell exposes every required V1 panel', () => {
   const model = createStudioShellModel();
   assert.deepEqual(model.panels.map((panel) => panel.id), ['scenario', 'viewport', 'palette', 'timeline', 'inspector', 'evidence', 'modelMaterial', 'batchUndo']);
+  assert.equal(model.panels.find((panel) => panel.id === 'viewport')?.status, 'ready');
+  assert.equal(model.panels.find((panel) => panel.id === 'viewport')?.title, 'Viewport Editor Panel');
   for (const panel of model.panels) {
     assert.ok(panel.title.length > 0, panel.id);
     assert.ok(panel.summary.length > 0, panel.id);
@@ -48,7 +50,8 @@ test('studio shell exposes model/material public-surface preview readout', () =>
   assert.equal(model.workspace.modelMaterialPreview.artifact.selectedModelAsset, 'mesh/studio-preview-crate');
   assert.equal(model.workspace.modelMaterialPreview.artifact.selectedMaterialAsset, 'material/studio-brushed-copper');
   assert.equal(model.workspace.modelMaterialPreview.artifact.rendererClassification, 'contract_render_diff_reference');
-  assert.ok(model.workspace.modelMaterialPreview.artifact.surfaceFindings.some((finding) => finding.status === 'missing_public_command'));
+  assert.ok(model.workspace.modelMaterialPreview.artifact.surfaceFindings.some((finding) => finding.surface === '@asha/command-registry' && finding.status === 'available_public'));
+  assert.equal(model.workspace.modelMaterialPreview.artifact.blockingFeatureRequests.length, 0);
 });
 
 test('studio shell exposes command batch and revert metadata readout', () => {

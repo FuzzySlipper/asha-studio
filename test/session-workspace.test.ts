@@ -103,6 +103,7 @@ test('readout helper preserves result ordering and final state evidence', () => 
     session: workspace.session,
     timeline: workspace.timeline,
     results: workspace.commandResults,
+    viewportEditor: workspace.viewportEditor,
     generatedAtIso: '1970-01-01T00:02:00.000Z',
     knownLimitations: ['test limitation'],
   });
@@ -118,6 +119,7 @@ test('sample agent readout fixture includes exported timeline and command result
     readonly artifactKind?: string;
     readonly commandTimeline?: readonly { readonly commandId?: string; readonly requestedBy?: string }[];
     readonly commandResults?: readonly { readonly commandId?: string }[];
+    readonly viewportEditor?: { readonly artifactKind?: string; readonly panelId?: string; readonly readiness?: string };
     readonly session?: { readonly compatibility?: { readonly commandRegistryVersion?: string } };
   };
   assert.equal(artifact.artifactKind, 'agent_readout');
@@ -135,4 +137,7 @@ test('sample agent readout fixture includes exported timeline and command result
   ]);
   assert.ok(artifact.commandTimeline?.some((entry) => entry.requestedBy === 'agent'));
   assert.equal(artifact.commandResults?.length, artifact.commandTimeline?.length);
+  assert.equal(artifact.viewportEditor?.artifactKind, 'viewport_editor_panel');
+  assert.equal(artifact.viewportEditor?.panelId, 'viewport');
+  assert.equal(artifact.viewportEditor?.readiness, 'ready');
 });

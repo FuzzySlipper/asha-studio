@@ -14,7 +14,7 @@ This repo is intentionally separate from:
 Task `asha#2730` establishes a Vite/TypeScript shell with visible regions required by the V1 plan:
 
 - scenario/session panel;
-- viewport placeholder;
+- viewport editor panel;
 - command palette/menu mirror;
 - command timeline;
 - inspector/readout panel;
@@ -103,7 +103,19 @@ The preview is visible in the Studio app as **Model / Material Preview** and exp
 - `fixtures/studio-model-material-preview.sample.json`
 - `fixtures/studio-model-material-preview.sample.svg`
 
-This is intentionally a reference preview over public contract DTOs, not a native runtime render. The artifact records current surface findings: contracts are available, but first-class model/material inspect/preview command identities and runtime-bridge readback verbs are still missing and should be promoted in ASHA before richer Studio model/material authoring. Follow-up `asha#2895` tracks that public-surface promotion.
+This is intentionally a reference preview over public contract DTOs, not a native runtime render. The artifact records current surface findings: contracts are available, `asha#2895` has promoted first-class model/material inspect/preview command identities and a public runtime bridge operation upstream, and Studio still defers direct `@asha/runtime-bridge` consumption until runtime compatibility is approved for this repo.
+
+## Viewport editor panel
+
+Task `asha#2918` turns the viewport from a placeholder into a narrow agent-observable editor panel. The panel is still a Studio-owned `software_snapshot_reference` projection, but it now displays meaningful editor state tied to the existing typed V1 workflow:
+
+- selected voxel/readout plus model/material context;
+- preview-vs-applied state with distinct authority/render hashes;
+- command timeline correlation for inspect, select, preview, apply, capture, and export rows;
+- evidence refs for voxel workflow state, before/after visual artifacts, and model/material preview output;
+- automation markers (`studio-viewport-editor-panel`, `viewport-selected-target-readout`, `viewport-preview-state-readout`, `viewport-applied-state-readout`, `viewport-timeline-correlation-readout`) used by tests and browser capture readback.
+
+The exported agent readout includes the same `viewport_editor_panel` object so human UI and agent/reviewer artifacts observe the same viewport state. A deterministic fixture lives at `fixtures/studio-viewport-editor-panel.sample.json`.
 
 ## Browser visual capture
 
@@ -153,7 +165,7 @@ git diff --check
 
 ## Known limitations
 
-- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; shared GUI/agent command timeline; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
-- Still mock/reference/deferred: native/WASM runtime-bridge execution, durable timeline persistence, first-class model/material command-registry/runtime verbs, Agora compositor capture as a formal proof command, hardware GPU capture, and performance evidence.
+- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; shared GUI/agent command timeline; visible viewport editor panel; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
+- Still mock/reference/deferred: native/WASM runtime-bridge execution in Studio, durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, and performance evidence.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.

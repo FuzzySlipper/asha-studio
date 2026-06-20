@@ -22,14 +22,14 @@ test('model/material preview uses only public contract DTO shapes', () => {
   assert.match(preview.svgPreview, /Model \/ Material Preview/);
 });
 
-test('model/material preview records missing first-class public command surface', () => {
+test('model/material preview records promoted public command surface and deferred runtime consumption', () => {
   const preview = createStudioModelMaterialPreviewModel({ sessionId: 'session-custom', scenarioId: 'model-material-basic' });
   assert.equal(preview.artifact.sessionId, 'session-custom');
   assert.equal(preview.artifact.scenarioId, 'model-material-basic');
   assert.ok(preview.artifact.surfaceFindings.some((finding) => finding.surface === '@asha/contracts' && finding.status === 'available_public'));
-  assert.ok(preview.artifact.surfaceFindings.some((finding) => finding.surface === '@asha/command-registry' && finding.status === 'missing_public_command'));
-  assert.ok(preview.artifact.blockingFeatureRequests.some((request) => request.expectedSurface === '@asha/command-registry'));
-  assert.ok(preview.artifact.knownLimitations.some((limitation) => limitation.includes('runtime-bridge')));
+  assert.ok(preview.artifact.surfaceFindings.some((finding) => finding.surface === '@asha/command-registry' && finding.status === 'available_public'));
+  assert.equal(preview.artifact.blockingFeatureRequests.length, 0);
+  assert.ok(preview.artifact.knownLimitations.some((limitation) => limitation.includes('runtime transport consumption remains deferred')));
 });
 
 test('sample model/material preview fixture records public-surface evidence', () => {
@@ -39,10 +39,12 @@ test('sample model/material preview fixture records public-surface evidence', ()
     readonly selectedMaterialAsset?: string;
     readonly rendererClassification?: string;
     readonly surfaceFindings?: readonly { readonly surface?: string; readonly status?: string }[];
+    readonly blockingFeatureRequests?: readonly unknown[];
   };
   assert.equal(fixture.artifactKind, 'model_material_preview');
   assert.equal(fixture.selectedModelAsset, 'mesh/studio-preview-crate');
   assert.equal(fixture.selectedMaterialAsset, 'material/studio-brushed-copper');
   assert.equal(fixture.rendererClassification, 'contract_render_diff_reference');
-  assert.ok(fixture.surfaceFindings?.some((finding) => finding.surface === '@asha/command-registry' && finding.status === 'missing_public_command'));
+  assert.ok(fixture.surfaceFindings?.some((finding) => finding.surface === '@asha/command-registry' && finding.status === 'available_public'));
+  assert.equal(fixture.blockingFeatureRequests?.length, 0);
 });

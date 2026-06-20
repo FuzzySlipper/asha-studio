@@ -430,17 +430,17 @@
     {
       "surface": "@asha/contracts",
       "status": "available_public",
-      "evidence": "Catalog/MaterialProjection/StaticMeshAsset/RenderFrameDiff/RenderDiff are exported from the @asha/contracts package root."
+      "evidence": "CatalogEntry/MaterialProjection/StaticMeshAsset/RenderFrameDiff plus ModelMaterialPreviewRequest/Snapshot are exported from the @asha/contracts package root."
     },
     {
       "surface": "@asha/command-registry",
-      "status": "missing_public_command",
-      "evidence": "Current registry has voxel/session/render/export commands but no model/material inspect or preview command identities."
+      "status": "available_public",
+      "evidence": "ASHA command registry exposes inspection.material, inspection.model, and preview.model_material command identities."
     },
     {
       "surface": "@asha/runtime-bridge",
       "status": "deferred",
-      "evidence": "No runtime facade verb is used by this reference preview; a future public bridge verb should load model/material preview fixtures for authority/runtime-backed previews."
+      "evidence": "ASHA now defines a public read_model_material_preview bridge operation, but this Studio slice still avoids runtime transport imports until runtime-bridge compatibility is approved here."
     },
     {
       "surface": "@asha/renderer-three",
@@ -448,15 +448,9 @@
       "evidence": "This narrow Studio preview records contract render-diff descriptors and SVG proof content without importing renderer internals."
     }
   ],
-  "blockingFeatureRequests": [
-    {
-      "title": "Add public model/material inspect and preview commands to ASHA command registry/runtime bridge",
-      "reason": "Studio can build a public-contract reference artifact today, but first-class agent/GUI command parity needs registry command ids and optional runtime bridge readback for model/material previews.",
-      "expectedSurface": "@asha/command-registry"
-    }
-  ],
+  "blockingFeatureRequests": [],
   "knownLimitations": [
     "Preview uses public @asha/contracts DTOs and Studio-owned SVG proof content; it does not import renderer internals or claim native runtime rendering.",
-    "First-class ASHA command-registry/runtime-bridge model/material preview verbs are still missing and tracked as a follow-up feature request."
+    "ASHA public command/runtime surfaces now exist upstream for model/material preview, but Studio runtime transport consumption remains deferred until @asha/runtime-bridge compatibility is approved for this repo."
   ]
 }

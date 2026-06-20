@@ -26,7 +26,7 @@
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 2737,
+    "task": 2918,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -39,8 +39,9 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
+      "Task 2918 provides a Studio-owned viewport editor panel that projects selected target, preview-vs-applied state, timeline correlation, and evidence refs into both UI and agent readout artifacts.",
       "Task 2737 provides Studio-owned command batch transaction metadata, per-command batch results, partial-failure classification, and a typed V1 voxel inverse setVoxel revert workflow over public command evidence.",
-      "Task 2736 provides a public-contract model/material preview artifact using @asha/contracts StaticMeshAsset/MaterialProjection/RenderFrameDiff DTOs and records missing first-class command-registry/runtime preview surfaces as explicit follow-up work.",
+      "Task 2736 provides a public-contract model/material preview artifact using @asha/contracts StaticMeshAsset/MaterialProjection/RenderFrameDiff DTOs; upstream task 2895 promoted first-class command-registry/runtime preview surfaces, while direct Studio runtime transport consumption remains deferred.",
       "Task 2738 provides `pnpm run proof:v1` as the end-to-end Studio V1 proof command with software_snapshot functional visual evidence.",
       "Task 2739 provides `pnpm run proof:browser` as a Chromium headless browser screenshot capture/readback path for the Studio app and V1 proof routes; it does not claim Agora/hardware GPU/performance evidence.",
       "@asha/studio-evidence remains deferred; current proof uses Studio-owned review/proof artifact schemas as reference evidence until that package lands."

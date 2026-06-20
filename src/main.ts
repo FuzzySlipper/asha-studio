@@ -50,6 +50,23 @@ function renderApp(): void {
   }
   shell.append(grid);
 
+  const viewport = el('section', 'viewport-editor-panel');
+  viewport.setAttribute('aria-label', model.workspace.viewportEditor.automationLabel);
+  viewport.append(el('h2', undefined, model.workspace.viewportEditor.title));
+  viewport.append(el('p', 'panel-summary', `${model.workspace.viewportEditor.projectionMode}; readiness ${model.workspace.viewportEditor.readiness}`));
+  viewport.append(el('p', 'viewport-selected-target-readout', `Selected target: ${model.workspace.viewportEditor.selectedTarget.selectedVoxel} face ${model.workspace.viewportEditor.selectedTarget.selectedFace}; edit anchor ${model.workspace.viewportEditor.selectedTarget.editAnchor}`));
+  viewport.append(el('p', undefined, `Model/material context: ${model.workspace.viewportEditor.selectedTarget.modelAsset} · ${model.workspace.viewportEditor.selectedTarget.materialAsset}`));
+  viewport.append(el('p', 'viewport-preview-state-readout', `Preview: ${model.workspace.viewportEditor.previewState.authorityHash}; ${model.workspace.viewportEditor.previewState.summary}`));
+  viewport.append(el('p', 'viewport-applied-state-readout', `Applied: ${model.workspace.viewportEditor.appliedState.authorityHash}; ${model.workspace.viewportEditor.appliedState.summary}`));
+  viewport.append(el('p', undefined, `Render hashes: ${model.workspace.viewportEditor.previewState.renderHash} → ${model.workspace.viewportEditor.appliedState.renderHash}`));
+  const viewportTimeline = el('ol', 'viewport-timeline-correlation-readout');
+  for (const correlation of model.workspace.viewportEditor.timelineCorrelation) {
+    viewportTimeline.append(el('li', undefined, `${correlation.sequenceId}: ${correlation.role} · ${correlation.commandId} · ${correlation.status}`));
+  }
+  viewport.append(viewportTimeline);
+  viewport.append(el('p', undefined, `Evidence refs: ${model.workspace.viewportEditor.evidenceRefs.map((ref) => ref.artifactId).join(', ')}`));
+  shell.append(viewport);
+
   const palette = el('section', 'command-readout');
   palette.setAttribute('aria-label', 'studio-command-catalog-readout');
   palette.append(el('h2', undefined, `Command Catalog (${model.visibleCommands.length} visible commands)`));

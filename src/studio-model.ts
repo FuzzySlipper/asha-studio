@@ -45,9 +45,9 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
   },
   {
     id: 'viewport',
-    title: 'Viewport',
-    summary: 'Reserved for public renderer projection and selection evidence; no authority lives here.',
-    status: 'placeholder',
+    title: 'Viewport Editor Panel',
+    summary: 'Projects selected voxel/model-material context, preview-vs-applied evidence, and shared timeline correlation without owning authority.',
+    status: 'ready',
     automationLabel: 'studio-panel-viewport',
   },
   {
@@ -81,7 +81,7 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
   {
     id: 'modelMaterial',
     title: 'Model / Material Preview',
-    summary: 'Loads a public-contract static mesh/material fixture, previews render-diff metadata, and records missing first-class command surfaces.',
+    summary: 'Loads a public-contract static mesh/material fixture, previews render-diff metadata, and records promoted public command surfaces with deferred Studio runtime consumption.',
     status: 'ready',
     automationLabel: 'studio-panel-model-material-preview',
   },
