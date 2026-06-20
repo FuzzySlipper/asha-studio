@@ -32,9 +32,14 @@ interface ScreenshotRef {
 interface BrowserCaptureArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'browser_visual_capture_proof';
-  readonly taskId: 2739;
+  readonly taskId: 3022;
   readonly generatedAtIso: string;
   readonly proofCommand: 'pnpm run proof:browser';
+  readonly editorShellTarget: {
+    readonly mockupPath: string;
+    readonly comparisonMode: 'structural_semantic_markers';
+    readonly pixelPerfect: false;
+  };
   readonly captureBackend: {
     readonly runtime: 'chromium_headless_cli';
     readonly captureMode: 'browser_screenshot';
@@ -54,6 +59,13 @@ interface BrowserCaptureArtifact {
   readonly readiness: {
     readonly status: 'ready' | 'failed_closed';
     readonly requiredMarkers: readonly string[];
+    readonly markerGroups: readonly {
+      readonly groupId: string;
+      readonly label: string;
+      readonly requiredMarkers: readonly string[];
+      readonly missingMarkers: readonly string[];
+      readonly status: 'present' | 'missing';
+    }[];
     readonly appMissingMarkers: readonly string[];
     readonly proofMissingMarkers: readonly string[];
   };
@@ -79,62 +91,44 @@ interface BrowserCaptureArtifact {
 }
 
 const root = process.cwd();
+const editorShellMockupPath = join(root, 'local', 'ui-test.html');
 const distDir = join(root, 'dist');
 const v1ProofDir = join(root, 'artifacts', 'v1-proof', 'latest');
 const v1ProofPath = join(v1ProofDir, 'index.json');
 const outDir = join(root, 'artifacts', 'browser-capture', 'latest');
-const requiredAppMarkers = [
-  'ASHA Studio',
-  'studio-editor-app-status-bar',
-  'studio-editor-left-scene-hierarchy-dock',
-  'studio-editor-central-viewport-dock',
-  'studio-editor-right-inspector-dock',
-  'studio-editor-bottom-command-evidence-dock',
-  'runtime bridge: deferred',
-  'native / Agora / GPU: not claimed',
-  'boundary: public package roots only',
-  'Scene / Hierarchy',
-  'studio-scene-hierarchy-dock',
-  'scene-hierarchy-tree-readout',
-  'Selected voxel (0, 0, 0)',
-  'Preview ghost (1, 0, 0)',
-  'authority-backed',
-  'preview-only',
-  'State legend',
-  'Viewport — terrain-test-grid',
-  'studio-central-reference-viewport-canvas',
-  'persp · 35mm',
-  'grid ✓',
-  'gizmos ✓',
-  'shading: flat',
-  'preview ghost',
-  'edit anchor:',
-  'projection: software_snapshot_reference',
-  'runtime bridge: deferred',
-  'Viewport Editor Panel',
-  'studio-viewport-editor-panel',
-  'Voxel Inspect / Select / Preview / Apply',
-  'Visual Evidence / Review Export',
-  'Inspector / Selected Target',
-  'Proposed by Studio (TS), projection only.',
-  'Validated by Authority (Rust), authoritative state.',
-  'Authority transition',
-  'Render projection',
-  'software_snapshot_reference',
-  'no native runtime, Agora, GPU, or performance claim',
-  'Command Timeline',
-  'authority.voxel.apply_brush',
-  'render.capture_before_after',
-  'export.agent_readout',
-  'Capture readiness: ready',
-  'Command Timeline / Evidence Log',
-  'Evidence / Artifacts',
-  'GUI',
-  'AGENT',
-  'artifact-review-export-0001',
-  'artifact-agent-readout-0001',
-  'not a second private command log',
+const editorShellMarkerGroups = [
+  {
+    groupId: 'top_app_status_bar',
+    label: 'ASHA top app/status bar and limitation chips',
+    markers: ['ASHA Studio', 'studio-editor-app-status-bar', 'runtime bridge: deferred', 'native / Agora / GPU: not claimed', 'boundary: public package roots only'],
+  },
+  {
+    groupId: 'left_scene_hierarchy_dock',
+    label: 'Left scene/hierarchy dock',
+    markers: ['studio-editor-left-scene-hierarchy-dock', 'Scene / Hierarchy', 'studio-scene-hierarchy-dock', 'scene-hierarchy-tree-readout', 'authority-backed', 'preview-only', 'State legend'],
+  },
+  {
+    groupId: 'central_reference_viewport',
+    label: 'Central reference viewport',
+    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'persp · 35mm', 'grid ✓', 'gizmos ✓', 'shading: flat', 'preview ghost', 'edit anchor:', 'projection: software_snapshot_reference'],
+  },
+  {
+    groupId: 'right_inspector_dock',
+    label: 'Right selected-target inspector dock',
+    markers: ['studio-editor-right-inspector-dock', 'Inspector / Selected Target', 'Proposed by Studio (TS), projection only.', 'Validated by Authority (Rust), authoritative state.', 'Authority transition', 'Render projection', 'software_snapshot_reference', 'no native runtime, Agora, GPU, or performance claim'],
+  },
+  {
+    groupId: 'bottom_command_evidence_dock',
+    label: 'Bottom command timeline/evidence dock',
+    markers: ['studio-editor-bottom-command-evidence-dock', 'Command Timeline / Evidence Log', 'Evidence / Artifacts', 'artifact-review-export-0001', 'artifact-agent-readout-0001', 'not a second private command log'],
+  },
+  {
+    groupId: 'preview_applied_authority_render_readouts',
+    label: 'Preview vs applied authority/render readouts',
+    markers: ['preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after', 'Capture readiness: ready', 'Authority hash:', 'Render hash:'],
+  },
 ] as const;
+const requiredAppMarkers = editorShellMarkerGroups.flatMap((group) => group.markers);
 const requiredProofMarkers = [
   'ASHA Studio V1 Proof',
   'Before',
@@ -290,14 +284,29 @@ async function main(): Promise<void> {
     return { appText: app.text, proofText: proof.text, screenshots: [app.screenshot, proof.screenshot], urls: { studioAppUrl, proofArtifactUrl } };
   });
   const appMissingMarkers = requiredAppMarkers.filter((marker) => !capture.appText.includes(marker));
+  const markerGroups = editorShellMarkerGroups.map((group) => {
+    const missingMarkers = group.markers.filter((marker) => !capture.appText.includes(marker));
+    return {
+      groupId: group.groupId,
+      label: group.label,
+      requiredMarkers: [...group.markers],
+      missingMarkers,
+      status: missingMarkers.length === 0 ? 'present' as const : 'missing' as const,
+    };
+  });
   const proofMissingMarkers = requiredProofMarkers.filter((marker) => !capture.proofText.includes(marker));
   const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready';
   const artifact: BrowserCaptureArtifact = {
     schemaVersion: 1,
     artifactKind: 'browser_visual_capture_proof',
-    taskId: 2739,
+    taskId: 3022,
     generatedAtIso: new Date().toISOString(),
     proofCommand: 'pnpm run proof:browser',
+    editorShellTarget: {
+      mockupPath: editorShellMockupPath,
+      comparisonMode: 'structural_semantic_markers',
+      pixelPerfect: false,
+    },
     captureBackend: {
       runtime: 'chromium_headless_cli',
       captureMode: 'browser_screenshot',
@@ -314,6 +323,7 @@ async function main(): Promise<void> {
     readiness: {
       status: ready ? 'ready' : 'failed_closed',
       requiredMarkers: [...requiredAppMarkers, ...requiredProofMarkers],
+      markerGroups,
       appMissingMarkers,
       proofMissingMarkers,
     },
