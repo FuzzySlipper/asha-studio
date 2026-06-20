@@ -58,7 +58,39 @@ function renderTopBar(model: StudioShell): HTMLElement {
   return topBar;
 }
 
-function renderBoundaryCard(model: StudioShell): HTMLElement {
+function renderSceneHierarchy(model: StudioShell): HTMLElement {
+  const hierarchyModel = model.workspace.sceneHierarchy;
+  const hierarchy = el('section', 'scene-hierarchy-dock');
+  hierarchy.setAttribute('aria-label', hierarchyModel.automationLabel);
+  hierarchy.append(el('h2', undefined, hierarchyModel.title));
+  hierarchy.append(el('p', 'panel-summary', `${hierarchyModel.projectionMode}; ${hierarchyModel.nodes.length} deterministic node(s) from workspace evidence.`));
+  const tree = el('ol', 'scene-hierarchy-tree-readout');
+  for (const node of hierarchyModel.nodes) {
+    const row = el('li', `scene-hierarchy-node scene-hierarchy-node--depth-${node.depth} scene-hierarchy-node-${node.kind}`);
+    row.dataset.nodeId = node.id;
+    const label = el('span', 'scene-hierarchy-node-label', node.label);
+    row.append(label);
+    const badges = el('span', 'scene-hierarchy-badges');
+    for (const badge of node.badges) badges.append(el('span', `scene-hierarchy-badge scene-hierarchy-badge--${badge}`, badge));
+    row.append(badges);
+    row.append(el('span', 'scene-hierarchy-evidence-source', node.evidenceSource));
+    row.append(el('p', undefined, node.summary));
+    tree.append(row);
+  }
+  hierarchy.append(tree);
+  const legend = el('div', 'scene-hierarchy-legend');
+  legend.append(el('h3', undefined, 'State legend'));
+  for (const item of hierarchyModel.legend) {
+    const entry = el('p');
+    entry.append(el('span', `scene-hierarchy-badge scene-hierarchy-badge--${item.badge}`, item.label));
+    entry.append(el('span', undefined, ` ${item.meaning}`));
+    legend.append(entry);
+  }
+  hierarchy.append(legend);
+  return hierarchy;
+}
+
+function renderBoundaryCard(model: StudioShell) {
   const boundary = el('section', 'boundary-card');
   boundary.setAttribute('aria-label', 'studio-boundary-readout');
   boundary.append(el('h2', undefined, 'Public ASHA Boundary'));
@@ -267,8 +299,7 @@ function renderDockFrame(model: StudioShell): HTMLElement {
 
   const leftDock = el('aside', 'studio-editor-dock studio-editor-left-dock');
   leftDock.setAttribute('aria-label', 'studio-editor-left-scene-hierarchy-dock');
-  leftDock.append(el('h2', undefined, 'Scene / Hierarchy'));
-  leftDock.append(el('p', 'panel-summary', 'Placeholder dock for the next hierarchy slice; current session/scenario readout remains visible here.'));
+  leftDock.append(renderSceneHierarchy(model));
   leftDock.append(renderPanel(findPanel(model, 'scenario')));
   leftDock.append(renderBoundaryCard(model));
   frame.append(leftDock);

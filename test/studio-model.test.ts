@@ -13,7 +13,7 @@ test('studio shell exposes editor dock frame regions for the Unity-ish layout sl
     'studio-editor-bottom-command-evidence-dock',
   ]);
   assert.equal(model.editorShellRegions.find((region) => region.id === 'centralViewportDock')?.status, 'implemented_frame');
-  assert.equal(model.editorShellRegions.find((region) => region.id === 'leftHierarchyDock')?.status, 'placeholder_internals');
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'leftHierarchyDock')?.status, 'implemented_frame');
   assert.equal(model.editorShellRegions.find((region) => region.id === 'rightInspectorDock')?.status, 'placeholder_internals');
 });
 

@@ -7,6 +7,8 @@ import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
 import { createStudioModelMaterialPreviewModel } from './model-material-preview';
 import type { StudioModelMaterialPreviewModel } from './model-material-preview';
+import { createStudioSceneHierarchyModel } from './scene-hierarchy';
+import type { StudioSceneHierarchyModel } from './scene-hierarchy';
 import { createStudioViewportEditorPanelModel } from './viewport-editor-panel';
 import type { StudioViewportEditorPanelModel } from './viewport-editor-panel';
 import { createVoxelWorkflowModel } from './voxel-workflow';
@@ -176,6 +178,7 @@ export interface StudioAgentReadoutArtifact {
   readonly commandTimeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
   readonly finalState: StudioStateEvidence;
+  readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
@@ -194,6 +197,7 @@ export interface StudioWorkspaceModel {
   readonly voxelWorkflow: StudioVoxelWorkflowModel;
   readonly commandBatch: StudioCommandBatchModel;
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
+  readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
@@ -410,6 +414,7 @@ export function createAgentReadoutArtifact(options: {
   readonly results: readonly StudioCommandResult[];
   readonly generatedAtIso: string;
   readonly knownLimitations: readonly string[];
+  readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
@@ -427,6 +432,7 @@ export function createAgentReadoutArtifact(options: {
     commandTimeline: options.timeline,
     commandResults: options.results,
     finalState,
+    sceneHierarchy: options.sceneHierarchy,
     viewportEditor: options.viewportEditor,
     visualEvidence,
     exportedArtifacts,
@@ -496,6 +502,13 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     visualEvidence,
   });
+  const sceneHierarchy = createStudioSceneHierarchyModel({
+    session,
+    scenario: { scenarioId: activeScenarioId, label: session.scenarioLabel, status: status === 'ready' ? 'loaded' : 'available' },
+    voxelWorkflow,
+    modelMaterialPreview,
+    viewportEditor,
+  });
   const reviewArtifact = createStudioReviewArtifact({
     session,
     timeline,
@@ -508,6 +521,7 @@ export function createStudioWorkspaceModel(options: {
     session,
     timeline,
     results,
+    sceneHierarchy,
     viewportEditor,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
@@ -523,6 +537,7 @@ export function createStudioWorkspaceModel(options: {
     voxelWorkflow,
     commandBatch,
     modelMaterialPreview,
+    sceneHierarchy,
     viewportEditor,
     visualEvidence,
     reviewArtifact,

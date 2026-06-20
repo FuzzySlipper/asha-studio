@@ -1545,6 +1545,142 @@
       ]
     }
   },
+  "sceneHierarchy": {
+    "schemaVersion": 1,
+    "artifactKind": "scene_hierarchy_projection",
+    "automationLabel": "studio-scene-hierarchy-dock",
+    "title": "Scene / Hierarchy",
+    "projectionMode": "studio_state_projection",
+    "nodes": [
+      {
+        "id": "session:session-preview-0001",
+        "label": "Session session-preview-0001",
+        "kind": "session",
+        "depth": 0,
+        "badges": [
+          "projected"
+        ],
+        "evidenceSource": "StudioSessionMetadata",
+        "summary": "mock workspace; scenario voxel-basic; compatibility contracts.v0."
+      },
+      {
+        "id": "scenario:voxel-basic",
+        "label": "Basic Voxel Scenario",
+        "kind": "scenario",
+        "depth": 1,
+        "badges": [
+          "projected",
+          "authority-backed"
+        ],
+        "evidenceSource": "StudioWorkspaceModel.scenario",
+        "summary": "Scenario loaded; command timeline projected from shared workspace evidence."
+      },
+      {
+        "id": "grid:voxel-basic",
+        "label": "Voxel grid voxel-basic",
+        "kind": "grid",
+        "depth": 1,
+        "badges": [
+          "projected",
+          "authority-backed"
+        ],
+        "evidenceSource": "StudioVoxelWorkflowEvidence.meshEvidence",
+        "summary": "2 occupied after apply; authority grid-fnv1a-8eb9594b."
+      },
+      {
+        "id": "entity:mesh/studio-preview-crate",
+        "label": "Reference model preview entity",
+        "kind": "entity",
+        "depth": 2,
+        "badges": [
+          "projected"
+        ],
+        "evidenceSource": "StudioModelMaterialPreviewModel.artifact",
+        "summary": "contract_render_diff_reference; ready."
+      },
+      {
+        "id": "voxel:(0, 0, 0)",
+        "label": "Selected voxel (0, 0, 0)",
+        "kind": "voxel",
+        "depth": 2,
+        "badges": [
+          "selected",
+          "authority-backed"
+        ],
+        "evidenceSource": "StudioViewportEditorPanelModel.selectedTarget",
+        "summary": "Face posX; 1 authority-backed changed voxel(s)."
+      },
+      {
+        "id": "preview:(1, 0, 0)",
+        "label": "Preview ghost (1, 0, 0)",
+        "kind": "voxel",
+        "depth": 3,
+        "badges": [
+          "preview-only"
+        ],
+        "evidenceSource": "StudioViewportEditorPanelModel.previewState",
+        "summary": "1 preview target(s); authority remains grid-fnv1a-cc815eb0."
+      },
+      {
+        "id": "material:material/studio-brushed-copper",
+        "label": "material/studio-brushed-copper",
+        "kind": "material",
+        "depth": 3,
+        "badges": [
+          "projected",
+          "selected"
+        ],
+        "evidenceSource": "StudioModelMaterialPreviewModel.artifact.selectedMaterialAsset",
+        "summary": "Material context selected through public-contract reference preview evidence."
+      },
+      {
+        "id": "model:mesh/studio-preview-crate",
+        "label": "mesh/studio-preview-crate",
+        "kind": "model",
+        "depth": 3,
+        "badges": [
+          "projected"
+        ],
+        "evidenceSource": "StudioModelMaterialPreviewModel.artifact.selectedModelAsset",
+        "summary": "Model context is a reference projection; runtime bridge consumption remains deferred."
+      }
+    ],
+    "legend": [
+      {
+        "badge": "projected",
+        "label": "projected",
+        "meaning": "Derived from Studio workspace/readout state, not a product asset database."
+      },
+      {
+        "badge": "authority-backed",
+        "label": "authority-backed",
+        "meaning": "Backed by a typed authority/result hash or accepted command result."
+      },
+      {
+        "badge": "preview-only",
+        "label": "preview-only",
+        "meaning": "Editor-local projection before authority acceptance."
+      },
+      {
+        "badge": "selected",
+        "label": "selected",
+        "meaning": "Current persistent editor selection/tool context."
+      }
+    ],
+    "automationMarkers": [
+      "studio-scene-hierarchy-dock",
+      "scene-hierarchy-tree-readout",
+      "scene-hierarchy-node-session",
+      "scene-hierarchy-node-grid",
+      "scene-hierarchy-node-selected-voxel",
+      "scene-hierarchy-node-preview-ghost",
+      "scene-hierarchy-legend"
+    ],
+    "knownLimitations": [
+      "Hierarchy is a deterministic projection of Studio workspace evidence, not an ECS or product asset database.",
+      "Hierarchy nodes intentionally avoid game-specific/Minecraft assumptions and private ASHA internals."
+    ]
+  },
   "viewportEditor": {
     "schemaVersion": 1,
     "artifactKind": "viewport_editor_panel",
