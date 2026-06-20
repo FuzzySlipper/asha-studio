@@ -38,7 +38,7 @@ The current local ASHA package linkage uses package-root links to `/home/dev/ash
 
 `boundary-policy.json` is the machine-readable import/dependency policy used by `pnpm run check:boundaries`.
 
-Current source imports may use only the public package root `@asha/command-registry`. The package manager may also keep an explicit local package-root link to `@asha/contracts` while ASHA packages are unpublished, but source code must not import it directly until a task promotes that surface for studio use.
+Current source imports may use only the public package roots approved in `boundary-policy.json`: `@asha/command-registry`, `@asha/contracts`, and `@asha/editor-tools`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
 
@@ -58,7 +58,7 @@ Native/WASM runtime modes fail closed until runtime bridge compatibility metadat
 
 Task `asha#2733` adds a mock/reference Studio workspace model with a shared human/agent command timeline. The shell now starts a deterministic preview session, loads the `voxel-basic` scenario through the same command registry path used for agent-originated calls, records structured command results, and exports `fixtures/studio-agent-readout.sample.json`.
 
-Current supported readout commands are session/workspace oriented: `session.start`, `session.load_scenario`, and `inspection.session_status`. Runtime bridge/native execution and visual evidence capture remain deferred, but the exported readout already includes session metadata, compatibility metadata, command timeline entries, command results, state evidence placeholders, diagnostics, artifact refs, and known limitations.
+Current supported readout starts with session/workspace commands (`session.start`, `session.load_scenario`, and `inspection.session_status`) and extends through the V1 voxel workflow (`inspection.voxel`, `selection.voxel_from_screen_point`, `preview.voxel_brush`, `authority.voxel.apply_brush`, `render.capture_before_after`, and `export.agent_readout`). Runtime bridge/native execution remains deferred, but the exported readout includes session metadata, compatibility metadata, command timeline entries, command results, state evidence, diagnostics, artifact refs, visual evidence, and known limitations.
 
 ## Voxel inspect/select/preview/apply workflow
 
@@ -153,5 +153,7 @@ git diff --check
 
 ## Known limitations
 
-- Command execution uses the mock/reference typed public command path; native/WASM runtime-bridge integration, timeline persistence, first-class model/material command-registry/runtime verbs, Agora compositor capture, hardware GPU capture, and performance evidence remain planned follow-up work.
+- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; shared GUI/agent command timeline; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
+- Still mock/reference/deferred: native/WASM runtime-bridge execution, durable timeline persistence, first-class model/material command-registry/runtime verbs, Agora compositor capture as a formal proof command, hardware GPU capture, and performance evidence.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.
+- Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.
