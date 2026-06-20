@@ -5,7 +5,7 @@ import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, 
 import { createStudioWorkspaceModel } from './session-workspace';
 import type { StudioWorkspaceModel } from './session-workspace';
 
-export type StudioPanelId = 'scenario' | 'viewport' | 'palette' | 'timeline' | 'inspector' | 'evidence';
+export type StudioPanelId = 'scenario' | 'viewport' | 'palette' | 'timeline' | 'inspector' | 'evidence' | 'modelMaterial';
 
 export interface StudioPanelModel {
   readonly id: StudioPanelId;
@@ -77,6 +77,13 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
     summary: 'Shows before/after software visual evidence and the fail-closed review export artifact.',
     status: 'ready',
     automationLabel: 'studio-panel-evidence-export',
+  },
+  {
+    id: 'modelMaterial',
+    title: 'Model / Material Preview',
+    summary: 'Loads a public-contract static mesh/material fixture, previews render-diff metadata, and records missing first-class command surfaces.',
+    status: 'ready',
+    automationLabel: 'studio-panel-model-material-preview',
   },
 ] as const;
 

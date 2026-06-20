@@ -72,6 +72,21 @@ Task `asha#2735` adds review-grade software visual evidence for the V1 Studio pa
 
 This is functional proof-content evidence only. It is intentionally not browser screenshot, Agora capture, hardware GPU, or performance evidence; those remain later capture-backend tasks.
 
+## Model/material preview workflow
+
+Task `asha#2736` adds a narrow public-surface model/material preview lane. Studio now builds a reference `model_material_preview` artifact from `@asha/contracts` package-root DTOs:
+
+- `Catalog` / `CatalogEntry` / `MaterialProjection` for material metadata;
+- `StaticMeshAsset` for a static mesh fixture;
+- `RenderFrameDiff` operations (`defineMaterial`, `defineStaticMesh`, `createStaticMeshInstance`) for renderer-facing preview evidence.
+
+The preview is visible in the Studio app as **Model / Material Preview** and exported as:
+
+- `fixtures/studio-model-material-preview.sample.json`
+- `fixtures/studio-model-material-preview.sample.svg`
+
+This is intentionally a reference preview over public contract DTOs, not a native runtime render. The artifact records current surface findings: contracts are available, but first-class model/material inspect/preview command identities and runtime-bridge readback verbs are still missing and should be promoted in ASHA before richer Studio model/material authoring. Follow-up `asha#2895` tracks that public-surface promotion.
+
 ## Browser visual capture
 
 Task `asha#2739` adds a Chromium headless browser screenshot capture/readback path for the completed Studio V1 proof:
@@ -120,5 +135,5 @@ git diff --check
 
 ## Known limitations
 
-- Command execution uses the mock/reference typed public command path; native/WASM runtime-bridge integration, timeline persistence, Agora compositor capture, hardware GPU capture, and performance evidence remain planned follow-up work.
+- Command execution uses the mock/reference typed public command path; native/WASM runtime-bridge integration, timeline persistence, first-class model/material command-registry/runtime verbs, Agora compositor capture, hardware GPU capture, and performance evidence remain planned follow-up work.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.

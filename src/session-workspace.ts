@@ -3,6 +3,8 @@ import type { OperationClass, StudioCommandCatalog, StudioCommandCatalogEntry, S
 
 import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
+import { createStudioModelMaterialPreviewModel } from './model-material-preview';
+import type { StudioModelMaterialPreviewModel } from './model-material-preview';
 import { createVoxelWorkflowModel } from './voxel-workflow';
 import type { StudioVoxelWorkflowModel } from './voxel-workflow';
 import { createStudioReviewArtifact, createVisualEvidenceForVoxelWorkflow } from './visual-evidence';
@@ -185,6 +187,7 @@ export interface StudioWorkspaceModel {
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
   readonly voxelWorkflow: StudioVoxelWorkflowModel;
+  readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
   readonly exportedReadout: StudioAgentReadoutArtifact;
@@ -465,6 +468,7 @@ export function createStudioWorkspaceModel(options: {
     catalog,
     sequenceStartIndex: timeline.length,
   });
+  const modelMaterialPreview = createStudioModelMaterialPreviewModel({ sessionId: session.sessionId, scenarioId: activeScenarioId });
   timeline.push(...voxelWorkflow.timelineEntries);
   results.push(...voxelWorkflow.commandResults);
   const visualEvidence = createVisualEvidenceForVoxelWorkflow(voxelWorkflow);
@@ -500,6 +504,7 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     commandResults: results,
     voxelWorkflow,
+    modelMaterialPreview,
     visualEvidence,
     reviewArtifact,
     exportedReadout: readout,

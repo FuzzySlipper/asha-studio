@@ -5,7 +5,7 @@ import { createStudioShellModel, getVisibleCommands } from '../src/studio-model'
 
 test('studio shell exposes every required V1 panel', () => {
   const model = createStudioShellModel();
-  assert.deepEqual(model.panels.map((panel) => panel.id), ['scenario', 'viewport', 'palette', 'timeline', 'inspector', 'evidence']);
+  assert.deepEqual(model.panels.map((panel) => panel.id), ['scenario', 'viewport', 'palette', 'timeline', 'inspector', 'evidence', 'modelMaterial']);
   for (const panel of model.panels) {
     assert.ok(panel.title.length > 0, panel.id);
     assert.ok(panel.summary.length > 0, panel.id);
@@ -41,4 +41,12 @@ test('timeline preview reflects executed workspace commands', () => {
   assert.ok(model.timelinePreview.every((entry) => entry.startsWith('seq-')));
   assert.equal(model.workspace.timeline.length, model.timelinePreview.length);
   assert.ok(model.workspace.exportedReadout.commandTimeline.length > 0);
+});
+
+test('studio shell exposes model/material public-surface preview readout', () => {
+  const model = createStudioShellModel();
+  assert.equal(model.workspace.modelMaterialPreview.artifact.selectedModelAsset, 'mesh/studio-preview-crate');
+  assert.equal(model.workspace.modelMaterialPreview.artifact.selectedMaterialAsset, 'material/studio-brushed-copper');
+  assert.equal(model.workspace.modelMaterialPreview.artifact.rendererClassification, 'contract_render_diff_reference');
+  assert.ok(model.workspace.modelMaterialPreview.artifact.surfaceFindings.some((finding) => finding.status === 'missing_public_command'));
 });

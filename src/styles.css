@@ -21,6 +21,7 @@ p { margin: 0 0 10px; color: #b9c4d5; }
 .command-readout,
 .timeline-preview,
 .voxel-workflow,
+.model-material-preview,
 .visual-evidence,
 .limitations,
 .studio-panel {
@@ -34,6 +35,7 @@ p { margin: 0 0 10px; color: #b9c4d5; }
 .command-readout,
 .timeline-preview,
 .voxel-workflow,
+.model-material-preview,
 .visual-evidence,
 .limitations { padding: 20px; margin-top: 20px; }
 
@@ -50,7 +52,8 @@ p { margin: 0 0 10px; color: #b9c4d5; }
 .studio-panel[data-panel-id="palette"],
 .studio-panel[data-panel-id="timeline"],
 .studio-panel[data-panel-id="inspector"],
-.studio-panel[data-panel-id="evidence"] { grid-column: span 3; }
+.studio-panel[data-panel-id="evidence"],
+.studio-panel[data-panel-id="modelMaterial"] { grid-column: span 3; }
 
 .panel-status {
   position: absolute;
@@ -92,5 +95,6 @@ p { margin: 0 0 10px; color: #b9c4d5; }
   .studio-panel[data-panel-id="palette"],
   .studio-panel[data-panel-id="timeline"],
   .studio-panel[data-panel-id="inspector"],
-  .studio-panel[data-panel-id="evidence"] { grid-column: span 1; }
+  .studio-panel[data-panel-id="evidence"],
+  .studio-panel[data-panel-id="modelMaterial"] { grid-column: span 1; }
 }

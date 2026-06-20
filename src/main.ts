@@ -81,6 +81,21 @@ function renderApp(): void {
   voxel.append(gridReadout);
   shell.append(voxel);
 
+  const modelMaterial = el('section', 'model-material-preview');
+  modelMaterial.setAttribute('aria-label', 'studio-model-material-preview-readout');
+  modelMaterial.append(el('h2', undefined, 'Model / Material Preview'));
+  modelMaterial.append(el('p', undefined, `Model: ${model.workspace.modelMaterialPreview.artifact.selectedModelAsset}`));
+  modelMaterial.append(el('p', undefined, `Material: ${model.workspace.modelMaterialPreview.artifact.selectedMaterialAsset}`));
+  modelMaterial.append(el('p', undefined, `Renderer classification: ${model.workspace.modelMaterialPreview.artifact.rendererClassification}; readiness ${model.workspace.modelMaterialPreview.artifact.readiness}`));
+  modelMaterial.append(el('p', undefined, `Render diff ops: ${model.workspace.modelMaterialPreview.artifact.renderFrameDiff.ops.map((op) => op.op).join(', ')}`));
+  modelMaterial.append(el('p', undefined, `Preview evidence: ${model.workspace.modelMaterialPreview.artifact.previewArtifactPath} · ${model.workspace.modelMaterialPreview.artifact.previewEvidenceHash}`));
+  const surfaceList = el('ul');
+  for (const finding of model.workspace.modelMaterialPreview.artifact.surfaceFindings) {
+    surfaceList.append(el('li', undefined, `${finding.surface}: ${finding.status} — ${finding.evidence}`));
+  }
+  modelMaterial.append(surfaceList);
+  shell.append(modelMaterial);
+
   const evidence = el('section', 'visual-evidence');
   evidence.setAttribute('aria-label', 'studio-visual-evidence-review-export');
   evidence.append(el('h2', undefined, 'Visual Evidence / Review Export'));
