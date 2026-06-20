@@ -85,6 +85,15 @@ const v1ProofPath = join(v1ProofDir, 'index.json');
 const outDir = join(root, 'artifacts', 'browser-capture', 'latest');
 const requiredAppMarkers = [
   'ASHA Studio',
+  'studio-editor-app-status-bar',
+  'studio-editor-left-scene-hierarchy-dock',
+  'studio-editor-central-viewport-dock',
+  'studio-editor-right-inspector-dock',
+  'studio-editor-bottom-command-evidence-dock',
+  'runtime bridge: deferred',
+  'native / Agora / GPU: not claimed',
+  'boundary: public package roots only',
+  'Scene / Hierarchy',
   'Viewport Editor Panel',
   'studio-viewport-editor-panel',
   'Voxel Inspect / Select / Preview / Apply',

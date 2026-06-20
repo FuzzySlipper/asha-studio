@@ -1,6 +1,9 @@
 import './styles.css';
 import { createStudioShellModel } from './studio-model';
 
+type StudioShell = ReturnType<typeof createStudioShellModel>;
+type StudioPanel = StudioShell['panels'][number];
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (className !== undefined) node.className = className;
@@ -8,7 +11,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   return node;
 }
 
-function renderPanel(panel: ReturnType<typeof createStudioShellModel>['panels'][number]): HTMLElement {
+function renderPanel(panel: StudioPanel): HTMLElement {
   const section = el('section', `studio-panel studio-panel--${panel.status}`);
   section.setAttribute('aria-label', panel.automationLabel);
   section.dataset.panelId = panel.id;
@@ -19,17 +22,43 @@ function renderPanel(panel: ReturnType<typeof createStudioShellModel>['panels'][
   return section;
 }
 
-function renderApp(): void {
-  const model = createStudioShellModel();
-  const app = document.querySelector<HTMLDivElement>('#app');
-  if (app === null) {
-    throw new Error('Missing #app root');
+function findPanel(model: StudioShell, id: StudioPanel['id']): StudioPanel {
+  const panel = model.panels.find((entry) => entry.id === id);
+  if (panel === undefined) throw new Error(`Missing studio panel model: ${id}`);
+  return panel;
+}
+
+function renderTopBar(model: StudioShell): HTMLElement {
+  const topBar = el('header', 'studio-editor-topbar');
+  topBar.setAttribute('aria-label', 'studio-editor-app-status-bar');
+  const brand = el('div', 'studio-editor-brand');
+  brand.append(el('span', 'studio-editor-mark', 'A'));
+  const titleBlock = el('div');
+  titleBlock.append(el('h1', undefined, model.appTitle));
+  titleBlock.append(el('p', 'studio-subtitle', 'editor / reference-viewport · public ASHA command/evidence surfaces'));
+  brand.append(titleBlock);
+  topBar.append(brand);
+
+  const chips = el('div', 'studio-editor-status-chips');
+  for (const chip of [
+    model.compatibility.contractsVersion,
+    model.compatibility.commandRegistryVersion,
+    `runtime bridge: ${model.compatibility.runtimeBridgeVersion ?? 'deferred'}`,
+    'native / Agora / GPU: not claimed',
+    'boundary: public package roots only',
+  ]) {
+    chips.append(el('span', 'studio-editor-chip', chip));
   }
+  topBar.append(chips);
 
-  const shell = el('main', 'studio-shell');
-  shell.append(el('h1', undefined, model.appTitle));
-  shell.append(el('p', 'studio-subtitle', 'Agent-observable visual studio shell over public ASHA command/evidence surfaces.'));
+  const actions = el('div', 'studio-editor-actions');
+  actions.append(el('span', 'studio-editor-action', '⧉ Export review artifact'));
+  actions.append(el('span', 'studio-editor-action', '▸ Run proof'));
+  topBar.append(actions);
+  return topBar;
+}
 
+function renderBoundaryCard(model: StudioShell): HTMLElement {
   const boundary = el('section', 'boundary-card');
   boundary.setAttribute('aria-label', 'studio-boundary-readout');
   boundary.append(el('h2', undefined, 'Public ASHA Boundary'));
@@ -42,14 +71,10 @@ function renderApp(): void {
   for (const diagnostic of model.compatibilityDiagnostics) {
     boundary.append(el('p', 'boundary-diagnostic', `${diagnostic.severity}: ${diagnostic.code} — ${diagnostic.message}`));
   }
-  shell.append(boundary);
+  return boundary;
+}
 
-  const grid = el('div', 'studio-grid');
-  for (const panel of model.panels) {
-    grid.append(renderPanel(panel));
-  }
-  shell.append(grid);
-
+function renderViewportReadout(model: StudioShell): HTMLElement {
   const viewport = el('section', 'viewport-editor-panel');
   viewport.setAttribute('aria-label', model.workspace.viewportEditor.automationLabel);
   viewport.append(el('h2', undefined, model.workspace.viewportEditor.title));
@@ -65,23 +90,10 @@ function renderApp(): void {
   }
   viewport.append(viewportTimeline);
   viewport.append(el('p', undefined, `Evidence refs: ${model.workspace.viewportEditor.evidenceRefs.map((ref) => ref.artifactId).join(', ')}`));
-  shell.append(viewport);
+  return viewport;
+}
 
-  const palette = el('section', 'command-readout');
-  palette.setAttribute('aria-label', 'studio-command-catalog-readout');
-  palette.append(el('h2', undefined, `Command Catalog (${model.visibleCommands.length} visible commands)`));
-  const list = el('ol');
-  for (const command of model.visibleCommands) {
-    const item = el('li');
-    item.append(el('strong', undefined, command.label));
-    item.append(el('span', 'command-id', command.id));
-    item.append(el('span', 'command-meta', `${command.operationClass} · ${command.menuPath.join(' / ')}`));
-    item.append(el('p', undefined, command.guiMirror.argumentSummary));
-    list.append(item);
-  }
-  palette.append(list);
-  shell.append(palette);
-
+function renderVoxelWorkflow(model: StudioShell): HTMLElement {
   const voxel = el('section', 'voxel-workflow');
   voxel.setAttribute('aria-label', 'studio-voxel-workflow-readout');
   voxel.append(el('h2', undefined, 'Voxel Inspect / Select / Preview / Apply'));
@@ -96,8 +108,10 @@ function renderApp(): void {
     gridReadout.append(cellNode);
   }
   voxel.append(gridReadout);
-  shell.append(voxel);
+  return voxel;
+}
 
+function renderBatchUndo(model: StudioShell): HTMLElement {
   const batchUndo = el('section', 'batch-undo');
   batchUndo.setAttribute('aria-label', 'studio-command-batch-undo-readout');
   batchUndo.append(el('h2', undefined, 'Command Batch / Undo Metadata'));
@@ -110,8 +124,10 @@ function renderApp(): void {
     batchList.append(el('li', undefined, `${command.commandId}: ${command.status}; retry=${command.retryClassification}; undo=${command.undoPosture}; ${command.summary}`));
   }
   batchUndo.append(batchList);
-  shell.append(batchUndo);
+  return batchUndo;
+}
 
+function renderModelMaterialPreview(model: StudioShell): HTMLElement {
   const modelMaterial = el('section', 'model-material-preview');
   modelMaterial.setAttribute('aria-label', 'studio-model-material-preview-readout');
   modelMaterial.append(el('h2', undefined, 'Model / Material Preview'));
@@ -125,8 +141,10 @@ function renderApp(): void {
     surfaceList.append(el('li', undefined, `${finding.surface}: ${finding.status} — ${finding.evidence}`));
   }
   modelMaterial.append(surfaceList);
-  shell.append(modelMaterial);
+  return modelMaterial;
+}
 
+function renderVisualEvidence(model: StudioShell): HTMLElement {
   const evidence = el('section', 'visual-evidence');
   evidence.setAttribute('aria-label', 'studio-visual-evidence-review-export');
   evidence.append(el('h2', undefined, 'Visual Evidence / Review Export'));
@@ -144,8 +162,27 @@ function renderApp(): void {
   for (const diagnostic of model.workspace.reviewArtifact.diagnostics.filter((item) => item.severity === 'error')) {
     evidence.append(el('p', 'boundary-diagnostic', `${diagnostic.code}: ${diagnostic.message}`));
   }
-  shell.append(evidence);
+  return evidence;
+}
 
+function renderCommandPalette(model: StudioShell): HTMLElement {
+  const palette = el('section', 'command-readout');
+  palette.setAttribute('aria-label', 'studio-command-catalog-readout');
+  palette.append(el('h2', undefined, `Command Catalog (${model.visibleCommands.length} visible commands)`));
+  const list = el('ol');
+  for (const command of model.visibleCommands) {
+    const item = el('li');
+    item.append(el('strong', undefined, command.label));
+    item.append(el('span', 'command-id', command.id));
+    item.append(el('span', 'command-meta', `${command.operationClass} · ${command.menuPath.join(' / ')}`));
+    item.append(el('p', undefined, command.guiMirror.argumentSummary));
+    list.append(item);
+  }
+  palette.append(list);
+  return palette;
+}
+
+function renderTimeline(model: StudioShell): HTMLElement {
   const timeline = el('section', 'timeline-preview');
   timeline.setAttribute('aria-label', 'studio-command-timeline-readout');
   timeline.append(el('h2', undefined, 'Command Timeline'));
@@ -159,8 +196,10 @@ function renderApp(): void {
     timelineList.append(row);
   }
   timeline.append(timelineList);
-  shell.append(timeline);
+  return timeline;
+}
 
+function renderLimitations(model: StudioShell): HTMLElement {
   const limits = el('section', 'limitations');
   limits.setAttribute('aria-label', 'studio-known-limitations');
   limits.append(el('h2', undefined, 'Known Limitations'));
@@ -169,8 +208,60 @@ function renderApp(): void {
     limitList.append(el('li', undefined, limitation));
   }
   limits.append(limitList);
-  shell.append(limits);
+  return limits;
+}
 
+function renderDockFrame(model: StudioShell): HTMLElement {
+  const frame = el('div', 'studio-editor-frame');
+  frame.setAttribute('aria-label', 'studio-editor-dock-frame');
+
+  const leftDock = el('aside', 'studio-editor-dock studio-editor-left-dock');
+  leftDock.setAttribute('aria-label', 'studio-editor-left-scene-hierarchy-dock');
+  leftDock.append(el('h2', undefined, 'Scene / Hierarchy'));
+  leftDock.append(el('p', 'panel-summary', 'Placeholder dock for the next hierarchy slice; current session/scenario readout remains visible here.'));
+  leftDock.append(renderPanel(findPanel(model, 'scenario')));
+  leftDock.append(renderBoundaryCard(model));
+  frame.append(leftDock);
+
+  const centerDock = el('main', 'studio-editor-center-dock');
+  centerDock.setAttribute('aria-label', 'studio-editor-central-viewport-dock');
+  centerDock.append(renderViewportReadout(model));
+  centerDock.append(renderVoxelWorkflow(model));
+  frame.append(centerDock);
+
+  const rightDock = el('aside', 'studio-editor-dock studio-editor-right-dock');
+  rightDock.setAttribute('aria-label', 'studio-editor-right-inspector-dock');
+  rightDock.append(el('h2', undefined, 'Inspector / Readout'));
+  rightDock.append(el('p', 'panel-summary', 'Placeholder dock for selected target inspector; detailed inspector card lands in a follow-up child task.'));
+  rightDock.append(renderPanel(findPanel(model, 'inspector')));
+  rightDock.append(renderModelMaterialPreview(model));
+  rightDock.append(renderBatchUndo(model));
+  frame.append(rightDock);
+
+  const bottomDock = el('section', 'studio-editor-bottom-dock');
+  bottomDock.setAttribute('aria-label', 'studio-editor-bottom-command-evidence-dock');
+  bottomDock.append(renderPanel(findPanel(model, 'palette')));
+  bottomDock.append(renderPanel(findPanel(model, 'timeline')));
+  bottomDock.append(renderPanel(findPanel(model, 'evidence')));
+  bottomDock.append(renderCommandPalette(model));
+  bottomDock.append(renderTimeline(model));
+  bottomDock.append(renderVisualEvidence(model));
+  bottomDock.append(renderLimitations(model));
+  frame.append(bottomDock);
+
+  return frame;
+}
+
+function renderApp(): void {
+  const model = createStudioShellModel();
+  const app = document.querySelector<HTMLDivElement>('#app');
+  if (app === null) {
+    throw new Error('Missing #app root');
+  }
+
+  const shell = el('div', 'studio-shell');
+  shell.append(renderTopBar(model));
+  shell.append(renderDockFrame(model));
   app.replaceChildren(shell);
 }
 

@@ -15,6 +15,13 @@ export interface StudioPanelModel {
   readonly automationLabel: string;
 }
 
+export interface StudioShellRegionModel {
+  readonly id: 'topbar' | 'leftHierarchyDock' | 'centralViewportDock' | 'rightInspectorDock' | 'bottomCommandEvidenceDock';
+  readonly label: string;
+  readonly automationLabel: string;
+  readonly status: 'implemented_frame' | 'placeholder_internals';
+}
+
 export interface StudioShellModel {
   readonly appTitle: 'ASHA Studio';
   readonly repoRole: 'frontend-heavy-public-consumer';
@@ -23,6 +30,7 @@ export interface StudioShellModel {
     readonly forbiddenImportExamples: readonly string[];
     readonly deferredPublicPackages: readonly string[];
   };
+  readonly editorShellRegions: readonly StudioShellRegionModel[];
   readonly panels: readonly StudioPanelModel[];
   readonly commandCatalog: StudioCommandCatalog;
   readonly visibleCommands: readonly StudioCommandCatalogEntry[];
@@ -94,6 +102,14 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
   },
 ] as const;
 
+const EDITOR_SHELL_REGIONS: readonly StudioShellRegionModel[] = [
+  { id: 'topbar', label: 'ASHA app/status bar', automationLabel: 'studio-editor-app-status-bar', status: 'implemented_frame' },
+  { id: 'leftHierarchyDock', label: 'Scene / Hierarchy dock', automationLabel: 'studio-editor-left-scene-hierarchy-dock', status: 'placeholder_internals' },
+  { id: 'centralViewportDock', label: 'Central viewport dock', automationLabel: 'studio-editor-central-viewport-dock', status: 'implemented_frame' },
+  { id: 'rightInspectorDock', label: 'Inspector / Readout dock', automationLabel: 'studio-editor-right-inspector-dock', status: 'placeholder_internals' },
+  { id: 'bottomCommandEvidenceDock', label: 'Command timeline / Evidence dock', automationLabel: 'studio-editor-bottom-command-evidence-dock', status: 'placeholder_internals' },
+] as const;
+
 const FORBIDDEN_IMPORT_EXAMPLES = [
   '@asha/native-bridge',
   '@asha/wasm-replay-bridge',
@@ -129,6 +145,7 @@ export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_C
       forbiddenImportExamples: FORBIDDEN_IMPORT_EXAMPLES,
       deferredPublicPackages: ['@asha/studio-evidence', '@asha/runtime-bridge', '@asha/devtools', '@asha/renderer-three'],
     },
+    editorShellRegions: EDITOR_SHELL_REGIONS,
     panels: PANEL_MODELS,
     commandCatalog: catalog,
     visibleCommands,

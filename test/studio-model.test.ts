@@ -3,6 +3,20 @@ import { test } from 'node:test';
 
 import { createStudioShellModel, getVisibleCommands } from '../src/studio-model';
 
+test('studio shell exposes editor dock frame regions for the Unity-ish layout slice', () => {
+  const model = createStudioShellModel();
+  assert.deepEqual(model.editorShellRegions.map((region) => region.automationLabel), [
+    'studio-editor-app-status-bar',
+    'studio-editor-left-scene-hierarchy-dock',
+    'studio-editor-central-viewport-dock',
+    'studio-editor-right-inspector-dock',
+    'studio-editor-bottom-command-evidence-dock',
+  ]);
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'centralViewportDock')?.status, 'implemented_frame');
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'leftHierarchyDock')?.status, 'placeholder_internals');
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'rightInspectorDock')?.status, 'placeholder_internals');
+});
+
 test('studio shell exposes every required V1 panel', () => {
   const model = createStudioShellModel();
   assert.deepEqual(model.panels.map((panel) => panel.id), ['scenario', 'viewport', 'palette', 'timeline', 'inspector', 'evidence', 'modelMaterial', 'batchUndo']);
