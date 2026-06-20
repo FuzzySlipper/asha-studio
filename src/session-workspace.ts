@@ -1,6 +1,8 @@
 import { COMMAND_CATALOG, requireCatalogCommand } from '@asha/command-registry';
 import type { OperationClass, StudioCommandCatalog, StudioCommandCatalogEntry, StudioCommandId } from '@asha/command-registry';
 
+import { createStudioCommandBatchModel } from './command-batch';
+import type { StudioCommandBatchModel } from './command-batch';
 import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
 import { createStudioModelMaterialPreviewModel } from './model-material-preview';
@@ -187,6 +189,7 @@ export interface StudioWorkspaceModel {
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResult[];
   readonly voxelWorkflow: StudioVoxelWorkflowModel;
+  readonly commandBatch: StudioCommandBatchModel;
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
@@ -468,6 +471,7 @@ export function createStudioWorkspaceModel(options: {
     catalog,
     sequenceStartIndex: timeline.length,
   });
+  const commandBatch = createStudioCommandBatchModel({ sessionId: session.sessionId, voxelWorkflow, catalog });
   const modelMaterialPreview = createStudioModelMaterialPreviewModel({ sessionId: session.sessionId, scenarioId: activeScenarioId });
   timeline.push(...voxelWorkflow.timelineEntries);
   results.push(...voxelWorkflow.commandResults);
@@ -504,6 +508,7 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     commandResults: results,
     voxelWorkflow,
+    commandBatch,
     modelMaterialPreview,
     visualEvidence,
     reviewArtifact,

@@ -5,7 +5,7 @@ import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, 
 import { createStudioWorkspaceModel } from './session-workspace';
 import type { StudioWorkspaceModel } from './session-workspace';
 
-export type StudioPanelId = 'scenario' | 'viewport' | 'palette' | 'timeline' | 'inspector' | 'evidence' | 'modelMaterial';
+export type StudioPanelId = 'scenario' | 'viewport' | 'palette' | 'timeline' | 'inspector' | 'evidence' | 'modelMaterial' | 'batchUndo';
 
 export interface StudioPanelModel {
   readonly id: StudioPanelId;
@@ -84,6 +84,13 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
     summary: 'Loads a public-contract static mesh/material fixture, previews render-diff metadata, and records missing first-class command surfaces.',
     status: 'ready',
     automationLabel: 'studio-panel-model-material-preview',
+  },
+  {
+    id: 'batchUndo',
+    title: 'Batch / Undo Metadata',
+    summary: 'Shows atomic/best-effort command batch metadata, per-command transaction results, retry posture, and V1 voxel revert evidence.',
+    status: 'ready',
+    automationLabel: 'studio-panel-batch-undo',
   },
 ] as const;
 

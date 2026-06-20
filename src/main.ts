@@ -81,6 +81,20 @@ function renderApp(): void {
   voxel.append(gridReadout);
   shell.append(voxel);
 
+  const batchUndo = el('section', 'batch-undo');
+  batchUndo.setAttribute('aria-label', 'studio-command-batch-undo-readout');
+  batchUndo.append(el('h2', undefined, 'Command Batch / Undo Metadata'));
+  batchUndo.append(el('p', undefined, `Batch: ${model.workspace.commandBatch.invocation.batchId}; mode ${model.workspace.commandBatch.invocation.mode}; status ${model.workspace.commandBatch.result.status}; failure ${model.workspace.commandBatch.result.failureClassification}`));
+  batchUndo.append(el('p', undefined, `Batch hashes: ${model.workspace.commandBatch.result.authorityBeforeHash ?? 'missing'} → ${model.workspace.commandBatch.result.authorityAfterHash ?? 'missing'}`));
+  batchUndo.append(el('p', undefined, `Retry: ${model.workspace.commandBatch.result.retrySummary}`));
+  batchUndo.append(el('p', undefined, `Revert: ${model.workspace.commandBatch.revertWorkflow.status}; requires ${model.workspace.commandBatch.revertWorkflow.requiredSameStateHash}; inverse ${model.workspace.commandBatch.revertWorkflow.inverseCommand?.op ?? 'none'}`));
+  const batchList = el('ul');
+  for (const command of model.workspace.commandBatch.result.commandResults) {
+    batchList.append(el('li', undefined, `${command.commandId}: ${command.status}; retry=${command.retryClassification}; undo=${command.undoPosture}; ${command.summary}`));
+  }
+  batchUndo.append(batchList);
+  shell.append(batchUndo);
+
   const modelMaterial = el('section', 'model-material-preview');
   modelMaterial.setAttribute('aria-label', 'studio-model-material-preview-readout');
   modelMaterial.append(el('h2', undefined, 'Model / Material Preview'));

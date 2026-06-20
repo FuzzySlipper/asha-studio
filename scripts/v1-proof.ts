@@ -68,6 +68,7 @@ const distDir = join(root, 'dist');
 const requiredUiMarkers = [
   'ASHA Studio',
   'Voxel Inspect / Select / Preview / Apply',
+  'Command Batch / Undo Metadata',
   'Visual Evidence / Review Export',
   'Command Timeline',
   'authority.voxel.apply_brush',

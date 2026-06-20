@@ -72,6 +72,24 @@ Task `asha#2735` adds review-grade software visual evidence for the V1 Studio pa
 
 This is functional proof-content evidence only. It is intentionally not browser screenshot, Agora capture, hardware GPU, or performance evidence; those remain later capture-backend tasks.
 
+## Command batch / undo workflow
+
+Task `asha#2737` adds Studio-owned command batch and undo/revert metadata for the V1 voxel path. The implementation keeps batching bounded to known public command ids rather than adding a generic command hatch:
+
+- `src/command-batch.ts` defines atomic/best-effort batch invocation/result artifacts;
+- batch invocation records transaction mode, dry-run flag, expected authority state hash, typed per-command plans, and GUI/agent actors;
+- batch results include one per-command result for every command plan, retry classification, undo posture, inverse-data requirements, state/render before-after hashes, diagnostics, and failure classification;
+- a best-effort partial-failure example classifies stale state as `state_hash_mismatch` instead of pretending the whole batch succeeded;
+- the V1 voxel edit derives a concrete typed inverse `VoxelCommand.setVoxel` revert when the post-apply authority hash still matches.
+
+The visible Studio app exposes this as **Command Batch / Undo Metadata**. A deterministic fixture lives at `fixtures/studio-command-batch.sample.json` and can be regenerated with:
+
+```bash
+pnpm exec tsx scripts/generate-command-batch-fixture.ts
+```
+
+This remains reference workflow metadata over public command/contract evidence. It does not introduce a generic authority undo stack or raw runtime transport.
+
 ## Model/material preview workflow
 
 Task `asha#2736` adds a narrow public-surface model/material preview lane. Studio now builds a reference `model_material_preview` artifact from `@asha/contracts` package-root DTOs:

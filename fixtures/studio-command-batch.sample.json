@@ -1,0 +1,212 @@
+{
+  "invocation": {
+    "schemaVersion": 1,
+    "artifactKind": "command_batch_invocation",
+    "batchId": "batch-v1-voxel-preview-apply-0001",
+    "sessionId": "session-preview-0001",
+    "label": "V1 voxel preview/apply transaction",
+    "mode": "atomic",
+    "dryRun": false,
+    "expectedAuthorityBeforeHash": "grid-fnv1a-cc815eb0",
+    "commands": [
+      {
+        "commandId": "preview.voxel_brush",
+        "commandVersion": 1,
+        "requestedBy": "gui",
+        "input": {
+          "kind": "voxel_command",
+          "sessionId": "session-preview-0001",
+          "commands": [
+            {
+              "op": "setVoxel",
+              "grid": 0,
+              "coord": {
+                "x": 1,
+                "y": 0,
+                "z": 0
+              },
+              "value": {
+                "kind": "solid",
+                "material": 1
+              }
+            }
+          ]
+        },
+        "inputSummary": "Preview typed VoxelCommand before authority mutation.",
+        "dryRun": true,
+        "expectedStateHash": "grid-fnv1a-cc815eb0"
+      },
+      {
+        "commandId": "authority.voxel.apply_brush",
+        "commandVersion": 1,
+        "requestedBy": "agent",
+        "input": {
+          "kind": "voxel_command",
+          "sessionId": "session-preview-0001",
+          "commands": [
+            {
+              "op": "setVoxel",
+              "grid": 0,
+              "coord": {
+                "x": 1,
+                "y": 0,
+                "z": 0
+              },
+              "value": {
+                "kind": "solid",
+                "material": 1
+              }
+            }
+          ]
+        },
+        "inputSummary": "Apply typed VoxelCommand when preview and state hash match.",
+        "dryRun": false,
+        "expectedStateHash": "grid-fnv1a-cc815eb0"
+      }
+    ]
+  },
+  "result": {
+    "schemaVersion": 1,
+    "artifactKind": "command_batch_result",
+    "batchId": "batch-v1-voxel-preview-apply-0001",
+    "sessionId": "session-preview-0001",
+    "mode": "atomic",
+    "dryRun": false,
+    "status": "ok",
+    "failureClassification": "none",
+    "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+    "authorityAfterHash": "grid-fnv1a-8eb9594b",
+    "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+    "renderAfterHash": "render-grid-fnv1a-8eb9594b",
+    "commandResults": [
+      {
+        "commandId": "preview.voxel_brush",
+        "commandVersion": 1,
+        "status": "ok",
+        "operationClass": "editor_local",
+        "sequenceId": "seq-0006",
+        "changedAuthority": false,
+        "retryClassification": "safe_to_retry",
+        "undoPosture": "editor_local",
+        "inverseDataRequirements": [],
+        "failureClassification": "none",
+        "summary": "preview target count=1; authority unchanged"
+      },
+      {
+        "commandId": "authority.voxel.apply_brush",
+        "commandVersion": 1,
+        "status": "ok",
+        "operationClass": "authority_mutating",
+        "sequenceId": "seq-0007",
+        "changedAuthority": true,
+        "retryClassification": "safe_to_retry_if_state_hash_unchanged",
+        "undoPosture": "authority_reversing",
+        "inverseDataRequirements": [
+          "same authority state hash",
+          "inverse typed VoxelCommand"
+        ],
+        "failureClassification": "none",
+        "summary": "accepted=1; before=grid-fnv1a-cc815eb0; after=grid-fnv1a-8eb9594b"
+      }
+    ],
+    "diagnostics": [],
+    "retrySummary": "Atomic batch is retryable only when expectedAuthorityBeforeHash still matches and no command sequence committed.",
+    "undoSummary": "Authority-mutating apply carries authority_reversing posture and a typed inverse VoxelCommand for this V1 setVoxel edit."
+  },
+  "bestEffortFailureExample": {
+    "schemaVersion": 1,
+    "artifactKind": "command_batch_result",
+    "batchId": "batch-v1-best-effort-partial-example",
+    "sessionId": "session-preview-0001",
+    "mode": "best_effort",
+    "dryRun": false,
+    "status": "partial",
+    "failureClassification": "state_hash_mismatch",
+    "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+    "authorityAfterHash": "grid-fnv1a-8eb9594b",
+    "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+    "renderAfterHash": "render-grid-fnv1a-8eb9594b",
+    "commandResults": [
+      {
+        "commandId": "authority.voxel.apply_brush",
+        "commandVersion": 1,
+        "status": "ok",
+        "operationClass": "authority_mutating",
+        "sequenceId": "seq-0007",
+        "changedAuthority": true,
+        "retryClassification": "safe_to_retry_if_state_hash_unchanged",
+        "undoPosture": "authority_reversing",
+        "inverseDataRequirements": [
+          "same authority state hash",
+          "inverse typed VoxelCommand"
+        ],
+        "failureClassification": "none",
+        "summary": "accepted=1; before=grid-fnv1a-cc815eb0; after=grid-fnv1a-8eb9594b"
+      },
+      {
+        "commandId": "authority.voxel.apply_brush",
+        "commandVersion": 1,
+        "status": "rejected",
+        "operationClass": "authority_mutating",
+        "sequenceId": null,
+        "changedAuthority": false,
+        "retryClassification": "safe_to_retry_if_state_hash_unchanged",
+        "undoPosture": "authority_reversing",
+        "inverseDataRequirements": [
+          "same authority state hash",
+          "inverse typed VoxelCommand"
+        ],
+        "failureClassification": "state_hash_mismatch",
+        "summary": "Rejected second apply: expected state hash no longer matches after first accepted command."
+      }
+    ],
+    "diagnostics": [
+      {
+        "severity": "warning",
+        "code": "asha-studio.batch.partial_state_hash_mismatch",
+        "message": "Best-effort batch kept the first accepted command and classified the stale second command as rejected.",
+        "owningLane": "asha-studio",
+        "source": "src/command-batch.ts",
+        "remediation": null
+      }
+    ],
+    "retrySummary": "Best-effort partial batches are not blindly retryable; rejected commands require fresh state readback.",
+    "undoSummary": "Only accepted mutating commands produce inverse-data requirements; rejected commands do not mutate authority."
+  },
+  "revertWorkflow": {
+    "status": "available",
+    "reason": "The V1 voxel edit is a single typed setVoxel command; Studio can derive a safe inverse setVoxel when authorityAfterHash still matches.",
+    "sourceCommandSequenceId": "seq-0007",
+    "requiredSameStateHash": "grid-fnv1a-8eb9594b",
+    "inverseCommand": {
+      "op": "setVoxel",
+      "grid": 0,
+      "coord": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      },
+      "value": {
+        "kind": "empty"
+      }
+    },
+    "expectedRevertedAuthorityHash": "grid-fnv1a-cc815eb0",
+    "expectedRevertedRenderHash": "render-grid-fnv1a-cc815eb0",
+    "diagnostics": [
+      {
+        "severity": "info",
+        "code": "asha-studio.batch.revert_reference_hash",
+        "message": "Reference inverse command hash grid-fnv1a-revert-7c46c465 is derived from typed public VoxelCommand data.",
+        "owningLane": "asha-studio",
+        "source": "src/command-batch.ts",
+        "remediation": null
+      }
+    ]
+  },
+  "validationSummary": {
+    "transactionModeRequired": true,
+    "perCommandResultShapeRequired": true,
+    "undoMetadataRequiredForMutatingCommands": true,
+    "retryMetadataRequired": true
+  }
+}
