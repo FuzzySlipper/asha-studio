@@ -9,6 +9,8 @@ import { createStudioModelMaterialPreviewModel } from './model-material-preview'
 import type { StudioModelMaterialPreviewModel } from './model-material-preview';
 import { createStudioSceneHierarchyModel } from './scene-hierarchy';
 import type { StudioSceneHierarchyModel } from './scene-hierarchy';
+import { createStudioSelectedTargetInspectorModel } from './selected-target-inspector';
+import type { StudioSelectedTargetInspectorModel } from './selected-target-inspector';
 import { createStudioViewportEditorPanelModel } from './viewport-editor-panel';
 import type { StudioViewportEditorPanelModel } from './viewport-editor-panel';
 import { createVoxelWorkflowModel } from './voxel-workflow';
@@ -179,6 +181,7 @@ export interface StudioAgentReadoutArtifact {
   readonly commandResults: readonly StudioCommandResult[];
   readonly finalState: StudioStateEvidence;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
+  readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
@@ -198,6 +201,7 @@ export interface StudioWorkspaceModel {
   readonly commandBatch: StudioCommandBatchModel;
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
+  readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
@@ -415,6 +419,7 @@ export function createAgentReadoutArtifact(options: {
   readonly generatedAtIso: string;
   readonly knownLimitations: readonly string[];
   readonly sceneHierarchy: StudioSceneHierarchyModel;
+  readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
@@ -433,6 +438,7 @@ export function createAgentReadoutArtifact(options: {
     commandResults: options.results,
     finalState,
     sceneHierarchy: options.sceneHierarchy,
+    selectedTargetInspector: options.selectedTargetInspector,
     viewportEditor: options.viewportEditor,
     visualEvidence,
     exportedArtifacts,
@@ -509,6 +515,12 @@ export function createStudioWorkspaceModel(options: {
     modelMaterialPreview,
     viewportEditor,
   });
+  const selectedTargetInspector = createStudioSelectedTargetInspectorModel({
+    viewportEditor,
+    voxelWorkflow,
+    timeline,
+    visualEvidence,
+  });
   const reviewArtifact = createStudioReviewArtifact({
     session,
     timeline,
@@ -522,6 +534,7 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     results,
     sceneHierarchy,
+    selectedTargetInspector,
     viewportEditor,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
@@ -538,6 +551,7 @@ export function createStudioWorkspaceModel(options: {
     commandBatch,
     modelMaterialPreview,
     sceneHierarchy,
+    selectedTargetInspector,
     viewportEditor,
     visualEvidence,
     reviewArtifact,

@@ -106,7 +106,7 @@ const EDITOR_SHELL_REGIONS: readonly StudioShellRegionModel[] = [
   { id: 'topbar', label: 'ASHA app/status bar', automationLabel: 'studio-editor-app-status-bar', status: 'implemented_frame' },
   { id: 'leftHierarchyDock', label: 'Scene / Hierarchy dock', automationLabel: 'studio-editor-left-scene-hierarchy-dock', status: 'implemented_frame' },
   { id: 'centralViewportDock', label: 'Central viewport dock', automationLabel: 'studio-editor-central-viewport-dock', status: 'implemented_frame' },
-  { id: 'rightInspectorDock', label: 'Inspector / Readout dock', automationLabel: 'studio-editor-right-inspector-dock', status: 'placeholder_internals' },
+  { id: 'rightInspectorDock', label: 'Inspector / Readout dock', automationLabel: 'studio-editor-right-inspector-dock', status: 'implemented_frame' },
   { id: 'bottomCommandEvidenceDock', label: 'Command timeline / Evidence dock', automationLabel: 'studio-editor-bottom-command-evidence-dock', status: 'placeholder_internals' },
 ] as const;
 

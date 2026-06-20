@@ -209,6 +209,52 @@ function renderBatchUndo(model: StudioShell): HTMLElement {
   return batchUndo;
 }
 
+function renderSelectedTargetInspector(model: StudioShell): HTMLElement {
+  const inspectorModel = model.workspace.selectedTargetInspector;
+  const inspector = el('section', 'selected-target-inspector');
+  inspector.setAttribute('aria-label', inspectorModel.automationLabel);
+  inspector.append(el('h2', undefined, inspectorModel.title));
+  const header = el('div', 'selected-target-header-card');
+  header.append(el('strong', undefined, inspectorModel.selectedTarget.selectedVoxel));
+  header.append(el('p', undefined, `${inspectorModel.selectedTarget.modelAsset} · ${inspectorModel.selectedTarget.materialAsset}`));
+  header.append(el('p', undefined, `face ${inspectorModel.selectedTarget.selectedFace}; edit anchor ${inspectorModel.selectedTarget.editAnchor}`));
+  inspector.append(header);
+
+  const cards = el('div', 'selected-target-card-grid');
+  for (const card of [inspectorModel.previewCard, inspectorModel.appliedCard]) {
+    const cardNode = el('article', `selected-target-state-card ${card.label === 'Preview' ? 'selected-target-preview-card' : 'selected-target-applied-card'}`);
+    cardNode.append(el('h3', undefined, card.label));
+    cardNode.append(el('p', undefined, card.posture === 'proposed_by_studio_ts' ? 'Proposed by Studio (TS), projection only.' : 'Validated by Authority (Rust), authoritative state.'));
+    cardNode.append(el('p', 'command-id', `${card.commandId} · ${card.sequenceId ?? 'missing sequence'}`));
+    cardNode.append(el('p', undefined, `Authority hash: ${card.authorityHash}`));
+    cardNode.append(el('p', undefined, `Render hash: ${card.renderHash}`));
+    cardNode.append(el('p', undefined, `${card.changedVoxelCount} voxel(s); ${card.summary}`));
+    cards.append(cardNode);
+  }
+  inspector.append(cards);
+
+  const fields = el('dl', 'selected-target-fields-readout');
+  for (const field of inspectorModel.fields) {
+    fields.append(el('dt', undefined, field.label));
+    fields.append(el('dd', undefined, `${field.value} · source ${field.source}`));
+  }
+  inspector.append(fields);
+
+  const transition = el('section', 'selected-target-transition-readout');
+  transition.append(el('h3', undefined, 'Authority transition'));
+  transition.append(el('p', undefined, `${inspectorModel.transition.authorityBeforeHash} → ${inspectorModel.transition.authorityAfterHash}`));
+  transition.append(el('p', undefined, `accepted ${inspectorModel.transition.acceptedCommandCount}; rejected ${inspectorModel.transition.rejectedCommandCount}`));
+  inspector.append(transition);
+
+  const renderProjection = el('section', 'selected-target-render-projection-readout');
+  renderProjection.append(el('h3', undefined, 'Render projection'));
+  renderProjection.append(el('p', undefined, `${inspectorModel.renderProjection.mode}: ${inspectorModel.renderProjection.beforeRenderHash} → ${inspectorModel.renderProjection.afterRenderHash}`));
+  renderProjection.append(el('p', undefined, `Visual evidence: ${inspectorModel.renderProjection.visualEvidenceArtifactId ?? 'missing'}`));
+  renderProjection.append(el('p', 'selected-target-limitation-note', inspectorModel.renderProjection.limitation));
+  inspector.append(renderProjection);
+  return inspector;
+}
+
 function renderModelMaterialPreview(model: StudioShell): HTMLElement {
   const modelMaterial = el('section', 'model-material-preview');
   modelMaterial.setAttribute('aria-label', 'studio-model-material-preview-readout');
@@ -312,8 +358,7 @@ function renderDockFrame(model: StudioShell): HTMLElement {
 
   const rightDock = el('aside', 'studio-editor-dock studio-editor-right-dock');
   rightDock.setAttribute('aria-label', 'studio-editor-right-inspector-dock');
-  rightDock.append(el('h2', undefined, 'Inspector / Readout'));
-  rightDock.append(el('p', 'panel-summary', 'Placeholder dock for selected target inspector; detailed inspector card lands in a follow-up child task.'));
+  rightDock.append(renderSelectedTargetInspector(model));
   rightDock.append(renderPanel(findPanel(model, 'inspector')));
   rightDock.append(renderModelMaterialPreview(model));
   rightDock.append(renderBatchUndo(model));

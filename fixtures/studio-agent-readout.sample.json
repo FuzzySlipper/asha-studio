@@ -1681,6 +1681,147 @@
       "Hierarchy nodes intentionally avoid game-specific/Minecraft assumptions and private ASHA internals."
     ]
   },
+  "selectedTargetInspector": {
+    "schemaVersion": 1,
+    "artifactKind": "selected_target_inspector",
+    "automationLabel": "studio-selected-target-inspector",
+    "title": "Inspector / Selected Target",
+    "selectedTarget": {
+      "kind": "voxel_with_model_material_context",
+      "selectedVoxel": "(0, 0, 0)",
+      "editAnchor": "(1, 0, 0)",
+      "selectedFace": "posX",
+      "modelAsset": "mesh/studio-preview-crate",
+      "materialAsset": "material/studio-brushed-copper",
+      "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
+    },
+    "previewCard": {
+      "label": "Preview",
+      "posture": "proposed_by_studio_ts",
+      "commandId": "preview.voxel_brush",
+      "sequenceId": "seq-0006",
+      "authorityHash": "grid-fnv1a-cc815eb0",
+      "renderHash": "render-grid-fnv1a-cc815eb0",
+      "changedVoxelCount": 1,
+      "summary": "Preview highlights 1 target voxel(s) without changing authority."
+    },
+    "appliedCard": {
+      "label": "Applied",
+      "posture": "validated_by_authority_rust",
+      "commandId": "authority.voxel.apply_brush",
+      "sequenceId": "seq-0007",
+      "authorityHash": "grid-fnv1a-8eb9594b",
+      "renderHash": "render-grid-fnv1a-8eb9594b",
+      "changedVoxelCount": 1,
+      "summary": "Apply accepted 1 typed VoxelCommand(s) and changed 1 voxel(s)."
+    },
+    "transition": {
+      "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+      "authorityAfterHash": "grid-fnv1a-8eb9594b",
+      "acceptedCommandCount": 1,
+      "rejectedCommandCount": 0
+    },
+    "renderProjection": {
+      "mode": "software_snapshot_reference",
+      "beforeRenderHash": "render-grid-fnv1a-cc815eb0",
+      "afterRenderHash": "render-grid-fnv1a-8eb9594b",
+      "visualEvidenceArtifactId": "artifact-visual-before-after-0001",
+      "limitation": "Render projection is software_snapshot reference evidence only; no native runtime, Agora, GPU, or performance claim is made."
+    },
+    "fields": [
+      {
+        "label": "Selected voxel",
+        "value": "(0, 0, 0)",
+        "source": "viewport_editor_panel.selectedTarget"
+      },
+      {
+        "label": "Edit anchor / face",
+        "value": "(1, 0, 0) · posX",
+        "source": "voxel_workflow.selection"
+      },
+      {
+        "label": "Material asset",
+        "value": "material/studio-brushed-copper",
+        "source": "model_material_preview.artifact"
+      },
+      {
+        "label": "Model asset",
+        "value": "mesh/studio-preview-crate",
+        "source": "model_material_preview.artifact"
+      },
+      {
+        "label": "Preview command",
+        "value": "preview.voxel_brush",
+        "source": "command_timeline"
+      },
+      {
+        "label": "Apply command",
+        "value": "authority.voxel.apply_brush",
+        "source": "command_timeline"
+      }
+    ],
+    "evidenceRefs": [
+      {
+        "artifactId": "artifact-voxel-workflow-0001",
+        "artifactKind": "state_evidence",
+        "pathKind": "inline_summary",
+        "path": "voxel_workflow:session-preview-0001",
+        "mediaType": "application/json",
+        "contentHash": null,
+        "byteLength": null,
+        "producedBySequenceId": "seq-0007",
+        "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
+      },
+      {
+        "artifactId": "artifact-visual-before-0001",
+        "artifactKind": "screenshot",
+        "pathKind": "relative_path",
+        "path": "artifacts/session-preview-0001/before-voxel-grid.svg",
+        "mediaType": "image/svg+xml",
+        "contentHash": "render-grid-fnv1a-cc815eb0",
+        "byteLength": null,
+        "producedBySequenceId": "seq-0007",
+        "summary": "Before visual snapshot: 1 occupied voxel before apply."
+      },
+      {
+        "artifactId": "artifact-visual-after-0001",
+        "artifactKind": "screenshot",
+        "pathKind": "relative_path",
+        "path": "artifacts/session-preview-0001/after-voxel-grid.svg",
+        "mediaType": "image/svg+xml",
+        "contentHash": "render-grid-fnv1a-8eb9594b",
+        "byteLength": null,
+        "producedBySequenceId": "seq-0007",
+        "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
+      },
+      {
+        "artifactId": "artifact-model-material-preview-0001",
+        "artifactKind": "render_evidence",
+        "pathKind": "relative_path",
+        "path": "artifacts/session-preview-0001/model-material-preview.svg",
+        "mediaType": "image/svg+xml",
+        "contentHash": "model-material-preview-9b49b69b",
+        "byteLength": null,
+        "producedBySequenceId": "seq-0006",
+        "summary": "Model/material reference render-diff preview projected in the viewport panel."
+      }
+    ],
+    "automationMarkers": [
+      "studio-selected-target-inspector",
+      "selected-target-header-card",
+      "selected-target-preview-card",
+      "selected-target-applied-card",
+      "selected-target-fields-readout",
+      "selected-target-transition-readout",
+      "selected-target-render-projection-readout",
+      "selected-target-limitation-note"
+    ],
+    "knownLimitations": [
+      "Inspector duplicates no authority state; all values are derived from shared workspace/timeline/readout models.",
+      "Preview is proposed by Studio TypeScript and remains projection-only until Authority accepts the typed command.",
+      "Render projection is software_snapshot reference evidence, not native renderer or runtime bridge evidence."
+    ]
+  },
   "viewportEditor": {
     "schemaVersion": 1,
     "artifactKind": "viewport_editor_panel",
