@@ -151,11 +151,8 @@
         "sequenceId": null,
         "changedAuthority": false,
         "retryClassification": "safe_to_retry_if_state_hash_unchanged",
-        "undoPosture": "authority_reversing",
-        "inverseDataRequirements": [
-          "same authority state hash",
-          "inverse typed VoxelCommand"
-        ],
+        "undoPosture": "not_undoable",
+        "inverseDataRequirements": [],
         "failureClassification": "state_hash_mismatch",
         "summary": "Rejected second apply: expected state hash no longer matches after first accepted command."
       }

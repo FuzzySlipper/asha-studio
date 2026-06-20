@@ -153,11 +153,6 @@ function perCommandFromResult(result: StudioCommandResult, failureClassification
 function rejectedPlan(commandId: StudioCommandId, catalog: StudioCommandCatalog, summary: string, failureClassification: StudioBatchFailureClassification): StudioBatchPerCommandResult {
   const command = requireCatalogCommand(commandId, catalog);
   const retryClassification: StudioCommandResult['retry']['classification'] = command.operationClass === 'authority_mutating' ? 'safe_to_retry_if_state_hash_unchanged' : 'safe_to_retry';
-  const undoPosture: StudioBatchUndoPosture = command.operationClass === 'authority_mutating'
-    ? 'authority_reversing'
-    : command.operationClass === 'editor_local'
-      ? 'editor_local'
-      : 'not_undoable';
   return {
     commandId,
     commandVersion: command.version,
@@ -166,8 +161,8 @@ function rejectedPlan(commandId: StudioCommandId, catalog: StudioCommandCatalog,
     sequenceId: null,
     changedAuthority: false,
     retryClassification,
-    undoPosture,
-    inverseDataRequirements: undoPosture === 'authority_reversing' ? ['same authority state hash', 'inverse typed VoxelCommand'] : [],
+    undoPosture: 'not_undoable',
+    inverseDataRequirements: [],
     failureClassification,
     summary,
   };

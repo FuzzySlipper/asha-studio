@@ -33,6 +33,17 @@ test('best-effort failure example classifies partial stale-state failure', () =>
   assert.match(partial.retrySummary, /fresh state readback/);
 });
 
+test('rejected stale-state command has no executed inverse obligation', () => {
+  const workspace = createStudioWorkspaceModel();
+  const partial = workspace.commandBatch.bestEffortFailureExample;
+  const rejected = partial.commandResults.find((result) => result.status === 'rejected');
+  assert.ok(rejected);
+  assert.equal(rejected.failureClassification, 'state_hash_mismatch');
+  assert.equal(rejected.changedAuthority, false);
+  assert.equal(rejected.undoPosture, 'not_undoable');
+  assert.deepEqual(rejected.inverseDataRequirements, []);
+});
+
 test('V1 voxel edit exposes typed safe revert metadata', () => {
   const workspace = createStudioWorkspaceModel();
   const revert = workspace.commandBatch.revertWorkflow;
@@ -57,7 +68,7 @@ test('sample command batch fixture records batch result and revert workflow', ()
   const fixture = JSON.parse(readFileSync(join(repoRoot, 'fixtures', 'studio-command-batch.sample.json'), 'utf8')) as {
     readonly invocation?: { readonly mode?: string; readonly commands?: readonly object[] };
     readonly result?: { readonly status?: string; readonly commandResults?: readonly { readonly undoPosture?: string }[] };
-    readonly bestEffortFailureExample?: { readonly status?: string; readonly failureClassification?: string };
+    readonly bestEffortFailureExample?: { readonly status?: string; readonly failureClassification?: string; readonly commandResults?: readonly { readonly status?: string; readonly undoPosture?: string; readonly inverseDataRequirements?: readonly string[] }[] };
     readonly revertWorkflow?: { readonly status?: string; readonly inverseCommand?: { readonly op?: string } };
   };
   assert.equal(fixture.invocation?.mode, 'atomic');
@@ -66,6 +77,9 @@ test('sample command batch fixture records batch result and revert workflow', ()
   assert.ok(fixture.result?.commandResults?.some((result) => result.undoPosture === 'authority_reversing'));
   assert.equal(fixture.bestEffortFailureExample?.status, 'partial');
   assert.equal(fixture.bestEffortFailureExample?.failureClassification, 'state_hash_mismatch');
+  const rejected = fixture.bestEffortFailureExample?.commandResults?.find((result) => result.status === 'rejected');
+  assert.equal(rejected?.undoPosture, 'not_undoable');
+  assert.deepEqual(rejected?.inverseDataRequirements, []);
   assert.equal(fixture.revertWorkflow?.status, 'available');
   assert.equal(fixture.revertWorkflow?.inverseCommand?.op, 'setVoxel');
 });
