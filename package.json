@@ -11,6 +11,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "smoke:static": "node scripts/static-smoke.mjs",
     "proof:v1": "pnpm run verify && tsx scripts/v1-proof.ts && node scripts/readback-v1-proof.mjs",
+    "proof:browser": "pnpm run proof:v1 && tsx scripts/browser-visual-capture.ts && node scripts/readback-browser-capture.mjs",
     "verify": "pnpm run check:boundaries && pnpm run test && pnpm run build && pnpm run smoke:static"
   },
   "dependencies": {
@@ -25,7 +26,7 @@
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 2738,
+    "task": 2739,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -38,7 +39,8 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
-      "Task 2738 provides `pnpm run proof:v1` as the end-to-end Studio V1 proof command; it uses software_snapshot functional visual evidence and does not claim browser/Agora/hardware GPU/performance evidence.",
+      "Task 2738 provides `pnpm run proof:v1` as the end-to-end Studio V1 proof command with software_snapshot functional visual evidence.",
+      "Task 2739 provides `pnpm run proof:browser` as a Chromium headless browser screenshot capture/readback path for the Studio app and V1 proof routes; it does not claim Agora/hardware GPU/performance evidence.",
       "@asha/studio-evidence remains deferred; current proof uses Studio-owned review/proof artifact schemas as reference evidence until that package lands."
     ]
   }

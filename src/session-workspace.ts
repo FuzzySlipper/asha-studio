@@ -482,7 +482,7 @@ export function createStudioWorkspaceModel(options: {
     results,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:09.000Z',
-    knownLimitations: ['Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence.', 'Native runtime bridge/browser screenshot capture remains deferred.'],
+    knownLimitations: ['Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence by itself.', 'Browser screenshot capture is produced by the separate proof:browser command; native runtime bridge and Agora compositor capture remain deferred.'],
   });
   const readout = createAgentReadoutArtifact({
     session,

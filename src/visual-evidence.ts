@@ -116,7 +116,7 @@ export function createVisualEvidenceForVoxelWorkflow(workflow: StudioVoxelWorkfl
     evidenceClassification: 'proof_content',
     captureReadiness: 'ready',
     summary: `Software visual before/after evidence for voxel edit at (${workflow.evidence.editAnchor.x}, ${workflow.evidence.editAnchor.y}, ${workflow.evidence.editAnchor.z}); render hashes changed.`,
-    limitations: ['Software snapshot evidence is functional proof-content evidence, not hardware GPU/performance evidence.', 'Native browser screenshot capture is deferred until the browser/Agora evidence task.'],
+    limitations: ['Software snapshot evidence is functional proof-content evidence, not browser/Agora/hardware GPU/performance evidence.', 'Browser screenshot capture is available through the separate proof:browser command and correlates back to this review artifact.'],
   }];
 }
 

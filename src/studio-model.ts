@@ -126,8 +126,8 @@ export function createStudioShellModel(catalog: StudioCommandCatalog = COMMAND_C
     workspace,
     knownLimitations: [
       'Runtime bridge command execution is deferred; session/timeline entries are mock/reference structured readouts.',
-      'Visual evidence is software_snapshot proof content with stable before/after refs, not browser/GPU/performance evidence.',
-      'Native browser/Agora screenshot capture is reserved for a later capture-backend task.',
+      'Visual evidence is software_snapshot proof content with stable before/after refs; browser proof capture is available via pnpm run proof:browser.',
+      'Agora compositor capture, hardware GPU evidence, and performance evidence are reserved for later capture-backend tasks.',
     ],
   };
 }

@@ -20,7 +20,7 @@ Task `asha#2730` establishes a Vite/TypeScript shell with visible regions requir
 - inspector/readout panel;
 - evidence/export panel.
 
-The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. It does **not** call the native runtime bridge or claim browser/Agora/hardware-GPU evidence; the V1 proof exports software-snapshot visual evidence and machine-readable review artifacts with explicit limitations.
+The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. It does **not** call the native runtime bridge or claim Agora/hardware-GPU evidence; the V1 proof exports software-snapshot visual evidence, browser screenshot capture/readback artifacts, and machine-readable review artifacts with explicit limitations.
 
 ## Local development
 
@@ -29,6 +29,7 @@ pnpm install
 pnpm run dev
 pnpm run verify
 pnpm run proof:v1
+pnpm run proof:browser
 ```
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
@@ -71,6 +72,22 @@ Task `asha#2735` adds review-grade software visual evidence for the V1 Studio pa
 
 This is functional proof-content evidence only. It is intentionally not browser screenshot, Agora capture, hardware GPU, or performance evidence; those remain later capture-backend tasks.
 
+## Browser visual capture
+
+Task `asha#2739` adds a Chromium headless browser screenshot capture/readback path for the completed Studio V1 proof:
+
+```bash
+pnpm run proof:browser
+```
+
+The command first regenerates the full `proof:v1` artifact, then serves both the built Studio app route and generated V1 proof route over local HTTP. Chromium captures:
+
+- `artifacts/browser-capture/latest/studio-app.png` — browser screenshot of the Studio app route with boundary, scenario, command catalog, readout, evidence/export, and command timeline markers.
+- `artifacts/browser-capture/latest/v1-proof-before-after.png` — browser screenshot of the generated V1 proof route with before/after evidence and all 9 proof steps.
+- `artifacts/browser-capture/latest/index.json` — machine-readable browser capture proof with screenshot SHA-256 values, linked V1 proof artifact SHA-256, proof-content marker readiness, timeline correlation, before/after render-hash comparison, and truthful capture backend classification.
+
+The browser capture is fail-closed: missing app/proof markers, missing timeline command IDs, missing linked artifact, unchanged before/after render hashes, or screenshot/hash readback mismatch fail the command. It is browser screenshot evidence via Chromium headless CLI; it still does not claim Agora compositor capture, native runtime bridge, hardware GPU, or performance evidence.
+
 ## End-to-end V1 proof
 
 A reviewer can run the complete V1 visual edit proof with one command:
@@ -97,10 +114,11 @@ pnpm run check:boundaries
 pnpm run test
 pnpm run build
 pnpm run smoke:static
+pnpm run proof:browser
 git diff --check
 ```
 
 ## Known limitations
 
-- Command execution, runtime/session lifecycle, native/WASM runtime-bridge integration, timeline persistence, real voxel workflow, visual evidence capture, and review export are planned follow-up tasks.
-- `@asha/studio-evidence` is a deferred public package from the schema design; this scaffold shows its panel affordance but does not invent a local substitute schema.
+- Command execution uses the mock/reference typed public command path; native/WASM runtime-bridge integration, timeline persistence, Agora compositor capture, hardware GPU capture, and performance evidence remain planned follow-up work.
+- `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.
