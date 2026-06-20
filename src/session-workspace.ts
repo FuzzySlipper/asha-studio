@@ -3,6 +3,8 @@ import type { OperationClass, StudioCommandCatalog, StudioCommandCatalogEntry, S
 
 import { createStudioCommandBatchModel } from './command-batch';
 import type { StudioCommandBatchModel } from './command-batch';
+import { createStudioCommandEvidenceDockModel } from './command-evidence-dock';
+import type { StudioCommandEvidenceDockModel } from './command-evidence-dock';
 import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
 import { createStudioModelMaterialPreviewModel } from './model-material-preview';
@@ -182,6 +184,7 @@ export interface StudioAgentReadoutArtifact {
   readonly finalState: StudioStateEvidence;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
+  readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
@@ -202,6 +205,7 @@ export interface StudioWorkspaceModel {
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
+  readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
@@ -420,6 +424,7 @@ export function createAgentReadoutArtifact(options: {
   readonly knownLimitations: readonly string[];
   readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
+  readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
@@ -439,6 +444,7 @@ export function createAgentReadoutArtifact(options: {
     finalState,
     sceneHierarchy: options.sceneHierarchy,
     selectedTargetInspector: options.selectedTargetInspector,
+    commandEvidenceDock: options.commandEvidenceDock,
     viewportEditor: options.viewportEditor,
     visualEvidence,
     exportedArtifacts,
@@ -529,12 +535,20 @@ export function createStudioWorkspaceModel(options: {
     generatedAtIso: '1970-01-01T00:00:09.000Z',
     knownLimitations: ['Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence by itself.', 'Browser screenshot capture is produced by the separate proof:browser command; native runtime bridge and Agora compositor capture remain deferred.'],
   });
+  const commandEvidenceDock = createStudioCommandEvidenceDockModel({
+    timeline,
+    results,
+    visualEvidence,
+    sessionId: session.sessionId,
+    reviewArtifact,
+  });
   const readout = createAgentReadoutArtifact({
     session,
     timeline,
     results,
     sceneHierarchy,
     selectedTargetInspector,
+    commandEvidenceDock,
     viewportEditor,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
@@ -552,6 +566,7 @@ export function createStudioWorkspaceModel(options: {
     modelMaterialPreview,
     sceneHierarchy,
     selectedTargetInspector,
+    commandEvidenceDock,
     viewportEditor,
     visualEvidence,
     reviewArtifact,

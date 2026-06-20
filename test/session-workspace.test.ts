@@ -105,6 +105,7 @@ test('readout helper preserves result ordering and final state evidence', () => 
     results: workspace.commandResults,
     sceneHierarchy: workspace.sceneHierarchy,
     selectedTargetInspector: workspace.selectedTargetInspector,
+    commandEvidenceDock: workspace.commandEvidenceDock,
     viewportEditor: workspace.viewportEditor,
     generatedAtIso: '1970-01-01T00:02:00.000Z',
     knownLimitations: ['test limitation'],

@@ -327,6 +327,53 @@ function renderTimeline(model: StudioShell): HTMLElement {
   return timeline;
 }
 
+function renderCommandEvidenceDock(model: StudioShell): HTMLElement {
+  const dockModel = model.workspace.commandEvidenceDock;
+  const dock = el('section', 'bottom-command-evidence-dock');
+  dock.setAttribute('aria-label', dockModel.automationLabel);
+  dock.append(el('h2', undefined, dockModel.title));
+  const tabList = el('div', 'bottom-dock-tabs');
+  for (const tab of dockModel.tabs) {
+    const tabNode = el('span', tab.id === 'command_timeline_evidence_log' ? 'bottom-command-timeline-tab' : 'bottom-evidence-artifacts-tab');
+    tabNode.textContent = `${tab.label} (${tab.rowCount})`;
+    tabList.append(tabNode);
+  }
+  dock.append(tabList);
+
+  const commandPanel = el('section', 'bottom-command-row-list');
+  commandPanel.append(el('h3', undefined, 'Command Timeline / Evidence Log'));
+  const commandRows = el('ol');
+  for (const row of dockModel.commandRows) {
+    const rowNode = el('li', 'bottom-command-row');
+    rowNode.append(el('strong', undefined, `${row.orderIndex}. ${row.sequenceId} · ${row.label}`));
+    rowNode.append(el('span', 'command-id', `${row.commandId} · ${row.status} · ${row.source}`));
+    rowNode.append(el('span', 'command-meta', `${row.operationClass} · ${row.requestedAtIso} → ${row.completedAtIso ?? 'pending'}`));
+    rowNode.append(el('p', undefined, `${row.inputSummary} → ${row.outputSummary}`));
+    rowNode.append(el('p', undefined, `Evidence: ${row.evidenceSummary}`));
+    commandRows.append(rowNode);
+  }
+  commandPanel.append(commandRows);
+  dock.append(commandPanel);
+
+  const artifactPanel = el('section', 'bottom-evidence-artifact-list');
+  artifactPanel.append(el('h3', undefined, 'Evidence / Artifacts'));
+  const artifactRows = el('ul');
+  for (const artifact of dockModel.artifactRows) {
+    const artifactNode = el('li', 'bottom-artifact-row');
+    artifactNode.append(el('strong', undefined, `${artifact.artifactId} · ${artifact.source}`));
+    artifactNode.append(el('span', 'command-meta', `${artifact.artifactKind} · ${artifact.mediaType} · seq ${artifact.producedBySequenceId ?? 'n/a'}`));
+    artifactNode.append(el('p', undefined, `${artifact.path} · ${artifact.contentHash ?? 'hash pending'}`));
+    artifactNode.append(el('p', undefined, artifact.summary));
+    artifactRows.append(artifactNode);
+  }
+  artifactPanel.append(artifactRows);
+  for (const limitation of dockModel.knownLimitations) {
+    artifactPanel.append(el('p', 'bottom-evidence-browser-limitation', limitation));
+  }
+  dock.append(artifactPanel);
+  return dock;
+}
+
 function renderLimitations(model: StudioShell): HTMLElement {
   const limits = el('section', 'limitations');
   limits.setAttribute('aria-label', 'studio-known-limitations');
@@ -369,8 +416,8 @@ function renderDockFrame(model: StudioShell): HTMLElement {
   bottomDock.append(renderPanel(findPanel(model, 'palette')));
   bottomDock.append(renderPanel(findPanel(model, 'timeline')));
   bottomDock.append(renderPanel(findPanel(model, 'evidence')));
+  bottomDock.append(renderCommandEvidenceDock(model));
   bottomDock.append(renderCommandPalette(model));
-  bottomDock.append(renderTimeline(model));
   bottomDock.append(renderVisualEvidence(model));
   bottomDock.append(renderLimitations(model));
   frame.append(bottomDock);

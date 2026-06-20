@@ -15,6 +15,7 @@ test('studio shell exposes editor dock frame regions for the Unity-ish layout sl
   assert.equal(model.editorShellRegions.find((region) => region.id === 'centralViewportDock')?.status, 'implemented_frame');
   assert.equal(model.editorShellRegions.find((region) => region.id === 'leftHierarchyDock')?.status, 'implemented_frame');
   assert.equal(model.editorShellRegions.find((region) => region.id === 'rightInspectorDock')?.status, 'implemented_frame');
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'bottomCommandEvidenceDock')?.status, 'implemented_frame');
 });
 
 test('studio shell exposes every required V1 panel', () => {

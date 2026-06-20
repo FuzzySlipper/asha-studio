@@ -127,6 +127,13 @@ const requiredAppMarkers = [
   'render.capture_before_after',
   'export.agent_readout',
   'Capture readiness: ready',
+  'Command Timeline / Evidence Log',
+  'Evidence / Artifacts',
+  'GUI',
+  'AGENT',
+  'artifact-review-export-0001',
+  'artifact-agent-readout-0001',
+  'not a second private command log',
 ] as const;
 const requiredProofMarkers = [
   'ASHA Studio V1 Proof',

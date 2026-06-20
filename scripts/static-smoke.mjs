@@ -55,6 +55,13 @@ for (const expected of [
   'software_snapshot_reference',
   'no native runtime, Agora, GPU, or performance claim',
   'Evidence / Export',
+  'Command Timeline / Evidence Log',
+  'Evidence / Artifacts',
+  'bottom-command-row-list',
+  'bottom-evidence-artifact-list',
+  'artifact-review-export-0001',
+  'artifact-agent-readout-0001',
+  'not a second private command log',
   'authority.voxel.apply_brush',
 ]) {
   if (!bundleText.includes(expected)) {
