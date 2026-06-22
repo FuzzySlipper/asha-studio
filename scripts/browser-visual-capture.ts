@@ -42,6 +42,14 @@ interface Viewport3dReadbackArtifact {
   readonly limitations: readonly string[];
 }
 
+interface Viewport3dCanvasDomEvidence {
+  readonly detectionMode: 'chromium_dump_dom_canvas_element';
+  readonly canvasElementPresent: boolean;
+  readonly canvasElementCount: number;
+  readonly requiredClass: 'studio-3d-webgl-canvas';
+  readonly requiredDataCanvasRole: 'studio-3d-webgl-canvas';
+}
+
 interface BrowserCaptureArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'browser_visual_capture_proof';
@@ -95,6 +103,7 @@ interface BrowserCaptureArtifact {
     readonly reviewCaptureReadiness: string;
   };
   readonly viewport3d: Viewport3dReadbackArtifact;
+  readonly viewport3dCanvasDom: Viewport3dCanvasDomEvidence;
   readonly screenshots: readonly ScreenshotRef[];
   readonly comparison: {
     readonly status: 'changed' | 'failed_closed';
@@ -286,6 +295,22 @@ function extractViewport3dReadback(appText: string): Viewport3dReadbackArtifact 
   return JSON.parse(match[1]) as Viewport3dReadbackArtifact;
 }
 
+function buildCanvasDomEvidence(appText: string): Viewport3dCanvasDomEvidence {
+  const canvasTags = appText.match(/<canvas\b[^>]*>/gi) ?? [];
+  const canvasElementCount = canvasTags.filter((tag) => {
+    const hasRequiredClass = /\bclass=("[^"]*\bstudio-3d-webgl-canvas\b[^"]*"|'[^']*\bstudio-3d-webgl-canvas\b[^']*')/i.test(tag);
+    const hasRequiredDataRole = /\bdata-canvas-role=("studio-3d-webgl-canvas"|'studio-3d-webgl-canvas')/i.test(tag);
+    return hasRequiredClass || hasRequiredDataRole;
+  }).length;
+  return {
+    detectionMode: 'chromium_dump_dom_canvas_element',
+    canvasElementPresent: canvasElementCount > 0,
+    canvasElementCount,
+    requiredClass: 'studio-3d-webgl-canvas',
+    requiredDataCanvasRole: 'studio-3d-webgl-canvas',
+  };
+}
+
 async function main(): Promise<void> {
   if (!existsSync(join(distDir, 'index.html'))) throw new Error('dist/index.html is missing; run pnpm run build or pnpm run proof:v1 first');
   mkdirSync(outDir, { recursive: true });
@@ -305,6 +330,7 @@ async function main(): Promise<void> {
   });
   const appMissingMarkers = requiredAppMarkers.filter((marker) => !capture.appText.includes(marker));
   const viewport3d = extractViewport3dReadback(capture.appText);
+  const viewport3dCanvasDom = buildCanvasDomEvidence(capture.appText);
   const markerGroups = editorShellMarkerGroups.map((group) => {
     const missingMarkers = group.markers.filter((marker) => !capture.appText.includes(marker));
     return {
@@ -316,7 +342,7 @@ async function main(): Promise<void> {
     };
   });
   const proofMissingMarkers = requiredProofMarkers.filter((marker) => !capture.proofText.includes(marker));
-  const viewport3dReady = viewport3d.readiness === 'ready' && viewport3d.canvasMarker === 'studio-3d-webgl-canvas' && viewport3d.visibleRenderableCount > 0 && viewport3d.selectedRenderableId !== null && viewport3d.previewGhostId !== null && viewport3d.appliedRenderableId !== null;
+  const viewport3dReady = viewport3d.readiness === 'ready' && viewport3d.canvasMarker === 'studio-3d-webgl-canvas' && viewport3d.visibleRenderableCount > 0 && viewport3d.selectedRenderableId !== null && viewport3d.previewGhostId !== null && viewport3d.appliedRenderableId !== null && viewport3dCanvasDom.canvasElementPresent;
   const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady;
   const artifact: BrowserCaptureArtifact = {
     schemaVersion: 1,
@@ -362,6 +388,7 @@ async function main(): Promise<void> {
       reviewCaptureReadiness: v1.reviewArtifact.captureReadiness,
     },
     viewport3d,
+    viewport3dCanvasDom,
     screenshots: capture.screenshots,
     comparison: {
       status: visualChanged && capture.screenshots.length >= 2 ? 'changed' : 'failed_closed',
@@ -375,7 +402,7 @@ async function main(): Promise<void> {
   };
   writeFileSync(join(outDir, 'index.json'), `${JSON.stringify(artifact, null, 2)}\n`);
   if (!ready) {
-    throw new Error(`browser visual capture failed closed: appMissing=${appMissingMarkers.join(', ') || 'none'} proofMissing=${proofMissingMarkers.join(', ') || 'none'} timelineMissing=${missingTimelineCommandIds.join(', ') || 'none'} visualChanged=${String(visualChanged)} viewport3dReady=${String(viewport3dReady)}`);
+    throw new Error(`browser visual capture failed closed: appMissing=${appMissingMarkers.join(', ') || 'none'} proofMissing=${proofMissingMarkers.join(', ') || 'none'} timelineMissing=${missingTimelineCommandIds.join(', ') || 'none'} visualChanged=${String(visualChanged)} viewport3dReady=${String(viewport3dReady)} canvasElementCount=${viewport3dCanvasDom.canvasElementCount}`);
   }
   console.log(`asha-studio browser visual capture: OK (${relative(root, join(outDir, 'index.json'))})`);
 }

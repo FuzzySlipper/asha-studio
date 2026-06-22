@@ -58,6 +58,11 @@ for (const groupId of requiredGroupIds) {
 if (!artifact.readiness.requiredMarkers.includes('studio-3d-webgl-canvas')) fail('3D canvas marker not required');
 if (!artifact.readiness.requiredMarkers.includes('three_local_browser_projection')) fail('Three.js browser projection marker not required');
 if (!artifact.readiness.requiredMarkers.includes('native / Agora / GPU: not claimed')) fail('no-GPU/Agora marker not required');
+if (artifact.viewport3dCanvasDom?.detectionMode !== 'chromium_dump_dom_canvas_element') fail('viewport3d canvas DOM detection mode missing');
+if (artifact.viewport3dCanvasDom?.requiredClass !== 'studio-3d-webgl-canvas') fail('viewport3d canvas DOM required class mismatch');
+if (artifact.viewport3dCanvasDom?.requiredDataCanvasRole !== 'studio-3d-webgl-canvas') fail('viewport3d canvas DOM required data role mismatch');
+if (artifact.viewport3dCanvasDom?.canvasElementPresent !== true) fail('viewport3d canvas DOM element is not present');
+if (!Number.isInteger(artifact.viewport3dCanvasDom?.canvasElementCount) || artifact.viewport3dCanvasDom.canvasElementCount < 1) fail(`viewport3d canvas DOM element count is ${artifact.viewport3dCanvasDom?.canvasElementCount ?? 'missing'}`);
 if (artifact.viewport3d?.artifactKind !== 'viewport_3d_readback') fail('viewport3d readback artifact is missing');
 if (artifact.viewport3d?.readiness !== 'ready') fail(`viewport3d readiness is ${artifact.viewport3d?.readiness ?? 'missing'}`);
 if (artifact.viewport3d?.hostKind !== 'three_local_browser_projection') fail('viewport3d host is not Three.js local browser projection');
