@@ -1,0 +1,246 @@
+{
+  "schema": "layered-visual-contract/v0.1",
+  "run_id": "9e2a23fe1dbda4d67d199699",
+  "score": 1,
+  "verdict": "pass",
+  "passes": [
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "export_review_artifact_button_exists",
+      "message": "export_review_artifact_button exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "export_review_artifact_button"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "run_proof_button_exists",
+      "message": "run_proof_button exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "run_proof_button"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "critical",
+      "constraint": "scene_hierarchy_exists",
+      "message": "scene_hierarchy exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "scene_hierarchy"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "critical",
+      "constraint": "central_viewport_exists",
+      "message": "central_3d_viewport exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "central_3d_viewport"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "critical",
+      "constraint": "selected_target_inspector_exists",
+      "message": "selected_target_inspector exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "selected_target_inspector"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "command_evidence_dock_exists",
+      "message": "command_evidence_dock exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "command_evidence_dock"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "command_timeline_exists",
+      "message": "command_timeline exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "command_timeline"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "evidence_dock_exists",
+      "message": "evidence_dock exists",
+      "match_confidence": 1,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "evidence_dock"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "critical",
+      "constraint": "central_viewport_is_dominant",
+      "message": "central_3d_viewport area ratio 0.434 \u003e= 0.400",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "central_3d_viewport"
+      ],
+      "measured": {
+        "area_ratio": 0.4337191358024692,
+        "min_area_ratio": 0.4
+      }
+    },
+    {
+      "status": "pass",
+      "severity": "critical",
+      "constraint": "scene_hierarchy_left_of_viewport",
+      "message": "scene_hierarchy is left_of central_3d_viewport",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "scene_hierarchy",
+        "central_3d_viewport"
+      ],
+      "candidate_bounds": {
+        "space": "viewport",
+        "x": 0,
+        "y": 0.05,
+        "w": 0.1625,
+        "h": 0.6759259259259259,
+        "px": {
+          "x": 0,
+          "y": 54,
+          "w": 312,
+          "h": 730
+        }
+      }
+    },
+    {
+      "status": "pass",
+      "severity": "critical",
+      "constraint": "inspector_right_of_viewport",
+      "message": "selected_target_inspector is right_of central_3d_viewport",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "selected_target_inspector",
+        "central_3d_viewport"
+      ],
+      "candidate_bounds": {
+        "space": "viewport",
+        "x": 0.8041666666666667,
+        "y": 0.05,
+        "w": 0.19583333333333333,
+        "h": 0.6759259259259259,
+        "px": {
+          "x": 1544,
+          "y": 54,
+          "w": 376,
+          "h": 730
+        }
+      }
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "command_dock_below_viewport",
+      "message": "command_evidence_dock is below central_3d_viewport",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "command_evidence_dock",
+        "central_3d_viewport"
+      ],
+      "candidate_bounds": {
+        "space": "viewport",
+        "x": 0,
+        "y": 0.725925925925926,
+        "w": 1,
+        "h": 0.2740740740740741,
+        "px": {
+          "x": 0,
+          "y": 784,
+          "w": 1920,
+          "h": 296
+        }
+      }
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "command_timeline_inside_bottom_dock",
+      "message": "command_timeline is inside command_evidence_dock",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "command_timeline",
+        "command_evidence_dock"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "evidence_dock_inside_bottom_dock",
+      "message": "evidence_dock is inside command_evidence_dock",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "evidence_dock",
+        "command_evidence_dock"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "primary_docks_top_aligned",
+      "message": "items are aligned",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "scene_hierarchy",
+        "central_3d_viewport",
+        "selected_target_inspector"
+      ]
+    },
+    {
+      "status": "pass",
+      "severity": "major",
+      "constraint": "central_viewport_bounds_stable",
+      "message": "bounds delta 0.000 \u003c= 0.035",
+      "match_confidence": 0.76,
+      "match_strategy": "exact_id",
+      "involved_objects": [
+        "central_3d_viewport"
+      ],
+      "measured": {
+        "bounds_delta": 0,
+        "max_delta_norm": 0.035
+      }
+    }
+  ],
+  "artifacts": {
+    "reference_overlay": "http://127.0.0.1:18090/visual-contracts/9e2a23fe1dbda4d67d199699/artifacts/reference.overlay.svg",
+    "candidate_overlay": "http://127.0.0.1:18090/visual-contracts/9e2a23fe1dbda4d67d199699/artifacts/candidate.overlay.svg",
+    "diff_overlay": "http://127.0.0.1:18090/visual-contracts/9e2a23fe1dbda4d67d199699/artifacts/diff.overlay.svg",
+    "reference_contract": "http://127.0.0.1:18090/visual-contracts/9e2a23fe1dbda4d67d199699/artifacts/reference.contract.json",
+    "candidate_contract": "http://127.0.0.1:18090/visual-contracts/9e2a23fe1dbda4d67d199699/artifacts/candidate.contract.json",
+    "report": "http://127.0.0.1:18090/visual-contracts/9e2a23fe1dbda4d67d199699/artifacts/report.json"
+  }
+}

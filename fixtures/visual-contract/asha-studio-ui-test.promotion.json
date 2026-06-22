@@ -1,0 +1,209 @@
+{
+  "constraints": [
+    {
+      "id": "export_review_artifact_button_exists",
+      "importance": "major",
+      "object": "export_review_artifact_button",
+      "type": "object_exists"
+    },
+    {
+      "id": "run_proof_button_exists",
+      "importance": "major",
+      "object": "run_proof_button",
+      "type": "object_exists"
+    },
+    {
+      "id": "scene_hierarchy_exists",
+      "importance": "critical",
+      "object": "scene_hierarchy",
+      "type": "object_exists"
+    },
+    {
+      "id": "central_viewport_exists",
+      "importance": "critical",
+      "object": "central_3d_viewport",
+      "type": "object_exists"
+    },
+    {
+      "id": "selected_target_inspector_exists",
+      "importance": "critical",
+      "object": "selected_target_inspector",
+      "type": "object_exists"
+    },
+    {
+      "id": "command_evidence_dock_exists",
+      "importance": "major",
+      "object": "command_evidence_dock",
+      "type": "object_exists"
+    },
+    {
+      "id": "command_timeline_exists",
+      "importance": "major",
+      "object": "command_timeline",
+      "type": "object_exists"
+    },
+    {
+      "id": "evidence_dock_exists",
+      "importance": "major",
+      "object": "evidence_dock",
+      "type": "object_exists"
+    },
+    {
+      "id": "central_viewport_is_dominant",
+      "importance": "critical",
+      "min_viewport_area_ratio": 0.4,
+      "object": "central_3d_viewport",
+      "type": "area_ratio"
+    },
+    {
+      "a": "scene_hierarchy",
+      "b": "central_3d_viewport",
+      "id": "scene_hierarchy_left_of_viewport",
+      "importance": "critical",
+      "relation": "left_of",
+      "tolerance_norm": 0.02,
+      "type": "layout_relation"
+    },
+    {
+      "a": "selected_target_inspector",
+      "b": "central_3d_viewport",
+      "id": "inspector_right_of_viewport",
+      "importance": "critical",
+      "relation": "right_of",
+      "tolerance_norm": 0.02,
+      "type": "layout_relation"
+    },
+    {
+      "a": "command_evidence_dock",
+      "b": "central_3d_viewport",
+      "id": "command_dock_below_viewport",
+      "importance": "major",
+      "relation": "below",
+      "tolerance_norm": 0.02,
+      "type": "layout_relation"
+    },
+    {
+      "id": "command_timeline_inside_bottom_dock",
+      "importance": "major",
+      "object": "command_timeline",
+      "type": "containment"
+    },
+    {
+      "id": "evidence_dock_inside_bottom_dock",
+      "importance": "major",
+      "object": "evidence_dock",
+      "type": "containment"
+    },
+    {
+      "edge": "top",
+      "id": "primary_docks_top_aligned",
+      "importance": "major",
+      "items": [
+        "scene_hierarchy",
+        "central_3d_viewport",
+        "selected_target_inspector"
+      ],
+      "tolerance_norm": 0.02,
+      "type": "alignment"
+    },
+    {
+      "id": "central_viewport_bounds_stable",
+      "importance": "major",
+      "max_delta_norm": 0.035,
+      "object": "central_3d_viewport",
+      "type": "bounds_tolerance"
+    }
+  ],
+  "objects": [
+    {
+      "domain_role": "review_artifact_export",
+      "importance": "major",
+      "kind": "button",
+      "semantic_description": "Top-bar control for exporting a review artifact from the Studio mockup",
+      "source_id": "node_0",
+      "target_id": "export_review_artifact_button"
+    },
+    {
+      "domain_role": "proof_runner",
+      "importance": "major",
+      "kind": "button",
+      "semantic_description": "Top-bar control for running visual/proof capture from the Studio mockup",
+      "source_id": "node_1",
+      "target_id": "run_proof_button"
+    },
+    {
+      "domain_role": "scene_hierarchy",
+      "importance": "major",
+      "kind": "panel",
+      "semantic_description": "Left dock containing the scene hierarchy and selection tree",
+      "source_id": "node_2",
+      "target_id": "scene_hierarchy"
+    },
+    {
+      "domain_role": "central_3d_viewport",
+      "importance": "critical",
+      "kind": "canvas",
+      "semantic_description": "Central Studio viewport area for the terrain-test-grid visual reference",
+      "source_id": "node_3",
+      "target_id": "central_3d_viewport"
+    },
+    {
+      "domain_role": "selected_target_inspector",
+      "importance": "major",
+      "kind": "panel",
+      "semantic_description": "Right dock for selected voxel/target inspector details",
+      "source_id": "node_4",
+      "target_id": "selected_target_inspector"
+    },
+    {
+      "domain_role": "command_evidence_dock",
+      "importance": "major",
+      "kind": "panel",
+      "semantic_description": "Bottom dock containing command timeline and evidence/artifact tabs",
+      "source_id": "node_5",
+      "target_id": "command_evidence_dock"
+    },
+    {
+      "domain_role": "command_timeline",
+      "importance": "major",
+      "kind": "button",
+      "parent_id": "command_evidence_dock",
+      "semantic_description": "Command timeline tab within the bottom command/evidence dock",
+      "source_id": "node_6",
+      "target_id": "command_timeline"
+    },
+    {
+      "domain_role": "evidence_dock",
+      "importance": "major",
+      "kind": "button",
+      "parent_id": "command_evidence_dock",
+      "semantic_description": "Evidence/artifacts tab within the bottom command/evidence dock",
+      "source_id": "node_7",
+      "target_id": "evidence_dock"
+    }
+  ],
+  "project": {
+    "id": "asha",
+    "roles": [
+      "review_artifact_export",
+      "proof_runner",
+      "scene_hierarchy",
+      "central_3d_viewport",
+      "selected_target_inspector",
+      "command_evidence_dock",
+      "command_timeline",
+      "evidence_dock"
+    ],
+    "vocabulary": "asha_studio_ui_test_target_v0"
+  },
+  "source": {
+    "capture_mode": "viewport-clipped",
+    "capture_viewport": {
+      "height_px": 1080,
+      "width_px": 1920
+    },
+    "kind": "visual-contract-generic-contract",
+    "mockup_path": "local/ui-test.html",
+    "path": "fixtures/visual-contract/asha-studio-ui-test.generic.contract.json"
+  }
+}
