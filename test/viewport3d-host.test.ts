@@ -20,6 +20,15 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.equal(readback.selectedRenderableId, 'selected-voxel:0,0,0');
   assert.equal(readback.previewGhostId, 'preview-ghost:1,0,0');
   assert.equal(readback.appliedRenderableId, 'applied-voxel:1,0,0');
+  assert.equal(readback.interactionProof.readiness, 'ready');
+  assert.equal(readback.interactionProof.toolState.activeTool, 'voxel_brush');
+  assert.equal(readback.interactionProof.toolState.cameraChanged, true);
+  assert.notEqual(readback.interactionProof.toolState.cameraBeforeHash, readback.interactionProof.toolState.cameraAfterHash);
+  assert.deepEqual(readback.interactionProof.scriptedActions.map((action) => action.actionId), ['gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost']);
+  assert.ok(readback.semanticMarkers.includes('viewport_camera_tool_interaction_proof'));
+  assert.ok(readback.semanticMarkers.includes('camera_tool_stale_readback_guard'));
+  assert.ok(readback.semanticMarkers.includes('agent.select_visible_voxel'));
+  assert.ok(readback.semanticMarkers.includes('gui.toggle_preview_ghost'));
   assert.ok(readback.semanticMarkers.includes('selected-target-highlight'));
   assert.ok(readback.semanticMarkers.includes('preview-ghost-renderable'));
   assert.ok(readback.semanticMarkers.includes('applied-state-renderable'));
@@ -38,4 +47,24 @@ test('viewport 3D readback fails closed when required renderables are absent', (
   assert.equal(readback.previewGhostId, null);
   assert.equal(readback.selectedRenderableId, 'selected-voxel:0,0,0');
   assert.equal(readback.appliedRenderableId, 'applied-voxel:1,0,0');
+});
+
+test('viewport 3D readback fails closed when camera or selection interaction proof is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleInteraction = {
+    ...workspace.sceneView,
+    interactionProof: {
+      ...workspace.sceneView.interactionProof,
+      selectedRenderableId: 'selected-voxel:stale',
+      staleReadbackGuard: {
+        ...workspace.sceneView.interactionProof.staleReadbackGuard,
+        requiredCameraAfterHash: 'camera-fnv1a-stale',
+      },
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleInteraction);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.selectedRenderableId, 'selected-voxel:0,0,0');
+  assert.equal(readback.interactionProof.staleReadbackGuard.mismatchPolicy, 'failed_closed');
 });

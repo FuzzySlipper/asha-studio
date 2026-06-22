@@ -8,6 +8,7 @@ export type StudioSceneViewReadiness = 'ready' | 'failed_closed';
 export type StudioSceneViewProjectionAuthority = 'browser_projection_reference';
 export type StudioSceneViewRenderableKind = 'voxel_grid' | 'voxel_cell' | 'static_mesh' | 'preview_ghost';
 export type StudioSceneViewSourceState = 'authoritative_rust_state' | 'editor_preview_state' | 'browser_projection_reference';
+export type StudioSceneViewToolMode = 'select' | 'orbit' | 'pan' | 'frame' | 'voxel_brush';
 
 export interface StudioSceneViewVec3 {
   readonly x: number;
@@ -42,6 +43,51 @@ export interface StudioSceneViewCamera {
     readonly projectionHash: string;
   };
   readonly controlMode: 'orbit_reference';
+}
+
+export interface StudioSceneViewCameraToolState {
+  readonly activeTool: StudioSceneViewToolMode;
+  readonly availableTools: readonly StudioSceneViewToolMode[];
+  readonly cameraBeforeHash: string;
+  readonly cameraAfterHash: string;
+  readonly cameraChanged: boolean;
+  readonly toolBefore: StudioSceneViewToolMode;
+  readonly toolAfter: StudioSceneViewToolMode;
+  readonly framedRenderableId: string;
+}
+
+export interface StudioSceneViewInteractionAction {
+  readonly actionId: 'gui.frame_selected_target' | 'agent.select_visible_voxel' | 'gui.toggle_preview_ghost';
+  readonly actor: 'gui' | 'agent';
+  readonly commandId: string;
+  readonly sequenceId: string;
+  readonly beforeCameraHash: string;
+  readonly afterCameraHash: string;
+  readonly beforeTool: StudioSceneViewToolMode;
+  readonly afterTool: StudioSceneViewToolMode;
+  readonly selectedRenderableId: string;
+  readonly previewGhostId: string | null;
+  readonly summary: string;
+}
+
+export interface StudioSceneViewInteractionProof {
+  readonly artifactKind: 'viewport_camera_tool_interaction_proof';
+  readonly readiness: StudioSceneViewReadiness;
+  readonly proofMode: 'deterministic_scripted_browser_interaction';
+  readonly cameraBefore: StudioSceneViewCamera;
+  readonly cameraAfter: StudioSceneViewCamera;
+  readonly toolState: StudioSceneViewCameraToolState;
+  readonly scriptedActions: readonly StudioSceneViewInteractionAction[];
+  readonly sharedTimelineSequenceIds: readonly string[];
+  readonly actorOrigins: readonly ('gui' | 'agent')[];
+  readonly selectedRenderableId: string;
+  readonly hierarchyInspectorSelectionSource: 'scene_view.selection.selectedRenderableId';
+  readonly staleReadbackGuard: {
+    readonly requiredCameraAfterHash: string;
+    readonly requiredSelectionHash: string;
+    readonly requiredPreviewGhostId: string;
+    readonly mismatchPolicy: 'failed_closed';
+  };
 }
 
 export interface StudioSceneViewRenderable {
@@ -114,6 +160,7 @@ export interface StudioSceneViewModel {
     readonly coordinateSpace: 'screen_px_and_normalized_pick_points';
   };
   readonly camera: StudioSceneViewCamera;
+  readonly interactionProof: StudioSceneViewInteractionProof;
   readonly renderables: readonly StudioSceneViewRenderable[];
   readonly selection: StudioSceneViewSelectionProof;
   readonly preview: StudioSceneViewPreviewProof;
@@ -164,6 +211,110 @@ function unitTransformAt(coord: { readonly x: number; readonly y: number; readon
   return { translation: { x: coord.x + 0.5, y: coord.y + 0.5, z: coord.z + 0.5 }, rotationQuat: [0, 0, 0, 1], scale: { x: 1, y: 1, z: 1 } };
 }
 
+function findTimelineEntry(timeline: readonly StudioCommandTimelineEntry[], commandId: string): StudioCommandTimelineEntry | null {
+  return timeline.find((entry) => entry.commandId === commandId) ?? null;
+}
+
+function cloneCameraWithPose(camera: StudioSceneViewCamera, pose: StudioSceneViewCamera['pose']): StudioSceneViewCamera {
+  return { ...camera, pose };
+}
+
+function cameraHash(camera: StudioSceneViewCamera): string {
+  return fnv1aHash('camera-fnv1a', { pose: camera.pose, projection: camera.projection, controlMode: camera.controlMode });
+}
+
+function createInteractionProof(args: {
+  readonly timeline: readonly StudioCommandTimelineEntry[];
+  readonly cameraBefore: StudioSceneViewCamera;
+  readonly cameraAfter: StudioSceneViewCamera;
+  readonly selectedRenderableId: string;
+  readonly selectionHash: string;
+  readonly previewGhostId: string;
+}): StudioSceneViewInteractionProof {
+  const frameEntry = findTimelineEntry(args.timeline, 'inspection.editor_state');
+  const selectEntry = findTimelineEntry(args.timeline, 'selection.voxel_from_screen_point');
+  const previewEntry = findTimelineEntry(args.timeline, 'preview.voxel_brush');
+  const cameraBeforeHash = cameraHash(args.cameraBefore);
+  const cameraAfterHash = cameraHash(args.cameraAfter);
+  const scriptedActions: StudioSceneViewInteractionAction[] = [];
+  if (frameEntry !== null) {
+    scriptedActions.push({
+      actionId: 'gui.frame_selected_target',
+      actor: 'gui',
+      commandId: frameEntry.commandId,
+      sequenceId: frameEntry.sequenceId,
+      beforeCameraHash: cameraBeforeHash,
+      afterCameraHash: cameraAfterHash,
+      beforeTool: 'select',
+      afterTool: 'frame',
+      selectedRenderableId: args.selectedRenderableId,
+      previewGhostId: null,
+      summary: 'GUI-visible frame action records camera-before/camera-after evidence through the shared editor-state timeline entry.',
+    });
+  }
+  if (selectEntry !== null) {
+    scriptedActions.push({
+      actionId: 'agent.select_visible_voxel',
+      actor: selectEntry.requestedBy === 'agent' ? 'agent' : 'gui',
+      commandId: selectEntry.commandId,
+      sequenceId: selectEntry.sequenceId,
+      beforeCameraHash: cameraAfterHash,
+      afterCameraHash: cameraAfterHash,
+      beforeTool: 'frame',
+      afterTool: 'select',
+      selectedRenderableId: args.selectedRenderableId,
+      previewGhostId: null,
+      summary: 'Agent-originated screen-point selection uses the public selection command and updates the same selected renderable readout.',
+    });
+  }
+  if (previewEntry !== null) {
+    scriptedActions.push({
+      actionId: 'gui.toggle_preview_ghost',
+      actor: previewEntry.requestedBy === 'agent' ? 'agent' : 'gui',
+      commandId: previewEntry.commandId,
+      sequenceId: previewEntry.sequenceId,
+      beforeCameraHash: cameraAfterHash,
+      afterCameraHash: cameraAfterHash,
+      beforeTool: 'select',
+      afterTool: 'voxel_brush',
+      selectedRenderableId: args.selectedRenderableId,
+      previewGhostId: args.previewGhostId,
+      summary: 'GUI-originated voxel brush preview toggles the editor-local ghost without mutating authority.',
+    });
+  }
+  const actionSequenceIds = scriptedActions.map((action) => action.sequenceId);
+  const actorOrigins = [...new Set(scriptedActions.map((action) => action.actor))].sort() as readonly ('gui' | 'agent')[];
+  const ready = scriptedActions.length === 3 && actorOrigins.includes('gui') && actorOrigins.includes('agent') && cameraBeforeHash !== cameraAfterHash;
+  return {
+    artifactKind: 'viewport_camera_tool_interaction_proof',
+    readiness: ready ? 'ready' : 'failed_closed',
+    proofMode: 'deterministic_scripted_browser_interaction',
+    cameraBefore: args.cameraBefore,
+    cameraAfter: args.cameraAfter,
+    toolState: {
+      activeTool: 'voxel_brush',
+      availableTools: ['select', 'orbit', 'pan', 'frame', 'voxel_brush'],
+      cameraBeforeHash,
+      cameraAfterHash,
+      cameraChanged: cameraBeforeHash !== cameraAfterHash,
+      toolBefore: 'select',
+      toolAfter: 'voxel_brush',
+      framedRenderableId: args.selectedRenderableId,
+    },
+    scriptedActions,
+    sharedTimelineSequenceIds: actionSequenceIds,
+    actorOrigins,
+    selectedRenderableId: args.selectedRenderableId,
+    hierarchyInspectorSelectionSource: 'scene_view.selection.selectedRenderableId',
+    staleReadbackGuard: {
+      requiredCameraAfterHash: cameraAfterHash,
+      requiredSelectionHash: args.selectionHash,
+      requiredPreviewGhostId: args.previewGhostId,
+      mismatchPolicy: 'failed_closed',
+    },
+  };
+}
+
 export function createStudioSceneViewModel(options: {
   readonly sessionId: string;
   readonly scenarioId: string;
@@ -179,7 +330,7 @@ export function createStudioSceneViewModel(options: {
   const pickScreenPoint = normalizedScreenPoint(voxelWorkflow.selection.pickRay.screenPoint);
   const selectedVoxelId = voxelId(selectedVoxel);
   const previewGhostId = `preview-ghost:${editAnchor.x},${editAnchor.y},${editAnchor.z}`;
-  const camera: StudioSceneViewCamera = {
+  const cameraBefore: StudioSceneViewCamera = {
     cameraId: 'studio-camera-main',
     pose: {
       position: { x: 4.5, y: 3.5, z: 6.5 },
@@ -196,6 +347,11 @@ export function createStudioSceneViewModel(options: {
     },
     controlMode: 'orbit_reference',
   };
+  const camera = cloneCameraWithPose(cameraBefore, {
+    position: { x: 3.25, y: 2.75, z: 4.25 },
+    target: { x: 0.5, y: 0.5, z: 0.5 },
+    up: { x: 0, y: 1, z: 0 },
+  });
   const renderables: StudioSceneViewRenderable[] = [
     {
       renderableId: 'terrain-test-grid',
@@ -280,16 +436,25 @@ export function createStudioSceneViewModel(options: {
     renderAfterHash: viewportEditor.appliedState.renderHash,
   };
   const sceneViewHash = fnv1aHash('scene-view-fnv1a', hashPayload);
+  const selectedRenderableId = 'selected-voxel:0,0,0';
   const selection: StudioSceneViewSelectionProof = {
     selectedObjectId: selectedVoxelId,
     selectedVoxelId,
     selectedFace: voxelWorkflow.evidence.selectedFace,
-    selectedRenderableId: 'selected-voxel:0,0,0',
+    selectedRenderableId,
     screenPoint: pickScreenPoint,
     expectedWorldPoint: selectedVoxel,
     pickRayHash: voxelWorkflow.selection.pickRay.rayHash,
     cameraProjectionHash: voxelWorkflow.selection.pickRay.cameraProjectionHash,
   };
+  const interactionProof = createInteractionProof({
+    timeline,
+    cameraBefore,
+    cameraAfter: camera,
+    selectedRenderableId,
+    selectionHash: voxelWorkflow.selection.selectionHash,
+    previewGhostId,
+  });
   return {
     schemaVersion: 1,
     artifactKind: 'scene_view_model',
@@ -301,6 +466,7 @@ export function createStudioSceneViewModel(options: {
     projectionAuthority: 'browser_projection_reference',
     viewport: { widthPx: 1920, heightPx: 1080, devicePixelRatio: 1, coordinateSpace: 'screen_px_and_normalized_pick_points' },
     camera,
+    interactionProof,
     renderables,
     selection,
     preview: {

@@ -20,7 +20,7 @@ Task `asha#2730` establishes a Vite/TypeScript shell with visible regions requir
 - inspector/readout panel;
 - evidence/export panel.
 
-The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. Task `asha#3042` adds a real Three.js-backed browser canvas in the central viewport as a **local projection dependency**: `three` renders the Studio-owned `StudioSceneViewModel`, but it does not own authority, mutate state, import `@asha/renderer-three`, or claim native runtime/Agora/hardware-GPU evidence. The V1 proof exports software-snapshot visual evidence, browser screenshot capture/readback artifacts, and machine-readable review artifacts with explicit limitations.
+The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. Task `asha#3042` adds a real Three.js-backed browser canvas in the central viewport as a **local projection dependency**; task `asha#3043` layers deterministic camera/tool interaction proof over that canvas/readback. `three` renders the Studio-owned `StudioSceneViewModel`, but it does not own authority, mutate state, import `@asha/renderer-three`, or claim native runtime/Agora/hardware-GPU evidence. The V1 proof exports software-snapshot visual evidence, browser screenshots, and fail-closed readback artifacts for reviewers.
 
 ## Local development
 
@@ -127,7 +127,7 @@ Task `asha#3042` replaces the central dock's purely styled reference projection 
 - applied authority-state renderable marker `applied-state-renderable`;
 - model/material preview crate from the public contract DTO preview artifact.
 
-The browser proof/readback now records a `viewport_3d_readback` artifact with canvas marker `studio-3d-webgl-canvas`, visible renderable count, selected target, preview ghost, applied renderable, and explicit non-claims. This is still browser projection evidence only: it does not claim native/WASM runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance.
+The browser proof/readback now records a `viewport_3d_readback` artifact with canvas marker `studio-3d-webgl-canvas`, visible renderable count, selected target, preview ghost, applied renderable, and explicit non-claims. Task `asha#3043` adds a deterministic `viewport_camera_tool_interaction_proof` nested in the scene-view/readback: the shared timeline records a GUI frame-selected command (`inspection.editor_state`), an agent screen-point selection command, and a GUI preview-ghost command, while camera/tool before/after hashes and stale-readback guards fail closed if camera, selection, or preview evidence diverges. This is still browser projection evidence only: it does not claim native/WASM runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance.
 
 ## Browser visual capture
 

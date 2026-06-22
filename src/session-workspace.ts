@@ -300,6 +300,8 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
       return { kind: 'ok' };
     case 'inspection.session_status':
       return { sessionId, status };
+    case 'inspection.editor_state':
+      return { artifactId: 'artifact-viewport-interaction-proof-0001', commandCount };
     case 'render.capture_before_after':
       return { artifactId: 'artifact-visual-before-after-0001', commandCount };
     case 'export.agent_readout':
@@ -482,6 +484,7 @@ export function createStudioWorkspaceModel(options: {
     { commandId: 'session.start', requestedBy: 'gui', sourceLabel: 'Scenario panel', input: { scenarioId: session.scenarioId }, requestedAtIso: '1970-01-01T00:00:00.000Z', completedAtIso: '1970-01-01T00:00:00.000Z' },
     { commandId: 'session.load_scenario', requestedBy: 'agent', sourceLabel: 'agent-visible command path', input: { scenarioId: session.scenarioId }, requestedAtIso: '1970-01-01T00:00:01.000Z', completedAtIso: '1970-01-01T00:00:01.000Z' },
     { commandId: 'inspection.session_status', requestedBy: 'gui', sourceLabel: 'Status readout', input: { sessionId: session.sessionId }, requestedAtIso: '1970-01-01T00:00:02.000Z', completedAtIso: '1970-01-01T00:00:02.000Z' },
+    { commandId: 'inspection.editor_state', requestedBy: 'gui', sourceLabel: 'Viewport camera/tool controls — frame selected target', input: { sessionId: session.sessionId }, requestedAtIso: '1970-01-01T00:00:03.000Z', completedAtIso: '1970-01-01T00:00:03.000Z' },
   ];
   let status: StudioWorkspaceStatus = 'not_started';
   let activeScenarioId = session.scenarioId;

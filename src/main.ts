@@ -141,6 +141,8 @@ function renderViewportReadout(model: StudioShell): HTMLElement {
   overlay.append(el('p', 'viewport-preview-state-readout', `Preview: ${viewportModel.previewState.authorityHash}; ${viewportModel.previewState.summary}`));
   overlay.append(el('p', 'viewport-applied-state-readout', `Applied: ${viewportModel.appliedState.authorityHash}; ${viewportModel.appliedState.summary}`));
   overlay.append(el('p', 'viewport-render-hash-readout', `Render hashes: ${viewportModel.previewState.renderHash} → ${viewportModel.appliedState.renderHash}`));
+  overlay.append(el('p', 'viewport-camera-tool-readout', `Camera/tool proof: ${model.workspace.sceneView.interactionProof.readiness}; active ${model.workspace.sceneView.interactionProof.toolState.activeTool}; camera ${model.workspace.sceneView.interactionProof.toolState.cameraBeforeHash} → ${model.workspace.sceneView.interactionProof.toolState.cameraAfterHash}`));
+  overlay.append(el('p', 'viewport-scripted-actions-readout', `Scripted actions: ${model.workspace.sceneView.interactionProof.scriptedActions.map((action) => `${action.actor}:${action.actionId}:${action.sequenceId}`).join(' | ')}`));
   canvas.append(overlay);
   viewport.append(canvas);
 

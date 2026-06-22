@@ -53,6 +53,7 @@ test('workspace timeline includes inspect select preview apply after load/status
     'session.start',
     'session.load_scenario',
     'inspection.session_status',
+    'inspection.editor_state',
     'inspection.voxel',
     'selection.voxel_from_screen_point',
     'preview.voxel_brush',

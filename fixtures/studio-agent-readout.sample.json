@@ -285,6 +285,53 @@
     {
       "schemaVersion": 1,
       "sequenceId": "seq-0004",
+      "commandId": "inspection.editor_state",
+      "label": "Inspect Editor State",
+      "menuPath": [
+        "Inspect",
+        "Editor State"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:03.000Z",
+      "completedAtIso": "1970-01-01T00:00:03.000Z",
+      "status": "ok",
+      "operationClass": "read_only",
+      "inputSummary": "sessionId=session-preview-0001",
+      "outputSummary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0004-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0004",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0004",
+          "summary": "Editor-local state snapshot."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0005",
       "commandId": "inspection.voxel",
       "label": "Inspect Voxel",
       "menuPath": [
@@ -292,8 +339,8 @@
         "Voxel"
       ],
       "requestedBy": "gui",
-      "requestedAtIso": "1970-01-01T00:00:04.000Z",
-      "completedAtIso": "1970-01-01T00:00:04.000Z",
+      "requestedAtIso": "1970-01-01T00:00:05.000Z",
+      "completedAtIso": "1970-01-01T00:00:05.000Z",
       "status": "ok",
       "operationClass": "read_only",
       "inputSummary": "voxel=(0,0,0)",
@@ -310,7 +357,7 @@
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0005",
+      "sequenceId": "seq-0006",
       "commandId": "selection.voxel_from_screen_point",
       "label": "Select Voxel From Screen Point",
       "menuPath": [
@@ -318,8 +365,8 @@
         "Voxel From Screen Point"
       ],
       "requestedBy": "agent",
-      "requestedAtIso": "1970-01-01T00:00:05.000Z",
-      "completedAtIso": "1970-01-01T00:00:05.000Z",
+      "requestedAtIso": "1970-01-01T00:00:06.000Z",
+      "completedAtIso": "1970-01-01T00:00:06.000Z",
       "status": "ok",
       "operationClass": "editor_local",
       "inputSummary": "screen=(0.5,0.5)",
@@ -336,7 +383,7 @@
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0006",
+      "sequenceId": "seq-0007",
       "commandId": "preview.voxel_brush",
       "label": "Preview Voxel Brush",
       "menuPath": [
@@ -344,8 +391,8 @@
         "Preview Voxel Brush"
       ],
       "requestedBy": "gui",
-      "requestedAtIso": "1970-01-01T00:00:06.000Z",
-      "completedAtIso": "1970-01-01T00:00:06.000Z",
+      "requestedAtIso": "1970-01-01T00:00:07.000Z",
+      "completedAtIso": "1970-01-01T00:00:07.000Z",
       "status": "ok",
       "operationClass": "editor_local",
       "inputSummary": "place material=1 at editAnchor=(1,0,0)",
@@ -362,7 +409,7 @@
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0007",
+      "sequenceId": "seq-0008",
       "commandId": "authority.voxel.apply_brush",
       "label": "Apply Voxel Brush",
       "menuPath": [
@@ -370,8 +417,8 @@
         "Apply Voxel Brush"
       ],
       "requestedBy": "agent",
-      "requestedAtIso": "1970-01-01T00:00:07.000Z",
-      "completedAtIso": "1970-01-01T00:00:07.000Z",
+      "requestedAtIso": "1970-01-01T00:00:08.000Z",
+      "completedAtIso": "1970-01-01T00:00:08.000Z",
       "status": "ok",
       "operationClass": "authority_mutating",
       "inputSummary": "VoxelCommand.setVoxel grid=0 coord=(1,0,0) material=1",
@@ -393,14 +440,14 @@
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0007",
+          "producedBySequenceId": "seq-0008",
           "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
         }
       ]
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0008",
+      "sequenceId": "seq-0009",
       "commandId": "render.capture_before_after",
       "label": "Capture Before/After Evidence",
       "menuPath": [
@@ -413,7 +460,7 @@
       "status": "ok",
       "operationClass": "render_evidence",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 8 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 9 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -433,21 +480,21 @@
       ],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0008-1",
+          "artifactId": "artifact-seq-0009-1",
           "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0008",
+          "path": "render_before_after:seq-0009",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0008",
+          "producedBySequenceId": "seq-0009",
           "summary": "Before/after visual evidence artifact."
         }
       ]
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0009",
+      "sequenceId": "seq-0010",
       "commandId": "export.agent_readout",
       "label": "Export Agent Readout",
       "menuPath": [
@@ -460,7 +507,7 @@
       "status": "ok",
       "operationClass": "diagnostic_export",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-agent-readout-0001 with 9 command(s).",
+      "outputSummary": "Exported artifact-agent-readout-0001 with 10 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -480,14 +527,14 @@
       ],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0009-1",
+          "artifactId": "artifact-seq-0010-1",
           "artifactKind": "agent_readout",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0009",
+          "path": "agent_readout:seq-0010",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0009",
+          "producedBySequenceId": "seq-0010",
           "summary": "Human/agent review artifact index."
         }
       ]
@@ -882,9 +929,138 @@
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "inspection.voxel",
+      "commandId": "inspection.editor_state",
       "commandVersion": 1,
       "sequenceId": "seq-0004",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "read_only",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.4",
+        "editorAfterVersion": "editor.v0.4",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": null,
+          "replayPath": null,
+          "replayHash": null,
+          "replayMode": "unavailable",
+          "summary": "unavailable: runtime bridge/replay integration is deferred."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": null,
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-viewport-interaction-proof-0001",
+        "commandCount": 4
+      },
+      "outputSummary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s).",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0004-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0004",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0004",
+          "summary": "Editor-local state snapshot."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "not_undoable",
+        "available": false,
+        "reason": "Command does not mutate reversible state in this workspace model.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:03.000Z",
+        "startedAtIso": "1970-01-01T00:00:03.000Z",
+        "completedAtIso": "1970-01-01T00:00:03.000Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "inspection.voxel",
+      "commandVersion": 1,
+      "sequenceId": "seq-0005",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "gui",
@@ -956,9 +1132,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:04.000Z",
-        "startedAtIso": "1970-01-01T00:00:04.000Z",
-        "completedAtIso": "1970-01-01T00:00:04.000Z",
+        "queuedAtIso": "1970-01-01T00:00:05.000Z",
+        "startedAtIso": "1970-01-01T00:00:05.000Z",
+        "completedAtIso": "1970-01-01T00:00:05.000Z",
         "durationMs": 0
       }
     },
@@ -967,7 +1143,7 @@
       "artifactKind": "command_result",
       "commandId": "selection.voxel_from_screen_point",
       "commandVersion": 1,
-      "sequenceId": "seq-0005",
+      "sequenceId": "seq-0006",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "agent",
@@ -1039,9 +1215,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:05.000Z",
-        "startedAtIso": "1970-01-01T00:00:05.000Z",
-        "completedAtIso": "1970-01-01T00:00:05.000Z",
+        "queuedAtIso": "1970-01-01T00:00:06.000Z",
+        "startedAtIso": "1970-01-01T00:00:06.000Z",
+        "completedAtIso": "1970-01-01T00:00:06.000Z",
         "durationMs": 0
       }
     },
@@ -1050,7 +1226,7 @@
       "artifactKind": "command_result",
       "commandId": "preview.voxel_brush",
       "commandVersion": 1,
-      "sequenceId": "seq-0006",
+      "sequenceId": "seq-0007",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "gui",
@@ -1122,9 +1298,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:06.000Z",
-        "startedAtIso": "1970-01-01T00:00:06.000Z",
-        "completedAtIso": "1970-01-01T00:00:06.000Z",
+        "queuedAtIso": "1970-01-01T00:00:07.000Z",
+        "startedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
         "durationMs": 0
       }
     },
@@ -1133,7 +1309,7 @@
       "artifactKind": "command_result",
       "commandId": "authority.voxel.apply_brush",
       "commandVersion": 1,
-      "sequenceId": "seq-0007",
+      "sequenceId": "seq-0008",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "agent",
@@ -1205,7 +1381,7 @@
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0007",
+          "producedBySequenceId": "seq-0008",
           "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
         }
       ],
@@ -1217,9 +1393,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:07.000Z",
-        "startedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "queuedAtIso": "1970-01-01T00:00:08.000Z",
+        "startedAtIso": "1970-01-01T00:00:08.000Z",
+        "completedAtIso": "1970-01-01T00:00:08.000Z",
         "durationMs": 0
       }
     },
@@ -1228,7 +1404,7 @@
       "artifactKind": "command_result",
       "commandId": "render.capture_before_after",
       "commandVersion": 1,
-      "sequenceId": "seq-0008",
+      "sequenceId": "seq-0009",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "gui",
@@ -1239,135 +1415,6 @@
         "editorChanged": false,
         "renderChanged": true,
         "workspaceChanged": false,
-        "artifactsWritten": true
-      },
-      "state": {
-        "authorityBeforeHash": null,
-        "authorityAfterHash": null,
-        "editorBeforeVersion": "editor.v0.8",
-        "editorAfterVersion": "editor.v0.8",
-        "renderBeforeHash": null,
-        "renderAfterHash": null,
-        "selectedBefore": {
-          "kind": "none",
-          "voxelSelection": null,
-          "objectId": null,
-          "modelId": null,
-          "materialId": null,
-          "evidenceHash": null,
-          "summary": "No active typed selection."
-        },
-        "selectedAfter": {
-          "kind": "none",
-          "voxelSelection": null,
-          "objectId": null,
-          "modelId": null,
-          "materialId": null,
-          "evidenceHash": null,
-          "summary": "No active typed selection."
-        },
-        "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
-          "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
-        },
-        "compatibility": {
-          "contractsVersion": "contracts.v0",
-          "commandRegistryVersion": "command-registry.v0",
-          "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
-          "ashaCommit": null,
-          "ashaPackageVersions": [
-            {
-              "packageName": "@asha/contracts",
-              "version": "0.1.0",
-              "commit": null
-            },
-            {
-              "packageName": "@asha/command-registry",
-              "version": "0.1.0",
-              "commit": null
-            },
-            {
-              "packageName": "@asha/editor-tools",
-              "version": "0.1.0",
-              "commit": null
-            }
-          ],
-          "studioCommit": null,
-          "supportedRuntimeModes": [
-            "mock",
-            "reference",
-            "unavailable"
-          ]
-        }
-      },
-      "output": {
-        "artifactId": "artifact-visual-before-after-0001",
-        "commandCount": 8
-      },
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 8 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
-      "artifacts": [
-        {
-          "artifactId": "artifact-seq-0008-1",
-          "artifactKind": "visual_before_after",
-          "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0008",
-          "mediaType": "application/json",
-          "contentHash": null,
-          "byteLength": null,
-          "producedBySequenceId": "seq-0008",
-          "summary": "Before/after visual evidence artifact."
-        }
-      ],
-      "retry": {
-        "safe": true,
-        "classification": "safe_to_retry",
-        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
-        "requiredReadback": null
-      },
-      "undo": {
-        "posture": "not_undoable",
-        "available": false,
-        "reason": "Command does not mutate reversible state in this workspace model.",
-        "inverseCommandIds": [],
-        "requiresSameStateHash": false
-      },
-      "timing": {
-        "queuedAtIso": "1970-01-01T00:00:07.000Z",
-        "startedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
-        "durationMs": 0
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "artifactKind": "command_result",
-      "commandId": "export.agent_readout",
-      "commandVersion": 1,
-      "sequenceId": "seq-0009",
-      "batchId": null,
-      "sessionId": "session-preview-0001",
-      "requestedBy": "agent",
-      "status": "ok",
-      "operationClass": "diagnostic_export",
-      "changed": {
-        "authorityChanged": false,
-        "editorChanged": false,
-        "renderChanged": false,
-        "workspaceChanged": true,
         "artifactsWritten": true
       },
       "state": {
@@ -1434,10 +1481,10 @@
         }
       },
       "output": {
-        "artifactId": "artifact-agent-readout-0001",
+        "artifactId": "artifact-visual-before-after-0001",
         "commandCount": 9
       },
-      "outputSummary": "Exported artifact-agent-readout-0001 with 9 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 9 command(s).",
       "diagnostics": [
         {
           "severity": "warning",
@@ -1451,13 +1498,142 @@
       "artifacts": [
         {
           "artifactId": "artifact-seq-0009-1",
-          "artifactKind": "agent_readout",
+          "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0009",
+          "path": "render_before_after:seq-0009",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
           "producedBySequenceId": "seq-0009",
+          "summary": "Before/after visual evidence artifact."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "not_undoable",
+        "available": false,
+        "reason": "Command does not mutate reversible state in this workspace model.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:07.000Z",
+        "startedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "export.agent_readout",
+      "commandVersion": 1,
+      "sequenceId": "seq-0010",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "agent",
+      "status": "ok",
+      "operationClass": "diagnostic_export",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": true,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.10",
+        "editorAfterVersion": "editor.v0.10",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": null,
+          "replayPath": null,
+          "replayHash": null,
+          "replayMode": "unavailable",
+          "summary": "unavailable: runtime bridge/replay integration is deferred."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": null,
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-agent-readout-0001",
+        "commandCount": 10
+      },
+      "outputSummary": "Exported artifact-agent-readout-0001 with 10 command(s).",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0010-1",
+          "artifactKind": "agent_readout",
+          "pathKind": "inline_summary",
+          "path": "agent_readout:seq-0010",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0010",
           "summary": "Human/agent review artifact index."
         }
       ],
@@ -1485,8 +1661,8 @@
   "finalState": {
     "authorityBeforeHash": null,
     "authorityAfterHash": null,
-    "editorBeforeVersion": "editor.v0.9",
-    "editorAfterVersion": "editor.v0.9",
+    "editorBeforeVersion": "editor.v0.10",
+    "editorAfterVersion": "editor.v0.10",
     "renderBeforeHash": null,
     "renderAfterHash": null,
     "selectedBefore": {
@@ -1699,7 +1875,7 @@
       "label": "Preview",
       "posture": "proposed_by_studio_ts",
       "commandId": "preview.voxel_brush",
-      "sequenceId": "seq-0006",
+      "sequenceId": "seq-0007",
       "authorityHash": "grid-fnv1a-cc815eb0",
       "renderHash": "render-grid-fnv1a-cc815eb0",
       "changedVoxelCount": 1,
@@ -1709,7 +1885,7 @@
       "label": "Applied",
       "posture": "validated_by_authority_rust",
       "commandId": "authority.voxel.apply_brush",
-      "sequenceId": "seq-0007",
+      "sequenceId": "seq-0008",
       "authorityHash": "grid-fnv1a-8eb9594b",
       "renderHash": "render-grid-fnv1a-8eb9594b",
       "changedVoxelCount": 1,
@@ -1769,7 +1945,7 @@
         "mediaType": "application/json",
         "contentHash": null,
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
       },
       {
@@ -1780,7 +1956,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-cc815eb0",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Before visual snapshot: 1 occupied voxel before apply."
       },
       {
@@ -1791,7 +1967,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-8eb9594b",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
       },
       {
@@ -1802,7 +1978,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "model-material-preview-9b49b69b",
         "byteLength": null,
-        "producedBySequenceId": "seq-0006",
+        "producedBySequenceId": "seq-0007",
         "summary": "Model/material reference render-diff preview projected in the viewport panel."
       }
     ],
@@ -1831,12 +2007,12 @@
       {
         "id": "command_timeline_evidence_log",
         "label": "Command Timeline / Evidence Log",
-        "rowCount": 9
+        "rowCount": 10
       },
       {
         "id": "evidence_artifacts",
         "label": "Evidence / Artifacts",
-        "rowCount": 10
+        "rowCount": 11
       }
     ],
     "commandRows": [
@@ -1897,12 +2073,30 @@
       {
         "sequenceId": "seq-0004",
         "orderIndex": 4,
+        "commandId": "inspection.editor_state",
+        "label": "Inspect Editor State",
+        "status": "ok",
+        "source": "GUI",
+        "requestedAtIso": "1970-01-01T00:00:03.000Z",
+        "completedAtIso": "1970-01-01T00:00:03.000Z",
+        "operationClass": "read_only",
+        "inputSummary": "sessionId=session-preview-0001",
+        "outputSummary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s).",
+        "evidenceSummary": "artifact-seq-0004-1:state_evidence",
+        "artifactIds": [
+          "artifact-seq-0004-1"
+        ],
+        "diagnosticCount": 2
+      },
+      {
+        "sequenceId": "seq-0005",
+        "orderIndex": 5,
         "commandId": "inspection.voxel",
         "label": "Inspect Voxel",
         "status": "ok",
         "source": "GUI",
-        "requestedAtIso": "1970-01-01T00:00:04.000Z",
-        "completedAtIso": "1970-01-01T00:00:04.000Z",
+        "requestedAtIso": "1970-01-01T00:00:05.000Z",
+        "completedAtIso": "1970-01-01T00:00:05.000Z",
         "operationClass": "read_only",
         "inputSummary": "voxel=(0,0,0)",
         "outputSummary": "occupied material=1 at selected voxel",
@@ -1911,14 +2105,14 @@
         "diagnosticCount": 0
       },
       {
-        "sequenceId": "seq-0005",
-        "orderIndex": 5,
+        "sequenceId": "seq-0006",
+        "orderIndex": 6,
         "commandId": "selection.voxel_from_screen_point",
         "label": "Select Voxel From Screen Point",
         "status": "ok",
         "source": "AGENT",
-        "requestedAtIso": "1970-01-01T00:00:05.000Z",
-        "completedAtIso": "1970-01-01T00:00:05.000Z",
+        "requestedAtIso": "1970-01-01T00:00:06.000Z",
+        "completedAtIso": "1970-01-01T00:00:06.000Z",
         "operationClass": "editor_local",
         "inputSummary": "screen=(0.5,0.5)",
         "outputSummary": "selected voxel=(0,0,0) face=posX editAnchor=(1,0,0)",
@@ -1927,14 +2121,14 @@
         "diagnosticCount": 0
       },
       {
-        "sequenceId": "seq-0006",
-        "orderIndex": 6,
+        "sequenceId": "seq-0007",
+        "orderIndex": 7,
         "commandId": "preview.voxel_brush",
         "label": "Preview Voxel Brush",
         "status": "ok",
         "source": "GUI",
-        "requestedAtIso": "1970-01-01T00:00:06.000Z",
-        "completedAtIso": "1970-01-01T00:00:06.000Z",
+        "requestedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
         "operationClass": "editor_local",
         "inputSummary": "place material=1 at editAnchor=(1,0,0)",
         "outputSummary": "preview target count=1; authority unchanged",
@@ -1943,14 +2137,14 @@
         "diagnosticCount": 0
       },
       {
-        "sequenceId": "seq-0007",
-        "orderIndex": 7,
+        "sequenceId": "seq-0008",
+        "orderIndex": 8,
         "commandId": "authority.voxel.apply_brush",
         "label": "Apply Voxel Brush",
         "status": "ok",
         "source": "AGENT",
-        "requestedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "requestedAtIso": "1970-01-01T00:00:08.000Z",
+        "completedAtIso": "1970-01-01T00:00:08.000Z",
         "operationClass": "authority_mutating",
         "inputSummary": "VoxelCommand.setVoxel grid=0 coord=(1,0,0) material=1",
         "outputSummary": "accepted=1; before=grid-fnv1a-cc815eb0; after=grid-fnv1a-8eb9594b",
@@ -1961,8 +2155,8 @@
         "diagnosticCount": 0
       },
       {
-        "sequenceId": "seq-0008",
-        "orderIndex": 8,
+        "sequenceId": "seq-0009",
+        "orderIndex": 9,
         "commandId": "render.capture_before_after",
         "label": "Capture Before/After Evidence",
         "status": "ok",
@@ -1971,16 +2165,16 @@
         "completedAtIso": "1970-01-01T00:00:07.000Z",
         "operationClass": "render_evidence",
         "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-        "outputSummary": "Exported artifact-visual-before-after-0001 with 8 command(s).",
-        "evidenceSummary": "artifact-seq-0008-1:visual_before_after",
+        "outputSummary": "Exported artifact-visual-before-after-0001 with 9 command(s).",
+        "evidenceSummary": "artifact-seq-0009-1:visual_before_after",
         "artifactIds": [
-          "artifact-seq-0008-1"
+          "artifact-seq-0009-1"
         ],
         "diagnosticCount": 2
       },
       {
-        "sequenceId": "seq-0009",
-        "orderIndex": 9,
+        "sequenceId": "seq-0010",
+        "orderIndex": 10,
         "commandId": "export.agent_readout",
         "label": "Export Agent Readout",
         "status": "ok",
@@ -1989,10 +2183,10 @@
         "completedAtIso": "1970-01-01T00:00:08.000Z",
         "operationClass": "diagnostic_export",
         "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-        "outputSummary": "Exported artifact-agent-readout-0001 with 9 command(s).",
-        "evidenceSummary": "artifact-seq-0009-1:agent_readout",
+        "outputSummary": "Exported artifact-agent-readout-0001 with 10 command(s).",
+        "evidenceSummary": "artifact-seq-0010-1:agent_readout",
         "artifactIds": [
-          "artifact-seq-0009-1"
+          "artifact-seq-0010-1"
         ],
         "diagnosticCount": 2
       }
@@ -2029,32 +2223,42 @@
         "source": "command_result"
       },
       {
+        "artifactId": "artifact-seq-0004-1",
+        "artifactKind": "state_evidence",
+        "path": "editor_state:seq-0004",
+        "mediaType": "application/json",
+        "contentHash": null,
+        "producedBySequenceId": "seq-0004",
+        "summary": "Editor-local state snapshot.",
+        "source": "command_result"
+      },
+      {
         "artifactId": "artifact-voxel-workflow-0001",
         "artifactKind": "state_evidence",
         "path": "voxel_workflow:session-preview-0001",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Voxel inspect/select/preview/apply structured before/after evidence.",
         "source": "command_result"
       },
       {
-        "artifactId": "artifact-seq-0008-1",
+        "artifactId": "artifact-seq-0009-1",
         "artifactKind": "visual_before_after",
-        "path": "render_before_after:seq-0008",
+        "path": "render_before_after:seq-0009",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0008",
+        "producedBySequenceId": "seq-0009",
         "summary": "Before/after visual evidence artifact.",
         "source": "command_result"
       },
       {
-        "artifactId": "artifact-seq-0009-1",
+        "artifactId": "artifact-seq-0010-1",
         "artifactKind": "agent_readout",
-        "path": "agent_readout:seq-0009",
+        "path": "agent_readout:seq-0010",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0009",
+        "producedBySequenceId": "seq-0010",
         "summary": "Human/agent review artifact index.",
         "source": "command_result"
       },
@@ -2064,7 +2268,7 @@
         "path": "artifacts/session-preview-0001/before-voxel-grid.svg",
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-cc815eb0",
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Before visual snapshot: 1 occupied voxel before apply.",
         "source": "visual_evidence"
       },
@@ -2074,7 +2278,7 @@
         "path": "artifacts/session-preview-0001/after-voxel-grid.svg",
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-8eb9594b",
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "After visual snapshot: 2 occupied voxel(s) after apply.",
         "source": "visual_evidence"
       },
@@ -2084,8 +2288,8 @@
         "path": "artifacts/session-preview-0001/review-export.json",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0009",
-        "summary": "9 command(s), 1 visual evidence item(s), and 9 artifact ref(s) ready for review.",
+        "producedBySequenceId": "seq-0010",
+        "summary": "10 command(s), 1 visual evidence item(s), and 10 artifact ref(s) ready for review.",
         "source": "review_export"
       },
       {
@@ -2094,8 +2298,8 @@
         "path": "artifacts/studio-agent-readout.sample.json",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0009",
-        "summary": "9 command(s) recorded in the shared GUI/agent timeline.",
+        "producedBySequenceId": "seq-0010",
+        "summary": "10 command(s) recorded in the shared GUI/agent timeline.",
         "source": "agent_readout"
       }
     ],
@@ -2148,45 +2352,52 @@
     "timelineCorrelation": [
       {
         "sequenceId": "seq-0004",
+        "commandId": "inspection.editor_state",
+        "role": "frame",
+        "status": "ok",
+        "summary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s)."
+      },
+      {
+        "sequenceId": "seq-0005",
         "commandId": "inspection.voxel",
         "role": "inspect",
         "status": "ok",
         "summary": "occupied material=1 at selected voxel"
       },
       {
-        "sequenceId": "seq-0005",
+        "sequenceId": "seq-0006",
         "commandId": "selection.voxel_from_screen_point",
         "role": "select",
         "status": "ok",
         "summary": "selected voxel=(0,0,0) face=posX editAnchor=(1,0,0)"
       },
       {
-        "sequenceId": "seq-0006",
+        "sequenceId": "seq-0007",
         "commandId": "preview.voxel_brush",
         "role": "preview",
         "status": "ok",
         "summary": "preview target count=1; authority unchanged"
       },
       {
-        "sequenceId": "seq-0007",
+        "sequenceId": "seq-0008",
         "commandId": "authority.voxel.apply_brush",
         "role": "apply",
         "status": "ok",
         "summary": "accepted=1; before=grid-fnv1a-cc815eb0; after=grid-fnv1a-8eb9594b"
       },
       {
-        "sequenceId": "seq-0008",
+        "sequenceId": "seq-0009",
         "commandId": "render.capture_before_after",
         "role": "capture",
         "status": "ok",
-        "summary": "Exported artifact-visual-before-after-0001 with 8 command(s)."
+        "summary": "Exported artifact-visual-before-after-0001 with 9 command(s)."
       },
       {
-        "sequenceId": "seq-0009",
+        "sequenceId": "seq-0010",
         "commandId": "export.agent_readout",
         "role": "export",
         "status": "ok",
-        "summary": "Exported artifact-agent-readout-0001 with 9 command(s)."
+        "summary": "Exported artifact-agent-readout-0001 with 10 command(s)."
       }
     ],
     "evidenceRefs": [
@@ -2198,7 +2409,7 @@
         "mediaType": "application/json",
         "contentHash": null,
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
       },
       {
@@ -2209,7 +2420,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-cc815eb0",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Before visual snapshot: 1 occupied voxel before apply."
       },
       {
@@ -2220,7 +2431,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-8eb9594b",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
       },
       {
@@ -2231,7 +2442,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "model-material-preview-9b49b69b",
         "byteLength": null,
-        "producedBySequenceId": "seq-0006",
+        "producedBySequenceId": "seq-0007",
         "summary": "Model/material reference render-diff preview projected in the viewport panel."
       }
     ],
@@ -2276,14 +2487,14 @@
       "cameraId": "studio-camera-main",
       "pose": {
         "position": {
-          "x": 4.5,
-          "y": 3.5,
-          "z": 6.5
+          "x": 3.25,
+          "y": 2.75,
+          "z": 4.25
         },
         "target": {
-          "x": 1,
-          "y": 1,
-          "z": 0
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5
         },
         "up": {
           "x": 0,
@@ -2300,6 +2511,143 @@
         "projectionHash": "projection-hash-voxel-basic"
       },
       "controlMode": "orbit_reference"
+    },
+    "interactionProof": {
+      "artifactKind": "viewport_camera_tool_interaction_proof",
+      "readiness": "ready",
+      "proofMode": "deterministic_scripted_browser_interaction",
+      "cameraBefore": {
+        "cameraId": "studio-camera-main",
+        "pose": {
+          "position": {
+            "x": 4.5,
+            "y": 3.5,
+            "z": 6.5
+          },
+          "target": {
+            "x": 1,
+            "y": 1,
+            "z": 0
+          },
+          "up": {
+            "x": 0,
+            "y": 1,
+            "z": 0
+          }
+        },
+        "projection": {
+          "kind": "perspective",
+          "fovYDegrees": 50,
+          "near": 0.1,
+          "far": 128,
+          "aspect": 1.7777777777777777,
+          "projectionHash": "projection-hash-voxel-basic"
+        },
+        "controlMode": "orbit_reference"
+      },
+      "cameraAfter": {
+        "cameraId": "studio-camera-main",
+        "pose": {
+          "position": {
+            "x": 3.25,
+            "y": 2.75,
+            "z": 4.25
+          },
+          "target": {
+            "x": 0.5,
+            "y": 0.5,
+            "z": 0.5
+          },
+          "up": {
+            "x": 0,
+            "y": 1,
+            "z": 0
+          }
+        },
+        "projection": {
+          "kind": "perspective",
+          "fovYDegrees": 50,
+          "near": 0.1,
+          "far": 128,
+          "aspect": 1.7777777777777777,
+          "projectionHash": "projection-hash-voxel-basic"
+        },
+        "controlMode": "orbit_reference"
+      },
+      "toolState": {
+        "activeTool": "voxel_brush",
+        "availableTools": [
+          "select",
+          "orbit",
+          "pan",
+          "frame",
+          "voxel_brush"
+        ],
+        "cameraBeforeHash": "camera-fnv1a-9bed7fb9",
+        "cameraAfterHash": "camera-fnv1a-6f454017",
+        "cameraChanged": true,
+        "toolBefore": "select",
+        "toolAfter": "voxel_brush",
+        "framedRenderableId": "selected-voxel:0,0,0"
+      },
+      "scriptedActions": [
+        {
+          "actionId": "gui.frame_selected_target",
+          "actor": "gui",
+          "commandId": "inspection.editor_state",
+          "sequenceId": "seq-0004",
+          "beforeCameraHash": "camera-fnv1a-9bed7fb9",
+          "afterCameraHash": "camera-fnv1a-6f454017",
+          "beforeTool": "select",
+          "afterTool": "frame",
+          "selectedRenderableId": "selected-voxel:0,0,0",
+          "previewGhostId": null,
+          "summary": "GUI-visible frame action records camera-before/camera-after evidence through the shared editor-state timeline entry."
+        },
+        {
+          "actionId": "agent.select_visible_voxel",
+          "actor": "agent",
+          "commandId": "selection.voxel_from_screen_point",
+          "sequenceId": "seq-0006",
+          "beforeCameraHash": "camera-fnv1a-6f454017",
+          "afterCameraHash": "camera-fnv1a-6f454017",
+          "beforeTool": "frame",
+          "afterTool": "select",
+          "selectedRenderableId": "selected-voxel:0,0,0",
+          "previewGhostId": null,
+          "summary": "Agent-originated screen-point selection uses the public selection command and updates the same selected renderable readout."
+        },
+        {
+          "actionId": "gui.toggle_preview_ghost",
+          "actor": "gui",
+          "commandId": "preview.voxel_brush",
+          "sequenceId": "seq-0007",
+          "beforeCameraHash": "camera-fnv1a-6f454017",
+          "afterCameraHash": "camera-fnv1a-6f454017",
+          "beforeTool": "select",
+          "afterTool": "voxel_brush",
+          "selectedRenderableId": "selected-voxel:0,0,0",
+          "previewGhostId": "preview-ghost:1,0,0",
+          "summary": "GUI-originated voxel brush preview toggles the editor-local ghost without mutating authority."
+        }
+      ],
+      "sharedTimelineSequenceIds": [
+        "seq-0004",
+        "seq-0006",
+        "seq-0007"
+      ],
+      "actorOrigins": [
+        "agent",
+        "gui"
+      ],
+      "selectedRenderableId": "selected-voxel:0,0,0",
+      "hierarchyInspectorSelectionSource": "scene_view.selection.selectedRenderableId",
+      "staleReadbackGuard": {
+        "requiredCameraAfterHash": "camera-fnv1a-6f454017",
+        "requiredSelectionHash": "selection-hash-voxel-basic-0-0-0-posX",
+        "requiredPreviewGhostId": "preview-ghost:1,0,0",
+        "mismatchPolicy": "failed_closed"
+      }
     },
     "renderables": [
       {
@@ -2558,7 +2906,7 @@
       "authorityAfterHash": "grid-fnv1a-8eb9594b",
       "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
       "renderAfterHash": "render-grid-fnv1a-8eb9594b",
-      "sceneViewHash": "scene-view-fnv1a-78964189",
+      "sceneViewHash": "scene-view-fnv1a-2e9369b3",
       "stateLinkage": "authority_before_to_preview_to_authority_after",
       "distinction": "rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs"
     },
@@ -2566,10 +2914,10 @@
       "artifact-voxel-workflow-0001",
       "artifact-model-material-preview-0001",
       "artifact-visual-before-after-0001",
-      "seq-0005",
       "seq-0006",
       "seq-0007",
       "seq-0008",
+      "seq-0009",
       "artifact-visual-before-after-0001"
     ],
     "futurePublicContractCandidates": [
@@ -2597,7 +2945,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-cc815eb0",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Before visual snapshot: 1 occupied voxel before apply."
       },
       "afterArtifact": {
@@ -2608,13 +2956,13 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-8eb9594b",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
       },
       "beforeRenderHash": "render-grid-fnv1a-cc815eb0",
       "afterRenderHash": "render-grid-fnv1a-8eb9594b",
       "commandSequenceIds": [
-        "seq-0007"
+        "seq-0008"
       ],
       "captureMode": "software_snapshot",
       "evidenceClassification": "proof_content",
@@ -2661,6 +3009,17 @@
       "summary": "Status readback for the active session."
     },
     {
+      "artifactId": "artifact-seq-0004-1",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "editor_state:seq-0004",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0004",
+      "summary": "Editor-local state snapshot."
+    },
+    {
       "artifactId": "artifact-voxel-workflow-0001",
       "artifactKind": "state_evidence",
       "pathKind": "inline_summary",
@@ -2668,29 +3027,29 @@
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
-      "producedBySequenceId": "seq-0007",
+      "producedBySequenceId": "seq-0008",
       "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
     },
     {
-      "artifactId": "artifact-seq-0008-1",
+      "artifactId": "artifact-seq-0009-1",
       "artifactKind": "visual_before_after",
       "pathKind": "inline_summary",
-      "path": "render_before_after:seq-0008",
-      "mediaType": "application/json",
-      "contentHash": null,
-      "byteLength": null,
-      "producedBySequenceId": "seq-0008",
-      "summary": "Before/after visual evidence artifact."
-    },
-    {
-      "artifactId": "artifact-seq-0009-1",
-      "artifactKind": "agent_readout",
-      "pathKind": "inline_summary",
-      "path": "agent_readout:seq-0009",
+      "path": "render_before_after:seq-0009",
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
       "producedBySequenceId": "seq-0009",
+      "summary": "Before/after visual evidence artifact."
+    },
+    {
+      "artifactId": "artifact-seq-0010-1",
+      "artifactKind": "agent_readout",
+      "pathKind": "inline_summary",
+      "path": "agent_readout:seq-0010",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0010",
       "summary": "Human/agent review artifact index."
     },
     {
@@ -2701,7 +3060,7 @@
       "mediaType": "image/svg+xml",
       "contentHash": "render-grid-fnv1a-cc815eb0",
       "byteLength": null,
-      "producedBySequenceId": "seq-0007",
+      "producedBySequenceId": "seq-0008",
       "summary": "Before visual snapshot: 1 occupied voxel before apply."
     },
     {
@@ -2712,7 +3071,7 @@
       "mediaType": "image/svg+xml",
       "contentHash": "render-grid-fnv1a-8eb9594b",
       "byteLength": null,
-      "producedBySequenceId": "seq-0007",
+      "producedBySequenceId": "seq-0008",
       "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
     }
   ],
@@ -2764,11 +3123,19 @@
       "owningLane": "asha-studio",
       "source": "src/session-workspace.ts",
       "remediation": null
+    },
+    {
+      "severity": "warning",
+      "code": "asha-studio.session.compatibility_degraded",
+      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+      "owningLane": "asha-studio",
+      "source": "src/session-workspace.ts",
+      "remediation": null
     }
   ],
   "knownLimitations": [
     "Mock/reference session model with typed public VoxelCommand proposal/apply evidence.",
     "Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content."
   ],
-  "reviewSummary": "9 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
+  "reviewSummary": "10 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
 }

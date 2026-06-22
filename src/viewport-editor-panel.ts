@@ -10,7 +10,7 @@ export type StudioViewportEditState = 'preview_pending_apply' | 'applied_with_au
 export interface StudioViewportTimelineCorrelation {
   readonly sequenceId: string;
   readonly commandId: string;
-  readonly role: 'inspect' | 'select' | 'preview' | 'apply' | 'capture' | 'export';
+  readonly role: 'inspect' | 'frame' | 'select' | 'preview' | 'apply' | 'capture' | 'export';
   readonly status: StudioCommandTimelineEntry['status'];
   readonly summary: string;
 }
@@ -60,6 +60,8 @@ function roleFor(commandId: string): StudioViewportTimelineCorrelation['role'] |
   switch (commandId) {
     case 'inspection.voxel':
       return 'inspect';
+    case 'inspection.editor_state':
+      return 'frame';
     case 'selection.voxel_from_screen_point':
       return 'select';
     case 'preview.voxel_brush':

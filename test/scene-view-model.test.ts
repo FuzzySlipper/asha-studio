@@ -28,10 +28,20 @@ test('scene-view model defines deterministic camera, viewport, renderables, and 
     devicePixelRatio: 1,
     coordinateSpace: 'screen_px_and_normalized_pick_points',
   });
-  assert.deepEqual(sceneView.camera.pose.position, { x: 4.5, y: 3.5, z: 6.5 });
-  assert.deepEqual(sceneView.camera.pose.target, { x: 1, y: 1, z: 0 });
+  assert.deepEqual(sceneView.camera.pose.position, { x: 3.25, y: 2.75, z: 4.25 });
+  assert.deepEqual(sceneView.camera.pose.target, { x: 0.5, y: 0.5, z: 0.5 });
   assert.equal(sceneView.camera.projection.kind, 'perspective');
   assert.equal(sceneView.camera.projection.projectionHash, workspace.voxelWorkflow.selection.pickRay.cameraProjectionHash);
+  assert.equal(sceneView.interactionProof.artifactKind, 'viewport_camera_tool_interaction_proof');
+  assert.equal(sceneView.interactionProof.readiness, 'ready');
+  assert.equal(sceneView.interactionProof.cameraBefore.pose.position.x, 4.5);
+  assert.equal(sceneView.interactionProof.cameraAfter.pose.position.x, sceneView.camera.pose.position.x);
+  assert.equal(sceneView.interactionProof.toolState.activeTool, 'voxel_brush');
+  assert.equal(sceneView.interactionProof.toolState.cameraChanged, true);
+  assert.notEqual(sceneView.interactionProof.toolState.cameraBeforeHash, sceneView.interactionProof.toolState.cameraAfterHash);
+  assert.deepEqual(sceneView.interactionProof.scriptedActions.map((action) => action.actionId), ['gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost']);
+  assert.deepEqual(sceneView.interactionProof.sharedTimelineSequenceIds, ['seq-0004', 'seq-0006', 'seq-0007']);
+  assert.equal(sceneView.interactionProof.staleReadbackGuard.mismatchPolicy, 'failed_closed');
 
   assert.deepEqual(sceneView.renderables.map((renderable) => renderable.renderableId), [
     'terrain-test-grid',

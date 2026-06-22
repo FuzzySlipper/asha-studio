@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 
-import type { StudioSceneViewModel, StudioSceneViewRenderable, StudioSceneViewVec3 } from './scene-view-model';
+import type {
+  StudioSceneViewInteractionProof,
+  StudioSceneViewModel,
+  StudioSceneViewRenderable,
+  StudioSceneViewVec3,
+} from './scene-view-model';
 
 export interface StudioViewport3dRenderableReadback {
   readonly renderableId: string;
@@ -27,6 +32,7 @@ export interface StudioViewport3dReadback {
   readonly selectedRenderableId: string | null;
   readonly previewGhostId: string | null;
   readonly appliedRenderableId: string | null;
+  readonly interactionProof: StudioSceneViewInteractionProof;
   readonly renderables: readonly StudioViewport3dRenderableReadback[];
   readonly semanticMarkers: readonly string[];
   readonly limitations: readonly string[];
@@ -113,7 +119,16 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
   const selectedRenderableId = renderables.some((renderable) => renderable.renderableId === sceneView.selection.selectedRenderableId) ? sceneView.selection.selectedRenderableId : null;
   const previewGhostId = renderables.some((renderable) => renderable.renderableId === sceneView.preview.previewGhostId) ? sceneView.preview.previewGhostId : null;
   const appliedRenderableId = renderables.some((renderable) => renderable.renderableId === APPLIED_RENDERABLE_ID) ? APPLIED_RENDERABLE_ID : null;
-  const readiness = visibleRenderableCount > 0 && selectedRenderableId !== null && previewGhostId !== null && appliedRenderableId !== null ? 'ready' : 'failed_closed';
+  const interactionReady = sceneView.interactionProof.readiness === 'ready'
+    && sceneView.interactionProof.toolState.cameraChanged
+    && sceneView.interactionProof.toolState.cameraAfterHash === sceneView.interactionProof.staleReadbackGuard.requiredCameraAfterHash
+    && sceneView.interactionProof.selectedRenderableId === sceneView.selection.selectedRenderableId
+    && sceneView.interactionProof.staleReadbackGuard.requiredSelectionHash.length > 0
+    && sceneView.interactionProof.staleReadbackGuard.requiredPreviewGhostId === sceneView.preview.previewGhostId
+    && sceneView.interactionProof.scriptedActions.length === 3
+    && sceneView.interactionProof.actorOrigins.includes('gui')
+    && sceneView.interactionProof.actorOrigins.includes('agent');
+  const readiness = visibleRenderableCount > 0 && selectedRenderableId !== null && previewGhostId !== null && appliedRenderableId !== null && interactionReady ? 'ready' : 'failed_closed';
   return {
     schemaVersion: 1,
     artifactKind: 'viewport_3d_readback',
@@ -128,6 +143,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     selectedRenderableId,
     previewGhostId,
     appliedRenderableId,
+    interactionProof: sceneView.interactionProof,
     renderables,
     semanticMarkers: [
       'studio-3d-webgl-canvas',
@@ -136,6 +152,11 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
       'selected-target-highlight',
       'preview-ghost-renderable',
       'applied-state-renderable',
+      'viewport_camera_tool_interaction_proof',
+      'gui.frame_selected_target',
+      'agent.select_visible_voxel',
+      'gui.toggle_preview_ghost',
+      'camera_tool_stale_readback_guard',
     ],
     limitations: [
       'Three.js is used only as a local browser projection dependency for ASHA Studio.',
@@ -220,7 +241,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel): HTM
 
   const summary = document.createElement('p');
   summary.className = 'viewport-3d-semantic-readback';
-  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}`;
+  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}`;
   host.append(summary);
 
   return host;

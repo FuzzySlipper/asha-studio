@@ -26,7 +26,7 @@ const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
 
 if (artifact.schemaVersion !== 1) fail(`unexpected schemaVersion ${artifact.schemaVersion}`);
 if (artifact.artifactKind !== 'browser_visual_capture_proof') fail(`unexpected artifactKind ${artifact.artifactKind}`);
-if (artifact.taskId !== 3042) fail(`unexpected taskId ${artifact.taskId}`);
+if (artifact.taskId !== 3043) fail(`unexpected taskId ${artifact.taskId}`);
 if (artifact.editorShellTarget?.mockupPath !== join(root, 'local', 'ui-test.html')) fail('editor shell mockup target path is missing or incorrect');
 if (artifact.editorShellTarget?.comparisonMode !== 'structural_semantic_markers') fail('comparison mode must be structural/semantic markers');
 if (artifact.editorShellTarget?.pixelPerfect !== false) fail('browser readback must not claim pixel-perfect matching');
@@ -72,6 +72,20 @@ if (artifact.viewport3d?.selectedRenderableId !== 'selected-voxel:0,0,0') fail('
 if (artifact.viewport3d?.previewGhostId !== 'preview-ghost:1,0,0') fail('viewport3d preview ghost mismatch');
 if (artifact.viewport3d?.appliedRenderableId !== 'applied-voxel:1,0,0') fail('viewport3d applied renderable mismatch');
 if (artifact.viewport3d?.dependencyDecision !== 'direct_three_local_browser_projection_dependency') fail('viewport3d dependency decision missing');
+if (artifact.viewport3d?.interactionProof?.artifactKind !== 'viewport_camera_tool_interaction_proof') fail('viewport3d interaction proof missing');
+if (artifact.viewport3d.interactionProof.readiness !== 'ready') fail(`viewport3d interaction proof readiness is ${artifact.viewport3d.interactionProof.readiness}`);
+if (artifact.viewport3d.interactionProof.toolState?.activeTool !== 'voxel_brush') fail('viewport3d active tool did not persist as voxel_brush');
+if (artifact.viewport3d.interactionProof.toolState?.cameraChanged !== true) fail('viewport3d camera interaction did not record a camera delta');
+if (artifact.viewport3d.interactionProof.toolState.cameraBeforeHash === artifact.viewport3d.interactionProof.toolState.cameraAfterHash) fail('viewport3d camera hashes did not change');
+if (artifact.viewport3d.interactionProof.toolState.cameraAfterHash !== artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredCameraAfterHash) fail('viewport3d camera stale-readback guard is mismatched');
+if (artifact.viewport3d.interactionProof.selectedRenderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d interaction selected renderable does not match scene readback');
+if (artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredPreviewGhostId !== artifact.viewport3d.previewGhostId) fail('viewport3d preview ghost stale-readback guard is mismatched');
+if (artifact.viewport3d.interactionProof.staleReadbackGuard?.mismatchPolicy !== 'failed_closed') fail('viewport3d interaction mismatch policy must fail closed');
+const interactionActionIds = new Set(artifact.viewport3d.interactionProof.scriptedActions?.map((action) => action.actionId) ?? []);
+for (const actionId of ['gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost']) {
+  if (!interactionActionIds.has(actionId)) fail(`viewport3d interaction action missing: ${actionId}`);
+}
+if (!artifact.viewport3d.interactionProof.actorOrigins?.includes('gui') || !artifact.viewport3d.interactionProof.actorOrigins?.includes('agent')) fail('viewport3d interaction proof must include both GUI and agent origins');
 if (!artifact.viewport3d.limitations.some((limitation) => limitation.includes('does not claim native runtime, Agora compositor, hardware GPU, or performance evidence'))) fail('viewport3d limitation missing no-overclaim statement');
 if (!Array.isArray(artifact.correlation?.missingTimelineCommandIds) || artifact.correlation.missingTimelineCommandIds.length !== 0) fail('timeline correlation has missing command IDs');
 

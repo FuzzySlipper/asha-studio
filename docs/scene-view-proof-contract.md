@@ -1,6 +1,6 @@
 # Studio 3D scene-view proof contract
 
-Task: `asha#3041`
+Task: `asha#3041`, extended by `asha#3043`
 
 This document describes the Studio-owned `StudioSceneViewModel` proof contract in
 `src/scene-view-model.ts`. It is intentionally a deterministic readback model for
@@ -22,6 +22,10 @@ The model includes:
 - deterministic `viewport` dimensions (`1920x1080`) and pick coordinate space;
 - `camera` pose, target, up vector, perspective projection fields, and projection
   hash;
+- `interactionProof` with GUI/agent camera-tool actions, before/after camera
+  hashes, active tool state, shared command timeline sequence IDs, and
+  fail-closed stale-readback guards for camera, selection, and preview ghost
+  mismatches;
 - `renderables` with IDs, source-state classification, material refs, mesh refs,
   transforms, bounds, render hashes, visibility, and pickability (including
   selected voxel, editor-local preview ghost, and applied authority-state voxel);
@@ -51,6 +55,17 @@ Every renderable declares one of three source states:
 The hash linkage explicitly records:
 
 `rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs`
+
+## Camera/tool interaction proof
+
+Task `asha#3043` extends the model from static scene proof to deterministic
+camera/tool interaction proof. The readout records a GUI-originated
+`inspection.editor_state` frame-selected action, the existing agent-originated
+`selection.voxel_from_screen_point` action, and the GUI-originated
+`preview.voxel_brush` action in the same shared command timeline used by the rest
+of Studio. `interactionProof.toolState` carries active tool and camera-before / camera-after
+hashes; `staleReadbackGuard` requires the browser readback to match the camera,
+selected renderable, and preview ghost or report `failed_closed`.
 
 That distinction is the core non-claim: the scene-view model is a target proof
 contract for future renderer work; it does not claim WASM/native runtime,

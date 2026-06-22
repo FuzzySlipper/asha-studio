@@ -39,6 +39,20 @@ interface Viewport3dReadbackArtifact {
   readonly previewGhostId: string | null;
   readonly appliedRenderableId: string | null;
   readonly dependencyDecision: 'direct_three_local_browser_projection_dependency';
+  readonly interactionProof: {
+    readonly artifactKind: 'viewport_camera_tool_interaction_proof';
+    readonly readiness: 'ready' | 'failed_closed';
+    readonly toolState: {
+      readonly activeTool: 'select' | 'orbit' | 'pan' | 'frame' | 'voxel_brush';
+      readonly cameraBeforeHash: string;
+      readonly cameraAfterHash: string;
+      readonly cameraChanged: boolean;
+    };
+    readonly scriptedActions: readonly { readonly actionId: string; readonly actor: 'gui' | 'agent'; readonly sequenceId: string }[];
+    readonly actorOrigins: readonly ('gui' | 'agent')[];
+    readonly selectedRenderableId: string;
+    readonly staleReadbackGuard: { readonly requiredCameraAfterHash: string; readonly requiredPreviewGhostId: string; readonly mismatchPolicy: 'failed_closed' };
+  };
   readonly limitations: readonly string[];
 }
 
@@ -53,7 +67,7 @@ interface Viewport3dCanvasDomEvidence {
 interface BrowserCaptureArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'browser_visual_capture_proof';
-  readonly taskId: 3042;
+  readonly taskId: 3043;
   readonly generatedAtIso: string;
   readonly proofCommand: 'pnpm run proof:browser';
   readonly editorShellTarget: {
@@ -133,7 +147,7 @@ const editorShellMarkerGroups = [
   {
     groupId: 'central_reference_viewport',
     label: 'Central Three.js viewport',
-    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 5', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'shading: Three.js local browser projection'],
+    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 5', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'viewport_camera_tool_interaction_proof', 'viewport-camera-tool-readout', 'viewport-scripted-actions-readout', 'gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost', 'camera_tool_stale_readback_guard', 'shading: Three.js local browser projection'],
   },
   {
     groupId: 'right_inspector_dock',
@@ -163,6 +177,7 @@ const requiredTimelineIds = [
   'session.start',
   'session.load_scenario',
   'inspection.session_status',
+  'inspection.editor_state',
   'inspection.voxel',
   'selection.voxel_from_screen_point',
   'preview.voxel_brush',
@@ -342,12 +357,22 @@ async function main(): Promise<void> {
     };
   });
   const proofMissingMarkers = requiredProofMarkers.filter((marker) => !capture.proofText.includes(marker));
-  const viewport3dReady = viewport3d.readiness === 'ready' && viewport3d.canvasMarker === 'studio-3d-webgl-canvas' && viewport3d.visibleRenderableCount > 0 && viewport3d.selectedRenderableId !== null && viewport3d.previewGhostId !== null && viewport3d.appliedRenderableId !== null && viewport3dCanvasDom.canvasElementPresent;
+  const interactionProofReady = viewport3d.interactionProof.readiness === 'ready'
+    && viewport3d.interactionProof.toolState.cameraChanged
+    && viewport3d.interactionProof.toolState.cameraBeforeHash !== viewport3d.interactionProof.toolState.cameraAfterHash
+    && viewport3d.interactionProof.toolState.cameraAfterHash === viewport3d.interactionProof.staleReadbackGuard.requiredCameraAfterHash
+    && viewport3d.interactionProof.selectedRenderableId === viewport3d.selectedRenderableId
+    && viewport3d.interactionProof.staleReadbackGuard.requiredPreviewGhostId === viewport3d.previewGhostId
+    && viewport3d.interactionProof.staleReadbackGuard.mismatchPolicy === 'failed_closed'
+    && viewport3d.interactionProof.scriptedActions.length === 3
+    && viewport3d.interactionProof.actorOrigins.includes('gui')
+    && viewport3d.interactionProof.actorOrigins.includes('agent');
+  const viewport3dReady = viewport3d.readiness === 'ready' && viewport3d.canvasMarker === 'studio-3d-webgl-canvas' && viewport3d.visibleRenderableCount > 0 && viewport3d.selectedRenderableId !== null && viewport3d.previewGhostId !== null && viewport3d.appliedRenderableId !== null && viewport3dCanvasDom.canvasElementPresent && interactionProofReady;
   const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady;
   const artifact: BrowserCaptureArtifact = {
     schemaVersion: 1,
     artifactKind: 'browser_visual_capture_proof',
-    taskId: 3042,
+    taskId: 3043,
     generatedAtIso: new Date().toISOString(),
     proofCommand: 'pnpm run proof:browser',
     editorShellTarget: {

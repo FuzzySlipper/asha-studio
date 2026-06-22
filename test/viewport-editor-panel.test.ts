@@ -30,10 +30,10 @@ test('viewport editor panel projects selected target, preview state, and applied
 test('viewport editor panel correlates with the shared command timeline and agent readout', () => {
   const workspace = createStudioWorkspaceModel();
   const roles = workspace.viewportEditor.timelineCorrelation.map((entry) => entry.role);
-  assert.deepEqual(roles, ['inspect', 'select', 'preview', 'apply', 'capture', 'export']);
+  assert.deepEqual(roles, ['frame', 'inspect', 'select', 'preview', 'apply', 'capture', 'export']);
   assert.deepEqual(
     workspace.viewportEditor.timelineCorrelation.map((entry) => entry.sequenceId),
-    workspace.timeline.filter((entry) => ['inspection.voxel', 'selection.voxel_from_screen_point', 'preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after', 'export.agent_readout'].includes(entry.commandId)).map((entry) => entry.sequenceId),
+    workspace.timeline.filter((entry) => ['inspection.editor_state', 'inspection.voxel', 'selection.voxel_from_screen_point', 'preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after', 'export.agent_readout'].includes(entry.commandId)).map((entry) => entry.sequenceId),
   );
   assert.equal(workspace.exportedReadout.viewportEditor.panelId, 'viewport');
   assert.equal(workspace.exportedReadout.viewportEditor.appliedState.authorityHash, workspace.viewportEditor.appliedState.authorityHash);

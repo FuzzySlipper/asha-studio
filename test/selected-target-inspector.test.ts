@@ -23,10 +23,10 @@ test('selected target inspector separates preview projection from applied author
   const inspector = createStudioWorkspaceModel().selectedTargetInspector;
   assert.equal(inspector.previewCard.posture, 'proposed_by_studio_ts');
   assert.equal(inspector.previewCard.commandId, 'preview.voxel_brush');
-  assert.equal(inspector.previewCard.sequenceId, 'seq-0006');
+  assert.equal(inspector.previewCard.sequenceId, 'seq-0007');
   assert.equal(inspector.appliedCard.posture, 'validated_by_authority_rust');
   assert.equal(inspector.appliedCard.commandId, 'authority.voxel.apply_brush');
-  assert.equal(inspector.appliedCard.sequenceId, 'seq-0007');
+  assert.equal(inspector.appliedCard.sequenceId, 'seq-0008');
   assert.notEqual(inspector.previewCard.authorityHash, inspector.appliedCard.authorityHash);
   assert.notEqual(inspector.previewCard.renderHash, inspector.appliedCard.renderHash);
 });
