@@ -3,9 +3,11 @@ import * as THREE from 'three';
 import type {
   StudioSceneViewInteractionProof,
   StudioSceneViewModel,
+  StudioSceneViewPickEvidence,
   StudioSceneViewRenderable,
   StudioSceneViewVec3,
 } from './scene-view-model';
+import { calculateStudioSceneViewCameraHash, calculateStudioSceneViewViewportHash } from './scene-view-model';
 
 export interface StudioViewport3dRenderableReadback {
   readonly renderableId: string;
@@ -34,6 +36,7 @@ export interface StudioViewport3dReadback {
   readonly previewGhostId: string | null;
   readonly appliedRenderableId: string | null;
   readonly interactionProof: StudioSceneViewInteractionProof;
+  readonly pickEvidence: StudioSceneViewPickEvidence;
   readonly renderables: readonly StudioViewport3dRenderableReadback[];
   readonly semanticMarkers: readonly string[];
   readonly limitations: readonly string[];
@@ -129,7 +132,24 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     && sceneView.interactionProof.scriptedActions.length === 3
     && sceneView.interactionProof.actorOrigins.includes('gui')
     && sceneView.interactionProof.actorOrigins.includes('agent');
-  const readiness = visibleRenderableCount > 0 && selectedRenderableId !== null && previewGhostId !== null && appliedRenderableId !== null && interactionReady ? 'ready' : 'failed_closed';
+  const currentCameraHash = calculateStudioSceneViewCameraHash(sceneView.camera);
+  const currentViewportHash = calculateStudioSceneViewViewportHash(sceneView.viewport);
+  const pickReady = sceneView.pickEvidence.readiness === 'ready'
+    && sceneView.pickEvidence.cameraHash === currentCameraHash
+    && sceneView.pickEvidence.viewportHash === currentViewportHash
+    && sceneView.pickEvidence.staleReadbackGuard.requiredCameraHash === currentCameraHash
+    && sceneView.pickEvidence.staleReadbackGuard.requiredCameraProjectionHash === sceneView.selection.cameraProjectionHash
+    && sceneView.pickEvidence.staleReadbackGuard.requiredViewportHash === currentViewportHash
+    && sceneView.pickEvidence.staleReadbackGuard.requiredSelectionHash === sceneView.selection.selectionHash
+    && sceneView.pickEvidence.staleReadbackGuard.requiredHitRenderableId === selectedRenderableId
+    && sceneView.pickEvidence.staleReadbackGuard.requiredNoHitRayHash === sceneView.pickEvidence.backgroundNoHit.rayHash
+    && sceneView.pickEvidence.hit.renderableId === selectedRenderableId
+    && sceneView.pickEvidence.hit.voxelId === sceneView.selection.selectedVoxelId
+    && sceneView.pickEvidence.hit.selectionHash === sceneView.selection.selectionHash
+    && sceneView.pickEvidence.backgroundNoHit.outcome === 'no_hit'
+    && sceneView.pickEvidence.crossChecks.selectedRenderableId === selectedRenderableId
+    && sceneView.pickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point';
+  const readiness = visibleRenderableCount > 0 && selectedRenderableId !== null && previewGhostId !== null && appliedRenderableId !== null && interactionReady && pickReady ? 'ready' : 'failed_closed';
   return {
     schemaVersion: 1,
     artifactKind: 'viewport_3d_readback',
@@ -146,6 +166,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     previewGhostId,
     appliedRenderableId,
     interactionProof: sceneView.interactionProof,
+    pickEvidence: sceneView.pickEvidence,
     renderables,
     semanticMarkers: [
       'studio-3d-webgl-canvas',
@@ -159,6 +180,10 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
       'agent.select_visible_voxel',
       'gui.toggle_preview_ghost',
       'camera_tool_stale_readback_guard',
+      'viewport_pick_hit_test_evidence',
+      'pick:selected-voxel-center',
+      'pick:background-no-hit',
+      'pick_hit_stale_readback_guard',
     ],
     limitations: [
       'Three.js is used only as a local browser projection dependency for ASHA Studio.',
@@ -243,7 +268,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel): HTM
 
   const summary = document.createElement('p');
   summary.className = 'viewport-3d-semantic-readback';
-  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; selectionHash ${readback.selectionHash}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}`;
+  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; selectionHash ${readback.selectionHash}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}; viewport_pick_hit_test_evidence ${readback.pickEvidence.readiness}; hit ${readback.pickEvidence.hit.renderableId} ${readback.pickEvidence.hit.voxelId} ${readback.pickEvidence.hit.face}; no-hit ${readback.pickEvidence.backgroundNoHit.reason}; pick_hit_stale_readback_guard ${readback.pickEvidence.staleReadbackGuard.mismatchPolicy}`;
   host.append(summary);
 
   return host;

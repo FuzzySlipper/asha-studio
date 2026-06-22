@@ -25,8 +25,23 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.equal(readback.interactionProof.toolState.activeTool, 'voxel_brush');
   assert.equal(readback.interactionProof.toolState.cameraChanged, true);
   assert.notEqual(readback.interactionProof.toolState.cameraBeforeHash, readback.interactionProof.toolState.cameraAfterHash);
+  assert.equal(readback.pickEvidence.artifactKind, 'viewport_pick_hit_test_evidence');
+  assert.equal(readback.pickEvidence.readiness, 'ready');
+  assert.equal(readback.pickEvidence.hit.outcome, 'hit');
+  assert.equal(readback.pickEvidence.hit.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(readback.pickEvidence.hit.voxelId, 'voxel:0,0,0');
+  assert.equal(readback.pickEvidence.hit.face, 'posX');
+  assert.equal(readback.pickEvidence.backgroundNoHit.outcome, 'no_hit');
+  assert.equal(readback.pickEvidence.crossChecks.timelineCommandId, 'selection.voxel_from_screen_point');
+  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredCameraHash, readback.pickEvidence.cameraHash);
+  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredViewportHash, readback.pickEvidence.viewportHash);
+  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredSelectionHash, readback.selectionHash);
   assert.deepEqual(readback.interactionProof.scriptedActions.map((action) => action.actionId), ['gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost']);
   assert.ok(readback.semanticMarkers.includes('viewport_camera_tool_interaction_proof'));
+  assert.ok(readback.semanticMarkers.includes('viewport_pick_hit_test_evidence'));
+  assert.ok(readback.semanticMarkers.includes('pick:selected-voxel-center'));
+  assert.ok(readback.semanticMarkers.includes('pick:background-no-hit'));
+  assert.ok(readback.semanticMarkers.includes('pick_hit_stale_readback_guard'));
   assert.ok(readback.semanticMarkers.includes('camera_tool_stale_readback_guard'));
   assert.ok(readback.semanticMarkers.includes('agent.select_visible_voxel'));
   assert.ok(readback.semanticMarkers.includes('gui.toggle_preview_ghost'));
@@ -87,4 +102,37 @@ test('viewport 3D readback fails closed when only the required selection hash is
   assert.equal(readback.readiness, 'failed_closed');
   assert.equal(readback.selectionHash, workspace.sceneView.selection.selectionHash);
   assert.equal(readback.interactionProof.staleReadbackGuard.requiredSelectionHash, 'selection-hash-stale');
+});
+
+test('viewport 3D readback fails closed when pick camera evidence is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleCamera = {
+    ...workspace.sceneView,
+    camera: {
+      ...workspace.sceneView.camera,
+      pose: {
+        ...workspace.sceneView.camera.pose,
+        position: { x: 9, y: 9, z: 9 },
+      },
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleCamera);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredCameraHash, workspace.sceneView.pickEvidence.cameraHash);
+});
+
+test('viewport 3D readback fails closed when pick viewport evidence is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleViewport = {
+    ...workspace.sceneView,
+    viewport: {
+      ...workspace.sceneView.viewport,
+      widthPx: 1280,
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleViewport);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredViewportHash, workspace.sceneView.pickEvidence.viewportHash);
 });

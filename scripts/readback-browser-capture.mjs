@@ -26,7 +26,7 @@ const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
 
 if (artifact.schemaVersion !== 1) fail(`unexpected schemaVersion ${artifact.schemaVersion}`);
 if (artifact.artifactKind !== 'browser_visual_capture_proof') fail(`unexpected artifactKind ${artifact.artifactKind}`);
-if (artifact.taskId !== 3043) fail(`unexpected taskId ${artifact.taskId}`);
+if (artifact.taskId !== 3044) fail(`unexpected taskId ${artifact.taskId}`);
 if (artifact.editorShellTarget?.mockupPath !== join(root, 'local', 'ui-test.html')) fail('editor shell mockup target path is missing or incorrect');
 if (artifact.editorShellTarget?.comparisonMode !== 'structural_semantic_markers') fail('comparison mode must be structural/semantic markers');
 if (artifact.editorShellTarget?.pixelPerfect !== false) fail('browser readback must not claim pixel-perfect matching');
@@ -82,6 +82,25 @@ if (artifact.viewport3d.interactionProof.selectedRenderableId !== artifact.viewp
 if (artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredSelectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d selection stale-readback guard is mismatched');
 if (artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredPreviewGhostId !== artifact.viewport3d.previewGhostId) fail('viewport3d preview ghost stale-readback guard is mismatched');
 if (artifact.viewport3d.interactionProof.staleReadbackGuard?.mismatchPolicy !== 'failed_closed') fail('viewport3d interaction mismatch policy must fail closed');
+if (artifact.viewport3d.pickEvidence?.artifactKind !== 'viewport_pick_hit_test_evidence') fail('viewport3d pick evidence missing');
+if (artifact.viewport3d.pickEvidence.readiness !== 'ready') fail(`viewport3d pick evidence readiness is ${artifact.viewport3d.pickEvidence.readiness}`);
+if (artifact.viewport3d.pickEvidence.proofMode !== 'three_raycaster_semantic_readback') fail('viewport3d pick proof mode mismatch');
+if (artifact.viewport3d.pickEvidence.sourceTimelineCommandId !== 'selection.voxel_from_screen_point') fail('viewport3d pick evidence is not linked to selection command');
+if (artifact.viewport3d.pickEvidence.hit?.outcome !== 'hit') fail('viewport3d positive pick did not record a hit');
+if (artifact.viewport3d.pickEvidence.hit.renderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d pick hit renderable mismatch');
+if (artifact.viewport3d.pickEvidence.hit.voxelId !== 'voxel:0,0,0') fail('viewport3d pick hit voxel mismatch');
+if (artifact.viewport3d.pickEvidence.hit.face !== 'posX') fail('viewport3d pick hit face mismatch');
+if (artifact.viewport3d.pickEvidence.hit.selectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d pick hit selection hash mismatch');
+if (artifact.viewport3d.pickEvidence.backgroundNoHit?.outcome !== 'no_hit') fail('viewport3d background pick must record a no-hit result');
+if (artifact.viewport3d.pickEvidence.backgroundNoHit.reason !== 'background_point_misses_pickable_renderables') fail('viewport3d background no-hit reason mismatch');
+if (artifact.viewport3d.pickEvidence.crossChecks?.selectedRenderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d pick cross-check selected renderable mismatch');
+if (artifact.viewport3d.pickEvidence.crossChecks?.selectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d pick cross-check selection hash mismatch');
+if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredCameraHash !== artifact.viewport3d.pickEvidence.cameraHash) fail('viewport3d pick camera stale-readback guard mismatch');
+if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredViewportHash !== artifact.viewport3d.pickEvidence.viewportHash) fail('viewport3d pick viewport stale-readback guard mismatch');
+if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredSelectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d pick selection stale-readback guard mismatch');
+if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredHitRenderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d pick renderable stale-readback guard mismatch');
+if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredNoHitRayHash !== artifact.viewport3d.pickEvidence.backgroundNoHit.rayHash) fail('viewport3d pick no-hit stale-readback guard mismatch');
+if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.mismatchPolicy !== 'failed_closed') fail('viewport3d pick mismatch policy must fail closed');
 const interactionActionIds = new Set(artifact.viewport3d.interactionProof.scriptedActions?.map((action) => action.actionId) ?? []);
 for (const actionId of ['gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost']) {
   if (!interactionActionIds.has(actionId)) fail(`viewport3d interaction action missing: ${actionId}`);

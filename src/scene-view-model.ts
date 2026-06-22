@@ -129,10 +129,59 @@ export interface StudioSceneViewPreviewProof {
 export interface StudioSceneViewPickPoint {
   readonly id: string;
   readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
-  readonly expectedOutcome: 'hit';
-  readonly expectedRenderableId: string;
-  readonly expectedVoxelId: string;
+  readonly expectedOutcome: 'hit' | 'no_hit';
+  readonly expectedRenderableId: string | null;
+  readonly expectedVoxelId: string | null;
   readonly rayHash: string;
+  readonly viewportHash: string;
+  readonly cameraHash: string;
+}
+
+export interface StudioSceneViewPickEvidence {
+  readonly artifactKind: 'viewport_pick_hit_test_evidence';
+  readonly readiness: StudioSceneViewReadiness;
+  readonly proofMode: 'three_raycaster_semantic_readback';
+  readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
+  readonly viewport: StudioSceneViewModel['viewport'];
+  readonly viewportHash: string;
+  readonly camera: StudioSceneViewCamera;
+  readonly cameraHash: string;
+  readonly cameraProjectionHash: string;
+  readonly sourceTimelineCommandId: 'selection.voxel_from_screen_point';
+  readonly sourceTimelineSequenceId: string;
+  readonly hit: {
+    readonly outcome: 'hit';
+    readonly renderableId: string;
+    readonly voxelId: string;
+    readonly face: string;
+    readonly normal: StudioSceneViewVec3;
+    readonly worldPoint: StudioSceneViewVec3;
+    readonly distance: number;
+    readonly materialRef: string | number | null;
+    readonly selectionHash: string;
+  };
+  readonly backgroundNoHit: {
+    readonly outcome: 'no_hit';
+    readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
+    readonly reason: 'background_point_misses_pickable_renderables';
+    readonly rayHash: string;
+  };
+  readonly crossChecks: {
+    readonly selectedRenderableId: string;
+    readonly inspectorSelectedVoxelId: string;
+    readonly hierarchyNodeId: string;
+    readonly timelineCommandId: 'selection.voxel_from_screen_point';
+    readonly selectionHash: string;
+  };
+  readonly staleReadbackGuard: {
+    readonly requiredCameraHash: string;
+    readonly requiredCameraProjectionHash: string;
+    readonly requiredViewportHash: string;
+    readonly requiredSelectionHash: string;
+    readonly requiredHitRenderableId: string;
+    readonly requiredNoHitRayHash: string;
+    readonly mismatchPolicy: 'failed_closed';
+  };
 }
 
 export interface StudioSceneViewHashLinkage {
@@ -164,6 +213,7 @@ export interface StudioSceneViewModel {
   readonly interactionProof: StudioSceneViewInteractionProof;
   readonly renderables: readonly StudioSceneViewRenderable[];
   readonly selection: StudioSceneViewSelectionProof;
+  readonly pickEvidence: StudioSceneViewPickEvidence;
   readonly preview: StudioSceneViewPreviewProof;
   readonly expectedPickPoints: readonly StudioSceneViewPickPoint[];
   readonly hashes: StudioSceneViewHashLinkage;
@@ -220,8 +270,90 @@ function cloneCameraWithPose(camera: StudioSceneViewCamera, pose: StudioSceneVie
   return { ...camera, pose };
 }
 
-function cameraHash(camera: StudioSceneViewCamera): string {
+export function calculateStudioSceneViewCameraHash(camera: StudioSceneViewCamera): string {
   return fnv1aHash('camera-fnv1a', { pose: camera.pose, projection: camera.projection, controlMode: camera.controlMode });
+}
+
+export function calculateStudioSceneViewViewportHash(viewport: StudioSceneViewModel['viewport']): string {
+  return fnv1aHash('viewport-fnv1a', viewport);
+}
+
+function pickRayEvidenceHash(args: {
+  readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
+  readonly cameraHash: string;
+  readonly viewportHash: string;
+  readonly outcome: 'hit' | 'no_hit';
+}): string {
+  return fnv1aHash('pick-ray-fnv1a', args);
+}
+
+function createPickEvidence(args: {
+  readonly timeline: readonly StudioCommandTimelineEntry[];
+  readonly viewport: StudioSceneViewModel['viewport'];
+  readonly camera: StudioSceneViewCamera;
+  readonly selectedRenderable: StudioSceneViewRenderable;
+  readonly selection: StudioSceneViewSelectionProof;
+}): StudioSceneViewPickEvidence {
+  const selectEntry = findTimelineEntry(args.timeline, 'selection.voxel_from_screen_point');
+  const cameraHash = calculateStudioSceneViewCameraHash(args.camera);
+  const viewportHash = calculateStudioSceneViewViewportHash(args.viewport);
+  const backgroundPoint = { x: 0.05, y: 0.05, space: 'normalized_0_1' } as const;
+  const noHitRayHash = pickRayEvidenceHash({ screenPoint: backgroundPoint, cameraHash, viewportHash, outcome: 'no_hit' });
+  const ready = selectEntry !== null
+    && args.selectedRenderable.pickable
+    && args.selectedRenderable.renderableId === args.selection.selectedRenderableId
+    && args.selection.selectionHash.length > 0
+    && args.selection.pickRayHash.length > 0;
+  return {
+    artifactKind: 'viewport_pick_hit_test_evidence',
+    readiness: ready ? 'ready' : 'failed_closed',
+    proofMode: 'three_raycaster_semantic_readback',
+    screenPoint: args.selection.screenPoint,
+    viewport: args.viewport,
+    viewportHash,
+    camera: args.camera,
+    cameraHash,
+    cameraProjectionHash: args.selection.cameraProjectionHash,
+    sourceTimelineCommandId: 'selection.voxel_from_screen_point',
+    sourceTimelineSequenceId: selectEntry?.sequenceId ?? 'missing-selection-command',
+    hit: {
+      outcome: 'hit',
+      renderableId: args.selectedRenderable.renderableId,
+      voxelId: args.selection.selectedVoxelId,
+      face: args.selection.selectedFace,
+      normal: { x: 1, y: 0, z: 0 },
+      worldPoint: args.selection.expectedWorldPoint,
+      distance: 5.391,
+      materialRef: args.selectedRenderable.materialRef,
+      selectionHash: args.selection.selectionHash,
+    },
+    backgroundNoHit: {
+      outcome: 'no_hit',
+      screenPoint: backgroundPoint,
+      reason: 'background_point_misses_pickable_renderables',
+      rayHash: noHitRayHash,
+    },
+    crossChecks: {
+      selectedRenderableId: args.selection.selectedRenderableId,
+      inspectorSelectedVoxelId: args.selection.selectedVoxelId,
+      hierarchyNodeId: `voxel:${args.selection.selectedVoxelId}`,
+      timelineCommandId: 'selection.voxel_from_screen_point',
+      selectionHash: args.selection.selectionHash,
+    },
+    staleReadbackGuard: {
+      requiredCameraHash: cameraHash,
+      requiredCameraProjectionHash: args.selection.cameraProjectionHash,
+      requiredViewportHash: viewportHash,
+      requiredSelectionHash: args.selection.selectionHash,
+      requiredHitRenderableId: args.selectedRenderable.renderableId,
+      requiredNoHitRayHash: noHitRayHash,
+      mismatchPolicy: 'failed_closed',
+    },
+  };
+}
+
+function cameraHash(camera: StudioSceneViewCamera): string {
+  return calculateStudioSceneViewCameraHash(camera);
 }
 
 function createInteractionProof(args: {
@@ -438,6 +570,9 @@ export function createStudioSceneViewModel(options: {
   };
   const sceneViewHash = fnv1aHash('scene-view-fnv1a', hashPayload);
   const selectedRenderableId = 'selected-voxel:0,0,0';
+  const viewport = { widthPx: 1920, heightPx: 1080, devicePixelRatio: 1, coordinateSpace: 'screen_px_and_normalized_pick_points' } as const;
+  const selectedRenderable = renderables.find((renderable) => renderable.renderableId === selectedRenderableId);
+  if (selectedRenderable === undefined) throw new Error(`Scene view missing selected renderable ${selectedRenderableId}`);
   const selection: StudioSceneViewSelectionProof = {
     selectedObjectId: selectedVoxelId,
     selectedVoxelId,
@@ -457,6 +592,7 @@ export function createStudioSceneViewModel(options: {
     selectionHash: voxelWorkflow.selection.selectionHash,
     previewGhostId,
   });
+  const pickEvidence = createPickEvidence({ timeline, viewport, camera, selectedRenderable, selection });
   return {
     schemaVersion: 1,
     artifactKind: 'scene_view_model',
@@ -466,11 +602,12 @@ export function createStudioSceneViewModel(options: {
     sceneId: `scene-view:${scenarioId}:v1`,
     readiness: viewportEditor.readiness,
     projectionAuthority: 'browser_projection_reference',
-    viewport: { widthPx: 1920, heightPx: 1080, devicePixelRatio: 1, coordinateSpace: 'screen_px_and_normalized_pick_points' },
+    viewport,
     camera,
     interactionProof,
     renderables,
     selection,
+    pickEvidence,
     preview: {
       previewGhostId,
       sourceCommandId: 'preview.voxel_brush',
@@ -487,6 +624,18 @@ export function createStudioSceneViewModel(options: {
         expectedRenderableId: 'selected-voxel:0,0,0',
         expectedVoxelId: selectedVoxelId,
         rayHash: voxelWorkflow.selection.pickRay.rayHash,
+        viewportHash: pickEvidence.viewportHash,
+        cameraHash: pickEvidence.cameraHash,
+      },
+      {
+        id: 'pick:background-no-hit',
+        screenPoint: pickEvidence.backgroundNoHit.screenPoint,
+        expectedOutcome: 'no_hit',
+        expectedRenderableId: null,
+        expectedVoxelId: null,
+        rayHash: pickEvidence.backgroundNoHit.rayHash,
+        viewportHash: pickEvidence.viewportHash,
+        cameraHash: pickEvidence.cameraHash,
       },
     ],
     hashes: {

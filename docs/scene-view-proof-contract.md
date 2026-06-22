@@ -35,6 +35,10 @@ The model includes:
 - `preview` proof with preview ghost ID, edit anchor, material ref, and explicit
   editor-local authority state;
 - `expectedPickPoints` for deterministic picker-readback tests;
+- `pickEvidence` with positive selected-target hit metadata, structured background
+  no-hit evidence, viewport/camera hashes, selection/timeline cross-checks, and
+  fail-closed stale guards for camera, projection, viewport, selection, and hit
+  identity drift;
 - `hashes` linking authority-before, authority-after, render-before,
   render-after, and the derived `sceneViewHash`;
 - `futurePublicContractCandidates` for fields that may later graduate into
@@ -67,6 +71,17 @@ camera/tool interaction proof. The readout records a GUI-originated
 of Studio. `interactionProof.toolState` carries active tool and camera-before / camera-after
 hashes; `staleReadbackGuard` requires the browser readback to match the camera,
 canonical selection hash, selected renderable, and preview ghost or report `failed_closed`.
+
+## Pick/hit-test evidence
+
+Task `asha#3044` extends the readback with `viewport_pick_hit_test_evidence`.
+The evidence records the selected target screen point, viewport dimensions/hash,
+camera pose/projection hash, selected hit renderable/voxel/face/normal/world point,
+and a structured background no-hit proof. The browser readback cross-checks that
+pick evidence still matches the selected target, hierarchy node, selection timeline
+command, canonical selection hash, current camera hash, and current viewport hash.
+Any mismatch reports `failed_closed` rather than allowing stale pick evidence to
+remain ready.
 
 That distinction is the core non-claim: the scene-view model is a target proof
 contract for future renderer work; it does not claim WASM/native runtime,

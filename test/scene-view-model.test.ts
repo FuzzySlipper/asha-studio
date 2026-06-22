@@ -93,6 +93,19 @@ test('scene-view model defines deterministic camera, viewport, renderables, and 
   assert.deepEqual(sceneView.selection.screenPoint, { x: 0.5, y: 0.5, space: 'normalized_0_1' });
   assert.equal(sceneView.expectedPickPoints[0]?.expectedRenderableId, 'selected-voxel:0,0,0');
   assert.equal(sceneView.expectedPickPoints[0]?.rayHash, workspace.voxelWorkflow.selection.pickRay.rayHash);
+  assert.equal(sceneView.expectedPickPoints[1]?.expectedOutcome, 'no_hit');
+  assert.equal(sceneView.pickEvidence.artifactKind, 'viewport_pick_hit_test_evidence');
+  assert.equal(sceneView.pickEvidence.readiness, 'ready');
+  assert.equal(sceneView.pickEvidence.hit.outcome, 'hit');
+  assert.equal(sceneView.pickEvidence.hit.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(sceneView.pickEvidence.hit.voxelId, 'voxel:0,0,0');
+  assert.equal(sceneView.pickEvidence.hit.face, 'posX');
+  assert.deepEqual(sceneView.pickEvidence.hit.normal, { x: 1, y: 0, z: 0 });
+  assert.equal(sceneView.pickEvidence.backgroundNoHit.outcome, 'no_hit');
+  assert.equal(sceneView.pickEvidence.crossChecks.selectedRenderableId, sceneView.selection.selectedRenderableId);
+  assert.equal(sceneView.pickEvidence.crossChecks.timelineCommandId, 'selection.voxel_from_screen_point');
+  assert.equal(sceneView.pickEvidence.staleReadbackGuard.requiredSelectionHash, sceneView.selection.selectionHash);
+  assert.equal(sceneView.pickEvidence.staleReadbackGuard.requiredHitRenderableId, sceneView.selection.selectedRenderableId);
 });
 
 test('scene-view proof links preview, authority, and render hashes without claiming runtime authority', () => {

@@ -28,7 +28,7 @@
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 3043,
+    "task": 3044,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -41,6 +41,7 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
+      "Task 3044 adds viewport pick/hit-test evidence with positive selected-target hit readback, structured background no-hit evidence, timeline/selection cross-checks, and camera/viewport stale-readback fail-closed guards.",
       "Task 3043 persists deterministic camera/tool interaction proof into StudioSceneViewModel, the shared command timeline, browser readback, and stale-readback fail-closed guards.",
       "Task 3042 adds a Three.js-backed central browser canvas as a local projection dependency over StudioSceneViewModel; it does not import @asha/renderer-three, own authority, or claim native runtime/Agora/GPU/performance evidence.",
       "Task 2918 provides a Studio-owned viewport editor panel that projects selected target, preview-vs-applied state, timeline correlation, and evidence refs into both UI and agent readout artifacts.",

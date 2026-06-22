@@ -2880,6 +2880,101 @@
       "selectionHash": "selection-hash-voxel-basic-0-0-0-posX",
       "cameraProjectionHash": "projection-hash-voxel-basic"
     },
+    "pickEvidence": {
+      "artifactKind": "viewport_pick_hit_test_evidence",
+      "readiness": "ready",
+      "proofMode": "three_raycaster_semantic_readback",
+      "screenPoint": {
+        "x": 0.5,
+        "y": 0.5,
+        "space": "normalized_0_1"
+      },
+      "viewport": {
+        "widthPx": 1920,
+        "heightPx": 1080,
+        "devicePixelRatio": 1,
+        "coordinateSpace": "screen_px_and_normalized_pick_points"
+      },
+      "viewportHash": "viewport-fnv1a-2feabcdc",
+      "camera": {
+        "cameraId": "studio-camera-main",
+        "pose": {
+          "position": {
+            "x": 3.25,
+            "y": 2.75,
+            "z": 4.25
+          },
+          "target": {
+            "x": 0.5,
+            "y": 0.5,
+            "z": 0.5
+          },
+          "up": {
+            "x": 0,
+            "y": 1,
+            "z": 0
+          }
+        },
+        "projection": {
+          "kind": "perspective",
+          "fovYDegrees": 50,
+          "near": 0.1,
+          "far": 128,
+          "aspect": 1.7777777777777777,
+          "projectionHash": "projection-hash-voxel-basic"
+        },
+        "controlMode": "orbit_reference"
+      },
+      "cameraHash": "camera-fnv1a-6f454017",
+      "cameraProjectionHash": "projection-hash-voxel-basic",
+      "sourceTimelineCommandId": "selection.voxel_from_screen_point",
+      "sourceTimelineSequenceId": "seq-0006",
+      "hit": {
+        "outcome": "hit",
+        "renderableId": "selected-voxel:0,0,0",
+        "voxelId": "voxel:0,0,0",
+        "face": "posX",
+        "normal": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "worldPoint": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "distance": 5.391,
+        "materialRef": 1,
+        "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
+      },
+      "backgroundNoHit": {
+        "outcome": "no_hit",
+        "screenPoint": {
+          "x": 0.05,
+          "y": 0.05,
+          "space": "normalized_0_1"
+        },
+        "reason": "background_point_misses_pickable_renderables",
+        "rayHash": "pick-ray-fnv1a-8ba5aef4"
+      },
+      "crossChecks": {
+        "selectedRenderableId": "selected-voxel:0,0,0",
+        "inspectorSelectedVoxelId": "voxel:0,0,0",
+        "hierarchyNodeId": "voxel:voxel:0,0,0",
+        "timelineCommandId": "selection.voxel_from_screen_point",
+        "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
+      },
+      "staleReadbackGuard": {
+        "requiredCameraHash": "camera-fnv1a-6f454017",
+        "requiredCameraProjectionHash": "projection-hash-voxel-basic",
+        "requiredViewportHash": "viewport-fnv1a-2feabcdc",
+        "requiredSelectionHash": "selection-hash-voxel-basic-0-0-0-posX",
+        "requiredHitRenderableId": "selected-voxel:0,0,0",
+        "requiredNoHitRayHash": "pick-ray-fnv1a-8ba5aef4",
+        "mismatchPolicy": "failed_closed"
+      }
+    },
     "preview": {
       "previewGhostId": "preview-ghost:1,0,0",
       "sourceCommandId": "preview.voxel_brush",
@@ -2899,7 +2994,23 @@
         "expectedOutcome": "hit",
         "expectedRenderableId": "selected-voxel:0,0,0",
         "expectedVoxelId": "voxel:0,0,0",
-        "rayHash": "ray-hash-voxel-basic-center"
+        "rayHash": "ray-hash-voxel-basic-center",
+        "viewportHash": "viewport-fnv1a-2feabcdc",
+        "cameraHash": "camera-fnv1a-6f454017"
+      },
+      {
+        "id": "pick:background-no-hit",
+        "screenPoint": {
+          "x": 0.05,
+          "y": 0.05,
+          "space": "normalized_0_1"
+        },
+        "expectedOutcome": "no_hit",
+        "expectedRenderableId": null,
+        "expectedVoxelId": null,
+        "rayHash": "pick-ray-fnv1a-8ba5aef4",
+        "viewportHash": "viewport-fnv1a-2feabcdc",
+        "cameraHash": "camera-fnv1a-6f454017"
       }
     ],
     "hashes": {
