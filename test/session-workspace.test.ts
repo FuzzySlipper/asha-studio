@@ -107,6 +107,7 @@ test('readout helper preserves result ordering and final state evidence', () => 
     selectedTargetInspector: workspace.selectedTargetInspector,
     commandEvidenceDock: workspace.commandEvidenceDock,
     viewportEditor: workspace.viewportEditor,
+    sceneView: workspace.sceneView,
     generatedAtIso: '1970-01-01T00:02:00.000Z',
     knownLimitations: ['test limitation'],
   });
@@ -123,6 +124,7 @@ test('sample agent readout fixture includes exported timeline and command result
     readonly commandTimeline?: readonly { readonly commandId?: string; readonly requestedBy?: string }[];
     readonly commandResults?: readonly { readonly commandId?: string }[];
     readonly viewportEditor?: { readonly artifactKind?: string; readonly panelId?: string; readonly readiness?: string };
+    readonly sceneView?: { readonly artifactKind?: string; readonly sceneId?: string; readonly renderables?: readonly unknown[] };
     readonly session?: { readonly compatibility?: { readonly commandRegistryVersion?: string } };
   };
   assert.equal(artifact.artifactKind, 'agent_readout');
@@ -143,4 +145,7 @@ test('sample agent readout fixture includes exported timeline and command result
   assert.equal(artifact.viewportEditor?.artifactKind, 'viewport_editor_panel');
   assert.equal(artifact.viewportEditor?.panelId, 'viewport');
   assert.equal(artifact.viewportEditor?.readiness, 'ready');
+  assert.equal(artifact.sceneView?.artifactKind, 'scene_view_model');
+  assert.equal(artifact.sceneView?.sceneId, 'scene-view:voxel-basic:v1');
+  assert.equal(artifact.sceneView?.renderables?.length, 4);
 });

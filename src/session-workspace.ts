@@ -11,6 +11,8 @@ import { createStudioModelMaterialPreviewModel } from './model-material-preview'
 import type { StudioModelMaterialPreviewModel } from './model-material-preview';
 import { createStudioSceneHierarchyModel } from './scene-hierarchy';
 import type { StudioSceneHierarchyModel } from './scene-hierarchy';
+import { createStudioSceneViewModel } from './scene-view-model';
+import type { StudioSceneViewModel } from './scene-view-model';
 import { createStudioSelectedTargetInspectorModel } from './selected-target-inspector';
 import type { StudioSelectedTargetInspectorModel } from './selected-target-inspector';
 import { createStudioViewportEditorPanelModel } from './viewport-editor-panel';
@@ -186,6 +188,7 @@ export interface StudioAgentReadoutArtifact {
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
+  readonly sceneView: StudioSceneViewModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
   readonly diagnostics: readonly StudioDiagnostic[];
@@ -207,6 +210,7 @@ export interface StudioWorkspaceModel {
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
+  readonly sceneView: StudioSceneViewModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly reviewArtifact: StudioReviewArtifact;
   readonly exportedReadout: StudioAgentReadoutArtifact;
@@ -426,6 +430,7 @@ export function createAgentReadoutArtifact(options: {
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
+  readonly sceneView: StudioSceneViewModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
   const finalState = options.results.at(-1)?.state ?? stateEvidence(options.session.compatibility, 'editor.v0.0');
@@ -446,6 +451,7 @@ export function createAgentReadoutArtifact(options: {
     selectedTargetInspector: options.selectedTargetInspector,
     commandEvidenceDock: options.commandEvidenceDock,
     viewportEditor: options.viewportEditor,
+    sceneView: options.sceneView,
     visualEvidence,
     exportedArtifacts,
     diagnostics: [...options.session.diagnostics, ...options.results.flatMap((result) => result.diagnostics)],
@@ -514,6 +520,15 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     visualEvidence,
   });
+  const sceneView = createStudioSceneViewModel({
+    sessionId: session.sessionId,
+    scenarioId: activeScenarioId,
+    voxelWorkflow,
+    modelMaterialPreview,
+    viewportEditor,
+    timeline,
+    visualEvidence,
+  });
   const sceneHierarchy = createStudioSceneHierarchyModel({
     session,
     scenario: { scenarioId: activeScenarioId, label: session.scenarioLabel, status: status === 'ready' ? 'loaded' : 'available' },
@@ -550,6 +565,7 @@ export function createStudioWorkspaceModel(options: {
     selectedTargetInspector,
     commandEvidenceDock,
     viewportEditor,
+    sceneView,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
     knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.'],
@@ -568,6 +584,7 @@ export function createStudioWorkspaceModel(options: {
     selectedTargetInspector,
     commandEvidenceDock,
     viewportEditor,
+    sceneView,
     visualEvidence,
     reviewArtifact,
     exportedReadout: readout,

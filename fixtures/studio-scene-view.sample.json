@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "scene_view_model",
+  "artifactId": "artifact-scene-view-model-0001",
+  "sessionId": "session-preview-0001",
+  "scenarioId": "voxel-basic",
+  "sceneId": "scene-view:voxel-basic:v1",
+  "readiness": "ready",
+  "projectionAuthority": "browser_projection_reference",
+  "viewport": {
+    "widthPx": 1920,
+    "heightPx": 1080,
+    "devicePixelRatio": 1,
+    "coordinateSpace": "screen_px_and_normalized_pick_points"
+  },
+  "camera": {
+    "cameraId": "studio-camera-main",
+    "pose": {
+      "position": {
+        "x": 4.5,
+        "y": 3.5,
+        "z": 6.5
+      },
+      "target": {
+        "x": 1,
+        "y": 1,
+        "z": 0
+      },
+      "up": {
+        "x": 0,
+        "y": 1,
+        "z": 0
+      }
+    },
+    "projection": {
+      "kind": "perspective",
+      "fovYDegrees": 50,
+      "near": 0.1,
+      "far": 128,
+      "aspect": 1.7777777777777777,
+      "projectionHash": "projection-hash-voxel-basic"
+    },
+    "controlMode": "orbit_reference"
+  },
+  "renderables": [
+    {
+      "renderableId": "terrain-test-grid",
+      "kind": "voxel_grid",
+      "sourceState": "authoritative_rust_state",
+      "authorityObjectId": "authority:grid:voxel-basic",
+      "materialRef": null,
+      "meshRef": null,
+      "transform": {
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotationQuat": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "bounds": {
+        "min": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "max": {
+          "x": 3,
+          "y": 3,
+          "z": 1
+        }
+      },
+      "renderHash": "render-grid-fnv1a-cc815eb0",
+      "visible": true,
+      "pickable": true,
+      "summary": "Authoritative 3x3 voxel terrain grid projected into the browser scene view."
+    },
+    {
+      "renderableId": "selected-voxel:0,0,0",
+      "kind": "voxel_cell",
+      "sourceState": "authoritative_rust_state",
+      "authorityObjectId": "voxel:0,0,0",
+      "materialRef": 1,
+      "meshRef": null,
+      "transform": {
+        "translation": {
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5
+        },
+        "rotationQuat": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "bounds": {
+        "min": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "max": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "renderHash": "render-grid-fnv1a-cc815eb0",
+      "visible": true,
+      "pickable": true,
+      "summary": "Selected solid voxel before preview/apply; this remains tied to authorityBeforeHash."
+    },
+    {
+      "renderableId": "preview-ghost:1,0,0",
+      "kind": "preview_ghost",
+      "sourceState": "editor_preview_state",
+      "authorityObjectId": null,
+      "materialRef": 1,
+      "meshRef": null,
+      "transform": {
+        "translation": {
+          "x": 1.5,
+          "y": 0.5,
+          "z": 0.5
+        },
+        "rotationQuat": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "bounds": {
+        "min": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "max": {
+          "x": 2,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "renderHash": "render-grid-fnv1a-cc815eb0",
+      "visible": true,
+      "pickable": false,
+      "summary": "Editor-local ghost for preview.voxel_brush at the edit anchor; not applied to Rust authority yet."
+    },
+    {
+      "renderableId": "model-preview-crate",
+      "kind": "static_mesh",
+      "sourceState": "browser_projection_reference",
+      "authorityObjectId": null,
+      "materialRef": "material/studio-brushed-copper",
+      "meshRef": "mesh/studio-preview-crate",
+      "transform": {
+        "translation": {
+          "x": 1.5,
+          "y": 1.5,
+          "z": 0.65
+        },
+        "rotationQuat": [
+          0,
+          0.258819,
+          0,
+          0.965926
+        ],
+        "scale": {
+          "x": 0.75,
+          "y": 0.75,
+          "z": 0.75
+        }
+      },
+      "bounds": {
+        "min": {
+          "x": 1.125,
+          "y": 1.125,
+          "z": 0.275
+        },
+        "max": {
+          "x": 1.875,
+          "y": 1.875,
+          "z": 1.025
+        }
+      },
+      "renderHash": "model-material-preview-9b49b69b",
+      "visible": true,
+      "pickable": false,
+      "summary": "Reference browser projection of the selected model/material pair; not authoritative scene state."
+    }
+  ],
+  "selection": {
+    "selectedObjectId": "voxel:0,0,0",
+    "selectedVoxelId": "voxel:0,0,0",
+    "selectedFace": "posX",
+    "selectedRenderableId": "selected-voxel:0,0,0",
+    "screenPoint": {
+      "x": 0.5,
+      "y": 0.5,
+      "space": "normalized_0_1"
+    },
+    "expectedWorldPoint": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "pickRayHash": "ray-hash-voxel-basic-center",
+    "cameraProjectionHash": "projection-hash-voxel-basic"
+  },
+  "preview": {
+    "previewGhostId": "preview-ghost:1,0,0",
+    "sourceCommandId": "preview.voxel_brush",
+    "editAnchorVoxelId": "voxel:1,0,0",
+    "materialRef": 1,
+    "authorityState": "editor_local_not_applied",
+    "expectedRenderableId": "preview-ghost:1,0,0"
+  },
+  "expectedPickPoints": [
+    {
+      "id": "pick:selected-voxel-center",
+      "screenPoint": {
+        "x": 0.5,
+        "y": 0.5,
+        "space": "normalized_0_1"
+      },
+      "expectedOutcome": "hit",
+      "expectedRenderableId": "selected-voxel:0,0,0",
+      "expectedVoxelId": "voxel:0,0,0",
+      "rayHash": "ray-hash-voxel-basic-center"
+    }
+  ],
+  "hashes": {
+    "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+    "authorityAfterHash": "grid-fnv1a-8eb9594b",
+    "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
+    "renderAfterHash": "render-grid-fnv1a-8eb9594b",
+    "sceneViewHash": "scene-view-fnv1a-cc49cf30",
+    "stateLinkage": "authority_before_to_preview_to_authority_after",
+    "distinction": "rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs"
+  },
+  "evidenceRefs": [
+    "artifact-voxel-workflow-0001",
+    "artifact-model-material-preview-0001",
+    "artifact-visual-before-after-0001",
+    "seq-0005",
+    "seq-0006",
+    "seq-0007",
+    "seq-0008",
+    "artifact-visual-before-after-0001"
+  ],
+  "futurePublicContractCandidates": [
+    "StudioSceneViewModel belongs in ASHA Studio until repeated renderer/runtime consumers justify a generated contract border surface.",
+    "camera pose/projection and expectedPickPoints are candidates for a future @asha/contracts scene-view proof DTO.",
+    "renderables remain project-readback descriptors; they are not arbitrary JSON runtime commands."
+  ],
+  "knownLimitations": [
+    "Scene view model is a deterministic browser projection/readback contract, not a Three.js/WebGL implementation.",
+    "Rust/WASM/native runtime authority is represented only by before/after authority hashes supplied by existing Studio evidence.",
+    "Preview ghost state is editor-local until authority.voxel.apply_brush accepts the typed command and changes authorityAfterHash."
+  ]
+}
