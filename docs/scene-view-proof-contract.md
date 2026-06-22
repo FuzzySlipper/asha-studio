@@ -23,7 +23,8 @@ The model includes:
 - `camera` pose, target, up vector, perspective projection fields, and projection
   hash;
 - `renderables` with IDs, source-state classification, material refs, mesh refs,
-  transforms, bounds, render hashes, visibility, and pickability;
+  transforms, bounds, render hashes, visibility, and pickability (including
+  selected voxel, editor-local preview ghost, and applied authority-state voxel);
 - `selection` proof with selected voxel/object IDs, selected renderable, pick
   screen point, expected world point, pick-ray hash, and camera projection hash;
 - `preview` proof with preview ghost ID, edit anchor, material ref, and explicit

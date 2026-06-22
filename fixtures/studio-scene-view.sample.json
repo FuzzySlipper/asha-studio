@@ -170,6 +170,48 @@
       "summary": "Editor-local ghost for preview.voxel_brush at the edit anchor; not applied to Rust authority yet."
     },
     {
+      "renderableId": "applied-voxel:1,0,0",
+      "kind": "voxel_cell",
+      "sourceState": "authoritative_rust_state",
+      "authorityObjectId": "voxel:1,0,0",
+      "materialRef": 1,
+      "meshRef": null,
+      "transform": {
+        "translation": {
+          "x": 1.5,
+          "y": 0.5,
+          "z": 0.5
+        },
+        "rotationQuat": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "bounds": {
+        "min": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "max": {
+          "x": 2,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "renderHash": "render-grid-fnv1a-8eb9594b",
+      "visible": true,
+      "pickable": true,
+      "summary": "Applied authority state for the typed voxel brush at the edit anchor; tied to authorityAfterHash."
+    },
+    {
       "renderableId": "model-preview-crate",
       "kind": "static_mesh",
       "sourceState": "browser_projection_reference",
@@ -257,7 +299,7 @@
     "authorityAfterHash": "grid-fnv1a-8eb9594b",
     "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
     "renderAfterHash": "render-grid-fnv1a-8eb9594b",
-    "sceneViewHash": "scene-view-fnv1a-cc49cf30",
+    "sceneViewHash": "scene-view-fnv1a-78964189",
     "stateLinkage": "authority_before_to_preview_to_authority_after",
     "distinction": "rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs"
   },

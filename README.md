@@ -20,7 +20,7 @@ Task `asha#2730` establishes a Vite/TypeScript shell with visible regions requir
 - inspector/readout panel;
 - evidence/export panel.
 
-The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. It does **not** call the native runtime bridge or claim Agora/hardware-GPU evidence; the V1 proof exports software-snapshot visual evidence, browser screenshot capture/readback artifacts, and machine-readable review artifacts with explicit limitations.
+The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. Task `asha#3042` adds a real Three.js-backed browser canvas in the central viewport as a **local projection dependency**: `three` renders the Studio-owned `StudioSceneViewModel`, but it does not own authority, mutate state, import `@asha/renderer-three`, or claim native runtime/Agora/hardware-GPU evidence. The V1 proof exports software-snapshot visual evidence, browser screenshot capture/readback artifacts, and machine-readable review artifacts with explicit limitations.
 
 ## Local development
 
@@ -116,6 +116,18 @@ Task `asha#2918` turns the viewport from a placeholder into a narrow agent-obser
 - automation markers (`studio-viewport-editor-panel`, `viewport-selected-target-readout`, `viewport-preview-state-readout`, `viewport-applied-state-readout`, `viewport-timeline-correlation-readout`) used by tests and browser capture readback.
 
 The exported agent readout includes the same `viewport_editor_panel` object so human UI and agent/reviewer artifacts observe the same viewport state. A deterministic fixture lives at `fixtures/studio-viewport-editor-panel.sample.json`.
+
+## Real browser 3D viewport host
+
+Task `asha#3042` replaces the central dock's purely styled reference projection with a real browser canvas/WebGL host. Studio uses `three` directly as a local browser projection dependency for this repo, rather than importing deferred `@asha/renderer-three`. The renderer consumes the checked-in `StudioSceneViewModel` readout and projects:
+
+- grid/floor and axes;
+- selected voxel geometry plus DOM/readback marker `selected-target-highlight`;
+- editor-local preview ghost marker `preview-ghost-renderable`;
+- applied authority-state renderable marker `applied-state-renderable`;
+- model/material preview crate from the public contract DTO preview artifact.
+
+The browser proof/readback now records a `viewport_3d_readback` artifact with canvas marker `studio-3d-webgl-canvas`, visible renderable count, selected target, preview ghost, applied renderable, and explicit non-claims. This is still browser projection evidence only: it does not claim native/WASM runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance.
 
 ## Browser visual capture
 

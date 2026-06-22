@@ -147,5 +147,5 @@ test('sample agent readout fixture includes exported timeline and command result
   assert.equal(artifact.viewportEditor?.readiness, 'ready');
   assert.equal(artifact.sceneView?.artifactKind, 'scene_view_model');
   assert.equal(artifact.sceneView?.sceneId, 'scene-view:voxel-basic:v1');
-  assert.equal(artifact.sceneView?.renderables?.length, 4);
+  assert.equal(artifact.sceneView?.renderables?.length, 5);
 });

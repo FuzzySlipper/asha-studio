@@ -37,11 +37,13 @@ test('scene-view model defines deterministic camera, viewport, renderables, and 
     'terrain-test-grid',
     'selected-voxel:0,0,0',
     'preview-ghost:1,0,0',
+    'applied-voxel:1,0,0',
     'model-preview-crate',
   ]);
   const terrainGrid = requireRenderable(sceneView.renderables, 'terrain-test-grid');
   const selectedVoxel = requireRenderable(sceneView.renderables, 'selected-voxel:0,0,0');
   const previewGhost = requireRenderable(sceneView.renderables, 'preview-ghost:1,0,0');
+  const appliedVoxel = requireRenderable(sceneView.renderables, 'applied-voxel:1,0,0');
   const modelPreviewCrate = requireRenderable(sceneView.renderables, 'model-preview-crate');
 
   assert.equal(selectedVoxel.sourceState, 'authoritative_rust_state');
@@ -63,6 +65,13 @@ test('scene-view model defines deterministic camera, viewport, renderables, and 
   assert.deepEqual(previewGhost.transform.rotationQuat, [0, 0, 0, 1]);
   assert.deepEqual(previewGhost.transform.scale, { x: 1, y: 1, z: 1 });
   assert.deepEqual(previewGhost.bounds, { min: { x: 1, y: 0, z: 0 }, max: { x: 2, y: 1, z: 1 } });
+
+  assert.equal(appliedVoxel.sourceState, 'authoritative_rust_state');
+  assert.equal(appliedVoxel.renderHash, workspace.viewportEditor.appliedState.renderHash);
+  assert.deepEqual(appliedVoxel.transform.translation, { x: 1.5, y: 0.5, z: 0.5 });
+  assert.deepEqual(appliedVoxel.transform.rotationQuat, [0, 0, 0, 1]);
+  assert.deepEqual(appliedVoxel.transform.scale, { x: 1, y: 1, z: 1 });
+  assert.deepEqual(appliedVoxel.bounds, { min: { x: 1, y: 0, z: 0 }, max: { x: 2, y: 1, z: 1 } });
 
   assert.deepEqual(modelPreviewCrate.transform.translation, { x: 1.5, y: 1.5, z: 0.65 });
   assert.deepEqual(modelPreviewCrate.transform.rotationQuat, [0, 0.258819, 0, 0.965926]);
@@ -111,7 +120,7 @@ test('scene-view model is exported through workspace and agent readout fixtures'
   assert.equal(fixture.artifactKind, 'scene_view_model');
   assert.equal(fixture.sceneId, workspace.sceneView.sceneId);
   assert.equal(fixture.camera?.cameraId, 'studio-camera-main');
-  assert.equal(fixture.renderables?.length, 4);
+  assert.equal(fixture.renderables?.length, 5);
   assert.equal(fixture.renderables?.find((renderable) => renderable.renderableId === 'model-preview-crate')?.materialRef, 'material/studio-brushed-copper');
   assert.equal(fixture.selection?.selectedObjectId, 'voxel:0,0,0');
   assert.equal(fixture.preview?.previewGhostId, 'preview-ghost:1,0,0');

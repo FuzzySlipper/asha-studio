@@ -17,16 +17,18 @@
   "dependencies": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
-    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools"
+    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.3",
+    "@types/three": "^0.184.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 2918,
+    "task": 3042,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -39,6 +41,7 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
+      "Task 3042 adds a Three.js-backed central browser canvas as a local projection dependency over StudioSceneViewModel; it does not import @asha/renderer-three, own authority, or claim native runtime/Agora/GPU/performance evidence.",
       "Task 2918 provides a Studio-owned viewport editor panel that projects selected target, preview-vs-applied state, timeline correlation, and evidence refs into both UI and agent readout artifacts.",
       "Task 2737 provides Studio-owned command batch transaction metadata, per-command batch results, partial-failure classification, and a typed V1 voxel inverse setVoxel revert workflow over public command evidence.",
       "Task 2736 provides a public-contract model/material preview artifact using @asha/contracts StaticMeshAsset/MaterialProjection/RenderFrameDiff DTOs; upstream task 2895 promoted first-class command-registry/runtime preview surfaces, while direct Studio runtime transport consumption remains deferred.",

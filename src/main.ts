@@ -1,5 +1,6 @@
 import './styles.css';
 import { createStudioShellModel } from './studio-model';
+import { renderStudioViewport3dHost } from './viewport3d-host';
 
 type StudioShell = ReturnType<typeof createStudioShellModel>;
 type StudioPanel = StudioShell['panels'][number];
@@ -126,29 +127,13 @@ function renderViewportReadout(model: StudioShell): HTMLElement {
 
   const canvas = el('div', 'viewport-reference-canvas');
   canvas.setAttribute('aria-label', 'studio-central-reference-viewport-canvas');
+  canvas.dataset.viewportHost = 'real-browser-3d-canvas';
   const meta = el('div', 'viewport-reference-meta');
-  for (const label of ['persp · 35mm', 'grid ✓', 'gizmos ✓', 'shading: flat']) {
+  for (const label of ['persp · 35mm', 'grid ✓', 'gizmos ✓', 'shading: Three.js local browser projection']) {
     meta.append(el('span', 'viewport-meta-chip', label));
   }
   canvas.append(meta);
-
-  const gridPlane = el('div', 'viewport-grid-plane');
-  const appliedBlock = el('div', 'viewport-isometric-block viewport-isometric-block--applied');
-  appliedBlock.append(el('span', undefined, viewportModel.selectedTarget.materialAsset.replace('material/', '')));
-  gridPlane.append(appliedBlock);
-  const selectedTarget = el('div', 'viewport-selection-overlay', `selected ${viewportModel.selectedTarget.selectedVoxel}`);
-  gridPlane.append(selectedTarget);
-  const previewGhost = el('div', 'viewport-preview-ghost', `preview ghost ${viewportModel.selectedTarget.editAnchor}`);
-  gridPlane.append(previewGhost);
-  const anchor = el('div', 'viewport-edit-anchor', `edit anchor: ${viewportModel.selectedTarget.selectedFace} face`);
-  gridPlane.append(anchor);
-  canvas.append(gridPlane);
-
-  const axis = el('div', 'viewport-axis-gizmo');
-  axis.append(el('span', 'axis-x', 'X'));
-  axis.append(el('span', 'axis-y', 'Y'));
-  axis.append(el('span', 'axis-z', 'Z'));
-  canvas.append(axis);
+  canvas.append(renderStudioViewport3dHost(model.workspace.sceneView));
 
   const overlay = el('div', 'viewport-state-overlay');
   overlay.append(el('p', 'viewport-selected-target-readout', `Selected target: ${viewportModel.selectedTarget.selectedVoxel} · face ${viewportModel.selectedTarget.selectedFace} · edit anchor ${viewportModel.selectedTarget.editAnchor}`));

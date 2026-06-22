@@ -29,10 +29,23 @@ interface ScreenshotRef {
   readonly height: number;
 }
 
+interface Viewport3dReadbackArtifact {
+  readonly artifactKind: 'viewport_3d_readback';
+  readonly readiness: 'ready' | 'failed_closed';
+  readonly hostKind: 'three_local_browser_projection';
+  readonly canvasMarker: 'studio-3d-webgl-canvas';
+  readonly visibleRenderableCount: number;
+  readonly selectedRenderableId: string | null;
+  readonly previewGhostId: string | null;
+  readonly appliedRenderableId: string | null;
+  readonly dependencyDecision: 'direct_three_local_browser_projection_dependency';
+  readonly limitations: readonly string[];
+}
+
 interface BrowserCaptureArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'browser_visual_capture_proof';
-  readonly taskId: 3022;
+  readonly taskId: 3042;
   readonly generatedAtIso: string;
   readonly proofCommand: 'pnpm run proof:browser';
   readonly editorShellTarget: {
@@ -81,6 +94,7 @@ interface BrowserCaptureArtifact {
     readonly reviewArtifactId: string;
     readonly reviewCaptureReadiness: string;
   };
+  readonly viewport3d: Viewport3dReadbackArtifact;
   readonly screenshots: readonly ScreenshotRef[];
   readonly comparison: {
     readonly status: 'changed' | 'failed_closed';
@@ -109,8 +123,8 @@ const editorShellMarkerGroups = [
   },
   {
     groupId: 'central_reference_viewport',
-    label: 'Central reference viewport',
-    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'persp · 35mm', 'grid ✓', 'gizmos ✓', 'shading: flat', 'preview ghost', 'edit anchor:', 'projection: software_snapshot_reference'],
+    label: 'Central Three.js viewport',
+    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 5', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'shading: Three.js local browser projection'],
   },
   {
     groupId: 'right_inspector_dock',
@@ -266,6 +280,12 @@ function assertV1ProofArtifact(v1: V1ProofArtifact): void {
   if (failedSteps.length > 0) throw new Error(`linked V1 proof has failed steps: ${failedSteps.map((step) => step.id).join(', ')}`);
 }
 
+function extractViewport3dReadback(appText: string): Viewport3dReadbackArtifact {
+  const match = appText.match(/<script[^>]*id="studio-viewport3d-readback-json"[^>]*>([\s\S]*?)<\/script>/);
+  if (match?.[1] === undefined) throw new Error('missing studio viewport3d readback JSON script');
+  return JSON.parse(match[1]) as Viewport3dReadbackArtifact;
+}
+
 async function main(): Promise<void> {
   if (!existsSync(join(distDir, 'index.html'))) throw new Error('dist/index.html is missing; run pnpm run build or pnpm run proof:v1 first');
   mkdirSync(outDir, { recursive: true });
@@ -284,6 +304,7 @@ async function main(): Promise<void> {
     return { appText: app.text, proofText: proof.text, screenshots: [app.screenshot, proof.screenshot], urls: { studioAppUrl, proofArtifactUrl } };
   });
   const appMissingMarkers = requiredAppMarkers.filter((marker) => !capture.appText.includes(marker));
+  const viewport3d = extractViewport3dReadback(capture.appText);
   const markerGroups = editorShellMarkerGroups.map((group) => {
     const missingMarkers = group.markers.filter((marker) => !capture.appText.includes(marker));
     return {
@@ -295,11 +316,12 @@ async function main(): Promise<void> {
     };
   });
   const proofMissingMarkers = requiredProofMarkers.filter((marker) => !capture.proofText.includes(marker));
-  const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready';
+  const viewport3dReady = viewport3d.readiness === 'ready' && viewport3d.canvasMarker === 'studio-3d-webgl-canvas' && viewport3d.visibleRenderableCount > 0 && viewport3d.selectedRenderableId !== null && viewport3d.previewGhostId !== null && viewport3d.appliedRenderableId !== null;
+  const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady;
   const artifact: BrowserCaptureArtifact = {
     schemaVersion: 1,
     artifactKind: 'browser_visual_capture_proof',
-    taskId: 3022,
+    taskId: 3042,
     generatedAtIso: new Date().toISOString(),
     proofCommand: 'pnpm run proof:browser',
     editorShellTarget: {
@@ -328,7 +350,7 @@ async function main(): Promise<void> {
       proofMissingMarkers,
     },
     correlation: {
-      status: missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' ? 'matched' : 'failed_closed',
+      status: missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady ? 'matched' : 'failed_closed',
       timelineCommandIds,
       missingTimelineCommandIds,
       visualHashDelta: {
@@ -339,6 +361,7 @@ async function main(): Promise<void> {
       reviewArtifactId: v1.reviewArtifact.artifactId,
       reviewCaptureReadiness: v1.reviewArtifact.captureReadiness,
     },
+    viewport3d,
     screenshots: capture.screenshots,
     comparison: {
       status: visualChanged && capture.screenshots.length >= 2 ? 'changed' : 'failed_closed',
@@ -352,7 +375,7 @@ async function main(): Promise<void> {
   };
   writeFileSync(join(outDir, 'index.json'), `${JSON.stringify(artifact, null, 2)}\n`);
   if (!ready) {
-    throw new Error(`browser visual capture failed closed: appMissing=${appMissingMarkers.join(', ') || 'none'} proofMissing=${proofMissingMarkers.join(', ') || 'none'} timelineMissing=${missingTimelineCommandIds.join(', ') || 'none'} visualChanged=${String(visualChanged)}`);
+    throw new Error(`browser visual capture failed closed: appMissing=${appMissingMarkers.join(', ') || 'none'} proofMissing=${proofMissingMarkers.join(', ') || 'none'} timelineMissing=${missingTimelineCommandIds.join(', ') || 'none'} visualChanged=${String(visualChanged)} viewport3dReady=${String(viewport3dReady)}`);
   }
   console.log(`asha-studio browser visual capture: OK (${relative(root, join(outDir, 'index.json'))})`);
 }

@@ -26,7 +26,7 @@ const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
 
 if (artifact.schemaVersion !== 1) fail(`unexpected schemaVersion ${artifact.schemaVersion}`);
 if (artifact.artifactKind !== 'browser_visual_capture_proof') fail(`unexpected artifactKind ${artifact.artifactKind}`);
-if (artifact.taskId !== 3022) fail(`unexpected taskId ${artifact.taskId}`);
+if (artifact.taskId !== 3042) fail(`unexpected taskId ${artifact.taskId}`);
 if (artifact.editorShellTarget?.mockupPath !== join(root, 'local', 'ui-test.html')) fail('editor shell mockup target path is missing or incorrect');
 if (artifact.editorShellTarget?.comparisonMode !== 'structural_semantic_markers') fail('comparison mode must be structural/semantic markers');
 if (artifact.editorShellTarget?.pixelPerfect !== false) fail('browser readback must not claim pixel-perfect matching');
@@ -55,9 +55,19 @@ for (const groupId of requiredGroupIds) {
   if (!Array.isArray(group.missingMarkers) || group.missingMarkers.length !== 0) fail(`editor-shell marker group has missing markers: ${groupId}`);
   if (!Array.isArray(group.requiredMarkers) || group.requiredMarkers.length === 0) fail(`editor-shell marker group has no required markers: ${groupId}`);
 }
-if (!artifact.readiness.requiredMarkers.includes('software_snapshot_reference')) fail('software_snapshot marker not required');
-if (!artifact.readiness.requiredMarkers.includes('runtime bridge: deferred')) fail('runtime-deferred marker not required');
+if (!artifact.readiness.requiredMarkers.includes('studio-3d-webgl-canvas')) fail('3D canvas marker not required');
+if (!artifact.readiness.requiredMarkers.includes('three_local_browser_projection')) fail('Three.js browser projection marker not required');
 if (!artifact.readiness.requiredMarkers.includes('native / Agora / GPU: not claimed')) fail('no-GPU/Agora marker not required');
+if (artifact.viewport3d?.artifactKind !== 'viewport_3d_readback') fail('viewport3d readback artifact is missing');
+if (artifact.viewport3d?.readiness !== 'ready') fail(`viewport3d readiness is ${artifact.viewport3d?.readiness ?? 'missing'}`);
+if (artifact.viewport3d?.hostKind !== 'three_local_browser_projection') fail('viewport3d host is not Three.js local browser projection');
+if (artifact.viewport3d?.canvasMarker !== 'studio-3d-webgl-canvas') fail('viewport3d canvas marker mismatch');
+if (artifact.viewport3d?.visibleRenderableCount < 1) fail('viewport3d has no visible renderables');
+if (artifact.viewport3d?.selectedRenderableId !== 'selected-voxel:0,0,0') fail('viewport3d selected renderable mismatch');
+if (artifact.viewport3d?.previewGhostId !== 'preview-ghost:1,0,0') fail('viewport3d preview ghost mismatch');
+if (artifact.viewport3d?.appliedRenderableId !== 'applied-voxel:1,0,0') fail('viewport3d applied renderable mismatch');
+if (artifact.viewport3d?.dependencyDecision !== 'direct_three_local_browser_projection_dependency') fail('viewport3d dependency decision missing');
+if (!artifact.viewport3d.limitations.some((limitation) => limitation.includes('does not claim native runtime, Agora compositor, hardware GPU, or performance evidence'))) fail('viewport3d limitation missing no-overclaim statement');
 if (!Array.isArray(artifact.correlation?.missingTimelineCommandIds) || artifact.correlation.missingTimelineCommandIds.length !== 0) fail('timeline correlation has missing command IDs');
 
 const linkedPath = join(root, artifact.linkedV1Proof?.path ?? '');
