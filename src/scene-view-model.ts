@@ -140,7 +140,7 @@ export interface StudioSceneViewPickPoint {
 export interface StudioSceneViewPickEvidence {
   readonly artifactKind: 'viewport_pick_hit_test_evidence';
   readonly readiness: StudioSceneViewReadiness;
-  readonly proofMode: 'three_raycaster_semantic_readback';
+  readonly proofMode: 'expected_pick_contract' | 'three_raycaster_semantic_readback';
   readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
   readonly viewport: StudioSceneViewModel['viewport'];
   readonly viewportHash: string;
@@ -158,6 +158,7 @@ export interface StudioSceneViewPickEvidence {
     readonly worldPoint: StudioSceneViewVec3;
     readonly distance: number;
     readonly materialRef: string | number | null;
+    readonly rayHash: string;
     readonly selectionHash: string;
   };
   readonly backgroundNoHit: {
@@ -278,13 +279,24 @@ export function calculateStudioSceneViewViewportHash(viewport: StudioSceneViewMo
   return fnv1aHash('viewport-fnv1a', viewport);
 }
 
+export function calculateStudioSceneViewPickRayHash(args: {
+  readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
+  readonly cameraHash: string;
+  readonly viewportHash: string;
+  readonly outcome: 'hit' | 'no_hit';
+  readonly rayOrigin?: StudioSceneViewVec3;
+  readonly rayDirection?: StudioSceneViewVec3;
+}): string {
+  return fnv1aHash('pick-ray-fnv1a', args);
+}
+
 function pickRayEvidenceHash(args: {
   readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
   readonly cameraHash: string;
   readonly viewportHash: string;
   readonly outcome: 'hit' | 'no_hit';
 }): string {
-  return fnv1aHash('pick-ray-fnv1a', args);
+  return calculateStudioSceneViewPickRayHash(args);
 }
 
 function createPickEvidence(args: {
@@ -307,7 +319,7 @@ function createPickEvidence(args: {
   return {
     artifactKind: 'viewport_pick_hit_test_evidence',
     readiness: ready ? 'ready' : 'failed_closed',
-    proofMode: 'three_raycaster_semantic_readback',
+    proofMode: 'expected_pick_contract',
     screenPoint: args.selection.screenPoint,
     viewport: args.viewport,
     viewportHash,
@@ -325,6 +337,7 @@ function createPickEvidence(args: {
       worldPoint: args.selection.expectedWorldPoint,
       distance: 5.391,
       materialRef: args.selectedRenderable.materialRef,
+      rayHash: args.selection.pickRayHash,
       selectionHash: args.selection.selectionHash,
     },
     backgroundNoHit: {
@@ -336,7 +349,7 @@ function createPickEvidence(args: {
     crossChecks: {
       selectedRenderableId: args.selection.selectedRenderableId,
       inspectorSelectedVoxelId: args.selection.selectedVoxelId,
-      hierarchyNodeId: `voxel:${args.selection.selectedVoxelId}`,
+      hierarchyNodeId: `voxel:${args.selection.selectedVoxelId.replace(/^voxel:/u, '')}`,
       timelineCommandId: 'selection.voxel_from_screen_point',
       selectionHash: args.selection.selectionHash,
     },

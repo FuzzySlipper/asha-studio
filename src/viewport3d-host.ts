@@ -7,7 +7,7 @@ import type {
   StudioSceneViewRenderable,
   StudioSceneViewVec3,
 } from './scene-view-model';
-import { calculateStudioSceneViewCameraHash, calculateStudioSceneViewViewportHash } from './scene-view-model';
+import { calculateStudioSceneViewCameraHash, calculateStudioSceneViewPickRayHash, calculateStudioSceneViewViewportHash } from './scene-view-model';
 
 export interface StudioViewport3dRenderableReadback {
   readonly renderableId: string;
@@ -108,6 +108,163 @@ function createSelectionOutline(renderable: StudioSceneViewRenderable): THREE.Ob
   return outline;
 }
 
+function sceneVec(value: THREE.Vector3): StudioSceneViewVec3 {
+  return { x: Number(value.x.toFixed(6)), y: Number(value.y.toFixed(6)), z: Number(value.z.toFixed(6)) };
+}
+
+function faceName(normal: THREE.Vector3): string {
+  const axes = [
+    { axis: 'x', sign: normal.x, pos: 'posX', neg: 'negX' },
+    { axis: 'y', sign: normal.y, pos: 'posY', neg: 'negY' },
+    { axis: 'z', sign: normal.z, pos: 'posZ', neg: 'negZ' },
+  ] as const;
+  const dominant = axes.reduce((best, item) => (Math.abs(item.sign) > Math.abs(best.sign) ? item : best), axes[0]);
+  return dominant.sign >= 0 ? dominant.pos : dominant.neg;
+}
+
+function normalizedPointToNdc(point: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' }): THREE.Vector2 {
+  return new THREE.Vector2(point.x * 2 - 1, 1 - point.y * 2);
+}
+
+function createCamera(sceneView: StudioSceneViewModel): THREE.PerspectiveCamera {
+  const camera = new THREE.PerspectiveCamera(
+    sceneView.camera.projection.fovYDegrees,
+    sceneView.camera.projection.aspect,
+    sceneView.camera.projection.near,
+    sceneView.camera.projection.far,
+  );
+  camera.position.copy(vec3(sceneView.camera.pose.position));
+  camera.up.copy(vec3(sceneView.camera.pose.up));
+  camera.lookAt(vec3(sceneView.camera.pose.target));
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+  return camera;
+}
+
+function addSceneLightsAndGuides(scene: THREE.Scene): void {
+  scene.background = new THREE.Color(0x0b1020);
+  scene.add(new THREE.AmbientLight(0xb8c7ff, 1.4));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(4, 7, 5);
+  scene.add(key);
+
+  const grid = new THREE.GridHelper(4, 8, 0x60a5fa, 0x1e3a8a);
+  grid.name = 'studio-3d-grid-floor';
+  grid.position.set(1.5, -0.002, 0.5);
+  scene.add(grid);
+
+  const axes = new THREE.AxesHelper(1.5);
+  axes.name = 'studio-3d-axes-gizmo';
+  scene.add(axes);
+}
+
+function addRenderableToScene(scene: THREE.Scene, sceneView: StudioSceneViewModel, renderable: StudioSceneViewRenderable): THREE.Object3D | null {
+  if (renderable.kind === 'voxel_grid') return null;
+  const object = createBoxRenderable(renderable);
+  if (renderable.renderableId === PREVIEW_GHOST_ID) object.name = 'preview-ghost-renderable';
+  if (renderable.renderableId === APPLIED_RENDERABLE_ID) object.name = 'applied-state-renderable';
+  scene.add(object);
+  if (renderable.renderableId === sceneView.selection.selectedRenderableId) {
+    scene.add(createSelectionOutline(renderable));
+  }
+  return object;
+}
+
+function createProjectedScene(sceneView: StudioSceneViewModel): { readonly scene: THREE.Scene; readonly camera: THREE.PerspectiveCamera; readonly pickableObjects: readonly THREE.Object3D[] } {
+  const scene = new THREE.Scene();
+  const camera = createCamera(sceneView);
+  addSceneLightsAndGuides(scene);
+  const pickableObjects: THREE.Object3D[] = [];
+  for (const renderable of sceneView.renderables) {
+    const object = addRenderableToScene(scene, sceneView, renderable);
+    if (object !== null && renderable.pickable) pickableObjects.push(object);
+  }
+  scene.updateMatrixWorld(true);
+  return { scene, camera, pickableObjects };
+}
+
+function rayHashFor(args: {
+  readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
+  readonly cameraHash: string;
+  readonly viewportHash: string;
+  readonly outcome: 'hit' | 'no_hit';
+  readonly ray: THREE.Ray;
+}): string {
+  return calculateStudioSceneViewPickRayHash({
+    screenPoint: args.screenPoint,
+    cameraHash: args.cameraHash,
+    viewportHash: args.viewportHash,
+    outcome: args.outcome,
+    rayOrigin: sceneVec(args.ray.origin),
+    rayDirection: sceneVec(args.ray.direction),
+  });
+}
+
+function pickAt(point: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' }, camera: THREE.Camera, pickableObjects: readonly THREE.Object3D[]): { readonly ray: THREE.Ray; readonly intersections: readonly THREE.Intersection[] } {
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(normalizedPointToNdc(point), camera);
+  return { ray: raycaster.ray.clone(), intersections: raycaster.intersectObjects([...pickableObjects], true) };
+}
+
+function createRaycasterPickEvidence(sceneView: StudioSceneViewModel, currentCameraHash: string, currentViewportHash: string): StudioSceneViewPickEvidence {
+  const { camera, pickableObjects } = createProjectedScene(sceneView);
+  const hitPick = pickAt(sceneView.selection.screenPoint, camera, pickableObjects);
+  const firstHit = hitPick.intersections[0] ?? null;
+  const backgroundPoint = sceneView.pickEvidence.backgroundNoHit.screenPoint;
+  const backgroundPick = pickAt(backgroundPoint, camera, pickableObjects);
+  const noHitRayHash = rayHashFor({ screenPoint: backgroundPoint, cameraHash: currentCameraHash, viewportHash: currentViewportHash, outcome: 'no_hit', ray: backgroundPick.ray });
+  const hitObject = firstHit?.object ?? null;
+  const hitRenderableId = typeof hitObject?.userData.renderableId === 'string' ? hitObject.userData.renderableId : null;
+  const hitRenderable = hitRenderableId === null ? null : sceneView.renderables.find((renderable) => renderable.renderableId === hitRenderableId) ?? null;
+  const worldNormal = firstHit?.face === null || firstHit?.face === undefined || hitObject === null
+    ? new THREE.Vector3(0, 0, 0)
+    : firstHit.face.normal.clone().transformDirection(hitObject.matrixWorld).normalize();
+  const hitRayHash = rayHashFor({ screenPoint: sceneView.selection.screenPoint, cameraHash: currentCameraHash, viewportHash: currentViewportHash, outcome: firstHit === null ? 'no_hit' : 'hit', ray: hitPick.ray });
+  const hitReady = firstHit !== null && hitRenderable !== null && hitRenderableId === sceneView.selection.selectedRenderableId && backgroundPick.intersections.length === 0;
+  return {
+    ...sceneView.pickEvidence,
+    readiness: hitReady ? 'ready' : 'failed_closed',
+    proofMode: 'three_raycaster_semantic_readback',
+    viewportHash: currentViewportHash,
+    cameraHash: currentCameraHash,
+    hit: {
+      outcome: 'hit',
+      renderableId: hitRenderableId ?? 'missing-hit-renderable',
+      voxelId: hitRenderable?.authorityObjectId ?? 'missing-hit-voxel',
+      face: faceName(worldNormal),
+      normal: sceneVec(worldNormal),
+      worldPoint: firstHit === null ? { x: 0, y: 0, z: 0 } : sceneVec(firstHit.point),
+      distance: firstHit === null ? 0 : Number(firstHit.distance.toFixed(6)),
+      materialRef: hitRenderable?.materialRef ?? null,
+      rayHash: hitRayHash,
+      selectionHash: sceneView.selection.selectionHash,
+    },
+    backgroundNoHit: {
+      outcome: 'no_hit',
+      screenPoint: backgroundPoint,
+      reason: 'background_point_misses_pickable_renderables',
+      rayHash: noHitRayHash,
+    },
+    staleReadbackGuard: {
+      requiredCameraHash: currentCameraHash,
+      requiredCameraProjectionHash: sceneView.selection.cameraProjectionHash,
+      requiredViewportHash: currentViewportHash,
+      requiredSelectionHash: sceneView.selection.selectionHash,
+      requiredHitRenderableId: sceneView.selection.selectedRenderableId,
+      requiredNoHitRayHash: noHitRayHash,
+      mismatchPolicy: 'failed_closed',
+    },
+  };
+}
+
+function expectedHierarchyNodeId(sceneView: StudioSceneViewModel): string {
+  return `voxel:${sceneView.selection.selectedVoxelId.replace(/^voxel:/u, '')}`;
+}
+
+function expectedInspectorSelectedVoxelId(sceneView: StudioSceneViewModel): string {
+  return sceneView.selection.selectedVoxelId;
+}
+
 export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): StudioViewport3dReadback {
   const renderables = sceneView.renderables.map((renderable) => ({
     renderableId: renderable.renderableId,
@@ -134,21 +291,37 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     && sceneView.interactionProof.actorOrigins.includes('agent');
   const currentCameraHash = calculateStudioSceneViewCameraHash(sceneView.camera);
   const currentViewportHash = calculateStudioSceneViewViewportHash(sceneView.viewport);
+  const actualPickEvidence = createRaycasterPickEvidence(sceneView, currentCameraHash, currentViewportHash);
   const pickReady = sceneView.pickEvidence.readiness === 'ready'
-    && sceneView.pickEvidence.cameraHash === currentCameraHash
-    && sceneView.pickEvidence.viewportHash === currentViewportHash
     && sceneView.pickEvidence.staleReadbackGuard.requiredCameraHash === currentCameraHash
     && sceneView.pickEvidence.staleReadbackGuard.requiredCameraProjectionHash === sceneView.selection.cameraProjectionHash
     && sceneView.pickEvidence.staleReadbackGuard.requiredViewportHash === currentViewportHash
     && sceneView.pickEvidence.staleReadbackGuard.requiredSelectionHash === sceneView.selection.selectionHash
     && sceneView.pickEvidence.staleReadbackGuard.requiredHitRenderableId === selectedRenderableId
-    && sceneView.pickEvidence.staleReadbackGuard.requiredNoHitRayHash === sceneView.pickEvidence.backgroundNoHit.rayHash
-    && sceneView.pickEvidence.hit.renderableId === selectedRenderableId
-    && sceneView.pickEvidence.hit.voxelId === sceneView.selection.selectedVoxelId
-    && sceneView.pickEvidence.hit.selectionHash === sceneView.selection.selectionHash
-    && sceneView.pickEvidence.backgroundNoHit.outcome === 'no_hit'
+    && actualPickEvidence.readiness === 'ready'
+    && actualPickEvidence.proofMode === 'three_raycaster_semantic_readback'
+    && actualPickEvidence.cameraHash === currentCameraHash
+    && actualPickEvidence.viewportHash === currentViewportHash
+    && actualPickEvidence.staleReadbackGuard.requiredCameraHash === currentCameraHash
+    && actualPickEvidence.staleReadbackGuard.requiredCameraProjectionHash === sceneView.selection.cameraProjectionHash
+    && actualPickEvidence.staleReadbackGuard.requiredViewportHash === currentViewportHash
+    && actualPickEvidence.staleReadbackGuard.requiredSelectionHash === sceneView.selection.selectionHash
+    && actualPickEvidence.staleReadbackGuard.requiredHitRenderableId === selectedRenderableId
+    && actualPickEvidence.staleReadbackGuard.requiredNoHitRayHash === actualPickEvidence.backgroundNoHit.rayHash
+    && actualPickEvidence.hit.renderableId === selectedRenderableId
+    && actualPickEvidence.hit.voxelId === sceneView.selection.selectedVoxelId
+    && actualPickEvidence.hit.selectionHash === sceneView.selection.selectionHash
+    && actualPickEvidence.backgroundNoHit.outcome === 'no_hit'
     && sceneView.pickEvidence.crossChecks.selectedRenderableId === selectedRenderableId
-    && sceneView.pickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point';
+    && sceneView.pickEvidence.crossChecks.inspectorSelectedVoxelId === expectedInspectorSelectedVoxelId(sceneView)
+    && sceneView.pickEvidence.crossChecks.hierarchyNodeId === expectedHierarchyNodeId(sceneView)
+    && sceneView.pickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point'
+    && sceneView.pickEvidence.crossChecks.selectionHash === sceneView.selection.selectionHash
+    && actualPickEvidence.crossChecks.selectedRenderableId === selectedRenderableId
+    && actualPickEvidence.crossChecks.inspectorSelectedVoxelId === expectedInspectorSelectedVoxelId(sceneView)
+    && actualPickEvidence.crossChecks.hierarchyNodeId === expectedHierarchyNodeId(sceneView)
+    && actualPickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point'
+    && actualPickEvidence.crossChecks.selectionHash === sceneView.selection.selectionHash;
   const readiness = visibleRenderableCount > 0 && selectedRenderableId !== null && previewGhostId !== null && appliedRenderableId !== null && interactionReady && pickReady ? 'ready' : 'failed_closed';
   return {
     schemaVersion: 1,
@@ -166,7 +339,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     previewGhostId,
     appliedRenderableId,
     interactionProof: sceneView.interactionProof,
-    pickEvidence: sceneView.pickEvidence,
+    pickEvidence: actualPickEvidence,
     renderables,
     semanticMarkers: [
       'studio-3d-webgl-canvas',
@@ -220,42 +393,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel): HTM
   }
   host.append(axisMarker);
 
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b1020);
-  const camera = new THREE.PerspectiveCamera(
-    sceneView.camera.projection.fovYDegrees,
-    sceneView.camera.projection.aspect,
-    sceneView.camera.projection.near,
-    sceneView.camera.projection.far,
-  );
-  camera.position.copy(vec3(sceneView.camera.pose.position));
-  camera.up.copy(vec3(sceneView.camera.pose.up));
-  camera.lookAt(vec3(sceneView.camera.pose.target));
-
-  scene.add(new THREE.AmbientLight(0xb8c7ff, 1.4));
-  const key = new THREE.DirectionalLight(0xffffff, 2.2);
-  key.position.set(4, 7, 5);
-  scene.add(key);
-
-  const grid = new THREE.GridHelper(4, 8, 0x60a5fa, 0x1e3a8a);
-  grid.name = 'studio-3d-grid-floor';
-  grid.position.set(1.5, -0.002, 0.5);
-  scene.add(grid);
-
-  const axes = new THREE.AxesHelper(1.5);
-  axes.name = 'studio-3d-axes-gizmo';
-  scene.add(axes);
-
-  for (const renderable of sceneView.renderables) {
-    if (renderable.kind === 'voxel_grid') continue;
-    const object = createBoxRenderable(renderable);
-    if (renderable.renderableId === PREVIEW_GHOST_ID) object.name = 'preview-ghost-renderable';
-    if (renderable.renderableId === APPLIED_RENDERABLE_ID) object.name = 'applied-state-renderable';
-    scene.add(object);
-    if (renderable.renderableId === sceneView.selection.selectedRenderableId) {
-      scene.add(createSelectionOutline(renderable));
-    }
-  }
+  const { scene, camera } = createProjectedScene(sceneView);
 
   renderer.render(scene, camera);
 

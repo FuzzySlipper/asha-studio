@@ -413,7 +413,7 @@
   "pickEvidence": {
     "artifactKind": "viewport_pick_hit_test_evidence",
     "readiness": "ready",
-    "proofMode": "three_raycaster_semantic_readback",
+    "proofMode": "expected_pick_contract",
     "screenPoint": {
       "x": 0.5,
       "y": 0.5,
@@ -476,6 +476,7 @@
       },
       "distance": 5.391,
       "materialRef": 1,
+      "rayHash": "ray-hash-voxel-basic-center",
       "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
     },
     "backgroundNoHit": {
@@ -491,7 +492,7 @@
     "crossChecks": {
       "selectedRenderableId": "selected-voxel:0,0,0",
       "inspectorSelectedVoxelId": "voxel:0,0,0",
-      "hierarchyNodeId": "voxel:voxel:0,0,0",
+      "hierarchyNodeId": "voxel:0,0,0",
       "timelineCommandId": "selection.voxel_from_screen_point",
       "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
     },

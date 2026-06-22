@@ -30,7 +30,7 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.equal(readback.pickEvidence.hit.outcome, 'hit');
   assert.equal(readback.pickEvidence.hit.renderableId, 'selected-voxel:0,0,0');
   assert.equal(readback.pickEvidence.hit.voxelId, 'voxel:0,0,0');
-  assert.equal(readback.pickEvidence.hit.face, 'posX');
+  assert.equal(readback.pickEvidence.hit.face, 'posZ');
   assert.equal(readback.pickEvidence.backgroundNoHit.outcome, 'no_hit');
   assert.equal(readback.pickEvidence.crossChecks.timelineCommandId, 'selection.voxel_from_screen_point');
   assert.equal(readback.pickEvidence.staleReadbackGuard.requiredCameraHash, readback.pickEvidence.cameraHash);
@@ -119,7 +119,7 @@ test('viewport 3D readback fails closed when pick camera evidence is stale', () 
   const readback = buildStudioViewport3dReadback(staleCamera);
 
   assert.equal(readback.readiness, 'failed_closed');
-  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredCameraHash, workspace.sceneView.pickEvidence.cameraHash);
+  assert.equal(workspace.sceneView.pickEvidence.staleReadbackGuard.requiredCameraHash, workspace.sceneView.pickEvidence.cameraHash);
 });
 
 test('viewport 3D readback fails closed when pick viewport evidence is stale', () => {
@@ -134,5 +134,41 @@ test('viewport 3D readback fails closed when pick viewport evidence is stale', (
   const readback = buildStudioViewport3dReadback(staleViewport);
 
   assert.equal(readback.readiness, 'failed_closed');
-  assert.equal(readback.pickEvidence.staleReadbackGuard.requiredViewportHash, workspace.sceneView.pickEvidence.viewportHash);
+  assert.equal(workspace.sceneView.pickEvidence.staleReadbackGuard.requiredViewportHash, workspace.sceneView.pickEvidence.viewportHash);
+});
+
+test('viewport 3D readback fails closed when pick inspector cross-check is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleInspector = {
+    ...workspace.sceneView,
+    pickEvidence: {
+      ...workspace.sceneView.pickEvidence,
+      crossChecks: {
+        ...workspace.sceneView.pickEvidence.crossChecks,
+        inspectorSelectedVoxelId: 'voxel:stale-inspector',
+      },
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleInspector);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.crossChecks.inspectorSelectedVoxelId, 'voxel:stale-inspector');
+});
+
+test('viewport 3D readback fails closed when pick hierarchy cross-check is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleHierarchy = {
+    ...workspace.sceneView,
+    pickEvidence: {
+      ...workspace.sceneView.pickEvidence,
+      crossChecks: {
+        ...workspace.sceneView.pickEvidence.crossChecks,
+        hierarchyNodeId: 'voxel:stale-hierarchy-node',
+      },
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleHierarchy);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.crossChecks.hierarchyNodeId, 'voxel:stale-hierarchy-node');
 });

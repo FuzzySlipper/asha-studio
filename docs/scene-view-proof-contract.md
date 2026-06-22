@@ -75,13 +75,16 @@ canonical selection hash, selected renderable, and preview ghost or report `fail
 ## Pick/hit-test evidence
 
 Task `asha#3044` extends the readback with `viewport_pick_hit_test_evidence`.
-The evidence records the selected target screen point, viewport dimensions/hash,
-camera pose/projection hash, selected hit renderable/voxel/face/normal/world point,
-and a structured background no-hit proof. The browser readback cross-checks that
-pick evidence still matches the selected target, hierarchy node, selection timeline
-command, canonical selection hash, current camera hash, and current viewport hash.
-Any mismatch reports `failed_closed` rather than allowing stale pick evidence to
-remain ready.
+The scene-view model stores the expected pick contract; the viewport readback then
+builds the same Three.js scene/camera used by the browser host and runs
+`THREE.Raycaster` against pickable renderables. The resulting evidence records the
+selected target screen point, viewport dimensions/hash, camera pose/projection
+hash, raycast hit renderable/voxel/face/normal/world point, and a structured
+background no-hit proof. The browser readback cross-checks that pick evidence
+still matches the selected target, selected-target inspector voxel, hierarchy
+selected node, selection timeline command, canonical selection hash, current camera
+hash, and current viewport hash. Any mismatch reports `failed_closed` rather than
+allowing stale pick evidence to remain ready.
 
 That distinction is the core non-claim: the scene-view model is a target proof
 contract for future renderer work; it does not claim WASM/native runtime,
