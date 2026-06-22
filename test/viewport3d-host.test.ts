@@ -30,9 +30,10 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.equal(readback.pickEvidence.hit.outcome, 'hit');
   assert.equal(readback.pickEvidence.hit.renderableId, 'selected-voxel:0,0,0');
   assert.equal(readback.pickEvidence.hit.voxelId, 'voxel:0,0,0');
-  assert.equal(readback.pickEvidence.hit.face, 'posZ');
+  assert.equal(readback.pickEvidence.hit.face, 'posX');
   assert.equal(readback.pickEvidence.backgroundNoHit.outcome, 'no_hit');
   assert.equal(readback.pickEvidence.crossChecks.timelineCommandId, 'selection.voxel_from_screen_point');
+  assert.equal(readback.pickEvidence.crossChecks.editAnchorVoxelId, 'voxel:1,0,0');
   assert.equal(readback.pickEvidence.staleReadbackGuard.requiredCameraHash, readback.pickEvidence.cameraHash);
   assert.equal(readback.pickEvidence.staleReadbackGuard.requiredViewportHash, readback.pickEvidence.viewportHash);
   assert.equal(readback.pickEvidence.staleReadbackGuard.requiredSelectionHash, readback.selectionHash);
@@ -171,4 +172,52 @@ test('viewport 3D readback fails closed when pick hierarchy cross-check is stale
 
   assert.equal(readback.readiness, 'failed_closed');
   assert.equal(readback.pickEvidence.crossChecks.hierarchyNodeId, 'voxel:stale-hierarchy-node');
+});
+
+test('viewport 3D readback fails closed when raycast face disagrees with selected face', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleFace = {
+    ...workspace.sceneView,
+    selection: {
+      ...workspace.sceneView.selection,
+      selectedFace: 'posZ',
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleFace);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.hit.face, 'posX');
+});
+
+test('viewport 3D readback fails closed when edit anchor disagrees with raycast face', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleEditAnchor = {
+    ...workspace.sceneView,
+    preview: {
+      ...workspace.sceneView.preview,
+      editAnchorVoxelId: 'voxel:0,0,1',
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleEditAnchor);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.hit.face, 'posX');
+});
+
+test('viewport 3D readback fails closed when pick edit-anchor cross-check is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleEditAnchorCrossCheck = {
+    ...workspace.sceneView,
+    pickEvidence: {
+      ...workspace.sceneView.pickEvidence,
+      crossChecks: {
+        ...workspace.sceneView.pickEvidence.crossChecks,
+        editAnchorVoxelId: 'voxel:0,0,1',
+      },
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleEditAnchorCrossCheck);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.pickEvidence.crossChecks.editAnchorVoxelId, 'voxel:0,0,1');
 });

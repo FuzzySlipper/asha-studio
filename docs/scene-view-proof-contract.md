@@ -83,8 +83,9 @@ hash, raycast hit renderable/voxel/face/normal/world point, and a structured
 background no-hit proof. The browser readback cross-checks that pick evidence
 still matches the selected target, selected-target inspector voxel, hierarchy
 selected node, selection timeline command, canonical selection hash, current camera
-hash, and current viewport hash. Any mismatch reports `failed_closed` rather than
-allowing stale pick evidence to remain ready.
+hash, current viewport hash, and the selected face/edit-anchor relationship. Any
+mismatch reports `failed_closed` rather than allowing stale pick evidence to
+remain ready.
 
 That distinction is the core non-claim: the scene-view model is a target proof
 contract for future renderer work; it does not claim WASM/native runtime,

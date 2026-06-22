@@ -170,17 +170,21 @@ function addRenderableToScene(scene: THREE.Scene, sceneView: StudioSceneViewMode
   return object;
 }
 
-function createProjectedScene(sceneView: StudioSceneViewModel): { readonly scene: THREE.Scene; readonly camera: THREE.PerspectiveCamera; readonly pickableObjects: readonly THREE.Object3D[] } {
+function createProjectedScene(sceneView: StudioSceneViewModel): { readonly scene: THREE.Scene; readonly camera: THREE.PerspectiveCamera; readonly pickableObjects: readonly THREE.Object3D[]; readonly selectionPickableObjects: readonly THREE.Object3D[] } {
   const scene = new THREE.Scene();
   const camera = createCamera(sceneView);
   addSceneLightsAndGuides(scene);
   const pickableObjects: THREE.Object3D[] = [];
+  const selectionPickableObjects: THREE.Object3D[] = [];
   for (const renderable of sceneView.renderables) {
     const object = addRenderableToScene(scene, sceneView, renderable);
-    if (object !== null && renderable.pickable) pickableObjects.push(object);
+    if (object !== null && renderable.pickable) {
+      pickableObjects.push(object);
+      if (renderable.renderableId !== APPLIED_RENDERABLE_ID) selectionPickableObjects.push(object);
+    }
   }
   scene.updateMatrixWorld(true);
-  return { scene, camera, pickableObjects };
+  return { scene, camera, pickableObjects, selectionPickableObjects };
 }
 
 function rayHashFor(args: {
@@ -207,8 +211,8 @@ function pickAt(point: { readonly x: number; readonly y: number; readonly space:
 }
 
 function createRaycasterPickEvidence(sceneView: StudioSceneViewModel, currentCameraHash: string, currentViewportHash: string): StudioSceneViewPickEvidence {
-  const { camera, pickableObjects } = createProjectedScene(sceneView);
-  const hitPick = pickAt(sceneView.selection.screenPoint, camera, pickableObjects);
+  const { camera, pickableObjects, selectionPickableObjects } = createProjectedScene(sceneView);
+  const hitPick = pickAt(sceneView.selection.screenPoint, camera, selectionPickableObjects);
   const firstHit = hitPick.intersections[0] ?? null;
   const backgroundPoint = sceneView.pickEvidence.backgroundNoHit.screenPoint;
   const backgroundPick = pickAt(backgroundPoint, camera, pickableObjects);
@@ -265,6 +269,27 @@ function expectedInspectorSelectedVoxelId(sceneView: StudioSceneViewModel): stri
   return sceneView.selection.selectedVoxelId;
 }
 
+function parseVoxelId(voxelId: string): { readonly x: number; readonly y: number; readonly z: number } | null {
+  const match = /^voxel:(-?\d+),(-?\d+),(-?\d+)$/u.exec(voxelId);
+  if (match === null) return null;
+  return { x: Number(match[1]), y: Number(match[2]), z: Number(match[3]) };
+}
+
+function editAnchorForFace(voxelId: string, face: string): string | null {
+  const voxel = parseVoxelId(voxelId);
+  if (voxel === null) return null;
+  const offset = {
+    posX: { x: 1, y: 0, z: 0 },
+    negX: { x: -1, y: 0, z: 0 },
+    posY: { x: 0, y: 1, z: 0 },
+    negY: { x: 0, y: -1, z: 0 },
+    posZ: { x: 0, y: 0, z: 1 },
+    negZ: { x: 0, y: 0, z: -1 },
+  }[face];
+  if (offset === undefined) return null;
+  return `voxel:${voxel.x + offset.x},${voxel.y + offset.y},${voxel.z + offset.z}`;
+}
+
 export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): StudioViewport3dReadback {
   const renderables = sceneView.renderables.map((renderable) => ({
     renderableId: renderable.renderableId,
@@ -292,6 +317,10 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
   const currentCameraHash = calculateStudioSceneViewCameraHash(sceneView.camera);
   const currentViewportHash = calculateStudioSceneViewViewportHash(sceneView.viewport);
   const actualPickEvidence = createRaycasterPickEvidence(sceneView, currentCameraHash, currentViewportHash);
+  const expectedEditAnchor = editAnchorForFace(sceneView.selection.selectedVoxelId, actualPickEvidence.hit.face);
+  const selectedFaceReady = actualPickEvidence.hit.face === sceneView.selection.selectedFace
+    && expectedEditAnchor !== null
+    && expectedEditAnchor === sceneView.preview.editAnchorVoxelId;
   const pickReady = sceneView.pickEvidence.readiness === 'ready'
     && sceneView.pickEvidence.staleReadbackGuard.requiredCameraHash === currentCameraHash
     && sceneView.pickEvidence.staleReadbackGuard.requiredCameraProjectionHash === sceneView.selection.cameraProjectionHash
@@ -310,16 +339,19 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     && actualPickEvidence.staleReadbackGuard.requiredNoHitRayHash === actualPickEvidence.backgroundNoHit.rayHash
     && actualPickEvidence.hit.renderableId === selectedRenderableId
     && actualPickEvidence.hit.voxelId === sceneView.selection.selectedVoxelId
+    && selectedFaceReady
     && actualPickEvidence.hit.selectionHash === sceneView.selection.selectionHash
     && actualPickEvidence.backgroundNoHit.outcome === 'no_hit'
     && sceneView.pickEvidence.crossChecks.selectedRenderableId === selectedRenderableId
     && sceneView.pickEvidence.crossChecks.inspectorSelectedVoxelId === expectedInspectorSelectedVoxelId(sceneView)
     && sceneView.pickEvidence.crossChecks.hierarchyNodeId === expectedHierarchyNodeId(sceneView)
+    && sceneView.pickEvidence.crossChecks.editAnchorVoxelId === sceneView.preview.editAnchorVoxelId
     && sceneView.pickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point'
     && sceneView.pickEvidence.crossChecks.selectionHash === sceneView.selection.selectionHash
     && actualPickEvidence.crossChecks.selectedRenderableId === selectedRenderableId
     && actualPickEvidence.crossChecks.inspectorSelectedVoxelId === expectedInspectorSelectedVoxelId(sceneView)
     && actualPickEvidence.crossChecks.hierarchyNodeId === expectedHierarchyNodeId(sceneView)
+    && actualPickEvidence.crossChecks.editAnchorVoxelId === sceneView.preview.editAnchorVoxelId
     && actualPickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point'
     && actualPickEvidence.crossChecks.selectionHash === sceneView.selection.selectionHash;
   const readiness = visibleRenderableCount > 0 && selectedRenderableId !== null && previewGhostId !== null && appliedRenderableId !== null && interactionReady && pickReady ? 'ready' : 'failed_closed';

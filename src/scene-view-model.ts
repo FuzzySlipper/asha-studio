@@ -171,6 +171,7 @@ export interface StudioSceneViewPickEvidence {
     readonly selectedRenderableId: string;
     readonly inspectorSelectedVoxelId: string;
     readonly hierarchyNodeId: string;
+    readonly editAnchorVoxelId: string;
     readonly timelineCommandId: 'selection.voxel_from_screen_point';
     readonly selectionHash: string;
   };
@@ -350,6 +351,7 @@ function createPickEvidence(args: {
       selectedRenderableId: args.selection.selectedRenderableId,
       inspectorSelectedVoxelId: args.selection.selectedVoxelId,
       hierarchyNodeId: `voxel:${args.selection.selectedVoxelId.replace(/^voxel:/u, '')}`,
+      editAnchorVoxelId: `voxel:${args.selection.expectedWorldPoint.x + 1},${args.selection.expectedWorldPoint.y},${args.selection.expectedWorldPoint.z}`,
       timelineCommandId: 'selection.voxel_from_screen_point',
       selectionHash: args.selection.selectionHash,
     },
@@ -494,7 +496,7 @@ export function createStudioSceneViewModel(options: {
     controlMode: 'orbit_reference',
   };
   const camera = cloneCameraWithPose(cameraBefore, {
-    position: { x: 3.25, y: 2.75, z: 4.25 },
+    position: { x: 4.25, y: 0.75, z: 1.5 },
     target: { x: 0.5, y: 0.5, z: 0.5 },
     up: { x: 0, y: 1, z: 0 },
   });

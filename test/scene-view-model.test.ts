@@ -28,7 +28,7 @@ test('scene-view model defines deterministic camera, viewport, renderables, and 
     devicePixelRatio: 1,
     coordinateSpace: 'screen_px_and_normalized_pick_points',
   });
-  assert.deepEqual(sceneView.camera.pose.position, { x: 3.25, y: 2.75, z: 4.25 });
+  assert.deepEqual(sceneView.camera.pose.position, { x: 4.25, y: 0.75, z: 1.5 });
   assert.deepEqual(sceneView.camera.pose.target, { x: 0.5, y: 0.5, z: 0.5 });
   assert.equal(sceneView.camera.projection.kind, 'perspective');
   assert.equal(sceneView.camera.projection.projectionHash, workspace.voxelWorkflow.selection.pickRay.cameraProjectionHash);

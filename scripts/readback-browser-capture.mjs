@@ -89,7 +89,7 @@ if (artifact.viewport3d.pickEvidence.sourceTimelineCommandId !== 'selection.voxe
 if (artifact.viewport3d.pickEvidence.hit?.outcome !== 'hit') fail('viewport3d positive pick did not record a hit');
 if (artifact.viewport3d.pickEvidence.hit.renderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d pick hit renderable mismatch');
 if (artifact.viewport3d.pickEvidence.hit.voxelId !== 'voxel:0,0,0') fail('viewport3d pick hit voxel mismatch');
-if (artifact.viewport3d.pickEvidence.hit.face !== 'posZ') fail('viewport3d pick hit face mismatch');
+if (artifact.viewport3d.pickEvidence.hit.face !== 'posX') fail('viewport3d pick hit face mismatch');
 if (artifact.viewport3d.pickEvidence.hit.selectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d pick hit selection hash mismatch');
 if (typeof artifact.viewport3d.pickEvidence.hit.rayHash !== 'string' || !artifact.viewport3d.pickEvidence.hit.rayHash.startsWith('pick-ray-fnv1a-')) fail('viewport3d pick hit ray hash missing');
 if (artifact.viewport3d.pickEvidence.backgroundNoHit?.outcome !== 'no_hit') fail('viewport3d background pick must record a no-hit result');
@@ -97,6 +97,7 @@ if (artifact.viewport3d.pickEvidence.backgroundNoHit.reason !== 'background_poin
 if (artifact.viewport3d.pickEvidence.crossChecks?.selectedRenderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d pick cross-check selected renderable mismatch');
 if (artifact.viewport3d.pickEvidence.crossChecks?.inspectorSelectedVoxelId !== 'voxel:0,0,0') fail('viewport3d pick cross-check inspector selected voxel mismatch');
 if (artifact.viewport3d.pickEvidence.crossChecks?.hierarchyNodeId !== 'voxel:0,0,0') fail('viewport3d pick cross-check hierarchy node mismatch');
+if (artifact.viewport3d.pickEvidence.crossChecks?.editAnchorVoxelId !== 'voxel:1,0,0') fail('viewport3d pick cross-check edit anchor mismatch');
 if (artifact.viewport3d.pickEvidence.crossChecks?.selectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d pick cross-check selection hash mismatch');
 if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredCameraHash !== artifact.viewport3d.pickEvidence.cameraHash) fail('viewport3d pick camera stale-readback guard mismatch');
 if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredViewportHash !== artifact.viewport3d.pickEvidence.viewportHash) fail('viewport3d pick viewport stale-readback guard mismatch');

@@ -65,7 +65,7 @@ interface Viewport3dReadbackArtifact {
     readonly sourceTimelineSequenceId: string;
     readonly hit: { readonly outcome: 'hit'; readonly renderableId: string; readonly voxelId: string; readonly face: string; readonly normal: { readonly x: number; readonly y: number; readonly z: number }; readonly rayHash: string; readonly selectionHash: string };
     readonly backgroundNoHit: { readonly outcome: 'no_hit'; readonly reason: 'background_point_misses_pickable_renderables'; readonly rayHash: string };
-    readonly crossChecks: { readonly selectedRenderableId: string; readonly inspectorSelectedVoxelId: string; readonly hierarchyNodeId: string; readonly timelineCommandId: 'selection.voxel_from_screen_point'; readonly selectionHash: string };
+    readonly crossChecks: { readonly selectedRenderableId: string; readonly inspectorSelectedVoxelId: string; readonly hierarchyNodeId: string; readonly editAnchorVoxelId: string; readonly timelineCommandId: 'selection.voxel_from_screen_point'; readonly selectionHash: string };
     readonly staleReadbackGuard: { readonly requiredCameraHash: string; readonly requiredCameraProjectionHash: string; readonly requiredViewportHash: string; readonly requiredSelectionHash: string; readonly requiredHitRenderableId: string; readonly requiredNoHitRayHash: string; readonly mismatchPolicy: 'failed_closed' };
   };
   readonly limitations: readonly string[];
@@ -387,12 +387,14 @@ async function main(): Promise<void> {
     && viewport3d.pickEvidence.artifactKind === 'viewport_pick_hit_test_evidence'
     && viewport3d.pickEvidence.hit.outcome === 'hit'
     && viewport3d.pickEvidence.hit.renderableId === viewport3d.selectedRenderableId
+    && viewport3d.pickEvidence.hit.face === 'posX'
     && viewport3d.pickEvidence.hit.selectionHash === viewport3d.selectionHash
     && viewport3d.pickEvidence.backgroundNoHit.outcome === 'no_hit'
     && viewport3d.pickEvidence.backgroundNoHit.reason === 'background_point_misses_pickable_renderables'
     && viewport3d.pickEvidence.crossChecks.selectedRenderableId === viewport3d.selectedRenderableId
     && viewport3d.pickEvidence.crossChecks.inspectorSelectedVoxelId === 'voxel:0,0,0'
     && viewport3d.pickEvidence.crossChecks.hierarchyNodeId === 'voxel:0,0,0'
+    && viewport3d.pickEvidence.crossChecks.editAnchorVoxelId === 'voxel:1,0,0'
     && viewport3d.pickEvidence.crossChecks.timelineCommandId === 'selection.voxel_from_screen_point'
     && viewport3d.pickEvidence.crossChecks.selectionHash === viewport3d.selectionHash
     && viewport3d.pickEvidence.staleReadbackGuard.requiredCameraHash === viewport3d.pickEvidence.cameraHash

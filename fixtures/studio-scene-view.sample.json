@@ -17,9 +17,9 @@
     "cameraId": "studio-camera-main",
     "pose": {
       "position": {
-        "x": 3.25,
-        "y": 2.75,
-        "z": 4.25
+        "x": 4.25,
+        "y": 0.75,
+        "z": 1.5
       },
       "target": {
         "x": 0.5,
@@ -79,9 +79,9 @@
       "cameraId": "studio-camera-main",
       "pose": {
         "position": {
-          "x": 3.25,
-          "y": 2.75,
-          "z": 4.25
+          "x": 4.25,
+          "y": 0.75,
+          "z": 1.5
         },
         "target": {
           "x": 0.5,
@@ -114,7 +114,7 @@
         "voxel_brush"
       ],
       "cameraBeforeHash": "camera-fnv1a-9bed7fb9",
-      "cameraAfterHash": "camera-fnv1a-6f454017",
+      "cameraAfterHash": "camera-fnv1a-1f575cfb",
       "cameraChanged": true,
       "toolBefore": "select",
       "toolAfter": "voxel_brush",
@@ -127,7 +127,7 @@
         "commandId": "inspection.editor_state",
         "sequenceId": "seq-0004",
         "beforeCameraHash": "camera-fnv1a-9bed7fb9",
-        "afterCameraHash": "camera-fnv1a-6f454017",
+        "afterCameraHash": "camera-fnv1a-1f575cfb",
         "beforeTool": "select",
         "afterTool": "frame",
         "selectedRenderableId": "selected-voxel:0,0,0",
@@ -139,8 +139,8 @@
         "actor": "agent",
         "commandId": "selection.voxel_from_screen_point",
         "sequenceId": "seq-0006",
-        "beforeCameraHash": "camera-fnv1a-6f454017",
-        "afterCameraHash": "camera-fnv1a-6f454017",
+        "beforeCameraHash": "camera-fnv1a-1f575cfb",
+        "afterCameraHash": "camera-fnv1a-1f575cfb",
         "beforeTool": "frame",
         "afterTool": "select",
         "selectedRenderableId": "selected-voxel:0,0,0",
@@ -152,8 +152,8 @@
         "actor": "gui",
         "commandId": "preview.voxel_brush",
         "sequenceId": "seq-0007",
-        "beforeCameraHash": "camera-fnv1a-6f454017",
-        "afterCameraHash": "camera-fnv1a-6f454017",
+        "beforeCameraHash": "camera-fnv1a-1f575cfb",
+        "afterCameraHash": "camera-fnv1a-1f575cfb",
         "beforeTool": "select",
         "afterTool": "voxel_brush",
         "selectedRenderableId": "selected-voxel:0,0,0",
@@ -173,7 +173,7 @@
     "selectedRenderableId": "selected-voxel:0,0,0",
     "hierarchyInspectorSelectionSource": "scene_view.selection.selectedRenderableId",
     "staleReadbackGuard": {
-      "requiredCameraAfterHash": "camera-fnv1a-6f454017",
+      "requiredCameraAfterHash": "camera-fnv1a-1f575cfb",
       "requiredSelectionHash": "selection-hash-voxel-basic-0-0-0-posX",
       "requiredPreviewGhostId": "preview-ghost:1,0,0",
       "mismatchPolicy": "failed_closed"
@@ -430,9 +430,9 @@
       "cameraId": "studio-camera-main",
       "pose": {
         "position": {
-          "x": 3.25,
-          "y": 2.75,
-          "z": 4.25
+          "x": 4.25,
+          "y": 0.75,
+          "z": 1.5
         },
         "target": {
           "x": 0.5,
@@ -455,7 +455,7 @@
       },
       "controlMode": "orbit_reference"
     },
-    "cameraHash": "camera-fnv1a-6f454017",
+    "cameraHash": "camera-fnv1a-1f575cfb",
     "cameraProjectionHash": "projection-hash-voxel-basic",
     "sourceTimelineCommandId": "selection.voxel_from_screen_point",
     "sourceTimelineSequenceId": "seq-0006",
@@ -487,22 +487,23 @@
         "space": "normalized_0_1"
       },
       "reason": "background_point_misses_pickable_renderables",
-      "rayHash": "pick-ray-fnv1a-8ba5aef4"
+      "rayHash": "pick-ray-fnv1a-42477370"
     },
     "crossChecks": {
       "selectedRenderableId": "selected-voxel:0,0,0",
       "inspectorSelectedVoxelId": "voxel:0,0,0",
       "hierarchyNodeId": "voxel:0,0,0",
+      "editAnchorVoxelId": "voxel:1,0,0",
       "timelineCommandId": "selection.voxel_from_screen_point",
       "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
     },
     "staleReadbackGuard": {
-      "requiredCameraHash": "camera-fnv1a-6f454017",
+      "requiredCameraHash": "camera-fnv1a-1f575cfb",
       "requiredCameraProjectionHash": "projection-hash-voxel-basic",
       "requiredViewportHash": "viewport-fnv1a-2feabcdc",
       "requiredSelectionHash": "selection-hash-voxel-basic-0-0-0-posX",
       "requiredHitRenderableId": "selected-voxel:0,0,0",
-      "requiredNoHitRayHash": "pick-ray-fnv1a-8ba5aef4",
+      "requiredNoHitRayHash": "pick-ray-fnv1a-42477370",
       "mismatchPolicy": "failed_closed"
     }
   },
@@ -527,7 +528,7 @@
       "expectedVoxelId": "voxel:0,0,0",
       "rayHash": "ray-hash-voxel-basic-center",
       "viewportHash": "viewport-fnv1a-2feabcdc",
-      "cameraHash": "camera-fnv1a-6f454017"
+      "cameraHash": "camera-fnv1a-1f575cfb"
     },
     {
       "id": "pick:background-no-hit",
@@ -539,9 +540,9 @@
       "expectedOutcome": "no_hit",
       "expectedRenderableId": null,
       "expectedVoxelId": null,
-      "rayHash": "pick-ray-fnv1a-8ba5aef4",
+      "rayHash": "pick-ray-fnv1a-42477370",
       "viewportHash": "viewport-fnv1a-2feabcdc",
-      "cameraHash": "camera-fnv1a-6f454017"
+      "cameraHash": "camera-fnv1a-1f575cfb"
     }
   ],
   "hashes": {
@@ -549,7 +550,7 @@
     "authorityAfterHash": "grid-fnv1a-8eb9594b",
     "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
     "renderAfterHash": "render-grid-fnv1a-8eb9594b",
-    "sceneViewHash": "scene-view-fnv1a-2e9369b3",
+    "sceneViewHash": "scene-view-fnv1a-9214a97f",
     "stateLinkage": "authority_before_to_preview_to_authority_after",
     "distinction": "rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs"
   },
