@@ -79,6 +79,7 @@ if (artifact.viewport3d.interactionProof.toolState?.cameraChanged !== true) fail
 if (artifact.viewport3d.interactionProof.toolState.cameraBeforeHash === artifact.viewport3d.interactionProof.toolState.cameraAfterHash) fail('viewport3d camera hashes did not change');
 if (artifact.viewport3d.interactionProof.toolState.cameraAfterHash !== artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredCameraAfterHash) fail('viewport3d camera stale-readback guard is mismatched');
 if (artifact.viewport3d.interactionProof.selectedRenderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d interaction selected renderable does not match scene readback');
+if (artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredSelectionHash !== artifact.viewport3d.selectionHash) fail('viewport3d selection stale-readback guard is mismatched');
 if (artifact.viewport3d.interactionProof.staleReadbackGuard?.requiredPreviewGhostId !== artifact.viewport3d.previewGhostId) fail('viewport3d preview ghost stale-readback guard is mismatched');
 if (artifact.viewport3d.interactionProof.staleReadbackGuard?.mismatchPolicy !== 'failed_closed') fail('viewport3d interaction mismatch policy must fail closed');
 const interactionActionIds = new Set(artifact.viewport3d.interactionProof.scriptedActions?.map((action) => action.actionId) ?? []);

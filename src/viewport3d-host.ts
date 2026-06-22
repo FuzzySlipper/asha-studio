@@ -30,6 +30,7 @@ export interface StudioViewport3dReadback {
   readonly dependencyDecision: 'direct_three_local_browser_projection_dependency';
   readonly visibleRenderableCount: number;
   readonly selectedRenderableId: string | null;
+  readonly selectionHash: string;
   readonly previewGhostId: string | null;
   readonly appliedRenderableId: string | null;
   readonly interactionProof: StudioSceneViewInteractionProof;
@@ -123,7 +124,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     && sceneView.interactionProof.toolState.cameraChanged
     && sceneView.interactionProof.toolState.cameraAfterHash === sceneView.interactionProof.staleReadbackGuard.requiredCameraAfterHash
     && sceneView.interactionProof.selectedRenderableId === sceneView.selection.selectedRenderableId
-    && sceneView.interactionProof.staleReadbackGuard.requiredSelectionHash.length > 0
+    && sceneView.interactionProof.staleReadbackGuard.requiredSelectionHash === sceneView.selection.selectionHash
     && sceneView.interactionProof.staleReadbackGuard.requiredPreviewGhostId === sceneView.preview.previewGhostId
     && sceneView.interactionProof.scriptedActions.length === 3
     && sceneView.interactionProof.actorOrigins.includes('gui')
@@ -141,6 +142,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     dependencyDecision: 'direct_three_local_browser_projection_dependency',
     visibleRenderableCount,
     selectedRenderableId,
+    selectionHash: sceneView.selection.selectionHash,
     previewGhostId,
     appliedRenderableId,
     interactionProof: sceneView.interactionProof,
@@ -241,7 +243,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel): HTM
 
   const summary = document.createElement('p');
   summary.className = 'viewport-3d-semantic-readback';
-  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}`;
+  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; selectionHash ${readback.selectionHash}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}`;
   host.append(summary);
 
   return host;

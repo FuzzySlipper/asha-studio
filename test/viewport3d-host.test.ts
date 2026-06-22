@@ -18,6 +18,7 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.equal(readback.dependencyDecision, 'direct_three_local_browser_projection_dependency');
   assert.equal(readback.visibleRenderableCount, 5);
   assert.equal(readback.selectedRenderableId, 'selected-voxel:0,0,0');
+  assert.equal(readback.selectionHash, workspace.sceneView.selection.selectionHash);
   assert.equal(readback.previewGhostId, 'preview-ghost:1,0,0');
   assert.equal(readback.appliedRenderableId, 'applied-voxel:1,0,0');
   assert.equal(readback.interactionProof.readiness, 'ready');
@@ -67,4 +68,23 @@ test('viewport 3D readback fails closed when camera or selection interaction pro
   assert.equal(readback.readiness, 'failed_closed');
   assert.equal(readback.selectedRenderableId, 'selected-voxel:0,0,0');
   assert.equal(readback.interactionProof.staleReadbackGuard.mismatchPolicy, 'failed_closed');
+});
+
+test('viewport 3D readback fails closed when only the required selection hash is stale', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleSelectionHash = {
+    ...workspace.sceneView,
+    interactionProof: {
+      ...workspace.sceneView.interactionProof,
+      staleReadbackGuard: {
+        ...workspace.sceneView.interactionProof.staleReadbackGuard,
+        requiredSelectionHash: 'selection-hash-stale',
+      },
+    },
+  };
+  const readback = buildStudioViewport3dReadback(staleSelectionHash);
+
+  assert.equal(readback.readiness, 'failed_closed');
+  assert.equal(readback.selectionHash, workspace.sceneView.selection.selectionHash);
+  assert.equal(readback.interactionProof.staleReadbackGuard.requiredSelectionHash, 'selection-hash-stale');
 });

@@ -407,6 +407,7 @@
       "z": 0
     },
     "pickRayHash": "ray-hash-voxel-basic-center",
+    "selectionHash": "selection-hash-voxel-basic-0-0-0-posX",
     "cameraProjectionHash": "projection-hash-voxel-basic"
   },
   "preview": {

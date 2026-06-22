@@ -113,6 +113,7 @@ export interface StudioSceneViewSelectionProof {
   readonly screenPoint: { readonly x: number; readonly y: number; readonly space: 'normalized_0_1' };
   readonly expectedWorldPoint: StudioSceneViewVec3;
   readonly pickRayHash: string;
+  readonly selectionHash: string;
   readonly cameraProjectionHash: string;
 }
 
@@ -445,6 +446,7 @@ export function createStudioSceneViewModel(options: {
     screenPoint: pickScreenPoint,
     expectedWorldPoint: selectedVoxel,
     pickRayHash: voxelWorkflow.selection.pickRay.rayHash,
+    selectionHash: voxelWorkflow.selection.selectionHash,
     cameraProjectionHash: voxelWorkflow.selection.pickRay.cameraProjectionHash,
   };
   const interactionProof = createInteractionProof({

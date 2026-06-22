@@ -30,7 +30,8 @@ The model includes:
   transforms, bounds, render hashes, visibility, and pickability (including
   selected voxel, editor-local preview ghost, and applied authority-state voxel);
 - `selection` proof with selected voxel/object IDs, selected renderable, pick
-  screen point, expected world point, pick-ray hash, and camera projection hash;
+  screen point, expected world point, pick-ray hash, canonical selection hash,
+  and camera projection hash;
 - `preview` proof with preview ghost ID, edit anchor, material ref, and explicit
   editor-local authority state;
 - `expectedPickPoints` for deterministic picker-readback tests;
@@ -65,7 +66,7 @@ camera/tool interaction proof. The readout records a GUI-originated
 `preview.voxel_brush` action in the same shared command timeline used by the rest
 of Studio. `interactionProof.toolState` carries active tool and camera-before / camera-after
 hashes; `staleReadbackGuard` requires the browser readback to match the camera,
-selected renderable, and preview ghost or report `failed_closed`.
+canonical selection hash, selected renderable, and preview ghost or report `failed_closed`.
 
 That distinction is the core non-claim: the scene-view model is a target proof
 contract for future renderer work; it does not claim WASM/native runtime,

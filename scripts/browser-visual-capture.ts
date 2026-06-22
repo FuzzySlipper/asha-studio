@@ -36,6 +36,7 @@ interface Viewport3dReadbackArtifact {
   readonly canvasMarker: 'studio-3d-webgl-canvas';
   readonly visibleRenderableCount: number;
   readonly selectedRenderableId: string | null;
+  readonly selectionHash: string;
   readonly previewGhostId: string | null;
   readonly appliedRenderableId: string | null;
   readonly dependencyDecision: 'direct_three_local_browser_projection_dependency';
@@ -51,7 +52,7 @@ interface Viewport3dReadbackArtifact {
     readonly scriptedActions: readonly { readonly actionId: string; readonly actor: 'gui' | 'agent'; readonly sequenceId: string }[];
     readonly actorOrigins: readonly ('gui' | 'agent')[];
     readonly selectedRenderableId: string;
-    readonly staleReadbackGuard: { readonly requiredCameraAfterHash: string; readonly requiredPreviewGhostId: string; readonly mismatchPolicy: 'failed_closed' };
+    readonly staleReadbackGuard: { readonly requiredCameraAfterHash: string; readonly requiredSelectionHash: string; readonly requiredPreviewGhostId: string; readonly mismatchPolicy: 'failed_closed' };
   };
   readonly limitations: readonly string[];
 }
@@ -362,6 +363,7 @@ async function main(): Promise<void> {
     && viewport3d.interactionProof.toolState.cameraBeforeHash !== viewport3d.interactionProof.toolState.cameraAfterHash
     && viewport3d.interactionProof.toolState.cameraAfterHash === viewport3d.interactionProof.staleReadbackGuard.requiredCameraAfterHash
     && viewport3d.interactionProof.selectedRenderableId === viewport3d.selectedRenderableId
+    && viewport3d.interactionProof.staleReadbackGuard.requiredSelectionHash === viewport3d.selectionHash
     && viewport3d.interactionProof.staleReadbackGuard.requiredPreviewGhostId === viewport3d.previewGhostId
     && viewport3d.interactionProof.staleReadbackGuard.mismatchPolicy === 'failed_closed'
     && viewport3d.interactionProof.scriptedActions.length === 3
