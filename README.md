@@ -31,6 +31,7 @@ pnpm run verify
 pnpm run proof:v1
 pnpm run proof:browser
 pnpm run proof:visual-contract
+pnpm run proof:visual-capability
 ```
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
@@ -166,6 +167,23 @@ Generated checked-in handles:
 
 The candidate includes canonical `data-visual-id` / `data-visual-role` evidence for `scene_hierarchy`, `central_3d_viewport`, `selected_target_inspector`, `command_timeline`, `evidence_dock`, limitation labels, `selection_outline`, `preview_ghost`, `axis_gizmo`, and applied/preview state markers. The negative smoke removes `selected_target_inspector` and undersizes `central_3d_viewport`; readback requires the visual-contract report to fail closed with those diagnostics. This is browser layout/affordance evidence only and complements, but does not replace, scene/camera/pick/readback proof.
 
+## Visual capability proof
+
+Task `asha#3046` consolidates the prior browser, Three.js readback, pick, visual-delta, command/hash, and deployed visual-contract evidence into a single reviewer-facing proof:
+
+```bash
+pnpm run proof:visual-capability
+```
+
+The command regenerates `proof:browser`, regenerates `proof:visual-contract` against the deployed service on `den-srv`, then writes:
+
+- `artifacts/visual-capability/latest/index.json` — reproducible generated proof artifact;
+- `fixtures/studio-visual-capability-proof.sample.json` — checked-in sample readback used by tests.
+
+The proof groups diagnostics by capability: scene/camera/renderable readback, viewport pick/hit-test, before/after visual-delta crops, visual-contract layout/affordance comparison, command/authority/render-hash correlation, and explicit non-claim limitations. It also records fail-closed negative smokes for missing scene readback, missing pick evidence, stale visual deltas, missing/failed visual-contract proof, and unsupported GPU/native evidence claims.
+
+This is still agent-observable browser/reference/layout evidence. It intentionally does not claim Rust/WASM authority execution, native runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance evidence.
+
 ## End-to-end V1 proof
 
 A reviewer can run the complete V1 visual edit proof with one command:
@@ -193,12 +211,14 @@ pnpm run test
 pnpm run build
 pnpm run smoke:static
 pnpm run proof:browser
+pnpm run proof:visual-contract
+pnpm run proof:visual-capability
 git diff --check
 ```
 
 ## Known limitations
 
-- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; shared GUI/agent command timeline; visible viewport editor panel; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
+- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; shared GUI/agent command timeline; visible viewport editor panel; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; deployed-service `pnpm run proof:visual-contract`; consolidated reviewer-facing `pnpm run proof:visual-capability`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
 - Still mock/reference/deferred: native/WASM runtime-bridge execution in Studio, durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, and performance evidence.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.

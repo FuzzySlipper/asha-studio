@@ -13,6 +13,7 @@
     "proof:v1": "pnpm run verify && tsx scripts/v1-proof.ts && node scripts/readback-v1-proof.mjs",
     "proof:browser": "pnpm run proof:v1 && tsx scripts/browser-visual-capture.ts && node scripts/readback-browser-capture.mjs",
     "proof:visual-contract": "pnpm run build && tsx scripts/visual-contract-candidate.ts && node scripts/readback-visual-contract-candidate.mjs",
+    "proof:visual-capability": "pnpm run proof:browser && pnpm run proof:visual-contract && tsx scripts/visual-capability-proof.ts && node scripts/readback-visual-capability-proof.mjs",
     "verify": "pnpm run check:boundaries && pnpm run test && pnpm run build && pnpm run smoke:static"
   },
   "dependencies": {
@@ -29,7 +30,7 @@
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 3123,
+    "task": 3046,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -42,6 +43,7 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
+      "Task 3046 consolidates scene/readback, pick, visual-delta crop, command/hash correlation, deployed visual-contract layout evidence, and non-claim guardrails into one agent-facing visual capability proof; it remains browser/reference/layout evidence only and does not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
       "Task 3123 adds ASHA visual-contract candidate markers and proof generation for browser layout/affordance evidence only; visual-contract passes do not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
       "Task 3045 adds viewport visual delta/crop proof with same-region edit-anchor crops sourced from distinct before/after viewport phase screenshots, before/after scene and crop hashes, linked command/source-state IDs, and stale-readback fail-closed guards.",
       "Task 3044 adds viewport pick/hit-test evidence with positive selected-target hit readback, structured background no-hit evidence, timeline/selection cross-checks, and camera/viewport stale-readback fail-closed guards.",

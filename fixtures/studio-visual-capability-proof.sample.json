@@ -1,0 +1,513 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "studio_visual_capability_proof",
+  "taskId": 3046,
+  "readiness": "ready",
+  "generatedAtIso": "2026-06-23T08:40:18.967Z",
+  "proofCommand": "pnpm run proof:visual-capability",
+  "inputArtifacts": {
+    "browserCapture": {
+      "path": "artifacts/browser-capture/latest/index.json",
+      "sha256": "sha256-1a2e5bc96254da9031ecacc0789dad197f4cc4b04982ca102a6c7913f60f2c88",
+      "artifactKind": "browser_visual_capture_proof"
+    },
+    "visualContract": {
+      "path": "fixtures/visual-contract/asha-studio-current.proof.json",
+      "sha256": "sha256-a6354f8dc470050364a6228c26c672762b4d96ed82b682cf520e6d9791dafe6f",
+      "artifactKind": "asha_studio_current_visual_contract_proof"
+    }
+  },
+  "summary": {
+    "renderedObjectIds": [
+      "terrain-test-grid",
+      "selected-voxel:0,0,0",
+      "preview-ghost:1,0,0",
+      "applied-voxel:1,0,0",
+      "model-preview-crate"
+    ],
+    "visibleRenderableCount": 5,
+    "selectedObject": "selected-voxel:0,0,0",
+    "previewObject": "preview-ghost:1,0,0",
+    "appliedObject": "applied-voxel:1,0,0",
+    "beforeRenderHash": "render-grid-fnv1a-cc815eb0",
+    "afterRenderHash": "render-grid-fnv1a-8eb9594b",
+    "beforeCropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-before-crop.png",
+    "afterCropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-after-crop.png",
+    "visualContractRunIds": [
+      "a4d58a1c2084221b16ed2fa3",
+      "f6a5cc8aa3f81ab7d0b611a6"
+    ],
+    "nonClaims": [
+      "not_native_runtime",
+      "not_wasm_authority",
+      "not_agora_compositor",
+      "not_hardware_gpu",
+      "not_performance_evidence"
+    ]
+  },
+  "capabilityGroups": [
+    {
+      "groupId": "scene_readback",
+      "label": "Scene/camera/renderable readback",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "sceneId": "scene-view:voxel-basic:v1",
+        "cameraId": "studio-camera-main",
+        "projectionAuthority": "browser_projection_reference",
+        "camera": {
+          "activeTool": "voxel_brush",
+          "beforeHash": "camera-fnv1a-9bed7fb9",
+          "afterHash": "camera-fnv1a-1f575cfb",
+          "changed": true
+        },
+        "renderedObjects": [
+          {
+            "renderableId": "terrain-test-grid",
+            "kind": "voxel_grid",
+            "sourceState": "authoritative_rust_state",
+            "visible": true,
+            "pickable": true,
+            "materialRef": null,
+            "meshRef": null,
+            "renderHash": "render-grid-fnv1a-cc815eb0"
+          },
+          {
+            "renderableId": "selected-voxel:0,0,0",
+            "kind": "voxel_cell",
+            "sourceState": "authoritative_rust_state",
+            "visible": true,
+            "pickable": true,
+            "materialRef": 1,
+            "meshRef": null,
+            "renderHash": "render-grid-fnv1a-cc815eb0"
+          },
+          {
+            "renderableId": "preview-ghost:1,0,0",
+            "kind": "preview_ghost",
+            "sourceState": "editor_preview_state",
+            "visible": true,
+            "pickable": false,
+            "materialRef": 1,
+            "meshRef": null,
+            "renderHash": "render-grid-fnv1a-cc815eb0"
+          },
+          {
+            "renderableId": "applied-voxel:1,0,0",
+            "kind": "voxel_cell",
+            "sourceState": "authoritative_rust_state",
+            "visible": true,
+            "pickable": true,
+            "materialRef": 1,
+            "meshRef": null,
+            "renderHash": "render-grid-fnv1a-8eb9594b"
+          },
+          {
+            "renderableId": "model-preview-crate",
+            "kind": "static_mesh",
+            "sourceState": "browser_projection_reference",
+            "visible": true,
+            "pickable": false,
+            "materialRef": "material/studio-brushed-copper",
+            "meshRef": "mesh/studio-preview-crate",
+            "renderHash": "model-material-preview-9b49b69b"
+          }
+        ],
+        "visibleRenderableCount": 5,
+        "selectedRenderableId": "selected-voxel:0,0,0",
+        "previewGhostId": "preview-ghost:1,0,0",
+        "appliedRenderableId": "applied-voxel:1,0,0",
+        "selectionHash": "selection-hash-voxel-basic-0-0-0-posX",
+        "interactionActions": [
+          {
+            "actionId": "gui.frame_selected_target",
+            "actor": "gui",
+            "commandId": "inspection.editor_state",
+            "sequenceId": "seq-0004",
+            "beforeCameraHash": "camera-fnv1a-9bed7fb9",
+            "afterCameraHash": "camera-fnv1a-1f575cfb",
+            "beforeTool": "select",
+            "afterTool": "frame",
+            "selectedRenderableId": "selected-voxel:0,0,0",
+            "previewGhostId": null,
+            "summary": "GUI-visible frame action records camera-before/camera-after evidence through the shared editor-state timeline entry."
+          },
+          {
+            "actionId": "agent.select_visible_voxel",
+            "actor": "agent",
+            "commandId": "selection.voxel_from_screen_point",
+            "sequenceId": "seq-0006",
+            "beforeCameraHash": "camera-fnv1a-1f575cfb",
+            "afterCameraHash": "camera-fnv1a-1f575cfb",
+            "beforeTool": "frame",
+            "afterTool": "select",
+            "selectedRenderableId": "selected-voxel:0,0,0",
+            "previewGhostId": null,
+            "summary": "Agent-originated screen-point selection uses the public selection command and updates the same selected renderable readout."
+          },
+          {
+            "actionId": "gui.toggle_preview_ghost",
+            "actor": "gui",
+            "commandId": "preview.voxel_brush",
+            "sequenceId": "seq-0007",
+            "beforeCameraHash": "camera-fnv1a-1f575cfb",
+            "afterCameraHash": "camera-fnv1a-1f575cfb",
+            "beforeTool": "select",
+            "afterTool": "voxel_brush",
+            "selectedRenderableId": "selected-voxel:0,0,0",
+            "previewGhostId": "preview-ghost:1,0,0",
+            "summary": "GUI-originated voxel brush preview toggles the editor-local ghost without mutating authority."
+          }
+        ]
+      }
+    },
+    {
+      "groupId": "pick",
+      "label": "Viewport pick/hit-test evidence",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "sourceTimelineCommandId": "selection.voxel_from_screen_point",
+        "sourceTimelineSequenceId": "seq-0006",
+        "cameraHash": "camera-fnv1a-1f575cfb",
+        "cameraProjectionHash": "projection-hash-voxel-basic",
+        "viewportHash": "viewport-fnv1a-2feabcdc",
+        "hit": {
+          "outcome": "hit",
+          "renderableId": "selected-voxel:0,0,0",
+          "voxelId": "voxel:0,0,0",
+          "face": "posX",
+          "normal": {
+            "x": 1,
+            "y": 0,
+            "z": 0
+          },
+          "worldPoint": {
+            "x": 1,
+            "y": 0.533333,
+            "z": 0.633333
+          },
+          "distance": 3.370542,
+          "materialRef": 1,
+          "rayHash": "pick-ray-fnv1a-e5e758be",
+          "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
+        },
+        "backgroundNoHit": {
+          "outcome": "no_hit",
+          "screenPoint": {
+            "x": 0.05,
+            "y": 0.05,
+            "space": "normalized_0_1"
+          },
+          "reason": "background_point_misses_pickable_renderables",
+          "rayHash": "pick-ray-fnv1a-2b95c404"
+        },
+        "crossChecks": {
+          "selectedRenderableId": "selected-voxel:0,0,0",
+          "inspectorSelectedVoxelId": "voxel:0,0,0",
+          "hierarchyNodeId": "voxel:0,0,0",
+          "editAnchorVoxelId": "voxel:1,0,0",
+          "timelineCommandId": "selection.voxel_from_screen_point",
+          "selectionHash": "selection-hash-voxel-basic-0-0-0-posX"
+        },
+        "staleReadbackGuard": {
+          "requiredCameraHash": "camera-fnv1a-1f575cfb",
+          "requiredCameraProjectionHash": "projection-hash-voxel-basic",
+          "requiredViewportHash": "viewport-fnv1a-2feabcdc",
+          "requiredSelectionHash": "selection-hash-voxel-basic-0-0-0-posX",
+          "requiredHitRenderableId": "selected-voxel:0,0,0",
+          "requiredNoHitRayHash": "pick-ray-fnv1a-2b95c404",
+          "mismatchPolicy": "failed_closed"
+        }
+      }
+    },
+    {
+      "groupId": "visual_delta_crop",
+      "label": "Before/after screenshot crop delta",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "beforeSceneHash": "render-grid-fnv1a-cc815eb0",
+        "afterSceneHash": "render-grid-fnv1a-8eb9594b",
+        "sceneHashChanged": true,
+        "cropHashChanged": true,
+        "beforeCrop": {
+          "name": "viewport-edit-anchor-before-crop",
+          "phase": "before",
+          "screenshotPath": "artifacts/browser-capture/latest/studio-app-viewport-before.png",
+          "cropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-before-crop.png",
+          "cropSha256": "sha256-b6cf407c4a5d593bf45de910396917417c5ab1b7a7e365d41c619537cd8181d0",
+          "pixelHash": "sha256-b6cf407c4a5d593bf45de910396917417c5ab1b7a7e365d41c619537cd8181d0",
+          "mediaType": "image/png",
+          "byteLength": 28300,
+          "cropRect": {
+            "x": 585,
+            "y": 420,
+            "width": 150,
+            "height": 230,
+            "coordinateSpace": "screenshot_px"
+          },
+          "sourceState": {
+            "phase": "before",
+            "route": "studio_app_viewport_phase",
+            "sourceSceneHash": "render-grid-fnv1a-cc815eb0",
+            "sourceScreenshotName": "studio-app-viewport-before"
+          },
+          "renderableId": "edit-anchor-empty-before",
+          "voxelId": "voxel:1,0,0",
+          "sceneHash": "render-grid-fnv1a-cc815eb0",
+          "linkedCommandId": "preview.voxel_brush",
+          "cameraHash": "camera-fnv1a-1f575cfb"
+        },
+        "afterCrop": {
+          "name": "viewport-edit-anchor-after-crop",
+          "phase": "after",
+          "screenshotPath": "artifacts/browser-capture/latest/studio-app-viewport-after.png",
+          "cropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-after-crop.png",
+          "cropSha256": "sha256-a068055e4b59410cef31089d61f81db8a46e85be07ec57472bda07e6d357da34",
+          "pixelHash": "sha256-a068055e4b59410cef31089d61f81db8a46e85be07ec57472bda07e6d357da34",
+          "mediaType": "image/png",
+          "byteLength": 28090,
+          "cropRect": {
+            "x": 585,
+            "y": 420,
+            "width": 150,
+            "height": 230,
+            "coordinateSpace": "screenshot_px"
+          },
+          "sourceState": {
+            "phase": "after",
+            "route": "studio_app_viewport_phase",
+            "sourceSceneHash": "render-grid-fnv1a-8eb9594b",
+            "sourceScreenshotName": "studio-app-viewport-after"
+          },
+          "renderableId": "applied-voxel:1,0,0",
+          "voxelId": "voxel:1,0,0",
+          "sceneHash": "render-grid-fnv1a-8eb9594b",
+          "linkedCommandId": "authority.voxel.apply_brush",
+          "cameraHash": "camera-fnv1a-1f575cfb"
+        },
+        "staleReadbackGuard": {
+          "requiredBeforeSceneHash": "render-grid-fnv1a-cc815eb0",
+          "requiredAfterSceneHash": "render-grid-fnv1a-8eb9594b",
+          "requiredBeforeCropHash": "sha256-b6cf407c4a5d593bf45de910396917417c5ab1b7a7e365d41c619537cd8181d0",
+          "requiredAfterCropHash": "sha256-a068055e4b59410cef31089d61f81db8a46e85be07ec57472bda07e6d357da34",
+          "mismatchPolicy": "failed_closed"
+        },
+        "screenshots": [
+          {
+            "name": "studio-app",
+            "path": "artifacts/browser-capture/latest/studio-app.png",
+            "sha256": "sha256-46c606f36af0c4829f65aaea30c0363db76d9647816abe65483ea4425da71d63",
+            "mediaType": "image/png",
+            "byteLength": 1071393,
+            "width": 1280,
+            "height": 2200
+          },
+          {
+            "name": "studio-app-viewport-before",
+            "path": "artifacts/browser-capture/latest/studio-app-viewport-before.png",
+            "sha256": "sha256-213f1173451ea01907fac2a5f00e7cd4ffa8a48bcc2d0543aca43beeb189d90f",
+            "mediaType": "image/png",
+            "byteLength": 1070484,
+            "width": 1280,
+            "height": 2200
+          },
+          {
+            "name": "studio-app-viewport-after",
+            "path": "artifacts/browser-capture/latest/studio-app-viewport-after.png",
+            "sha256": "sha256-50e346f0736da380460c5cbcc3d7906a5d02a16894a4b08ae5f80e6226c56faf",
+            "mediaType": "image/png",
+            "byteLength": 1071409,
+            "width": 1280,
+            "height": 2200
+          },
+          {
+            "name": "v1-proof-before-after",
+            "path": "artifacts/browser-capture/latest/v1-proof-before-after.png",
+            "sha256": "sha256-ba932d62abaef566a7b30f48d98ff0c4a18963e9d41efc4d60803b7262834bd4",
+            "mediaType": "image/png",
+            "byteLength": 154771,
+            "width": 1280,
+            "height": 2200
+          }
+        ]
+      }
+    },
+    {
+      "groupId": "visual_contract_layout_affordance",
+      "label": "Visual-contract layout/affordance evidence",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "service": {
+          "mode": "deployed_den_srv",
+          "host": "den-srv",
+          "baseUrl": "http://127.0.0.1:8086",
+          "routes": [
+            "/visual-contracts/from-web-evidence",
+            "/visual-contracts/validate",
+            "/visual-contracts/compare"
+          ],
+          "authentication": "remote /etc/den-services/visual-contract.env bearer token; token never stored in proof artifacts"
+        },
+        "candidateContract": "fixtures/visual-contract/asha-studio-current.candidate.contract.json",
+        "targetContract": "fixtures/visual-contract/asha-studio-ui-test.target.contract.json",
+        "markerCoverage": [
+          "export_review_artifact_button",
+          "run_proof_button",
+          "scene_hierarchy",
+          "central_3d_viewport",
+          "selected_target_inspector",
+          "command_evidence_dock",
+          "command_timeline",
+          "evidence_dock"
+        ],
+        "capture": {
+          "viewport": {
+            "width_px": 1920,
+            "height_px": 1080
+          },
+          "captureMode": "viewport-clipped",
+          "rootSelector": "[data-visual-id=\"asha_studio_shell\"]",
+          "requiredVisualObjects": [
+            "export_review_artifact_button",
+            "run_proof_button",
+            "scene_hierarchy",
+            "central_3d_viewport",
+            "selected_target_inspector",
+            "command_evidence_dock",
+            "command_timeline",
+            "evidence_dock"
+          ]
+        },
+        "currentCompare": {
+          "runId": "a4d58a1c2084221b16ed2fa3",
+          "verdict": "pass",
+          "failureCount": 0,
+          "failures": [],
+          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/a4d58a1c2084221b16ed2fa3/artifacts/report.json",
+          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/a4d58a1c2084221b16ed2fa3/artifacts/diff.overlay.svg",
+          "localReportArtifact": "fixtures/visual-contract/artifacts/a4d58a1c2084221b16ed2fa3/report.json",
+          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/a4d58a1c2084221b16ed2fa3/diff.overlay.svg"
+        },
+        "negativeCompare": {
+          "runId": "f6a5cc8aa3f81ab7d0b611a6",
+          "verdict": "fail",
+          "failureCount": 5,
+          "failures": [
+            "selected_target_inspector_exists",
+            "central_viewport_is_dominant",
+            "inspector_right_of_viewport",
+            "primary_docks_top_aligned",
+            "central_viewport_bounds_stable"
+          ],
+          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/f6a5cc8aa3f81ab7d0b611a6/artifacts/report.json",
+          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/f6a5cc8aa3f81ab7d0b611a6/artifacts/diff.overlay.svg",
+          "localReportArtifact": "fixtures/visual-contract/artifacts/f6a5cc8aa3f81ab7d0b611a6/report.json",
+          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/f6a5cc8aa3f81ab7d0b611a6/diff.overlay.svg"
+        },
+        "limitations": [
+          "Visual-contract proof is browser layout/affordance evidence only; it does not claim ASHA Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
+          "Visual-contract comparison complements scene/camera/pick/readback proof; it does not replace authoritative viewport evidence."
+        ]
+      }
+    },
+    {
+      "groupId": "command_authority_correlation",
+      "label": "Command, authority, and render-hash correlation",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "timelineCommandIds": [
+          "session.start",
+          "session.load_scenario",
+          "inspection.session_status",
+          "inspection.editor_state",
+          "inspection.voxel",
+          "selection.voxel_from_screen_point",
+          "preview.voxel_brush",
+          "authority.voxel.apply_brush",
+          "render.capture_before_after",
+          "export.agent_readout"
+        ],
+        "missingTimelineCommandIds": [],
+        "reviewArtifactId": "artifact-review-export-0001",
+        "reviewCaptureReadiness": "ready",
+        "visualHashDelta": {
+          "beforeRenderHash": "render-grid-fnv1a-cc815eb0",
+          "afterRenderHash": "render-grid-fnv1a-8eb9594b",
+          "changed": true
+        }
+      }
+    },
+    {
+      "groupId": "non_claim_limitations",
+      "label": "Non-claim and limitation guardrails",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "captureBackend": {
+          "runtime": "chromium_headless_cli",
+          "captureMode": "browser_screenshot",
+          "renderSurface": "vite_static_dist_app_route",
+          "gpuClaim": "not_claimed"
+        },
+        "limitations": [
+          "Browser capture is Chromium headless screenshot evidence of the Studio app/proof routes; it does not claim Agora compositor capture.",
+          "Browser capture correlates with the linked V1 proof artifact and ASHA public evidence hashes; it does not claim native runtime bridge or hardware GPU/performance evidence.",
+          "Three.js is used only as a local browser projection dependency for ASHA Studio.",
+          "Viewport 3D readback is browser projection evidence; it does not claim native runtime, Agora compositor, hardware GPU, or performance evidence.",
+          "Renderer input comes from StudioSceneViewModel and does not own authority or mutate ASHA state.",
+          "Visual-contract proof is browser layout/affordance evidence only; it does not claim ASHA Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
+          "Visual-contract comparison complements scene/camera/pick/readback proof; it does not replace authoritative viewport evidence."
+        ],
+        "policy": "browser/Three.js/visual-contract evidence must not be classified as Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence."
+      }
+    }
+  ],
+  "negativeSmokes": [
+    {
+      "smokeId": "negative_missing_scene_readback",
+      "expectedGroup": "scene_readback",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "missing_scene_readback"
+      ]
+    },
+    {
+      "smokeId": "negative_missing_pick_evidence",
+      "expectedGroup": "pick",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "missing_pick_evidence"
+      ]
+    },
+    {
+      "smokeId": "negative_stale_visual_delta",
+      "expectedGroup": "visual_delta_crop",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "stale_visual_delta_scene_hash",
+        "stale_visual_delta_crop_hash"
+      ]
+    },
+    {
+      "smokeId": "negative_missing_failed_visual_contract_proof",
+      "expectedGroup": "visual_contract_layout_affordance",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "missing_visual_contract_proof",
+        "visual_contract_candidate_failed"
+      ]
+    },
+    {
+      "smokeId": "negative_unsupported_evidence_claims",
+      "expectedGroup": "non_claim_limitations",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "unsupported_gpu_claim"
+      ]
+    }
+  ]
+}
