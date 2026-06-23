@@ -3,17 +3,17 @@
   "artifactKind": "studio_visual_capability_proof",
   "taskId": 3046,
   "readiness": "ready",
-  "generatedAtIso": "2026-06-23T09:05:57.650Z",
+  "generatedAtIso": "2026-06-23T09:26:38.601Z",
   "proofCommand": "pnpm run proof:visual-capability",
   "inputArtifacts": {
     "browserCapture": {
       "path": "artifacts/browser-capture/latest/index.json",
-      "sha256": "sha256-cb3b7532f556ad7f87b7c35a9e8147d7f3121d71e8e0efc55a37389e20aa4c66",
+      "sha256": "sha256-7b93f622d7e5c1bb82daf3c3b84e6135868f61c8539b31440be7231895d9f8b4",
       "artifactKind": "browser_visual_capture_proof"
     },
     "visualContract": {
       "path": "fixtures/visual-contract/asha-studio-current.proof.json",
-      "sha256": "sha256-acac5f292aacf89edcb450ec607661bec32ef07d78521513d6d3fed3afe45278",
+      "sha256": "sha256-75038cfc2077bbf93d03bed97020cf13fd9d91ffb49066d909e2f5893e2e6066",
       "artifactKind": "asha_studio_current_visual_contract_proof"
     }
   },
@@ -34,8 +34,8 @@
     "beforeCropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-before-crop.png",
     "afterCropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-after-crop.png",
     "visualContractRunIds": [
-      "785336c35723e142cd89fd8f",
-      "3d67cf97005eff6f0dd3864d"
+      "6954c02290c81f144e8a8f26",
+      "0f5282f138748d4df11be33a"
     ],
     "nonClaims": [
       "not_native_runtime",
@@ -236,8 +236,8 @@
           "phase": "before",
           "screenshotPath": "artifacts/browser-capture/latest/studio-app-viewport-before.png",
           "cropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-before-crop.png",
-          "cropSha256": "sha256-ecc17ce0aabd3450ed50374d9bcc630f50a5c851e2761a42dcd1966586860758",
-          "pixelHash": "sha256-ecc17ce0aabd3450ed50374d9bcc630f50a5c851e2761a42dcd1966586860758",
+          "cropSha256": "sha256-2523d397cd3f44ad63fe6fdbf352eb52c433d4e92c3826c9b5dbf7a53156ab5d",
+          "pixelHash": "sha256-2523d397cd3f44ad63fe6fdbf352eb52c433d4e92c3826c9b5dbf7a53156ab5d",
           "mediaType": "image/png",
           "byteLength": 28300,
           "cropRect": {
@@ -264,8 +264,8 @@
           "phase": "after",
           "screenshotPath": "artifacts/browser-capture/latest/studio-app-viewport-after.png",
           "cropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-after-crop.png",
-          "cropSha256": "sha256-45554585e888788cfc39c0181972665e74f8f8a13fba6d3d708c558312de96db",
-          "pixelHash": "sha256-45554585e888788cfc39c0181972665e74f8f8a13fba6d3d708c558312de96db",
+          "cropSha256": "sha256-d83622b2971cb1f306697eb6946b4829b7641768e3e2d51f8fa313df7a32f87f",
+          "pixelHash": "sha256-d83622b2971cb1f306697eb6946b4829b7641768e3e2d51f8fa313df7a32f87f",
           "mediaType": "image/png",
           "byteLength": 28090,
           "cropRect": {
@@ -290,8 +290,8 @@
         "staleReadbackGuard": {
           "requiredBeforeSceneHash": "render-grid-fnv1a-cc815eb0",
           "requiredAfterSceneHash": "render-grid-fnv1a-8eb9594b",
-          "requiredBeforeCropHash": "sha256-ecc17ce0aabd3450ed50374d9bcc630f50a5c851e2761a42dcd1966586860758",
-          "requiredAfterCropHash": "sha256-45554585e888788cfc39c0181972665e74f8f8a13fba6d3d708c558312de96db",
+          "requiredBeforeCropHash": "sha256-2523d397cd3f44ad63fe6fdbf352eb52c433d4e92c3826c9b5dbf7a53156ab5d",
+          "requiredAfterCropHash": "sha256-d83622b2971cb1f306697eb6946b4829b7641768e3e2d51f8fa313df7a32f87f",
           "mismatchPolicy": "failed_closed"
         },
         "screenshots": [
@@ -325,9 +325,9 @@
           {
             "name": "v1-proof-before-after",
             "path": "artifacts/browser-capture/latest/v1-proof-before-after.png",
-            "sha256": "sha256-09129192a93f2569658ba1cb2175660fe036b1f52cd8da72ef7aaf574f78781c",
+            "sha256": "sha256-10966e09d637ccbc240310aeffc619f7554e95925364cf82b938b9c67f2be398",
             "mediaType": "image/png",
-            "byteLength": 154835,
+            "byteLength": 154971,
             "width": 1280,
             "height": 2200
           }
@@ -382,17 +382,17 @@
           ]
         },
         "currentCompare": {
-          "runId": "785336c35723e142cd89fd8f",
+          "runId": "6954c02290c81f144e8a8f26",
           "verdict": "pass",
           "failureCount": 0,
           "failures": [],
-          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/785336c35723e142cd89fd8f/artifacts/report.json",
-          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/785336c35723e142cd89fd8f/artifacts/diff.overlay.svg",
-          "localReportArtifact": "fixtures/visual-contract/artifacts/785336c35723e142cd89fd8f/report.json",
-          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/785336c35723e142cd89fd8f/diff.overlay.svg"
+          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/6954c02290c81f144e8a8f26/artifacts/report.json",
+          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/6954c02290c81f144e8a8f26/artifacts/diff.overlay.svg",
+          "localReportArtifact": "fixtures/visual-contract/artifacts/6954c02290c81f144e8a8f26/report.json",
+          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/6954c02290c81f144e8a8f26/diff.overlay.svg"
         },
         "negativeCompare": {
-          "runId": "3d67cf97005eff6f0dd3864d",
+          "runId": "0f5282f138748d4df11be33a",
           "verdict": "fail",
           "failureCount": 5,
           "failures": [
@@ -402,10 +402,10 @@
             "primary_docks_top_aligned",
             "central_viewport_bounds_stable"
           ],
-          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/report.json",
-          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/diff.overlay.svg",
-          "localReportArtifact": "fixtures/visual-contract/artifacts/3d67cf97005eff6f0dd3864d/report.json",
-          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/3d67cf97005eff6f0dd3864d/diff.overlay.svg"
+          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/report.json",
+          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/diff.overlay.svg",
+          "localReportArtifact": "fixtures/visual-contract/artifacts/0f5282f138748d4df11be33a/report.json",
+          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/0f5282f138748d4df11be33a/diff.overlay.svg"
         },
         "limitations": [
           "Visual-contract proof is browser layout/affordance evidence only; it does not claim ASHA Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",

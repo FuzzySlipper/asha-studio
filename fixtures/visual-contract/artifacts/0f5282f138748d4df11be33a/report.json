@@ -1,6 +1,6 @@
 {
   "schema": "layered-visual-contract/v0.1",
-  "run_id": "3d67cf97005eff6f0dd3864d",
+  "run_id": "0f5282f138748d4df11be33a",
   "score": 0.6363636363636364,
   "verdict": "fail",
   "passes": [
@@ -337,11 +337,11 @@
     }
   ],
   "artifacts": {
-    "reference_overlay": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/reference.overlay.svg",
-    "candidate_overlay": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/candidate.overlay.svg",
-    "diff_overlay": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/diff.overlay.svg",
-    "reference_contract": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/reference.contract.json",
-    "candidate_contract": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/candidate.contract.json",
-    "report": "http://127.0.0.1:8086/visual-contracts/3d67cf97005eff6f0dd3864d/artifacts/report.json"
+    "reference_overlay": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/reference.overlay.svg",
+    "candidate_overlay": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/candidate.overlay.svg",
+    "diff_overlay": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/diff.overlay.svg",
+    "reference_contract": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/reference.contract.json",
+    "candidate_contract": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/candidate.contract.json",
+    "report": "http://127.0.0.1:8086/visual-contracts/0f5282f138748d4df11be33a/artifacts/report.json"
   }
 }

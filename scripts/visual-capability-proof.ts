@@ -46,7 +46,7 @@ interface BrowserCaptureArtifact {
       readonly crossChecks: { readonly selectedRenderableId: string; readonly inspectorSelectedVoxelId: string; readonly hierarchyNodeId: string; readonly editAnchorVoxelId: string; readonly timelineCommandId: string; readonly selectionHash: string };
       readonly staleReadbackGuard: { readonly mismatchPolicy: string; readonly requiredCameraHash: string; readonly requiredCameraProjectionHash: string; readonly requiredViewportHash: string; readonly requiredSelectionHash: string; readonly requiredHitRenderableId: string; readonly requiredNoHitRayHash: string };
     };
-    readonly renderables: readonly { readonly renderableId: string; readonly kind: string; readonly sourceState: string; readonly visible: boolean; readonly pickable: boolean; readonly materialRef: string | number | null; readonly meshRef: string | null; readonly renderHash: string }[];
+    readonly renderables?: readonly { readonly renderableId: string; readonly kind: string; readonly sourceState: string; readonly visible: boolean; readonly pickable: boolean; readonly materialRef: string | number | null; readonly meshRef: string | null; readonly renderHash: string }[];
     readonly limitations: readonly string[];
   };
   readonly viewportVisualDelta?: {
@@ -349,6 +349,7 @@ export function buildProof(browser: BrowserCaptureArtifact, visualContract: Visu
   ] satisfies readonly CapabilityGroup[];
   const ready = groups.every((group) => group.status === 'ready');
   const readback = browser.viewport3d;
+  const renderables = Array.isArray(readback?.renderables) ? readback.renderables : [];
   return {
     schemaVersion: 1,
     artifactKind: 'studio_visual_capability_proof',
@@ -358,7 +359,7 @@ export function buildProof(browser: BrowserCaptureArtifact, visualContract: Visu
     proofCommand: 'pnpm run proof:visual-capability',
     inputArtifacts: inputHashes,
     summary: {
-      renderedObjectIds: readback?.renderables.map((renderable) => renderable.renderableId) ?? [],
+      renderedObjectIds: renderables.map((renderable) => renderable.renderableId),
       visibleRenderableCount: readback?.visibleRenderableCount ?? 0,
       selectedObject: readback?.selectedRenderableId ?? null,
       previewObject: readback?.previewGhostId ?? null,
