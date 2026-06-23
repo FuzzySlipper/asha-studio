@@ -414,6 +414,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, opti
   host.dataset.viewport3dHost = 'three-local-browser-projection';
   host.dataset.sceneId = sceneView.sceneId;
   host.dataset.renderPhase = renderPhase;
+  host.dataset.visualRole = 'central_3d_viewport';
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(1);
@@ -422,11 +423,14 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, opti
   renderer.domElement.setAttribute('aria-label', 'studio-3d-webgl-canvas');
   renderer.domElement.dataset.canvasRole = 'studio-3d-webgl-canvas';
   renderer.domElement.dataset.sceneId = sceneView.sceneId;
+  renderer.domElement.dataset.visualRole = 'central_3d_viewport_canvas';
   host.append(renderer.domElement);
 
   const axisMarker = document.createElement('div');
   axisMarker.className = 'viewport-axis-gizmo';
   axisMarker.setAttribute('aria-label', 'viewport-axis-gizmo');
+  axisMarker.dataset.visualId = 'axis_gizmo';
+  axisMarker.dataset.visualRole = 'axis_gizmo';
   for (const [className, label] of [['axis-x', 'X'], ['axis-y', 'Y'], ['axis-z', 'Z']] as const) {
     const item = document.createElement('span');
     item.className = className;
@@ -445,6 +449,21 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, opti
   readbackNode.id = 'studio-viewport3d-readback-json';
   readbackNode.textContent = JSON.stringify(readback);
   host.append(readbackNode);
+
+  const markerStrip = document.createElement('div');
+  markerStrip.className = 'viewport-3d-visual-contract-markers';
+  for (const marker of [
+    { id: 'selection_outline', role: 'selection_outline', label: `selection_outline ${readback.selectedRenderableId}` },
+    { id: 'preview_ghost', role: 'preview_ghost', label: `preview_ghost ${readback.previewGhostId}` },
+    { id: 'applied_state_renderable', role: 'applied_state_marker', label: `applied_state_marker ${readback.appliedRenderableId}` },
+  ]) {
+    const markerNode = document.createElement('span');
+    markerNode.dataset.visualId = marker.id;
+    markerNode.dataset.visualRole = marker.role;
+    markerNode.textContent = marker.label;
+    markerStrip.append(markerNode);
+  }
+  host.append(markerStrip);
 
   const summary = document.createElement('p');
   summary.className = 'viewport-3d-semantic-readback';

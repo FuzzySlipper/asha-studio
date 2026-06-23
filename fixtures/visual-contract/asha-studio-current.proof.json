@@ -1,0 +1,95 @@
+{
+  "artifactKind": "asha_studio_current_visual_contract_proof",
+  "schemaVersion": 1,
+  "taskId": 3123,
+  "sourceApp": "dist/index.html?visualContract=1 served through local static proof server",
+  "candidateContract": "fixtures/visual-contract/asha-studio-current.candidate.contract.json",
+  "negativeCandidate": "fixtures/visual-contract/asha-studio-current.negative.contract.json",
+  "targetContract": "fixtures/visual-contract/asha-studio-ui-test.target.contract.json",
+  "webEvidence": "artifacts/visual-contract/latest/asha-studio-current.web-evidence.json",
+  "screenshot": "artifacts/visual-contract/latest/asha-studio-current.png",
+  "capture": {
+    "viewport": {
+      "width_px": 1920,
+      "height_px": 1080
+    },
+    "captureMode": "viewport-clipped",
+    "rootSelector": "[data-visual-id=\"asha_studio_shell\"]",
+    "requiredVisualObjects": [
+      "export_review_artifact_button",
+      "run_proof_button",
+      "scene_hierarchy",
+      "central_3d_viewport",
+      "selected_target_inspector",
+      "command_evidence_dock",
+      "command_timeline",
+      "evidence_dock"
+    ]
+  },
+  "service": {
+    "baseUrl": "http://127.0.0.1:18090",
+    "routes": [
+      "/visual-contracts/from-web-evidence",
+      "/visual-contracts/validate",
+      "/visual-contracts/compare"
+    ]
+  },
+  "currentCompare": {
+    "runId": "52d4ce3855731a3ffccd1936",
+    "verdict": "pass",
+    "failureCount": 0,
+    "failures": [],
+    "reportArtifact": "http://127.0.0.1:18090/visual-contracts/52d4ce3855731a3ffccd1936/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:18090/visual-contracts/52d4ce3855731a3ffccd1936/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/52d4ce3855731a3ffccd1936/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/52d4ce3855731a3ffccd1936/diff.overlay.svg"
+  },
+  "negativeCompare": {
+    "runId": "9bbcbc6ae37c62557af9abc0",
+    "verdict": "fail",
+    "failureCount": 5,
+    "failures": [
+      "selected_target_inspector_exists",
+      "central_viewport_is_dominant",
+      "inspector_right_of_viewport",
+      "primary_docks_top_aligned",
+      "central_viewport_bounds_stable"
+    ],
+    "reportArtifact": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/9bbcbc6ae37c62557af9abc0/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/9bbcbc6ae37c62557af9abc0/diff.overlay.svg"
+  },
+  "validation": {
+    "candidate": {
+      "schema": "layered-visual-contract/v0.1",
+      "valid": true,
+      "scene_id": "asha_studio_current",
+      "counts": {
+        "spaces": 1,
+        "layers": 2,
+        "objects": 44,
+        "relations": 2712,
+        "constraints": 0,
+        "evidence": 44
+      }
+    },
+    "negative": {
+      "schema": "layered-visual-contract/v0.1",
+      "valid": true,
+      "scene_id": "asha_studio_current_negative_missing_inspector",
+      "counts": {
+        "spaces": 1,
+        "layers": 2,
+        "objects": 34,
+        "relations": 1551,
+        "constraints": 0,
+        "evidence": 34
+      }
+    }
+  },
+  "limitations": [
+    "Visual-contract proof is browser layout/affordance evidence only; it does not claim ASHA Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
+    "Visual-contract comparison complements scene/camera/pick/readback proof; it does not replace authoritative viewport evidence."
+  ]
+}

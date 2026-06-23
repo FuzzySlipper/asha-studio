@@ -13,6 +13,12 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   return node;
 }
 
+function markVisual<T extends HTMLElement>(node: T, visualId: string, visualRole: string): T {
+  node.dataset.visualId = visualId;
+  node.dataset.visualRole = visualRole;
+  return node;
+}
+
 function renderPanel(panel: StudioPanel): HTMLElement {
   const section = el('section', `studio-panel studio-panel--${panel.status}`);
   section.setAttribute('aria-label', panel.automationLabel);
@@ -31,7 +37,7 @@ function findPanel(model: StudioShell, id: StudioPanel['id']): StudioPanel {
 }
 
 function renderTopBar(model: StudioShell): HTMLElement {
-  const topBar = el('header', 'studio-editor-topbar');
+  const topBar = markVisual(el('header', 'studio-editor-topbar'), 'studio_app_status_bar', 'studio_app_status_bar');
   topBar.setAttribute('aria-label', 'studio-editor-app-status-bar');
   const brand = el('div', 'studio-editor-brand');
   brand.append(el('span', 'studio-editor-mark', 'A'));
@@ -43,26 +49,26 @@ function renderTopBar(model: StudioShell): HTMLElement {
 
   const chips = el('div', 'studio-editor-status-chips');
   for (const chip of [
-    model.compatibility.contractsVersion,
-    model.compatibility.commandRegistryVersion,
-    `runtime bridge: ${model.compatibility.runtimeBridgeVersion ?? 'deferred'}`,
-    'native / Agora / GPU: not claimed',
-    'boundary: public package roots only',
+    { text: model.compatibility.contractsVersion, visualId: 'contracts_version_label', visualRole: 'compatibility_label' },
+    { text: model.compatibility.commandRegistryVersion, visualId: 'command_registry_version_label', visualRole: 'compatibility_label' },
+    { text: `runtime bridge: ${model.compatibility.runtimeBridgeVersion ?? 'deferred'}`, visualId: 'runtime_deferred_limitation', visualRole: 'limitation_label' },
+    { text: 'native / Agora / GPU: not claimed', visualId: 'no_agora_gpu_native_claim_limitation', visualRole: 'limitation_label' },
+    { text: 'boundary: public package roots only', visualId: 'public_package_boundary_label', visualRole: 'limitation_label' },
   ]) {
-    chips.append(el('span', 'studio-editor-chip', chip));
+    chips.append(markVisual(el('span', 'studio-editor-chip', chip.text), chip.visualId, chip.visualRole));
   }
   topBar.append(chips);
 
   const actions = el('div', 'studio-editor-actions');
-  actions.append(el('span', 'studio-editor-action', '⧉ Export review artifact'));
-  actions.append(el('span', 'studio-editor-action', '▸ Run proof'));
+  actions.append(markVisual(el('span', 'studio-editor-action', '⧉ Export review artifact'), 'export_review_artifact_button', 'review_artifact_export'));
+  actions.append(markVisual(el('span', 'studio-editor-action', '▸ Run proof'), 'run_proof_button', 'proof_runner'));
   topBar.append(actions);
   return topBar;
 }
 
 function renderSceneHierarchy(model: StudioShell): HTMLElement {
   const hierarchyModel = model.workspace.sceneHierarchy;
-  const hierarchy = el('section', 'scene-hierarchy-dock');
+  const hierarchy = markVisual(el('section', 'scene-hierarchy-dock'), 'scene_hierarchy', 'scene_hierarchy');
   hierarchy.setAttribute('aria-label', hierarchyModel.automationLabel);
   hierarchy.append(el('h2', undefined, hierarchyModel.title));
   hierarchy.append(el('p', 'panel-summary', `${hierarchyModel.projectionMode}; ${hierarchyModel.nodes.length} deterministic node(s) from workspace evidence.`));
@@ -110,7 +116,7 @@ function renderBoundaryCard(model: StudioShell) {
 
 function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3dRenderPhase): HTMLElement {
   const viewportModel = model.workspace.viewportEditor;
-  const viewport = el('section', 'viewport-editor-panel viewport-reference-projection');
+  const viewport = markVisual(el('section', 'viewport-editor-panel viewport-reference-projection'), 'central_3d_viewport', 'central_3d_viewport');
   viewport.setAttribute('aria-label', viewportModel.automationLabel);
 
   const header = el('div', 'viewport-reference-header');
@@ -149,10 +155,14 @@ function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3d
   viewport.append(canvas);
 
   const footer = el('div', 'viewport-reference-footer');
-  footer.append(el('span', 'viewport-limitation-chip', 'projection: software_snapshot_reference'));
-  footer.append(el('span', 'viewport-limitation-chip', 'source: shared workspace/readout state'));
-  footer.append(el('span', 'viewport-limitation-chip', 'runtime bridge: deferred — no live execution claimed'));
-  footer.append(el('span', 'viewport-limitation-chip', 'native / Agora / GPU: not claimed'));
+  for (const limitation of [
+    { text: 'projection: software_snapshot_reference', visualId: 'software_snapshot_reference_limitation' },
+    { text: 'source: shared workspace/readout state', visualId: 'shared_workspace_source_label' },
+    { text: 'runtime bridge: deferred — no live execution claimed', visualId: 'viewport_runtime_deferred_limitation' },
+    { text: 'native / Agora / GPU: not claimed', visualId: 'viewport_no_agora_gpu_native_claim_limitation' },
+  ]) {
+    footer.append(markVisual(el('span', 'viewport-limitation-chip', limitation.text), limitation.visualId, 'limitation_label'));
+  }
   viewport.append(footer);
 
   const viewportTimeline = el('ol', 'viewport-timeline-correlation-readout');
@@ -200,7 +210,7 @@ function renderBatchUndo(model: StudioShell): HTMLElement {
 
 function renderSelectedTargetInspector(model: StudioShell): HTMLElement {
   const inspectorModel = model.workspace.selectedTargetInspector;
-  const inspector = el('section', 'selected-target-inspector');
+  const inspector = markVisual(el('section', 'selected-target-inspector'), 'selected_target_inspector', 'selected_target_inspector');
   inspector.setAttribute('aria-label', inspectorModel.automationLabel);
   inspector.append(el('h2', undefined, inspectorModel.title));
   const header = el('div', 'selected-target-header-card');
@@ -211,7 +221,11 @@ function renderSelectedTargetInspector(model: StudioShell): HTMLElement {
 
   const cards = el('div', 'selected-target-card-grid');
   for (const card of [inspectorModel.previewCard, inspectorModel.appliedCard]) {
-    const cardNode = el('article', `selected-target-state-card ${card.label === 'Preview' ? 'selected-target-preview-card' : 'selected-target-applied-card'}`);
+    const cardNode = markVisual(
+      el('article', `selected-target-state-card ${card.label === 'Preview' ? 'selected-target-preview-card' : 'selected-target-applied-card'}`),
+      card.label === 'Preview' ? 'preview_state_marker' : 'applied_state_marker',
+      card.label === 'Preview' ? 'preview_state_marker' : 'applied_state_marker',
+    );
     cardNode.append(el('h3', undefined, card.label));
     cardNode.append(el('p', undefined, card.posture === 'proposed_by_studio_ts' ? 'Proposed by Studio (TS), projection only.' : 'Validated by Authority (Rust), authoritative state.'));
     cardNode.append(el('p', 'command-id', `${card.commandId} · ${card.sequenceId ?? 'missing sequence'}`));
@@ -318,12 +332,16 @@ function renderTimeline(model: StudioShell): HTMLElement {
 
 function renderCommandEvidenceDock(model: StudioShell): HTMLElement {
   const dockModel = model.workspace.commandEvidenceDock;
-  const dock = el('section', 'bottom-command-evidence-dock');
+  const dock = markVisual(el('section', 'bottom-command-evidence-dock'), 'command_evidence_dock', 'command_evidence_dock');
   dock.setAttribute('aria-label', dockModel.automationLabel);
   dock.append(el('h2', undefined, dockModel.title));
   const tabList = el('div', 'bottom-dock-tabs');
   for (const tab of dockModel.tabs) {
-    const tabNode = el('span', tab.id === 'command_timeline_evidence_log' ? 'bottom-command-timeline-tab' : 'bottom-evidence-artifacts-tab');
+    const tabNode = markVisual(
+      el('span', tab.id === 'command_timeline_evidence_log' ? 'bottom-command-timeline-tab' : 'bottom-evidence-artifacts-tab'),
+      tab.id === 'command_timeline_evidence_log' ? 'command_timeline' : 'evidence_dock',
+      tab.id === 'command_timeline_evidence_log' ? 'command_timeline' : 'evidence_dock',
+    );
     tabNode.textContent = `${tab.label} (${tab.rowCount})`;
     tabList.append(tabNode);
   }
@@ -419,6 +437,10 @@ function viewportPhaseFromLocation(): StudioViewport3dRenderPhase {
   return phase === 'before' || phase === 'after' ? phase : 'combined';
 }
 
+function visualContractModeFromLocation(): boolean {
+  return new URLSearchParams(window.location.search).get('visualContract') === '1';
+}
+
 function renderApp(): void {
   const model = createStudioShellModel();
   const app = document.querySelector<HTMLDivElement>('#app');
@@ -426,7 +448,8 @@ function renderApp(): void {
     throw new Error('Missing #app root');
   }
 
-  const shell = el('div', 'studio-shell');
+  const shell = markVisual(el('div', 'studio-shell'), 'asha_studio_shell', 'asha_studio_shell');
+  if (visualContractModeFromLocation()) shell.classList.add('studio-shell--visual-contract-proof');
   shell.append(renderTopBar(model));
   shell.append(renderDockFrame(model, viewportPhaseFromLocation()));
   app.replaceChildren(shell);

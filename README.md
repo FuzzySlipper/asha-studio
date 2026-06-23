@@ -30,6 +30,7 @@ pnpm run dev
 pnpm run verify
 pnpm run proof:v1
 pnpm run proof:browser
+pnpm run proof:visual-contract
 ```
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
@@ -144,6 +145,26 @@ The command first regenerates the full `proof:v1` artifact, then serves both the
 - `artifacts/browser-capture/latest/index.json` — machine-readable browser capture proof with screenshot SHA-256 values, linked V1 proof artifact SHA-256, proof-content marker readiness, timeline correlation, before/after render-hash comparison, and truthful capture backend classification.
 
 The browser capture is fail-closed: missing app/proof markers, missing timeline command IDs, missing linked artifact, unchanged before/after render hashes, or screenshot/hash readback mismatch fail the command. It is browser screenshot evidence via Chromium headless CLI; it still does not claim Agora compositor capture, native runtime bridge, hardware GPU, or performance evidence.
+
+## Visual-contract candidate proof
+
+Task `asha#3123` adds stable ASHA visual-contract markers to the current Studio DOM and a reproducible candidate-generation proof:
+
+```bash
+pnpm run proof:visual-contract
+```
+
+The proof route serves `dist/index.html?visualContract=1`, which keeps the current Studio shell vocabulary but compacts the page into the `1920x1080` visual-contract viewport used by the `asha#3130` target fixture. The browser evidence collector uses `[data-visual-id="asha_studio_shell"]` as the root, captures `viewport-clipped` evidence, converts it through the `visual-contract` service, and compares the generated current candidate against `fixtures/visual-contract/asha-studio-ui-test.target.contract.json`.
+
+Generated checked-in handles:
+
+- `fixtures/visual-contract/asha-studio-current.candidate.contract.json`
+- `fixtures/visual-contract/asha-studio-current.negative.contract.json`
+- `fixtures/visual-contract/asha-studio-current.proof.json`
+- durable local service artifacts under `fixtures/visual-contract/artifacts/<run_id>/report.json` and `diff.overlay.svg`
+- collector evidence under `artifacts/visual-contract/latest/`
+
+The candidate includes canonical `data-visual-id` / `data-visual-role` evidence for `scene_hierarchy`, `central_3d_viewport`, `selected_target_inspector`, `command_timeline`, `evidence_dock`, limitation labels, `selection_outline`, `preview_ghost`, `axis_gizmo`, and applied/preview state markers. The negative smoke removes `selected_target_inspector` and undersizes `central_3d_viewport`; readback requires the visual-contract report to fail closed with those diagnostics. This is browser layout/affordance evidence only and complements, but does not replace, scene/camera/pick/readback proof.
 
 ## End-to-end V1 proof
 

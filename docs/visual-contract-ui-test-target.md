@@ -96,6 +96,23 @@ failure lists.
 This target is not ASHA authority evidence. It does **not** prove Rust/WASM
 simulation correctness, native runtime readiness, Agora compositor integration,
 hardware GPU use, or performance. It is a browser layout/affordance target for
-future candidate gating. Current app candidates still need stable
-`data-visual-id` / `data-visual-role` markers and candidate generation work in
-`asha#3123`.
+candidate gating.
+
+Task `asha#3123` adds the first current-Studio candidate proof against this target:
+
+- Studio DOM exposes canonical `data-visual-id` / `data-visual-role` markers for
+  the top proof/export controls, scene hierarchy, central viewport, selected
+  target inspector, bottom command/evidence dock, limitation labels, selection
+  outline, preview ghost, axis gizmo, and applied/preview state markers.
+- `pnpm run proof:visual-contract` serves `dist/index.html?visualContract=1`,
+  collects viewport-clipped browser evidence rooted at
+  `[data-visual-id="asha_studio_shell"]`, converts it through the
+  visual-contract service, and compares it with this target.
+- Current candidate proof handles live in
+  `fixtures/visual-contract/asha-studio-current.proof.json`, with candidate and
+  negative contracts next to it and durable local report/overlay artifacts under
+  `fixtures/visual-contract/artifacts/<run_id>/`.
+- The negative smoke removes `selected_target_inspector` and undersizes
+  `central_3d_viewport`; readback requires fail-closed diagnostics for both.
+- This candidate proof is still browser layout/affordance evidence only and does
+  not replace scene/camera/pick/readback evidence for real viewport behavior.
