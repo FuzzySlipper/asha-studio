@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import { buildProof } from '../scripts/visual-capability-proof';
+
 const root = process.cwd();
 const fixturePath = join(root, 'fixtures', 'studio-visual-capability-proof.sample.json');
 
@@ -152,4 +154,53 @@ test('studio visual capability proof records required fail-closed negative smoke
     assert.equal(smoke.status, 'expected_failed_closed');
     for (const code of codes) assert.ok(smoke.diagnosticCodes.includes(code), `missing ${code} from ${smokeId}`);
   }
+});
+
+test('studio visual capability proof fails closed instead of crashing when viewport3d readback is missing', () => {
+  const visualContract = JSON.parse(readFileSync(join(root, 'fixtures', 'visual-contract', 'asha-studio-current.proof.json'), 'utf8')) as Parameters<typeof buildProof>[1];
+  const browser = {
+    schemaVersion: 1,
+    artifactKind: 'browser_visual_capture_proof',
+    readiness: { status: 'ready' },
+    correlation: {
+      status: 'matched',
+      timelineCommandIds: ['selection.voxel_from_screen_point', 'preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after', 'export.agent_readout'],
+      missingTimelineCommandIds: [],
+      visualHashDelta: { beforeRenderHash: 'before-hash', afterRenderHash: 'after-hash', changed: true },
+      reviewArtifactId: 'artifact-review-0001',
+      reviewCaptureReadiness: 'ready',
+    },
+    captureBackend: { runtime: 'chromium_headless_cli', captureMode: 'browser_screenshot', gpuClaim: 'not_claimed' },
+    viewportVisualDelta: {
+      artifactKind: 'viewport_visual_delta_crop_proof',
+      readiness: 'ready',
+      beforeSceneHash: 'before-hash',
+      afterSceneHash: 'after-hash',
+      sceneHashChanged: true,
+      cropHashChanged: true,
+      beforeCrop: { cropPath: 'before.png', cropSha256: 'sha256-before', screenshotPath: 'before-screen.png', linkedCommandId: 'preview.voxel_brush', renderableId: 'before', voxelId: 'voxel:1,0,0', sourceState: { phase: 'before', sourceSceneHash: 'before-hash' } },
+      afterCrop: { cropPath: 'after.png', cropSha256: 'sha256-after', screenshotPath: 'after-screen.png', linkedCommandId: 'authority.voxel.apply_brush', renderableId: 'applied-voxel:1,0,0', voxelId: 'voxel:1,0,0', sourceState: { phase: 'after', sourceSceneHash: 'after-hash' } },
+      staleReadbackGuard: { mismatchPolicy: 'failed_closed', requiredBeforeSceneHash: 'before-hash', requiredAfterSceneHash: 'after-hash', requiredBeforeCropHash: 'sha256-before', requiredAfterCropHash: 'sha256-after' },
+    },
+    screenshots: [],
+    knownLimitations: ['Browser capture does not claim Agora compositor capture.', 'Browser capture does not claim native runtime bridge.', 'Browser capture does not claim hardware GPU/performance evidence.'],
+  } satisfies Parameters<typeof buildProof>[0];
+
+  const proof = buildProof(browser, visualContract, {
+    browserCapture: { path: 'mutated-browser.json', sha256: 'sha256-mutated-browser', artifactKind: 'browser_visual_capture_proof' },
+    visualContract: { path: 'visual-contract.json', sha256: 'sha256-visual-contract', artifactKind: 'asha_studio_current_visual_contract_proof' },
+  });
+
+  assert.equal(proof.readiness, 'failed_closed');
+  assert.deepEqual(proof.summary.renderedObjectIds, []);
+  assert.equal(proof.summary.visibleRenderableCount, 0);
+  assert.equal(proof.summary.selectedObject, null);
+  const scene = group(proof, 'scene_readback');
+  assert.equal(scene.status, 'failed_closed');
+  assert.ok(scene.diagnostics.some((diagnostic) => diagnostic.code === 'missing_scene_readback' && diagnostic.severity === 'error'));
+  assert.equal(scene.evidence, null);
+  const pick = group(proof, 'pick');
+  assert.equal(pick.status, 'failed_closed');
+  assert.ok(pick.diagnostics.some((diagnostic) => diagnostic.code === 'missing_scene_readback' && diagnostic.severity === 'error'));
+  assert.ok(pick.diagnostics.some((diagnostic) => diagnostic.code === 'missing_pick_evidence' && diagnostic.severity === 'error'));
 });

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 interface BrowserCaptureArtifact {
   readonly schemaVersion: 1;
@@ -15,7 +16,7 @@ interface BrowserCaptureArtifact {
     readonly reviewCaptureReadiness: string;
   };
   readonly captureBackend: { readonly runtime: string; readonly captureMode: string; readonly gpuClaim: string };
-  readonly viewport3d: {
+  readonly viewport3d?: {
     readonly artifactKind: 'viewport_3d_readback';
     readonly readiness: 'ready' | 'failed_closed';
     readonly sceneId: string;
@@ -156,13 +157,25 @@ function sceneReadbackGroup(browser: BrowserCaptureArtifact): CapabilityGroup {
   const groupId = 'scene_readback' as const;
   const readback = browser.viewport3d;
   const diagnostics: CapabilityDiagnostic[] = [];
+  if (readback === undefined) {
+    diagnostics.push(diagnostic(groupId, 'missing_scene_readback', 'error', 'Viewport 3D scene readback artifact is missing.'));
+    return {
+      groupId,
+      label: 'Scene/camera/renderable readback',
+      status: 'failed_closed',
+      diagnostics,
+      evidence: null,
+    };
+  }
+  const renderables = Array.isArray(readback.renderables) ? readback.renderables : [];
   if (readback.artifactKind !== 'viewport_3d_readback') diagnostics.push(diagnostic(groupId, 'missing_scene_readback', 'error', 'Viewport 3D scene readback artifact is missing.'));
   if (readback.readiness !== 'ready') diagnostics.push(diagnostic(groupId, 'scene_readback_not_ready', 'error', `Viewport 3D readback readiness is ${readback.readiness}.`));
-  if (readback.visibleRenderableCount < 1) diagnostics.push(diagnostic(groupId, 'missing_visible_renderables', 'error', 'No visible renderables were reported.'));
+  if (readback.visibleRenderableCount < 1 || renderables.length < 1) diagnostics.push(diagnostic(groupId, 'missing_visible_renderables', 'error', 'No visible renderables were reported.'));
   if (readback.selectedRenderableId === null) diagnostics.push(diagnostic(groupId, 'missing_selected_renderable', 'error', 'Selected renderable is missing from scene readback.'));
   if (readback.previewGhostId === null) diagnostics.push(diagnostic(groupId, 'missing_preview_ghost', 'error', 'Preview ghost is missing from scene readback.'));
   if (readback.appliedRenderableId === null) diagnostics.push(diagnostic(groupId, 'missing_applied_renderable', 'error', 'Applied renderable is missing from scene readback.'));
-  if (!readback.interactionProof.toolState.cameraChanged) diagnostics.push(diagnostic(groupId, 'camera_did_not_change', 'error', 'Camera/tool proof did not record a deterministic camera delta.'));
+  const cameraChanged = readback.interactionProof?.toolState?.cameraChanged === true;
+  if (!cameraChanged) diagnostics.push(diagnostic(groupId, 'camera_did_not_change', 'error', 'Camera/tool proof did not record a deterministic camera delta.'));
   return {
     groupId,
     label: 'Scene/camera/renderable readback',
@@ -173,31 +186,33 @@ function sceneReadbackGroup(browser: BrowserCaptureArtifact): CapabilityGroup {
       cameraId: readback.cameraId,
       projectionAuthority: readback.projectionAuthority,
       camera: {
-        activeTool: readback.interactionProof.toolState.activeTool,
-        beforeHash: readback.interactionProof.toolState.cameraBeforeHash,
-        afterHash: readback.interactionProof.toolState.cameraAfterHash,
-        changed: readback.interactionProof.toolState.cameraChanged,
+        activeTool: readback.interactionProof?.toolState?.activeTool ?? null,
+        beforeHash: readback.interactionProof?.toolState?.cameraBeforeHash ?? null,
+        afterHash: readback.interactionProof?.toolState?.cameraAfterHash ?? null,
+        changed: cameraChanged,
       },
-      renderedObjects: readback.renderables.map((renderable) => ({ renderableId: renderable.renderableId, kind: renderable.kind, sourceState: renderable.sourceState, visible: renderable.visible, pickable: renderable.pickable, materialRef: renderable.materialRef, meshRef: renderable.meshRef, renderHash: renderable.renderHash })),
+      renderedObjects: renderables.map((renderable) => ({ renderableId: renderable.renderableId, kind: renderable.kind, sourceState: renderable.sourceState, visible: renderable.visible, pickable: renderable.pickable, materialRef: renderable.materialRef, meshRef: renderable.meshRef, renderHash: renderable.renderHash })),
       visibleRenderableCount: readback.visibleRenderableCount,
       selectedRenderableId: readback.selectedRenderableId,
       previewGhostId: readback.previewGhostId,
       appliedRenderableId: readback.appliedRenderableId,
       selectionHash: readback.selectionHash,
-      interactionActions: readback.interactionProof.scriptedActions,
+      interactionActions: readback.interactionProof?.scriptedActions ?? [],
     },
   };
 }
 
 function pickGroup(browser: BrowserCaptureArtifact): CapabilityGroup {
   const groupId = 'pick' as const;
-  const pick = browser.viewport3d.pickEvidence;
+  const readback = browser.viewport3d;
+  const pick = readback?.pickEvidence;
   const diagnostics: CapabilityDiagnostic[] = [];
+  if (readback === undefined) diagnostics.push(diagnostic(groupId, 'missing_scene_readback', 'error', 'Pick evidence cannot be evaluated because viewport 3D scene readback is missing.'));
   if (pick === undefined) diagnostics.push(diagnostic(groupId, 'missing_pick_evidence', 'error', 'Pick evidence is missing from viewport 3D readback.'));
   if (pick?.readiness !== 'ready') diagnostics.push(diagnostic(groupId, 'pick_evidence_not_ready', 'error', `Pick evidence readiness is ${pick?.readiness ?? 'missing'}.`));
   if (pick?.hit.outcome !== 'hit') diagnostics.push(diagnostic(groupId, 'missing_positive_pick_hit', 'error', 'Positive selected-target pick did not report a hit.'));
   if (pick?.backgroundNoHit.outcome !== 'no_hit') diagnostics.push(diagnostic(groupId, 'missing_background_no_hit', 'error', 'Background negative pick did not report a no-hit result.'));
-  if (pick?.hit.renderableId !== browser.viewport3d.selectedRenderableId) diagnostics.push(diagnostic(groupId, 'pick_hit_selection_mismatch', 'error', 'Pick hit renderable does not match selected renderable.'));
+  if (pick?.hit.renderableId !== readback?.selectedRenderableId) diagnostics.push(diagnostic(groupId, 'pick_hit_selection_mismatch', 'error', 'Pick hit renderable does not match selected renderable.'));
   if (pick?.crossChecks.timelineCommandId !== 'selection.voxel_from_screen_point') diagnostics.push(diagnostic(groupId, 'pick_timeline_mismatch', 'error', 'Pick evidence is not linked to selection.voxel_from_screen_point.'));
   if (pick?.staleReadbackGuard.mismatchPolicy !== 'failed_closed') diagnostics.push(diagnostic(groupId, 'pick_guard_not_fail_closed', 'error', 'Pick stale-readback guard does not fail closed.'));
   return {
@@ -305,7 +320,7 @@ function commandAuthorityGroup(browser: BrowserCaptureArtifact): CapabilityGroup
 function limitationsGroup(browser: BrowserCaptureArtifact, visualContract: VisualContractProof): CapabilityGroup {
   const groupId = 'non_claim_limitations' as const;
   const diagnostics: CapabilityDiagnostic[] = [];
-  const limitations = [...browser.knownLimitations, ...browser.viewport3d.limitations, ...visualContract.limitations];
+  const limitations = [...browser.knownLimitations, ...(browser.viewport3d?.limitations ?? []), ...visualContract.limitations];
   if (browser.captureBackend.gpuClaim !== 'not_claimed') diagnostics.push(diagnostic(groupId, 'unsupported_gpu_claim', 'error', `Browser capture GPU claim is ${browser.captureBackend.gpuClaim}.`));
   for (const forbidden of ['Agora compositor capture', 'native runtime bridge', 'hardware GPU/performance']) {
     if (!limitations.some((limitation) => limitation.includes(forbidden))) diagnostics.push(diagnostic(groupId, `missing_non_claim_${forbidden.replace(/\W+/gu, '_').toLowerCase()}`, 'error', `Missing non-claim limitation mentioning ${forbidden}.`));
@@ -323,7 +338,7 @@ function limitationsGroup(browser: BrowserCaptureArtifact, visualContract: Visua
   };
 }
 
-function buildProof(browser: BrowserCaptureArtifact, visualContract: VisualContractProof, inputHashes: VisualCapabilityProof['inputArtifacts']): VisualCapabilityProof {
+export function buildProof(browser: BrowserCaptureArtifact, visualContract: VisualContractProof, inputHashes: VisualCapabilityProof['inputArtifacts']): VisualCapabilityProof {
   const groups = [
     sceneReadbackGroup(browser),
     pickGroup(browser),
@@ -333,6 +348,7 @@ function buildProof(browser: BrowserCaptureArtifact, visualContract: VisualContr
     limitationsGroup(browser, visualContract),
   ] satisfies readonly CapabilityGroup[];
   const ready = groups.every((group) => group.status === 'ready');
+  const readback = browser.viewport3d;
   return {
     schemaVersion: 1,
     artifactKind: 'studio_visual_capability_proof',
@@ -342,11 +358,11 @@ function buildProof(browser: BrowserCaptureArtifact, visualContract: VisualContr
     proofCommand: 'pnpm run proof:visual-capability',
     inputArtifacts: inputHashes,
     summary: {
-      renderedObjectIds: browser.viewport3d.renderables.map((renderable) => renderable.renderableId),
-      visibleRenderableCount: browser.viewport3d.visibleRenderableCount,
-      selectedObject: browser.viewport3d.selectedRenderableId,
-      previewObject: browser.viewport3d.previewGhostId,
-      appliedObject: browser.viewport3d.appliedRenderableId,
+      renderedObjectIds: readback?.renderables.map((renderable) => renderable.renderableId) ?? [],
+      visibleRenderableCount: readback?.visibleRenderableCount ?? 0,
+      selectedObject: readback?.selectedRenderableId ?? null,
+      previewObject: readback?.previewGhostId ?? null,
+      appliedObject: readback?.appliedRenderableId ?? null,
       beforeRenderHash: browser.correlation.visualHashDelta.beforeRenderHash,
       afterRenderHash: browser.correlation.visualHashDelta.afterRenderHash,
       beforeCropPath: browser.viewportVisualDelta?.beforeCrop.cropPath ?? null,
@@ -382,4 +398,6 @@ function main(): void {
   console.log(`asha-studio visual capability proof: OK (${relative(root, artifactPath)})`);
 }
 
-main();
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
