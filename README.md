@@ -54,7 +54,7 @@ Task `asha#2732` adds startup/session compatibility readback for public ASHA sur
 - `@asha/runtime-bridge` as `null` until a later task promotes that public surface for Studio runtime use;
 - supported runtime modes for this shell: `mock`, `reference`, and `unavailable`.
 
-Native/WASM runtime modes fail closed until runtime bridge compatibility metadata is present. Update `src/compatibility.ts`, `fixtures/studio-session-metadata.sample.json`, and the compatibility tests when ASHA generated contracts, command registry compatibility, or runtime bridge compatibility changes.
+Native/WASM runtime modes fail closed until runtime bridge compatibility metadata is present. Task `asha#3047` adds the durable runtime bridge readiness gate in `docs/runtime-bridge-readiness-gate.md` and the machine-readable `evaluateRuntimeBridgeReadinessGate(...)` helper in `src/runtime-bridge-readiness.ts`; the gate lists required DTOs, facade operations, proof updates, negative smokes, and non-claims before Studio may replace browser-reference state with runtime authority. Update `src/compatibility.ts`, `src/runtime-bridge-readiness.ts`, `fixtures/studio-session-metadata.sample.json`, and the compatibility/readiness tests when ASHA generated contracts, command registry compatibility, or runtime bridge compatibility changes.
 
 ## Session workspace and command timeline
 
@@ -184,6 +184,12 @@ The proof groups diagnostics by capability: scene/camera/renderable readback, vi
 
 This is still agent-observable browser/reference/layout evidence. It intentionally does not claim Rust/WASM authority execution, native runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance evidence.
 
+## Runtime bridge readiness gate
+
+Task `asha#3047` defines the exact gate for replacing browser/reference visual state with authoritative runtime or WASM snapshots. The durable checklist is in `docs/runtime-bridge-readiness-gate.md`; the machine-readable helper is `evaluateRuntimeBridgeReadinessGate(...)` in `src/runtime-bridge-readiness.ts`.
+
+The gate currently reports `deferred` for mock/reference workflows and `failed_closed` for `native`/`wasm` until all of the following exist through public package roots: `@asha/runtime-bridge` compatibility `runtime-bridge.v0`, typed scene snapshot DTOs, typed command-application results, replay/golden records, runtime render/readback evidence, a classified runtime error taxonomy, and visual-capability proof updates with runtime-specific negative smokes. Studio must still not import raw native/WASM transports or claim runtime authority from browser/Three.js evidence alone.
+
 ## End-to-end V1 proof
 
 A reviewer can run the complete V1 visual edit proof with one command:
@@ -218,7 +224,7 @@ git diff --check
 
 ## Known limitations
 
-- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; shared GUI/agent command timeline; visible viewport editor panel; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; deployed-service `pnpm run proof:visual-contract`; consolidated reviewer-facing `pnpm run proof:visual-capability`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
+- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; runtime bridge readiness gate; shared GUI/agent command timeline; visible viewport editor panel; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; deployed-service `pnpm run proof:visual-contract`; consolidated reviewer-facing `pnpm run proof:visual-capability`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
 - Still mock/reference/deferred: native/WASM runtime-bridge execution in Studio, durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, and performance evidence.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.

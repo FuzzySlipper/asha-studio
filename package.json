@@ -30,7 +30,7 @@
     "vite": "^7.0.0"
   },
   "ashaStudio": {
-    "task": 3046,
+    "task": 3047,
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
@@ -43,6 +43,7 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
+      "Task 3047 defines the runtime bridge readiness gate in docs/runtime-bridge-readiness-gate.md and src/runtime-bridge-readiness.ts; native/WASM authority remains fail-closed until @asha/runtime-bridge is an approved Studio public surface with runtime-bridge.v0 compatibility and runtime proof obligations.",
       "Task 3046 consolidates scene/readback, pick, visual-delta crop, command/hash correlation, deployed visual-contract layout evidence, and non-claim guardrails into one agent-facing visual capability proof; it remains browser/reference/layout evidence only and does not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
       "Task 3123 adds ASHA visual-contract candidate markers and proof generation for browser layout/affordance evidence only; visual-contract passes do not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
       "Task 3045 adds viewport visual delta/crop proof with same-region edit-anchor crops sourced from distinct before/after viewport phase screenshots, before/after scene and crop hashes, linked command/source-state IDs, and stale-readback fail-closed guards.",
