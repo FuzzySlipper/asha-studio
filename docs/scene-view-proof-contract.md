@@ -95,13 +95,18 @@ Agora/compositor, GPU, or performance evidence.
 
 Task `asha#3045` extends the browser capture artifact with
 `viewport_visual_delta_crop_proof`. The proof keeps full-page screenshots as
-context but adds targeted viewport crops around the selected-before and
-applied-after renderables. Each crop records its screenshot path, crop path,
-rectangle in screenshot pixels, crop hash, object/voxel id, linked command id,
+context but adds same-region viewport crops around the edit-anchor region before
+and after the visible apply transition. The before crop is sourced from
+`studio-app-viewport-before.png` (`?viewportPhase=before`) and records the empty
+edit anchor; the after crop is sourced from `studio-app-viewport-after.png`
+(`?viewportPhase=after`) and records the applied voxel at the same screenshot
+rectangle. Each crop records its screenshot path, crop path, rectangle in
+screenshot pixels, crop hash, source-state handle, voxel id, linked command id,
 camera hash, and before/after scene hash. Browser readback fails closed if the
-scene hashes do not change, if the crop hashes do not change, if any crop file is
-missing or hash-mismatched, or if stale-readback guard hashes diverge from the
-recorded crop/scene hashes.
+scene hashes do not change, if the crop hashes do not change, if both crops come
+from the same screenshot/source phase, if their crop rectangles diverge, if any
+crop file is missing or hash-mismatched, or if stale-readback guard hashes diverge
+from the recorded crop/scene hashes.
 
 The crop proof is structural browser evidence only. It does not assert
 pixel-perfect whole-page identity, Agora compositor capture, hardware GPU

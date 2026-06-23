@@ -111,12 +111,22 @@ if (artifact.viewportVisualDelta.proofMode !== 'targeted_browser_screenshot_crop
 if (artifact.viewportVisualDelta.sceneHashChanged !== true) fail('viewport visual delta scene hash did not change');
 if (artifact.viewportVisualDelta.cropHashChanged !== true) fail('viewport visual delta crop hash did not change');
 if (artifact.viewportVisualDelta.beforeSceneHash === artifact.viewportVisualDelta.afterSceneHash) fail('viewport visual delta before/after scene hashes match');
-if (artifact.viewportVisualDelta.beforeCrop?.renderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport visual delta before crop renderable mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.renderableId !== 'edit-anchor-empty-before') fail('viewport visual delta before crop source-state handle mismatch');
 if (artifact.viewportVisualDelta.afterCrop?.renderableId !== artifact.viewport3d.appliedRenderableId) fail('viewport visual delta after crop renderable mismatch');
-if (artifact.viewportVisualDelta.beforeCrop?.linkedCommandId !== 'selection.voxel_from_screen_point') fail('viewport visual delta before crop command mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.linkedCommandId !== 'preview.voxel_brush') fail('viewport visual delta before crop command mismatch');
 if (artifact.viewportVisualDelta.afterCrop?.linkedCommandId !== 'authority.voxel.apply_brush') fail('viewport visual delta after crop command mismatch');
-if (artifact.viewportVisualDelta.beforeCrop?.voxelId !== 'voxel:0,0,0') fail('viewport visual delta before crop voxel mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.voxelId !== 'voxel:1,0,0') fail('viewport visual delta before crop voxel mismatch');
 if (artifact.viewportVisualDelta.afterCrop?.voxelId !== 'voxel:1,0,0') fail('viewport visual delta after crop voxel mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.screenshotPath === artifact.viewportVisualDelta.afterCrop?.screenshotPath) fail('viewport visual delta before/after crops must not come from the same screenshot');
+if (artifact.viewportVisualDelta.beforeCrop?.sourceState?.phase !== 'before') fail('viewport visual delta before crop source phase mismatch');
+if (artifact.viewportVisualDelta.afterCrop?.sourceState?.phase !== 'after') fail('viewport visual delta after crop source phase mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.sourceState?.sourceSceneHash !== artifact.viewportVisualDelta.beforeSceneHash) fail('viewport visual delta before crop source scene mismatch');
+if (artifact.viewportVisualDelta.afterCrop?.sourceState?.sourceSceneHash !== artifact.viewportVisualDelta.afterSceneHash) fail('viewport visual delta after crop source scene mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.sourceState?.sourceScreenshotName !== 'studio-app-viewport-before') fail('viewport visual delta before crop screenshot source mismatch');
+if (artifact.viewportVisualDelta.afterCrop?.sourceState?.sourceScreenshotName !== 'studio-app-viewport-after') fail('viewport visual delta after crop screenshot source mismatch');
+for (const key of ['x', 'y', 'width', 'height']) {
+  if (artifact.viewportVisualDelta.beforeCrop.cropRect[key] !== artifact.viewportVisualDelta.afterCrop.cropRect[key]) fail(`viewport visual delta crop rect ${key} differs between before/after`);
+}
 if (artifact.viewportVisualDelta.beforeCrop?.cropSha256 === artifact.viewportVisualDelta.afterCrop?.cropSha256) fail('viewport visual delta crop hashes unexpectedly match');
 if (artifact.viewportVisualDelta.staleReadbackGuard?.requiredBeforeSceneHash !== artifact.viewportVisualDelta.beforeSceneHash) fail('viewport visual delta before scene stale guard mismatch');
 if (artifact.viewportVisualDelta.staleReadbackGuard?.requiredAfterSceneHash !== artifact.viewportVisualDelta.afterSceneHash) fail('viewport visual delta after scene stale guard mismatch');
@@ -148,7 +158,7 @@ if (!existsSync(linkedPath)) fail(`linked V1 proof artifact is missing: ${artifa
 const linkedBytes = readFileSync(linkedPath);
 if (sha256(linkedBytes) !== artifact.linkedV1Proof.sha256) fail('linked V1 proof SHA256 mismatch');
 
-if (!Array.isArray(artifact.screenshots) || artifact.screenshots.length < 2) fail('expected at least two browser screenshots');
+if (!Array.isArray(artifact.screenshots) || artifact.screenshots.length < 4) fail('expected at least four browser screenshots including before/after viewport phases');
 for (const screenshot of artifact.screenshots) {
   if (screenshot.mediaType !== 'image/png') fail(`${screenshot.name} is not image/png`);
   const path = join(root, screenshot.path);
@@ -161,4 +171,4 @@ for (const screenshot of artifact.screenshots) {
   if (dimensions.width < 1000 || dimensions.height < 700) fail(`screenshot too small for review evidence: ${screenshot.path}`);
 }
 
-console.log(`asha-studio browser visual capture readback: OK (${artifact.screenshots.length} screenshot(s), 2 viewport crop(s), ${artifact.linkedV1Proof.proofStepCount} linked proof steps, ${artifact.readiness.markerGroups.length} editor-shell marker group(s))`);
+console.log(`asha-studio browser visual capture readback: OK (${artifact.screenshots.length} screenshot(s), 2 same-region viewport phase crop(s), ${artifact.linkedV1Proof.proofStepCount} linked proof steps, ${artifact.readiness.markerGroups.length} editor-shell marker group(s))`);

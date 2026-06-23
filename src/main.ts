@@ -1,6 +1,7 @@
 import './styles.css';
 import { createStudioShellModel } from './studio-model';
 import { renderStudioViewport3dHost } from './viewport3d-host';
+import type { StudioViewport3dRenderPhase } from './viewport3d-host';
 
 type StudioShell = ReturnType<typeof createStudioShellModel>;
 type StudioPanel = StudioShell['panels'][number];
@@ -107,7 +108,7 @@ function renderBoundaryCard(model: StudioShell) {
   return boundary;
 }
 
-function renderViewportReadout(model: StudioShell): HTMLElement {
+function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3dRenderPhase): HTMLElement {
   const viewportModel = model.workspace.viewportEditor;
   const viewport = el('section', 'viewport-editor-panel viewport-reference-projection');
   viewport.setAttribute('aria-label', viewportModel.automationLabel);
@@ -128,12 +129,13 @@ function renderViewportReadout(model: StudioShell): HTMLElement {
   const canvas = el('div', 'viewport-reference-canvas');
   canvas.setAttribute('aria-label', 'studio-central-reference-viewport-canvas');
   canvas.dataset.viewportHost = 'real-browser-3d-canvas';
+  canvas.dataset.viewportPhase = renderPhase;
   const meta = el('div', 'viewport-reference-meta');
   for (const label of ['persp · 35mm', 'grid ✓', 'gizmos ✓', 'shading: Three.js local browser projection']) {
     meta.append(el('span', 'viewport-meta-chip', label));
   }
   canvas.append(meta);
-  canvas.append(renderStudioViewport3dHost(model.workspace.sceneView));
+  canvas.append(renderStudioViewport3dHost(model.workspace.sceneView, { renderPhase }));
 
   const overlay = el('div', 'viewport-state-overlay');
   overlay.append(el('p', 'viewport-selected-target-readout', `Selected target: ${viewportModel.selectedTarget.selectedVoxel} · face ${viewportModel.selectedTarget.selectedFace} · edit anchor ${viewportModel.selectedTarget.editAnchor}`));
@@ -373,7 +375,7 @@ function renderLimitations(model: StudioShell): HTMLElement {
   return limits;
 }
 
-function renderDockFrame(model: StudioShell): HTMLElement {
+function renderDockFrame(model: StudioShell, renderPhase: StudioViewport3dRenderPhase): HTMLElement {
   const frame = el('div', 'studio-editor-frame');
   frame.setAttribute('aria-label', 'studio-editor-dock-frame');
 
@@ -386,7 +388,7 @@ function renderDockFrame(model: StudioShell): HTMLElement {
 
   const centerDock = el('main', 'studio-editor-center-dock');
   centerDock.setAttribute('aria-label', 'studio-editor-central-viewport-dock');
-  centerDock.append(renderViewportReadout(model));
+  centerDock.append(renderViewportReadout(model, renderPhase));
   centerDock.append(renderVoxelWorkflow(model));
   frame.append(centerDock);
 
@@ -412,6 +414,11 @@ function renderDockFrame(model: StudioShell): HTMLElement {
   return frame;
 }
 
+function viewportPhaseFromLocation(): StudioViewport3dRenderPhase {
+  const phase = new URLSearchParams(window.location.search).get('viewportPhase');
+  return phase === 'before' || phase === 'after' ? phase : 'combined';
+}
+
 function renderApp(): void {
   const model = createStudioShellModel();
   const app = document.querySelector<HTMLDivElement>('#app');
@@ -421,7 +428,7 @@ function renderApp(): void {
 
   const shell = el('div', 'studio-shell');
   shell.append(renderTopBar(model));
-  shell.append(renderDockFrame(model));
+  shell.append(renderDockFrame(model, viewportPhaseFromLocation()));
   app.replaceChildren(shell);
 }
 

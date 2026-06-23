@@ -20,6 +20,8 @@ export interface StudioViewport3dRenderableReadback {
   readonly renderHash: string;
 }
 
+export type StudioViewport3dRenderPhase = 'combined' | 'before' | 'after';
+
 export interface StudioViewport3dReadback {
   readonly schemaVersion: 1;
   readonly artifactKind: 'viewport_3d_readback';
@@ -158,8 +160,14 @@ function addSceneLightsAndGuides(scene: THREE.Scene): void {
   scene.add(axes);
 }
 
-function addRenderableToScene(scene: THREE.Scene, sceneView: StudioSceneViewModel, renderable: StudioSceneViewRenderable): THREE.Object3D | null {
-  if (renderable.kind === 'voxel_grid') return null;
+function renderableVisibleInPhase(renderable: StudioSceneViewRenderable, phase: StudioViewport3dRenderPhase): boolean {
+  if (phase === 'combined') return true;
+  if (phase === 'before') return renderable.renderableId !== PREVIEW_GHOST_ID && renderable.renderableId !== APPLIED_RENDERABLE_ID;
+  return renderable.renderableId !== PREVIEW_GHOST_ID;
+}
+
+function addRenderableToScene(scene: THREE.Scene, sceneView: StudioSceneViewModel, renderable: StudioSceneViewRenderable, phase: StudioViewport3dRenderPhase = 'combined'): THREE.Object3D | null {
+  if (renderable.kind === 'voxel_grid' || !renderableVisibleInPhase(renderable, phase)) return null;
   const object = createBoxRenderable(renderable);
   if (renderable.renderableId === PREVIEW_GHOST_ID) object.name = 'preview-ghost-renderable';
   if (renderable.renderableId === APPLIED_RENDERABLE_ID) object.name = 'applied-state-renderable';
@@ -170,14 +178,14 @@ function addRenderableToScene(scene: THREE.Scene, sceneView: StudioSceneViewMode
   return object;
 }
 
-function createProjectedScene(sceneView: StudioSceneViewModel): { readonly scene: THREE.Scene; readonly camera: THREE.PerspectiveCamera; readonly pickableObjects: readonly THREE.Object3D[]; readonly selectionPickableObjects: readonly THREE.Object3D[] } {
+function createProjectedScene(sceneView: StudioSceneViewModel, phase: StudioViewport3dRenderPhase = 'combined'): { readonly scene: THREE.Scene; readonly camera: THREE.PerspectiveCamera; readonly pickableObjects: readonly THREE.Object3D[]; readonly selectionPickableObjects: readonly THREE.Object3D[] } {
   const scene = new THREE.Scene();
   const camera = createCamera(sceneView);
   addSceneLightsAndGuides(scene);
   const pickableObjects: THREE.Object3D[] = [];
   const selectionPickableObjects: THREE.Object3D[] = [];
   for (const renderable of sceneView.renderables) {
-    const object = addRenderableToScene(scene, sceneView, renderable);
+    const object = addRenderableToScene(scene, sceneView, renderable, phase);
     if (object !== null && renderable.pickable) {
       pickableObjects.push(object);
       if (renderable.renderableId !== APPLIED_RENDERABLE_ID) selectionPickableObjects.push(object);
@@ -398,12 +406,14 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
   };
 }
 
-export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel): HTMLElement {
+export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, options: { readonly renderPhase?: StudioViewport3dRenderPhase } = {}): HTMLElement {
+  const renderPhase = options.renderPhase ?? 'combined';
   const host = document.createElement('div');
   host.className = 'studio-viewport-3d-host';
   host.setAttribute('aria-label', 'studio-real-browser-3d-viewport-host');
   host.dataset.viewport3dHost = 'three-local-browser-projection';
   host.dataset.sceneId = sceneView.sceneId;
+  host.dataset.renderPhase = renderPhase;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(1);
@@ -425,7 +435,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel): HTM
   }
   host.append(axisMarker);
 
-  const { scene, camera } = createProjectedScene(sceneView);
+  const { scene, camera } = createProjectedScene(sceneView, renderPhase);
 
   renderer.render(scene, camera);
 

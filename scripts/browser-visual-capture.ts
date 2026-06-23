@@ -30,7 +30,7 @@ interface ScreenshotRef {
 }
 
 interface ViewportVisualDeltaCropRef {
-  readonly name: 'viewport-selected-before-crop' | 'viewport-applied-after-crop';
+  readonly name: 'viewport-edit-anchor-before-crop' | 'viewport-edit-anchor-after-crop';
   readonly phase: 'before' | 'after';
   readonly screenshotPath: string;
   readonly cropPath: string;
@@ -39,11 +39,16 @@ interface ViewportVisualDeltaCropRef {
   readonly mediaType: 'image/png';
   readonly byteLength: number;
   readonly cropRect: { readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly coordinateSpace: 'screenshot_px' };
-  readonly canvasDimensions: { readonly width: number; readonly height: number };
+  readonly sourceState: {
+    readonly phase: 'before' | 'after';
+    readonly route: 'studio_app_viewport_phase';
+    readonly sourceSceneHash: string;
+    readonly sourceScreenshotName: 'studio-app-viewport-before' | 'studio-app-viewport-after';
+  };
   readonly renderableId: string;
   readonly voxelId: string;
   readonly sceneHash: string;
-  readonly linkedCommandId: 'selection.voxel_from_screen_point' | 'authority.voxel.apply_brush';
+  readonly linkedCommandId: 'preview.voxel_brush' | 'authority.voxel.apply_brush';
   readonly cameraHash: string;
 }
 
@@ -338,6 +343,7 @@ async function createCropRef(args: {
   readonly phase: ViewportVisualDeltaCropRef['phase'];
   readonly screenshot: ScreenshotRef;
   readonly cropRect: ViewportVisualDeltaCropRef['cropRect'];
+  readonly sourceState: ViewportVisualDeltaCropRef['sourceState'];
   readonly renderableId: string;
   readonly voxelId: string;
   readonly sceneHash: string;
@@ -359,7 +365,7 @@ async function createCropRef(args: {
     mediaType: 'image/png',
     byteLength: bytes.byteLength,
     cropRect: args.cropRect,
-    canvasDimensions: { width: args.screenshot.width, height: args.screenshot.height },
+    sourceState: args.sourceState,
     renderableId: args.renderableId,
     voxelId: args.voxelId,
     sceneHash: args.sceneHash,
@@ -440,30 +446,47 @@ async function main(): Promise<void> {
     const studioAppUrl = `${baseUrl}/index.html`;
     const proofArtifactUrl = `${baseUrl}/v1-proof/index.html`;
     const app = await captureRoute(studioAppUrl, 'studio-app');
+    const before = await captureRoute(`${studioAppUrl}?viewportPhase=before`, 'studio-app-viewport-before');
+    const after = await captureRoute(`${studioAppUrl}?viewportPhase=after`, 'studio-app-viewport-after');
     const proof = await captureRoute(proofArtifactUrl, 'v1-proof-before-after');
-    return { appText: app.text, proofText: proof.text, screenshots: [app.screenshot, proof.screenshot], urls: { studioAppUrl, proofArtifactUrl } };
+    return { appText: app.text, proofText: proof.text, screenshots: [app.screenshot, before.screenshot, after.screenshot, proof.screenshot], urls: { studioAppUrl, proofArtifactUrl } };
   });
   const appMissingMarkers = requiredAppMarkers.filter((marker) => !capture.appText.includes(marker));
   const viewport3d = extractViewport3dReadback(capture.appText);
   const viewport3dCanvasDom = buildCanvasDomEvidence(capture.appText);
   const appScreenshot = capture.screenshots[0];
-  if (appScreenshot === undefined) throw new Error('missing Studio app screenshot for viewport visual delta crops');
+  const beforeScreenshot = capture.screenshots[1];
+  const afterScreenshot = capture.screenshots[2];
+  if (appScreenshot === undefined) throw new Error('missing Studio app screenshot for viewport visual delta context');
+  if (beforeScreenshot === undefined || afterScreenshot === undefined) throw new Error('missing before/after Studio viewport screenshots for visual delta crops');
   const selectedBeforeCrop = await createCropRef({
-    name: 'viewport-selected-before-crop',
+    name: 'viewport-edit-anchor-before-crop',
     phase: 'before',
-    screenshot: appScreenshot,
-    cropRect: { x: 510, y: 420, width: 150, height: 230, coordinateSpace: 'screenshot_px' },
-    renderableId: viewport3d.selectedRenderableId ?? 'missing-selected-renderable',
-    voxelId: 'voxel:0,0,0',
+    screenshot: beforeScreenshot,
+    cropRect: { x: 585, y: 420, width: 150, height: 230, coordinateSpace: 'screenshot_px' },
+    sourceState: {
+      phase: 'before',
+      route: 'studio_app_viewport_phase',
+      sourceSceneHash: visual?.beforeRenderHash ?? 'missing-before-scene-hash',
+      sourceScreenshotName: 'studio-app-viewport-before',
+    },
+    renderableId: 'edit-anchor-empty-before',
+    voxelId: 'voxel:1,0,0',
     sceneHash: visual?.beforeRenderHash ?? 'missing-before-scene-hash',
-    linkedCommandId: 'selection.voxel_from_screen_point',
+    linkedCommandId: 'preview.voxel_brush',
     cameraHash: viewport3d.pickEvidence.cameraHash,
   });
   const appliedAfterCrop = await createCropRef({
-    name: 'viewport-applied-after-crop',
+    name: 'viewport-edit-anchor-after-crop',
     phase: 'after',
-    screenshot: appScreenshot,
+    screenshot: afterScreenshot,
     cropRect: { x: 585, y: 420, width: 150, height: 230, coordinateSpace: 'screenshot_px' },
+    sourceState: {
+      phase: 'after',
+      route: 'studio_app_viewport_phase',
+      sourceSceneHash: visual?.afterRenderHash ?? 'missing-after-scene-hash',
+      sourceScreenshotName: 'studio-app-viewport-after',
+    },
     renderableId: viewport3d.appliedRenderableId ?? 'missing-applied-renderable',
     voxelId: 'voxel:1,0,0',
     sceneHash: visual?.afterRenderHash ?? 'missing-after-scene-hash',
@@ -539,9 +562,18 @@ async function main(): Promise<void> {
     && viewportVisualDelta.afterSceneHash === viewportVisualDelta.staleReadbackGuard.requiredAfterSceneHash
     && viewportVisualDelta.beforeCrop.cropSha256 === viewportVisualDelta.staleReadbackGuard.requiredBeforeCropHash
     && viewportVisualDelta.afterCrop.cropSha256 === viewportVisualDelta.staleReadbackGuard.requiredAfterCropHash
-    && viewportVisualDelta.beforeCrop.linkedCommandId === 'selection.voxel_from_screen_point'
+    && viewportVisualDelta.beforeCrop.linkedCommandId === 'preview.voxel_brush'
     && viewportVisualDelta.afterCrop.linkedCommandId === 'authority.voxel.apply_brush'
-    && viewportVisualDelta.beforeCrop.renderableId === viewport3d.selectedRenderableId
+    && viewportVisualDelta.beforeCrop.screenshotPath !== viewportVisualDelta.afterCrop.screenshotPath
+    && viewportVisualDelta.beforeCrop.sourceState.phase === 'before'
+    && viewportVisualDelta.afterCrop.sourceState.phase === 'after'
+    && viewportVisualDelta.beforeCrop.sourceState.sourceSceneHash === viewportVisualDelta.beforeSceneHash
+    && viewportVisualDelta.afterCrop.sourceState.sourceSceneHash === viewportVisualDelta.afterSceneHash
+    && viewportVisualDelta.beforeCrop.cropRect.x === viewportVisualDelta.afterCrop.cropRect.x
+    && viewportVisualDelta.beforeCrop.cropRect.y === viewportVisualDelta.afterCrop.cropRect.y
+    && viewportVisualDelta.beforeCrop.cropRect.width === viewportVisualDelta.afterCrop.cropRect.width
+    && viewportVisualDelta.beforeCrop.cropRect.height === viewportVisualDelta.afterCrop.cropRect.height
+    && viewportVisualDelta.beforeCrop.renderableId === 'edit-anchor-empty-before'
     && viewportVisualDelta.afterCrop.renderableId === viewport3d.appliedRenderableId
     && viewportVisualDelta.staleReadbackGuard.mismatchPolicy === 'failed_closed';
   const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady && visualDeltaReady;
