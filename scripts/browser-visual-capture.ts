@@ -29,6 +29,43 @@ interface ScreenshotRef {
   readonly height: number;
 }
 
+interface ViewportVisualDeltaCropRef {
+  readonly name: 'viewport-selected-before-crop' | 'viewport-applied-after-crop';
+  readonly phase: 'before' | 'after';
+  readonly screenshotPath: string;
+  readonly cropPath: string;
+  readonly cropSha256: string;
+  readonly pixelHash: string;
+  readonly mediaType: 'image/png';
+  readonly byteLength: number;
+  readonly cropRect: { readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly coordinateSpace: 'screenshot_px' };
+  readonly canvasDimensions: { readonly width: number; readonly height: number };
+  readonly renderableId: string;
+  readonly voxelId: string;
+  readonly sceneHash: string;
+  readonly linkedCommandId: 'selection.voxel_from_screen_point' | 'authority.voxel.apply_brush';
+  readonly cameraHash: string;
+}
+
+interface ViewportVisualDeltaProof {
+  readonly artifactKind: 'viewport_visual_delta_crop_proof';
+  readonly readiness: 'ready' | 'failed_closed';
+  readonly proofMode: 'targeted_browser_screenshot_crops';
+  readonly beforeSceneHash: string | null;
+  readonly afterSceneHash: string | null;
+  readonly sceneHashChanged: boolean;
+  readonly beforeCrop: ViewportVisualDeltaCropRef;
+  readonly afterCrop: ViewportVisualDeltaCropRef;
+  readonly cropHashChanged: boolean;
+  readonly staleReadbackGuard: {
+    readonly requiredBeforeSceneHash: string | null;
+    readonly requiredAfterSceneHash: string | null;
+    readonly requiredBeforeCropHash: string;
+    readonly requiredAfterCropHash: string;
+    readonly mismatchPolicy: 'failed_closed';
+  };
+}
+
 interface Viewport3dReadbackArtifact {
   readonly artifactKind: 'viewport_3d_readback';
   readonly readiness: 'ready' | 'failed_closed';
@@ -82,7 +119,7 @@ interface Viewport3dCanvasDomEvidence {
 interface BrowserCaptureArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'browser_visual_capture_proof';
-  readonly taskId: 3044;
+  readonly taskId: 3045;
   readonly generatedAtIso: string;
   readonly proofCommand: 'pnpm run proof:browser';
   readonly editorShellTarget: {
@@ -133,6 +170,7 @@ interface BrowserCaptureArtifact {
   };
   readonly viewport3d: Viewport3dReadbackArtifact;
   readonly viewport3dCanvasDom: Viewport3dCanvasDomEvidence;
+  readonly viewportVisualDelta: ViewportVisualDeltaProof;
   readonly screenshots: readonly ScreenshotRef[];
   readonly comparison: {
     readonly status: 'changed' | 'failed_closed';
@@ -162,7 +200,7 @@ const editorShellMarkerGroups = [
   {
     groupId: 'central_reference_viewport',
     label: 'Central Three.js viewport',
-    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 5', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'viewport_camera_tool_interaction_proof', 'viewport-camera-tool-readout', 'viewport-scripted-actions-readout', 'gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost', 'camera_tool_stale_readback_guard', 'viewport_pick_hit_test_evidence', 'pick:selected-voxel-center', 'pick:background-no-hit', 'pick_hit_stale_readback_guard', 'shading: Three.js local browser projection'],
+    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 5', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'viewport_camera_tool_interaction_proof', 'viewport-camera-tool-readout', 'viewport-scripted-actions-readout', 'gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost', 'camera_tool_stale_readback_guard', 'viewport_pick_hit_test_evidence', 'pick:selected-voxel-center', 'pick:background-no-hit', 'pick_hit_stale_readback_guard', 'viewport_visual_delta_crop_proof', 'visual-delta:selected-before-crop', 'visual-delta:applied-after-crop', 'visual_delta_stale_readback_guard', 'shading: Three.js local browser projection'],
   },
   {
     groupId: 'right_inspector_dock',
@@ -283,6 +321,53 @@ async function runChromium(args: readonly string[], options: { readonly encoding
   });
 }
 
+async function runMagick(args: readonly string[]): Promise<void> {
+  await new Promise<void>((resolveRun, reject) => {
+    execFile('magick', [...args], { cwd: root, encoding: 'utf8', timeout: 30_000, maxBuffer: 1024 * 1024 }, (error, _stdout, stderr) => {
+      if (error !== null) {
+        reject(new Error(`magick failed: ${error.message}\n${String(stderr).slice(0, 2000)}`));
+        return;
+      }
+      resolveRun();
+    });
+  });
+}
+
+async function createCropRef(args: {
+  readonly name: ViewportVisualDeltaCropRef['name'];
+  readonly phase: ViewportVisualDeltaCropRef['phase'];
+  readonly screenshot: ScreenshotRef;
+  readonly cropRect: ViewportVisualDeltaCropRef['cropRect'];
+  readonly renderableId: string;
+  readonly voxelId: string;
+  readonly sceneHash: string;
+  readonly linkedCommandId: ViewportVisualDeltaCropRef['linkedCommandId'];
+  readonly cameraHash: string;
+}): Promise<ViewportVisualDeltaCropRef> {
+  const screenshotPath = join(root, args.screenshot.path);
+  const cropPath = join(outDir, `${args.name}.png`);
+  const { x, y, width, height } = args.cropRect;
+  await runMagick([screenshotPath, '-crop', `${width}x${height}+${x}+${y}`, '+repage', cropPath]);
+  const bytes = readFileSync(cropPath);
+  return {
+    name: args.name,
+    phase: args.phase,
+    screenshotPath: args.screenshot.path,
+    cropPath: relative(root, cropPath),
+    cropSha256: sha256Bytes(bytes),
+    pixelHash: sha256Bytes(bytes),
+    mediaType: 'image/png',
+    byteLength: bytes.byteLength,
+    cropRect: args.cropRect,
+    canvasDimensions: { width: args.screenshot.width, height: args.screenshot.height },
+    renderableId: args.renderableId,
+    voxelId: args.voxelId,
+    sceneHash: args.sceneHash,
+    linkedCommandId: args.linkedCommandId,
+    cameraHash: args.cameraHash,
+  };
+}
+
 async function captureRoute(url: string, name: string): Promise<{ text: string; screenshot: ScreenshotRef }> {
   const userDataDir = mkdtempSync(join(tmpdir(), 'asha-studio-browser-capture-'));
   try {
@@ -361,6 +446,48 @@ async function main(): Promise<void> {
   const appMissingMarkers = requiredAppMarkers.filter((marker) => !capture.appText.includes(marker));
   const viewport3d = extractViewport3dReadback(capture.appText);
   const viewport3dCanvasDom = buildCanvasDomEvidence(capture.appText);
+  const appScreenshot = capture.screenshots[0];
+  if (appScreenshot === undefined) throw new Error('missing Studio app screenshot for viewport visual delta crops');
+  const selectedBeforeCrop = await createCropRef({
+    name: 'viewport-selected-before-crop',
+    phase: 'before',
+    screenshot: appScreenshot,
+    cropRect: { x: 510, y: 420, width: 150, height: 230, coordinateSpace: 'screenshot_px' },
+    renderableId: viewport3d.selectedRenderableId ?? 'missing-selected-renderable',
+    voxelId: 'voxel:0,0,0',
+    sceneHash: visual?.beforeRenderHash ?? 'missing-before-scene-hash',
+    linkedCommandId: 'selection.voxel_from_screen_point',
+    cameraHash: viewport3d.pickEvidence.cameraHash,
+  });
+  const appliedAfterCrop = await createCropRef({
+    name: 'viewport-applied-after-crop',
+    phase: 'after',
+    screenshot: appScreenshot,
+    cropRect: { x: 585, y: 420, width: 150, height: 230, coordinateSpace: 'screenshot_px' },
+    renderableId: viewport3d.appliedRenderableId ?? 'missing-applied-renderable',
+    voxelId: 'voxel:1,0,0',
+    sceneHash: visual?.afterRenderHash ?? 'missing-after-scene-hash',
+    linkedCommandId: 'authority.voxel.apply_brush',
+    cameraHash: viewport3d.pickEvidence.cameraHash,
+  });
+  const viewportVisualDelta: ViewportVisualDeltaProof = {
+    artifactKind: 'viewport_visual_delta_crop_proof',
+    readiness: visualChanged && selectedBeforeCrop.cropSha256 !== appliedAfterCrop.cropSha256 ? 'ready' : 'failed_closed',
+    proofMode: 'targeted_browser_screenshot_crops',
+    beforeSceneHash: visual?.beforeRenderHash ?? null,
+    afterSceneHash: visual?.afterRenderHash ?? null,
+    sceneHashChanged: visualChanged,
+    beforeCrop: selectedBeforeCrop,
+    afterCrop: appliedAfterCrop,
+    cropHashChanged: selectedBeforeCrop.cropSha256 !== appliedAfterCrop.cropSha256,
+    staleReadbackGuard: {
+      requiredBeforeSceneHash: visual?.beforeRenderHash ?? null,
+      requiredAfterSceneHash: visual?.afterRenderHash ?? null,
+      requiredBeforeCropHash: selectedBeforeCrop.cropSha256,
+      requiredAfterCropHash: appliedAfterCrop.cropSha256,
+      mismatchPolicy: 'failed_closed',
+    },
+  };
   const markerGroups = editorShellMarkerGroups.map((group) => {
     const missingMarkers = group.markers.filter((marker) => !capture.appText.includes(marker));
     return {
@@ -405,11 +532,23 @@ async function main(): Promise<void> {
     && viewport3d.pickEvidence.staleReadbackGuard.requiredNoHitRayHash === viewport3d.pickEvidence.backgroundNoHit.rayHash
     && viewport3d.pickEvidence.staleReadbackGuard.mismatchPolicy === 'failed_closed';
   const viewport3dReady = viewport3d.readiness === 'ready' && viewport3d.canvasMarker === 'studio-3d-webgl-canvas' && viewport3d.visibleRenderableCount > 0 && viewport3d.selectedRenderableId !== null && viewport3d.previewGhostId !== null && viewport3d.appliedRenderableId !== null && viewport3dCanvasDom.canvasElementPresent && interactionProofReady && pickEvidenceReady;
-  const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady;
+  const visualDeltaReady = viewportVisualDelta.readiness === 'ready'
+    && viewportVisualDelta.sceneHashChanged
+    && viewportVisualDelta.cropHashChanged
+    && viewportVisualDelta.beforeSceneHash === viewportVisualDelta.staleReadbackGuard.requiredBeforeSceneHash
+    && viewportVisualDelta.afterSceneHash === viewportVisualDelta.staleReadbackGuard.requiredAfterSceneHash
+    && viewportVisualDelta.beforeCrop.cropSha256 === viewportVisualDelta.staleReadbackGuard.requiredBeforeCropHash
+    && viewportVisualDelta.afterCrop.cropSha256 === viewportVisualDelta.staleReadbackGuard.requiredAfterCropHash
+    && viewportVisualDelta.beforeCrop.linkedCommandId === 'selection.voxel_from_screen_point'
+    && viewportVisualDelta.afterCrop.linkedCommandId === 'authority.voxel.apply_brush'
+    && viewportVisualDelta.beforeCrop.renderableId === viewport3d.selectedRenderableId
+    && viewportVisualDelta.afterCrop.renderableId === viewport3d.appliedRenderableId
+    && viewportVisualDelta.staleReadbackGuard.mismatchPolicy === 'failed_closed';
+  const ready = appMissingMarkers.length === 0 && proofMissingMarkers.length === 0 && missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady && visualDeltaReady;
   const artifact: BrowserCaptureArtifact = {
     schemaVersion: 1,
     artifactKind: 'browser_visual_capture_proof',
-    taskId: 3044,
+    taskId: 3045,
     generatedAtIso: new Date().toISOString(),
     proofCommand: 'pnpm run proof:browser',
     editorShellTarget: {
@@ -438,7 +577,7 @@ async function main(): Promise<void> {
       proofMissingMarkers,
     },
     correlation: {
-      status: missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady ? 'matched' : 'failed_closed',
+      status: missingTimelineCommandIds.length === 0 && visualChanged && v1.reviewArtifact.captureReadiness === 'ready' && viewport3dReady && visualDeltaReady ? 'matched' : 'failed_closed',
       timelineCommandIds,
       missingTimelineCommandIds,
       visualHashDelta: {
@@ -451,6 +590,7 @@ async function main(): Promise<void> {
     },
     viewport3d,
     viewport3dCanvasDom,
+    viewportVisualDelta,
     screenshots: capture.screenshots,
     comparison: {
       status: visualChanged && capture.screenshots.length >= 2 ? 'changed' : 'failed_closed',
@@ -464,7 +604,7 @@ async function main(): Promise<void> {
   };
   writeFileSync(join(outDir, 'index.json'), `${JSON.stringify(artifact, null, 2)}\n`);
   if (!ready) {
-    throw new Error(`browser visual capture failed closed: appMissing=${appMissingMarkers.join(', ') || 'none'} proofMissing=${proofMissingMarkers.join(', ') || 'none'} timelineMissing=${missingTimelineCommandIds.join(', ') || 'none'} visualChanged=${String(visualChanged)} viewport3dReady=${String(viewport3dReady)} canvasElementCount=${viewport3dCanvasDom.canvasElementCount}`);
+    throw new Error(`browser visual capture failed closed: appMissing=${appMissingMarkers.join(', ') || 'none'} proofMissing=${proofMissingMarkers.join(', ') || 'none'} timelineMissing=${missingTimelineCommandIds.join(', ') || 'none'} visualChanged=${String(visualChanged)} viewport3dReady=${String(viewport3dReady)} visualDeltaReady=${String(visualDeltaReady)} canvasElementCount=${viewport3dCanvasDom.canvasElementCount}`);
   }
   console.log(`asha-studio browser visual capture: OK (${relative(root, join(outDir, 'index.json'))})`);
 }

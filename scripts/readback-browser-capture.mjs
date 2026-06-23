@@ -26,7 +26,7 @@ const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
 
 if (artifact.schemaVersion !== 1) fail(`unexpected schemaVersion ${artifact.schemaVersion}`);
 if (artifact.artifactKind !== 'browser_visual_capture_proof') fail(`unexpected artifactKind ${artifact.artifactKind}`);
-if (artifact.taskId !== 3044) fail(`unexpected taskId ${artifact.taskId}`);
+if (artifact.taskId !== 3045) fail(`unexpected taskId ${artifact.taskId}`);
 if (artifact.editorShellTarget?.mockupPath !== join(root, 'local', 'ui-test.html')) fail('editor shell mockup target path is missing or incorrect');
 if (artifact.editorShellTarget?.comparisonMode !== 'structural_semantic_markers') fail('comparison mode must be structural/semantic markers');
 if (artifact.editorShellTarget?.pixelPerfect !== false) fail('browser readback must not claim pixel-perfect matching');
@@ -105,6 +105,36 @@ if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredSelectionHash !
 if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredHitRenderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport3d pick renderable stale-readback guard mismatch');
 if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.requiredNoHitRayHash !== artifact.viewport3d.pickEvidence.backgroundNoHit.rayHash) fail('viewport3d pick no-hit stale-readback guard mismatch');
 if (artifact.viewport3d.pickEvidence.staleReadbackGuard?.mismatchPolicy !== 'failed_closed') fail('viewport3d pick mismatch policy must fail closed');
+if (artifact.viewportVisualDelta?.artifactKind !== 'viewport_visual_delta_crop_proof') fail('viewport visual delta proof missing');
+if (artifact.viewportVisualDelta.readiness !== 'ready') fail(`viewport visual delta readiness is ${artifact.viewportVisualDelta.readiness}`);
+if (artifact.viewportVisualDelta.proofMode !== 'targeted_browser_screenshot_crops') fail('viewport visual delta proof mode mismatch');
+if (artifact.viewportVisualDelta.sceneHashChanged !== true) fail('viewport visual delta scene hash did not change');
+if (artifact.viewportVisualDelta.cropHashChanged !== true) fail('viewport visual delta crop hash did not change');
+if (artifact.viewportVisualDelta.beforeSceneHash === artifact.viewportVisualDelta.afterSceneHash) fail('viewport visual delta before/after scene hashes match');
+if (artifact.viewportVisualDelta.beforeCrop?.renderableId !== artifact.viewport3d.selectedRenderableId) fail('viewport visual delta before crop renderable mismatch');
+if (artifact.viewportVisualDelta.afterCrop?.renderableId !== artifact.viewport3d.appliedRenderableId) fail('viewport visual delta after crop renderable mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.linkedCommandId !== 'selection.voxel_from_screen_point') fail('viewport visual delta before crop command mismatch');
+if (artifact.viewportVisualDelta.afterCrop?.linkedCommandId !== 'authority.voxel.apply_brush') fail('viewport visual delta after crop command mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.voxelId !== 'voxel:0,0,0') fail('viewport visual delta before crop voxel mismatch');
+if (artifact.viewportVisualDelta.afterCrop?.voxelId !== 'voxel:1,0,0') fail('viewport visual delta after crop voxel mismatch');
+if (artifact.viewportVisualDelta.beforeCrop?.cropSha256 === artifact.viewportVisualDelta.afterCrop?.cropSha256) fail('viewport visual delta crop hashes unexpectedly match');
+if (artifact.viewportVisualDelta.staleReadbackGuard?.requiredBeforeSceneHash !== artifact.viewportVisualDelta.beforeSceneHash) fail('viewport visual delta before scene stale guard mismatch');
+if (artifact.viewportVisualDelta.staleReadbackGuard?.requiredAfterSceneHash !== artifact.viewportVisualDelta.afterSceneHash) fail('viewport visual delta after scene stale guard mismatch');
+if (artifact.viewportVisualDelta.staleReadbackGuard?.requiredBeforeCropHash !== artifact.viewportVisualDelta.beforeCrop.cropSha256) fail('viewport visual delta before crop stale guard mismatch');
+if (artifact.viewportVisualDelta.staleReadbackGuard?.requiredAfterCropHash !== artifact.viewportVisualDelta.afterCrop.cropSha256) fail('viewport visual delta after crop stale guard mismatch');
+if (artifact.viewportVisualDelta.staleReadbackGuard?.mismatchPolicy !== 'failed_closed') fail('viewport visual delta mismatch policy must fail closed');
+for (const crop of [artifact.viewportVisualDelta.beforeCrop, artifact.viewportVisualDelta.afterCrop]) {
+  if (crop.mediaType !== 'image/png') fail(`${crop.name} is not image/png`);
+  const cropPath = join(root, crop.cropPath);
+  if (!existsSync(cropPath)) fail(`viewport crop is missing: ${crop.cropPath}`);
+  const cropBytes = readFileSync(cropPath);
+  if (sha256(cropBytes) !== crop.cropSha256) fail(`viewport crop SHA256 mismatch: ${crop.cropPath}`);
+  if (sha256(cropBytes) !== crop.pixelHash) fail(`viewport crop pixel hash mismatch: ${crop.cropPath}`);
+  if (cropBytes.length !== crop.byteLength) fail(`viewport crop byte length mismatch: ${crop.cropPath}`);
+  const cropDimensions = pngDimensions(cropBytes);
+  if (cropDimensions.width !== crop.cropRect.width || cropDimensions.height !== crop.cropRect.height) fail(`viewport crop dimensions mismatch: ${crop.cropPath}`);
+  if (crop.cropRect.coordinateSpace !== 'screenshot_px') fail(`viewport crop coordinate space mismatch: ${crop.cropPath}`);
+}
 const interactionActionIds = new Set(artifact.viewport3d.interactionProof.scriptedActions?.map((action) => action.actionId) ?? []);
 for (const actionId of ['gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost']) {
   if (!interactionActionIds.has(actionId)) fail(`viewport3d interaction action missing: ${actionId}`);
@@ -131,4 +161,4 @@ for (const screenshot of artifact.screenshots) {
   if (dimensions.width < 1000 || dimensions.height < 700) fail(`screenshot too small for review evidence: ${screenshot.path}`);
 }
 
-console.log(`asha-studio browser visual capture readback: OK (${artifact.screenshots.length} screenshot(s), ${artifact.linkedV1Proof.proofStepCount} linked proof steps, ${artifact.readiness.markerGroups.length} editor-shell marker group(s))`);
+console.log(`asha-studio browser visual capture readback: OK (${artifact.screenshots.length} screenshot(s), 2 viewport crop(s), ${artifact.linkedV1Proof.proofStepCount} linked proof steps, ${artifact.readiness.markerGroups.length} editor-shell marker group(s))`);

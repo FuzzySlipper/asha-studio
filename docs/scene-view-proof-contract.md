@@ -91,6 +91,22 @@ That distinction is the core non-claim: the scene-view model is a target proof
 contract for future renderer work; it does not claim WASM/native runtime,
 Agora/compositor, GPU, or performance evidence.
 
+## Visual delta/crop proof
+
+Task `asha#3045` extends the browser capture artifact with
+`viewport_visual_delta_crop_proof`. The proof keeps full-page screenshots as
+context but adds targeted viewport crops around the selected-before and
+applied-after renderables. Each crop records its screenshot path, crop path,
+rectangle in screenshot pixels, crop hash, object/voxel id, linked command id,
+camera hash, and before/after scene hash. Browser readback fails closed if the
+scene hashes do not change, if the crop hashes do not change, if any crop file is
+missing or hash-mismatched, or if stale-readback guard hashes diverge from the
+recorded crop/scene hashes.
+
+The crop proof is structural browser evidence only. It does not assert
+pixel-perfect whole-page identity, Agora compositor capture, hardware GPU
+behavior, or native/WASM runtime authority.
+
 ## Checked-in fixtures
 
 - `fixtures/studio-scene-view.sample.json` — standalone scene-view readback.
