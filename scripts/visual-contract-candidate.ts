@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -43,10 +43,9 @@ const negativePath = join(fixtureDir, 'asha-studio-current.negative.contract.jso
 const proofPath = join(fixtureDir, 'asha-studio-current.proof.json');
 const artifactRoot = join(fixtureDir, 'artifacts');
 const evidenceDir = join(root, 'artifacts', 'visual-contract', 'latest');
-const servicePort = 18090;
-const serviceBaseUrl = `http://127.0.0.1:${servicePort}`;
-const visualContractsUrl = `${serviceBaseUrl}/visual-contracts`;
-const serviceToken = 'asha-studio-visual-contract-proof-token';
+const deployedServiceHost = process.env.ASHA_VISUAL_CONTRACT_SSH_HOST ?? 'den-srv';
+const deployedServiceBaseUrl = process.env.ASHA_VISUAL_CONTRACT_BASE_URL ?? 'http://127.0.0.1:8086';
+const deployedVisualContractsUrl = `${deployedServiceBaseUrl}/visual-contracts`;
 
 const requiredVisualObjects = [
   'export_review_artifact_button',
@@ -98,66 +97,40 @@ async function withStaticServer<T>(fn: (baseUrl: string) => Promise<T>): Promise
   }
 }
 
-async function waitForHealth(): Promise<void> {
-  const deadline = Date.now() + 20_000;
-  let lastError = 'not attempted';
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(`${serviceBaseUrl}/health`);
-      if (response.ok) return;
-      lastError = `HTTP ${response.status}`;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`visual-contract service did not become healthy: ${lastError}`);
+type ExecEncoding = BufferEncoding | 'buffer';
+
+function execFileOutput(command: string, args: readonly string[], options: { cwd?: string; encoding?: ExecEncoding; timeout?: number; maxBuffer?: number } = {}): Promise<string | Buffer> {
+  const { cwd, encoding = 'utf8', timeout = 60_000, maxBuffer = 20 * 1024 * 1024 } = options;
+  return new Promise((resolveRun, reject) => {
+    execFile(command, [...args], { cwd, encoding, timeout, maxBuffer }, (error, stdout, stderr) => {
+      if (error !== null) {
+        const safeStderr = Buffer.isBuffer(stderr) ? stderr.toString('utf8') : String(stderr);
+        const safeStdout = Buffer.isBuffer(stdout) ? stdout.toString('utf8') : String(stdout);
+        reject(new Error(`${command} ${args.join(' ')} failed: ${error.message}\n${safeStdout}\n${safeStderr}`));
+        return;
+      }
+      resolveRun(stdout as string | Buffer);
+    });
+  });
 }
 
-async function withVisualContractService<T>(fn: () => Promise<T>): Promise<T> {
-  const tempDir = mkdtempSync(join(tmpdir(), 'asha-studio-visual-contract-service-'));
-  const configPath = join(tempDir, 'config.yaml');
-  const artifactPath = join(tempDir, 'artifacts');
-  mkdirSync(artifactPath, { recursive: true });
-  writeFileSync(configPath, [
-    `bind_addr: "127.0.0.1:${servicePort}"`,
-    'artifacts:',
-    `  base_url: "${visualContractsUrl}"`,
-    `  path: "${artifactPath}"`,
-    'http:',
-    '  read_header_timeout: "5s"',
-    '',
-  ].join('\n'));
-  const child = spawn('go', ['run', './cmd/visual-contract'], {
-    cwd: visualContractRoot,
-    env: {
-      ...process.env,
-      VISUAL_CONTRACT_CONFIG_PATH: configPath,
-      DEN_VISUAL_CONTRACT_SERVICE_TOKEN: serviceToken,
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let logs = '';
-  child.stdout.on('data', (chunk: Buffer) => { logs += chunk.toString(); });
-  child.stderr.on('data', (chunk: Buffer) => { logs += chunk.toString(); });
+async function sshText(script: string, timeout = 60_000): Promise<string> {
+  const output = await execFileOutput('ssh', ['-o', 'BatchMode=yes', deployedServiceHost, script], { encoding: 'utf8', timeout });
+  return String(output);
+}
+
+async function scpToRemote(localPath: string, remotePath: string): Promise<void> {
+  await execFileOutput('scp', ['-q', localPath, `${deployedServiceHost}:${remotePath}`], { encoding: 'utf8', timeout: 60_000 });
+}
+
+async function withVisualContractService<T>(fn: (remoteDir: string) => Promise<T>): Promise<T> {
+  const health = await sshText(`set -euo pipefail; curl -fsS ${deployedServiceBaseUrl}/health`, 30_000);
+  if (!health.includes('visual-contract')) throw new Error(`unexpected deployed visual-contract health response: ${health.slice(0, 400)}`);
+  const remoteDir = (await sshText('set -euo pipefail; mktemp -d /tmp/asha-studio-visual-contract.XXXXXX', 30_000)).trim();
   try {
-    await waitForHealth();
-    return await fn();
-  } catch (error) {
-    throw new Error(`${error instanceof Error ? error.message : String(error)}\nvisual-contract service logs:\n${logs.slice(-4000)}`);
+    return await fn(remoteDir);
   } finally {
-    child.kill('SIGTERM');
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        child.kill('SIGKILL');
-        resolve();
-      }, 2_000);
-      child.once('exit', () => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
-    rmSync(tempDir, { recursive: true, force: true });
+    await sshText(`set -euo pipefail; rm -rf ${JSON.stringify(remoteDir)}`, 30_000).catch(() => undefined);
   }
 }
 
@@ -206,25 +179,34 @@ function sanitizeViewportEvidence(webEvidence: unknown): unknown {
   return webEvidence;
 }
 
-async function postJson<T>(route: string, body: unknown): Promise<T> {
-  const response = await fetch(`${visualContractsUrl}${route}`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${serviceToken}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`${route} failed HTTP ${response.status}: ${text.slice(0, 4000)}`);
-  return JSON.parse(text) as T;
+async function postJson<T>(remoteDir: string, route: string, body: unknown): Promise<T> {
+  const localTempDir = mkdtempSync(join(tmpdir(), 'asha-studio-visual-contract-payload-'));
+  const payloadName = `payload-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
+  const localPayload = join(localTempDir, payloadName);
+  const remotePayload = `${remoteDir}/${payloadName}`;
+  try {
+    writeFileSync(localPayload, `${JSON.stringify(body)}\n`);
+    await scpToRemote(localPayload, remotePayload);
+    const url = `${deployedVisualContractsUrl}${route}`;
+    const response = await sshText(`set -euo pipefail
+set -a; . /etc/den-services/visual-contract.env; set +a
+curl -fsS \\
+  -H "Authorization: Bearer \${DEN_VISUAL_CONTRACT_SERVICE_TOKEN}" \\
+  -H "Content-Type: application/json" \\
+  --data @${JSON.stringify(remotePayload)} \\
+  ${JSON.stringify(url)}`, 120_000);
+    return JSON.parse(response) as T;
+  } finally {
+    rmSync(localTempDir, { recursive: true, force: true });
+  }
 }
 
 async function fetchArtifact(url: string, outPath: string): Promise<void> {
-  const response = await fetch(url, { headers: { authorization: `Bearer ${serviceToken}` } });
-  if (!response.ok) throw new Error(`artifact fetch failed HTTP ${response.status}: ${url}`);
+  const artifact = await execFileOutput('ssh', ['-o', 'BatchMode=yes', deployedServiceHost, `set -euo pipefail
+set -a; . /etc/den-services/visual-contract.env; set +a
+curl -fsS -H "Authorization: Bearer \${DEN_VISUAL_CONTRACT_SERVICE_TOKEN}" ${JSON.stringify(url)}`], { encoding: 'buffer', timeout: 60_000, maxBuffer: 20 * 1024 * 1024 });
   mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, Buffer.from(await response.arrayBuffer()));
+  writeFileSync(outPath, artifact as Buffer);
 }
 
 const requiredVisualRoles: Record<string, string> = {
@@ -310,7 +292,7 @@ function localArtifactPath(runId: string, artifactName: string): string {
   return join(artifactRoot, runId, artifactName);
 }
 
-async function compareAndPersist(reference: VisualContract, candidate: VisualContract): Promise<{
+async function compareAndPersist(remoteDir: string, reference: VisualContract, candidate: VisualContract): Promise<{
   runId: string;
   verdict: 'pass' | 'fail';
   failureCount: number;
@@ -320,7 +302,7 @@ async function compareAndPersist(reference: VisualContract, candidate: VisualCon
   localReportArtifact: string;
   localDiffOverlayArtifact: string;
 }> {
-  const report = await postJson<ComparisonReport>('/compare', { reference, candidate });
+  const report = await postJson<ComparisonReport>(remoteDir, '/compare', { reference, candidate });
   const reportArtifact = report.artifacts?.report;
   const diffOverlayArtifact = report.artifacts?.diff_overlay;
   if (report.run_id === undefined || report.run_id.length === 0) throw new Error('compare response missing run_id');
@@ -354,8 +336,8 @@ async function main(): Promise<void> {
   writeFileSync(join(evidenceDir, 'asha-studio-current.web-evidence.json'), `${JSON.stringify(webEvidence, null, 2)}\n`);
   const target = JSON.parse(readFileSync(targetPath, 'utf8')) as VisualContract;
 
-  await withVisualContractService(async () => {
-    const candidate = await postJson<VisualContract>('/from-web-evidence', webEvidence);
+  await withVisualContractService(async (remoteDir) => {
+    const candidate = await postJson<VisualContract>(remoteDir, '/from-web-evidence', webEvidence);
     candidate.project = {
       id: 'asha',
       vocabulary: 'asha_studio_current_dom_visual_contract_v0',
@@ -366,13 +348,13 @@ async function main(): Promise<void> {
     writeFileSync(candidatePath, `${JSON.stringify(candidate, null, 2)}\n`);
     writeFileSync(negativePath, `${JSON.stringify(negative, null, 2)}\n`);
 
-    const candidateValidation = await postJson<{ valid: boolean; counts: unknown }>('/validate', { contract: candidate });
-    const negativeValidation = await postJson<{ valid: boolean; counts: unknown }>('/validate', { contract: negative });
+    const candidateValidation = await postJson<{ valid: boolean; counts: unknown }>(remoteDir, '/validate', { contract: candidate });
+    const negativeValidation = await postJson<{ valid: boolean; counts: unknown }>(remoteDir, '/validate', { contract: negative });
     if (!candidateValidation.valid) throw new Error('candidate visual contract failed validation');
     if (!negativeValidation.valid) throw new Error('negative visual contract failed validation');
 
-    const selfCompare = await compareAndPersist(target, candidate);
-    const negativeCompare = await compareAndPersist(target, negative);
+    const selfCompare = await compareAndPersist(remoteDir, target, candidate);
+    const negativeCompare = await compareAndPersist(remoteDir, target, negative);
     if (selfCompare.verdict !== 'pass') throw new Error(`current Studio candidate did not satisfy target contract: ${selfCompare.failures.join(', ')}`);
     if (negativeCompare.verdict !== 'fail') throw new Error('negative candidate unexpectedly passed target contract');
     if (!negativeCompare.failures.includes('selected_target_inspector_exists')) throw new Error('negative compare did not fail on missing selected_target_inspector');
@@ -395,8 +377,11 @@ async function main(): Promise<void> {
         requiredVisualObjects,
       },
       service: {
-        baseUrl: serviceBaseUrl,
+        mode: 'deployed_den_srv',
+        host: deployedServiceHost,
+        baseUrl: deployedServiceBaseUrl,
         routes: ['/visual-contracts/from-web-evidence', '/visual-contracts/validate', '/visual-contracts/compare'],
+        authentication: 'remote /etc/den-services/visual-contract.env bearer token; token never stored in proof artifacts',
       },
       currentCompare: selfCompare,
       negativeCompare,

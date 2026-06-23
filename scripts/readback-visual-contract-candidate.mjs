@@ -23,6 +23,12 @@ if (proof.capture?.viewport?.width_px !== 1920 || proof.capture?.viewport?.heigh
 if (proof.capture?.captureMode !== 'viewport-clipped') fail('visual-contract proof must use viewport-clipped capture');
 if (proof.capture?.rootSelector !== '[data-visual-id="asha_studio_shell"]') fail('visual-contract proof root selector mismatch');
 
+if (proof.service?.mode !== 'deployed_den_srv') fail(`visual-contract proof must record deployed_den_srv service mode, got ${proof.service?.mode}`);
+if (proof.service?.host !== 'den-srv') fail(`visual-contract proof must record den-srv deployed host, got ${proof.service?.host}`);
+if (typeof proof.service?.baseUrl !== 'string' || proof.service.baseUrl.includes('18090')) fail(`visual-contract proof must not use temp localhost service base URL: ${proof.service?.baseUrl}`);
+if (proof.service?.baseUrl !== 'http://127.0.0.1:8086') fail(`visual-contract proof must use deployed den-srv loopback base URL, got ${proof.service?.baseUrl}`);
+if (!proof.service?.authentication?.includes('/etc/den-services/visual-contract.env')) fail('visual-contract proof must record deployed token source without storing the token');
+
 for (const path of [proof.candidateContract, proof.negativeCandidate, proof.targetContract, proof.webEvidence, proof.screenshot]) {
   if (typeof path !== 'string' || path.length === 0) fail('proof contains missing artifact path');
   if (!existsSync(join(root, path))) fail(`proof artifact path is not retrievable: ${path}`);

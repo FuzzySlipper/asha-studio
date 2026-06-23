@@ -161,7 +161,7 @@ Generated checked-in handles:
 - `fixtures/visual-contract/asha-studio-current.candidate.contract.json`
 - `fixtures/visual-contract/asha-studio-current.negative.contract.json`
 - `fixtures/visual-contract/asha-studio-current.proof.json`
-- durable local service artifacts under `fixtures/visual-contract/artifacts/<run_id>/report.json` and `diff.overlay.svg`
+- deployed-service artifact copies under `fixtures/visual-contract/artifacts/<run_id>/report.json` and `diff.overlay.svg`
 - collector evidence under `artifacts/visual-contract/latest/`
 
 The candidate includes canonical `data-visual-id` / `data-visual-role` evidence for `scene_hierarchy`, `central_3d_viewport`, `selected_target_inspector`, `command_timeline`, `evidence_dock`, limitation labels, `selection_outline`, `preview_ghost`, `axis_gizmo`, and applied/preview state markers. The negative smoke removes `selected_target_inspector` and undersizes `central_3d_viewport`; readback requires the visual-contract report to fail closed with those diagnostics. This is browser layout/affordance evidence only and complements, but does not replace, scene/camera/pick/readback proof.

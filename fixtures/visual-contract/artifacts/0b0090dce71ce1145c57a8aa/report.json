@@ -1,6 +1,6 @@
 {
   "schema": "layered-visual-contract/v0.1",
-  "run_id": "9bbcbc6ae37c62557af9abc0",
+  "run_id": "0b0090dce71ce1145c57a8aa",
   "score": 0.6363636363636364,
   "verdict": "fail",
   "passes": [
@@ -303,15 +303,6 @@
   ],
   "groups": [
     {
-      "key": "critical:exact_id_missing",
-      "severity": "critical",
-      "count": 2,
-      "constraints": [
-        "selected_target_inspector_exists",
-        "inspector_right_of_viewport"
-      ]
-    },
-    {
       "key": "critical:exact_id",
       "severity": "critical",
       "count": 1,
@@ -334,14 +325,23 @@
       "constraints": [
         "central_viewport_bounds_stable"
       ]
+    },
+    {
+      "key": "critical:exact_id_missing",
+      "severity": "critical",
+      "count": 2,
+      "constraints": [
+        "selected_target_inspector_exists",
+        "inspector_right_of_viewport"
+      ]
     }
   ],
   "artifacts": {
-    "reference_overlay": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/reference.overlay.svg",
-    "candidate_overlay": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/candidate.overlay.svg",
-    "diff_overlay": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/diff.overlay.svg",
-    "reference_contract": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/reference.contract.json",
-    "candidate_contract": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/candidate.contract.json",
-    "report": "http://127.0.0.1:18090/visual-contracts/9bbcbc6ae37c62557af9abc0/artifacts/report.json"
+    "reference_overlay": "http://127.0.0.1:8086/visual-contracts/0b0090dce71ce1145c57a8aa/artifacts/reference.overlay.svg",
+    "candidate_overlay": "http://127.0.0.1:8086/visual-contracts/0b0090dce71ce1145c57a8aa/artifacts/candidate.overlay.svg",
+    "diff_overlay": "http://127.0.0.1:8086/visual-contracts/0b0090dce71ce1145c57a8aa/artifacts/diff.overlay.svg",
+    "reference_contract": "http://127.0.0.1:8086/visual-contracts/0b0090dce71ce1145c57a8aa/artifacts/reference.contract.json",
+    "candidate_contract": "http://127.0.0.1:8086/visual-contracts/0b0090dce71ce1145c57a8aa/artifacts/candidate.contract.json",
+    "report": "http://127.0.0.1:8086/visual-contracts/0b0090dce71ce1145c57a8aa/artifacts/report.json"
   }
 }

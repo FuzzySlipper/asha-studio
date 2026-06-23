@@ -106,12 +106,12 @@ Task `asha#3123` adds the first current-Studio candidate proof against this targ
   outline, preview ghost, axis gizmo, and applied/preview state markers.
 - `pnpm run proof:visual-contract` serves `dist/index.html?visualContract=1`,
   collects viewport-clipped browser evidence rooted at
-  `[data-visual-id="asha_studio_shell"]`, converts it through the
-  visual-contract service, and compares it with this target.
+  `[data-visual-id="asha_studio_shell"]`, converts it through the deployed
+  visual-contract service on `den-srv`, and compares it with this target.
 - Current candidate proof handles live in
   `fixtures/visual-contract/asha-studio-current.proof.json`, with candidate and
-  negative contracts next to it and durable local report/overlay artifacts under
-  `fixtures/visual-contract/artifacts/<run_id>/`.
+  negative contracts next to it and deployed-service report/overlay artifact
+  copies under `fixtures/visual-contract/artifacts/<run_id>/`.
 - The negative smoke removes `selected_target_inspector` and undersizes
   `central_3d_viewport`; readback requires fail-closed diagnostics for both.
 - This candidate proof is still browser layout/affordance evidence only and does

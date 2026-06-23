@@ -47,6 +47,7 @@ test('current Studio visual-contract candidate carries stable ASHA DOM markers',
   const proof = readFixture<{
     readonly capture: { readonly viewport: { readonly width_px: number; readonly height_px: number }; readonly captureMode: string; readonly rootSelector: string; readonly requiredVisualObjects: readonly string[] };
     readonly limitations: readonly string[];
+    readonly service: { readonly mode: string; readonly host: string; readonly baseUrl: string; readonly authentication: string };
   }>('asha-studio-current.proof.json');
 
   assert.equal(candidate.schema, 'layered-visual-contract/v0.1');
@@ -56,6 +57,12 @@ test('current Studio visual-contract candidate carries stable ASHA DOM markers',
   assert.equal(candidate.project?.vocabulary, 'asha_studio_current_dom_visual_contract_v0');
   assert.equal(proof.capture.captureMode, 'viewport-clipped');
   assert.equal(proof.capture.rootSelector, '[data-visual-id="asha_studio_shell"]');
+
+  assert.equal(proof.service.mode, 'deployed_den_srv');
+  assert.equal(proof.service.host, 'den-srv');
+  assert.equal(proof.service.baseUrl, 'http://127.0.0.1:8086');
+  assert.match(proof.service.authentication, /\/etc\/den-services\/visual-contract\.env/);
+  assert.ok(!proof.service.baseUrl.includes('18090'), 'proof must not satisfy deployed gate with temp localhost service');
 
   const objects = new Map(candidate.objects.map((object) => [object.id, object]));
   const expectedRoles: Record<string, string> = {
