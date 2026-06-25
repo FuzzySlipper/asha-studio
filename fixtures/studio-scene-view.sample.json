@@ -7,6 +7,7 @@
   "sceneId": "scene-view:voxel-basic:v1",
   "readiness": "ready",
   "projectionAuthority": "browser_projection_reference",
+  "selectedEntityDisplayName": "Primary terrain voxel",
   "viewport": {
     "widthPx": 1920,
     "heightPx": 1080,
@@ -605,7 +606,7 @@
     "seq-0006",
     "seq-0007",
     "seq-0008",
-    "seq-0011",
+    "seq-0012",
     "artifact-visual-before-after-0001"
   ],
   "futurePublicContractCandidates": [

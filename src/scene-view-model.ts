@@ -206,6 +206,7 @@ export interface StudioSceneViewModel {
   readonly sceneId: string;
   readonly readiness: StudioSceneViewReadiness;
   readonly projectionAuthority: StudioSceneViewProjectionAuthority;
+  readonly selectedEntityDisplayName: string | null;
   readonly viewport: {
     readonly widthPx: number;
     readonly heightPx: number;
@@ -473,6 +474,7 @@ export function createStudioSceneViewModel(options: {
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
+  readonly selectedEntityDisplayName?: string | null;
 }): StudioSceneViewModel {
   const { sessionId, scenarioId, voxelWorkflow, modelMaterialPreview, demoAssetLoad, viewportEditor, timeline, visualEvidence } = options;
   const selectedVoxel = coordToVec3(voxelWorkflow.evidence.selectedVoxel);
@@ -642,6 +644,7 @@ export function createStudioSceneViewModel(options: {
     sceneId: `scene-view:${scenarioId}:v1`,
     readiness: viewportEditor.readiness,
     projectionAuthority: 'browser_projection_reference',
+    selectedEntityDisplayName: options.selectedEntityDisplayName ?? null,
     viewport,
     camera,
     interactionProof,

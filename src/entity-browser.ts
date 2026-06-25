@@ -269,7 +269,7 @@ export function createStudioEntityBrowserModel(options: {
 
   const selectEntry = timeline.find((entry) => entry.commandId === 'selection.set_active_entity') ?? null;
   const selectResult = commandResults.find((result) => result.commandId === 'selection.set_active_entity') ?? null;
-  const selectOutput = selectResult !== null && selectResult.output !== null && 'entityId' in selectResult.output ? selectResult.output : null;
+  const selectOutput = selectResult !== null && selectResult.output !== null && 'selected' in selectResult.output ? selectResult.output : null;
   const commandEntityId = selectOutput?.entityId ?? null;
   const commandRenderableId = selectOutput?.renderableId ?? null;
   const commandSelected = selectOutput?.selected ?? false;

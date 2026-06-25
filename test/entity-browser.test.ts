@@ -97,8 +97,8 @@ test('selection.set_active_entity command result matches its public output schem
   const command = requireKnownCommand('selection.set_active_entity', COMMAND_MANIFEST);
   // Finding 1 regression: the actual Studio command result output validates against the registry schema.
   assert.deepEqual(validateExampleAgainstSchema('selection.set_active_entity', 'typedOutputExample', result.output ?? {}, command.outputSchema.shape), []);
-  assert.ok(result.output && 'entityId' in result.output);
-  if (result.output && 'entityId' in result.output) {
+  assert.ok(result.output && 'selected' in result.output);
+  if (result.output && 'selected' in result.output) {
     assert.equal(result.output.entityId, workspace.sceneView.selection.selectedRenderableId);
     assert.equal(result.output.renderableId, workspace.sceneView.selection.selectedRenderableId);
     assert.equal(result.output.selected, true);

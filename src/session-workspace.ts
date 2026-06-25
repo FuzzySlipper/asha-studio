@@ -17,6 +17,8 @@ import { createStudioSceneHierarchyModel } from './scene-hierarchy';
 import type { StudioSceneHierarchyModel } from './scene-hierarchy';
 import { createStudioSceneViewModel } from './scene-view-model';
 import type { StudioSceneViewModel } from './scene-view-model';
+import { createStudioSelectedEntityInspectorModel } from './selected-entity-inspector';
+import type { StudioSelectedEntityInspectorModel } from './selected-entity-inspector';
 import { createStudioSelectedTargetInspectorModel } from './selected-target-inspector';
 import type { StudioSelectedTargetInspectorModel } from './selected-target-inspector';
 import { createStudioViewportEditorPanelModel } from './viewport-editor-panel';
@@ -115,6 +117,7 @@ export type StudioCommandInput =
   | { readonly sessionId: string }
   | { readonly sessionId: string; readonly includeVisualEvidence: boolean }
   | { readonly sessionId: string; readonly entityId: string }
+  | { readonly sessionId: string; readonly entityId: string; readonly name: string }
   | {
       readonly sessionId: string;
       readonly assetId: string;
@@ -126,7 +129,8 @@ export type StudioCommandOutput =
   | { readonly kind: 'ok' }
   | { readonly sessionId: string; readonly status: StudioWorkspaceStatus }
   | { readonly artifactId: string; readonly commandCount: number }
-  | { readonly entityId: string; readonly renderableId: string; readonly selectionHash: string; readonly selected: boolean };
+  | { readonly entityId: string; readonly renderableId: string; readonly selectionHash: string; readonly selected: boolean }
+  | { readonly entityId: string; readonly renderableId: string; readonly name: string; readonly nameHash: string; readonly applied: boolean };
 
 export interface StudioCommandInvocation {
   readonly schemaVersion: 1;
@@ -203,6 +207,7 @@ export interface StudioAgentReadoutArtifact {
   readonly sceneView: StudioSceneViewModel;
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly entityBrowser: StudioEntityBrowserModel;
+  readonly selectedEntityInspector: StudioSelectedEntityInspectorModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
   readonly diagnostics: readonly StudioDiagnostic[];
@@ -222,6 +227,7 @@ export interface StudioWorkspaceModel {
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly entityBrowser: StudioEntityBrowserModel;
+  readonly selectedEntityInspector: StudioSelectedEntityInspectorModel;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
@@ -244,15 +250,24 @@ export interface StudioCommandRequest {
 
 // The deterministic scene-view selected renderable; the hierarchy/entity browser selection syncs to it.
 const SELECTED_RENDERABLE_ID = 'selected-voxel:0,0,0';
+// The deterministic display name applied to the selected entity by the inspector rename edit.
+const SELECTED_ENTITY_DISPLAY_NAME = 'Primary terrain voxel';
 
-function selectionHashFor(sessionId: string, entityId: string): string {
-  const text = `${sessionId}:${entityId}`;
+function fnv1a(prefix: string, text: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i += 1) {
     hash ^= text.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return `selection-${hash.toString(16).padStart(8, '0')}`;
+  return `${prefix}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function selectionHashFor(sessionId: string, entityId: string): string {
+  return fnv1a('selection', `${sessionId}:${entityId}`);
+}
+
+function entityNameHashFor(sessionId: string, entityId: string, name: string): string {
+  return fnv1a('entity-name', `${sessionId}:${entityId}:${name}`);
 }
 
 function selectionEvidenceFor(commandId: StudioCommandId, input: StudioCommandInput, selectionHash: string | null): StudioSelectionEvidence {
@@ -265,6 +280,17 @@ function selectionEvidenceFor(commandId: StudioCommandId, input: StudioCommandIn
       materialId: null,
       evidenceHash: selectionHash,
       summary: `Active entity ${input.entityId} selected from the hierarchy and synced to the viewport renderable.`,
+    };
+  }
+  if (commandId === 'entity.set_name' && 'name' in input) {
+    return {
+      kind: 'object',
+      voxelSelection: null,
+      objectId: input.entityId,
+      modelId: null,
+      materialId: null,
+      evidenceHash: entityNameHashFor(input.sessionId, input.entityId, input.name),
+      summary: `Selected entity ${input.entityId} renamed to "${input.name}" through the editor-local inspector edit.`,
     };
   }
   return NONE_SELECTION;
@@ -291,6 +317,7 @@ function sequenceId(index: number): string {
 
 function summarizeInput(input: StudioCommandInput): string {
   if ('assetId' in input) return `sessionId=${input.sessionId}; assetId=${input.assetId}; materialId=${input.materialId}; placement.translation=[${input.placement.translation.join(',')}]; placement.rotation=[${input.placement.rotation.join(',')}]; placement.scale=[${input.placement.scale.join(',')}]`;
+  if ('name' in input) return `sessionId=${input.sessionId}; entityId=${input.entityId}; name=${input.name}`;
   if ('entityId' in input) return `sessionId=${input.sessionId}; entityId=${input.entityId}`;
   if ('includeVisualEvidence' in input) return `sessionId=${input.sessionId}; includeVisualEvidence=${input.includeVisualEvidence}`;
   if ('sessionId' in input) return `sessionId=${input.sessionId}`;
@@ -300,6 +327,7 @@ function summarizeInput(input: StudioCommandInput): string {
 
 function summarizeOutput(output: StudioCommandOutput | null): string {
   if (output === null) return 'No output.';
+  if ('name' in output) return `Renamed entity ${output.entityId} to "${output.name}" on renderable ${output.renderableId} (applied=${output.applied}).`;
   if ('entityId' in output) return `Selected entity ${output.entityId} synced to renderable ${output.renderableId} (selected=${output.selected}).`;
   if ('artifactId' in output) return `Exported ${output.artifactId} with ${output.commandCount} command(s).`;
   if ('status' in output) return `Session ${output.sessionId} is ${output.status}.`;
@@ -354,6 +382,11 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
     case 'selection.set_active_entity': {
       const entityId = 'entityId' in input ? input.entityId : '';
       return { entityId, renderableId: entityId, selectionHash: selectionHash ?? selectionHashFor(sessionId, entityId), selected: true };
+    }
+    case 'entity.set_name': {
+      const entityId = 'entityId' in input ? input.entityId : '';
+      const name = 'name' in input ? input.name : '';
+      return { entityId, renderableId: entityId, name, nameHash: entityNameHashFor(sessionId, entityId, name), applied: name.trim().length > 0 };
     }
     case 'render.capture_before_after':
       return { artifactId: 'artifact-visual-before-after-0001', commandCount };
@@ -492,6 +525,7 @@ export function createAgentReadoutArtifact(options: {
   readonly sceneView: StudioSceneViewModel;
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly entityBrowser: StudioEntityBrowserModel;
+  readonly selectedEntityInspector: StudioSelectedEntityInspectorModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
   const finalState = options.results.at(-1)?.state ?? stateEvidence(options.session.compatibility, 'editor.v0.0');
@@ -515,6 +549,7 @@ export function createAgentReadoutArtifact(options: {
     sceneView: options.sceneView,
     demoAssetLoad: options.demoAssetLoad,
     entityBrowser: options.entityBrowser,
+    selectedEntityInspector: options.selectedEntityInspector,
     visualEvidence,
     exportedArtifacts,
     diagnostics: [...options.session.diagnostics, ...options.results.flatMap((result) => result.diagnostics)],
@@ -592,6 +627,19 @@ export function createStudioWorkspaceModel(options: {
   const selectEntityExecuted = invokeStudioCommand({ catalog, session, request: selectEntityRequest, sequenceIndex: timeline.length, status, previousResults: results });
   timeline.push(selectEntityExecuted.timelineEntry);
   results.push(selectEntityExecuted.result);
+  const renameEntityRequest: StudioCommandRequest = {
+    commandId: 'entity.set_name',
+    requestedBy: 'gui',
+    sourceLabel: 'Selected entity inspector — rename',
+    input: { sessionId: session.sessionId, entityId: SELECTED_RENDERABLE_ID, name: SELECTED_ENTITY_DISPLAY_NAME },
+    requestedAtIso: '1970-01-01T00:00:06.875Z',
+    completedAtIso: '1970-01-01T00:00:06.875Z',
+  };
+  const renameEntityExecuted = invokeStudioCommand({ catalog, session, request: renameEntityRequest, sequenceIndex: timeline.length, status, previousResults: results });
+  timeline.push(renameEntityExecuted.timelineEntry);
+  results.push(renameEntityExecuted.result);
+  const renameOutput = renameEntityExecuted.result.output;
+  const selectedEntityDisplayName = renameOutput !== null && 'name' in renameOutput ? renameOutput.name : null;
   const visualEvidence = createVisualEvidenceForVoxelWorkflow(voxelWorkflow);
   for (const request of [
     { commandId: 'render.capture_before_after' as const, requestedBy: 'gui' as const, sourceLabel: 'Evidence panel', input: { sessionId: session.sessionId, includeVisualEvidence: true }, requestedAtIso: '1970-01-01T00:00:07.000Z', completedAtIso: '1970-01-01T00:00:07.000Z' },
@@ -616,8 +664,10 @@ export function createStudioWorkspaceModel(options: {
     viewportEditor,
     timeline,
     visualEvidence,
+    selectedEntityDisplayName,
   });
   const entityBrowser = createStudioEntityBrowserModel({ sceneView, timeline, commandResults: results });
+  const selectedEntityInspector = createStudioSelectedEntityInspectorModel({ sceneView, entityBrowser, timeline, commandResults: results });
   const sceneHierarchy = createStudioSceneHierarchyModel({
     session,
     scenario: { scenarioId: activeScenarioId, label: session.scenarioLabel, status: status === 'ready' ? 'loaded' : 'available' },
@@ -657,6 +707,7 @@ export function createStudioWorkspaceModel(options: {
     sceneView,
     demoAssetLoad,
     entityBrowser,
+    selectedEntityInspector,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
     knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.', 'Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred.'],
@@ -673,6 +724,7 @@ export function createStudioWorkspaceModel(options: {
     modelMaterialPreview,
     demoAssetLoad,
     entityBrowser,
+    selectedEntityInspector,
     sceneHierarchy,
     selectedTargetInspector,
     commandEvidenceDock,

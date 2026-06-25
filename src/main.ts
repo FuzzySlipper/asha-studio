@@ -249,6 +249,40 @@ function renderBatchUndo(model: StudioShell): HTMLElement {
   return batchUndo;
 }
 
+function renderSelectedEntityInspector(model: StudioShell): HTMLElement {
+  const inspectorModel = model.workspace.selectedEntityInspector;
+  const inspector = markVisual(el('section', `selected-entity-inspector-dock selected-entity-inspector-dock--${inspectorModel.readiness}`), 'selected_entity_inspector', 'selected_entity_inspector');
+  inspector.setAttribute('aria-label', inspectorModel.automationLabel);
+  inspector.append(el('h2', undefined, inspectorModel.title));
+  inspector.append(el('p', 'panel-summary', `${inspectorModel.projectionMode}; entity ${inspectorModel.selectedEntityId}; readiness ${inspectorModel.readiness}.`));
+
+  const identity = el('div', 'selected-entity-inspector-identity-readout');
+  identity.append(el('strong', undefined, inspectorModel.identity.displayName));
+  identity.append(el('p', undefined, `${inspectorModel.identity.entityId} · ${inspectorModel.identity.kind} · ${inspectorModel.identity.sourceState}`));
+  identity.append(el('p', undefined, `provenance: mesh ${inspectorModel.provenance.meshRef ?? '(none)'} · material ${inspectorModel.provenance.materialRef ?? '(none)'} · selection ${inspectorModel.provenance.selectionSequenceId ?? 'no-command'}`));
+  inspector.append(identity);
+
+  const edit = el('p', 'selected-entity-inspector-edit-readout');
+  edit.dataset.inSync = String(inspectorModel.edit.inSync);
+  edit.dataset.applied = String(inspectorModel.edit.applied);
+  edit.textContent = `Edit (${inspectorModel.edit.commandId}) ${inspectorModel.edit.fieldKey}: "${inspectorModel.edit.nameBefore}" → "${inspectorModel.edit.nameAfter}" · ${inspectorModel.edit.sequenceId ?? 'no-command'} · applied ${inspectorModel.edit.applied} · inSync ${inspectorModel.edit.inSync}`;
+  inspector.append(edit);
+
+  const fields = el('dl', 'selected-entity-inspector-fields-readout');
+  for (const field of inspectorModel.fields) {
+    fields.append(el('dt', `selected-entity-inspector-field selected-entity-inspector-field--${field.editable ? 'editable' : 'readonly'}`, `${field.label}${field.editable ? ' ✎' : ''}`));
+    fields.append(el('dd', undefined, `${field.value} · source ${field.source}`));
+  }
+  inspector.append(fields);
+
+  const diagnostics = el('p', 'selected-entity-inspector-diagnostics-readout');
+  diagnostics.textContent = inspectorModel.diagnostics.length === 0
+    ? `Diagnostics: none · negative smokes fail closed: ${inspectorModel.negativeSmokes.map((smoke) => `${smoke.code}=${smoke.actualOutcome}`).join(' | ')}`
+    : `Diagnostics (fail closed): ${inspectorModel.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join(' | ')}`;
+  inspector.append(diagnostics);
+  return inspector;
+}
+
 function renderSelectedTargetInspector(model: StudioShell): HTMLElement {
   const inspectorModel = model.workspace.selectedTargetInspector;
   const inspector = markVisual(el('section', 'selected-target-inspector'), 'selected_target_inspector', 'selected_target_inspector');
@@ -454,6 +488,7 @@ function renderDockFrame(model: StudioShell, renderPhase: StudioViewport3dRender
 
   const rightDock = el('aside', 'studio-editor-dock studio-editor-right-dock');
   rightDock.setAttribute('aria-label', 'studio-editor-right-inspector-dock');
+  rightDock.append(renderSelectedEntityInspector(model));
   rightDock.append(renderSelectedTargetInspector(model));
   rightDock.append(renderPanel(findPanel(model, 'inspector')));
   rightDock.append(renderModelMaterialPreview(model));

@@ -34,6 +34,7 @@ export interface StudioViewport3dReadback {
   readonly dependencyDecision: 'direct_three_local_browser_projection_dependency';
   readonly visibleRenderableCount: number;
   readonly selectedRenderableId: string | null;
+  readonly selectedEntityName: string | null;
   readonly selectionHash: string;
   readonly previewGhostId: string | null;
   readonly appliedRenderableId: string | null;
@@ -375,6 +376,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     dependencyDecision: 'direct_three_local_browser_projection_dependency',
     visibleRenderableCount,
     selectedRenderableId,
+    selectedEntityName: selectedRenderableId === null ? null : sceneView.selectedEntityDisplayName,
     selectionHash: sceneView.selection.selectionHash,
     previewGhostId,
     appliedRenderableId,
@@ -399,6 +401,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
       'pick_hit_stale_readback_guard',
       'demo-asset-loaded-renderable',
       ...renderables.filter((renderable) => renderable.renderableId.startsWith('scene-asset:')).map((renderable) => renderable.renderableId),
+      ...(selectedRenderableId !== null && sceneView.selectedEntityDisplayName !== null ? [`selected-entity-name:${sceneView.selectedEntityDisplayName}`] : []),
     ],
     limitations: [
       'Three.js is used only as a local browser projection dependency for ASHA Studio.',
@@ -469,7 +472,7 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, opti
 
   const summary = document.createElement('p');
   summary.className = 'viewport-3d-semantic-readback';
-  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; selectionHash ${readback.selectionHash}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}; viewport_pick_hit_test_evidence ${readback.pickEvidence.readiness}; hit ${readback.pickEvidence.hit.renderableId} ${readback.pickEvidence.hit.voxelId} ${readback.pickEvidence.hit.face}; no-hit ${readback.pickEvidence.backgroundNoHit.reason}; pick_hit_stale_readback_guard ${readback.pickEvidence.staleReadbackGuard.mismatchPolicy}; viewport_visual_delta_crop_proof ready; visual-delta:selected-before-crop; visual-delta:applied-after-crop; visual_delta_stale_readback_guard failed_closed`;
+  summary.textContent = `viewport_3d_readback ${readback.readiness}; canvas ${readback.canvasMarker}; visible renderables ${readback.visibleRenderableCount}; selected ${readback.selectedRenderableId}; entity name ${readback.selectedEntityName ?? 'unnamed'}; selectionHash ${readback.selectionHash}; preview ${readback.previewGhostId}; applied ${readback.appliedRenderableId}; dependency ${readback.dependencyDecision}; viewport_camera_tool_interaction_proof ${readback.interactionProof.readiness}; active tool ${readback.interactionProof.toolState.activeTool}; camera ${readback.interactionProof.toolState.cameraBeforeHash} to ${readback.interactionProof.toolState.cameraAfterHash}; actions ${readback.interactionProof.scriptedActions.map((action) => action.actionId).join(',')}; camera_tool_stale_readback_guard ${readback.interactionProof.staleReadbackGuard.mismatchPolicy}; viewport_pick_hit_test_evidence ${readback.pickEvidence.readiness}; hit ${readback.pickEvidence.hit.renderableId} ${readback.pickEvidence.hit.voxelId} ${readback.pickEvidence.hit.face}; no-hit ${readback.pickEvidence.backgroundNoHit.reason}; pick_hit_stale_readback_guard ${readback.pickEvidence.staleReadbackGuard.mismatchPolicy}; viewport_visual_delta_crop_proof ready; visual-delta:selected-before-crop; visual-delta:applied-after-crop; visual_delta_stale_readback_guard failed_closed`;
   host.append(summary);
 
   return host;

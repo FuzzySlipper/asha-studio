@@ -60,6 +60,7 @@ test('workspace timeline includes inspect select preview apply after load/status
     'authority.voxel.apply_brush',
     'scene.load_asset',
     'selection.set_active_entity',
+    'entity.set_name',
     'render.capture_before_after',
     'export.agent_readout',
   ]);
