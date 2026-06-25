@@ -99,6 +99,11 @@
         "degradedReason": null
       },
       {
+        "commandId": "selection.set_active_entity",
+        "available": true,
+        "degradedReason": null
+      },
+      {
         "commandId": "inspection.voxel",
         "available": true,
         "degradedReason": null
@@ -522,6 +527,53 @@
     {
       "schemaVersion": 1,
       "sequenceId": "seq-0010",
+      "commandId": "selection.set_active_entity",
+      "label": "Set Active Entity",
+      "menuPath": [
+        "Select",
+        "Active Entity"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:06.750Z",
+      "completedAtIso": "1970-01-01T00:00:06.750Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0",
+      "outputSummary": "Command accepted.",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0010-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "selection_snapshot:seq-0010",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0010",
+          "summary": "Selected entity/renderable selection evidence."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0011",
       "commandId": "render.capture_before_after",
       "label": "Capture Before/After Evidence",
       "menuPath": [
@@ -534,7 +586,7 @@
       "status": "ok",
       "operationClass": "render_evidence",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 10 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 11 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -554,21 +606,21 @@
       ],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0010-1",
+          "artifactId": "artifact-seq-0011-1",
           "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0010",
+          "path": "render_before_after:seq-0011",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0010",
+          "producedBySequenceId": "seq-0011",
           "summary": "Before/after visual evidence artifact."
         }
       ]
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0011",
+      "sequenceId": "seq-0012",
       "commandId": "export.agent_readout",
       "label": "Export Agent Readout",
       "menuPath": [
@@ -581,7 +633,7 @@
       "status": "ok",
       "operationClass": "diagnostic_export",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-agent-readout-0001 with 11 command(s).",
+      "outputSummary": "Exported artifact-agent-readout-0001 with 12 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -601,14 +653,14 @@
       ],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0011-1",
+          "artifactId": "artifact-seq-0012-1",
           "artifactKind": "agent_readout",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0011",
+          "path": "agent_readout:seq-0012",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0011",
+          "producedBySequenceId": "seq-0012",
           "summary": "Human/agent review artifact index."
         }
       ]
@@ -1627,18 +1679,18 @@
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "render.capture_before_after",
+      "commandId": "selection.set_active_entity",
       "commandVersion": 1,
       "sequenceId": "seq-0010",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "gui",
       "status": "ok",
-      "operationClass": "render_evidence",
+      "operationClass": "editor_local",
       "changed": {
         "authorityChanged": false,
-        "editorChanged": false,
-        "renderChanged": true,
+        "editorChanged": true,
+        "renderChanged": false,
         "workspaceChanged": false,
         "artifactsWritten": true
       },
@@ -1706,10 +1758,9 @@
         }
       },
       "output": {
-        "artifactId": "artifact-visual-before-after-0001",
-        "commandCount": 10
+        "kind": "ok"
       },
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 10 command(s).",
+      "outputSummary": "Command accepted.",
       "diagnostics": [
         {
           "severity": "warning",
@@ -1723,14 +1774,14 @@
       "artifacts": [
         {
           "artifactId": "artifact-seq-0010-1",
-          "artifactKind": "visual_before_after",
+          "artifactKind": "state_evidence",
           "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0010",
+          "path": "selection_snapshot:seq-0010",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
           "producedBySequenceId": "seq-0010",
-          "summary": "Before/after visual evidence artifact."
+          "summary": "Selected entity/renderable selection evidence."
         }
       ],
       "retry": {
@@ -1740,35 +1791,35 @@
         "requiredReadback": null
       },
       "undo": {
-        "posture": "not_undoable",
-        "available": false,
-        "reason": "Command does not mutate reversible state in this workspace model.",
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
         "inverseCommandIds": [],
         "requiresSameStateHash": false
       },
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:07.000Z",
-        "startedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "queuedAtIso": "1970-01-01T00:00:06.750Z",
+        "startedAtIso": "1970-01-01T00:00:06.750Z",
+        "completedAtIso": "1970-01-01T00:00:06.750Z",
         "durationMs": 0
       }
     },
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "export.agent_readout",
+      "commandId": "render.capture_before_after",
       "commandVersion": 1,
       "sequenceId": "seq-0011",
       "batchId": null,
       "sessionId": "session-preview-0001",
-      "requestedBy": "agent",
+      "requestedBy": "gui",
       "status": "ok",
-      "operationClass": "diagnostic_export",
+      "operationClass": "render_evidence",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
-        "renderChanged": false,
-        "workspaceChanged": true,
+        "renderChanged": true,
+        "workspaceChanged": false,
         "artifactsWritten": true
       },
       "state": {
@@ -1835,10 +1886,10 @@
         }
       },
       "output": {
-        "artifactId": "artifact-agent-readout-0001",
+        "artifactId": "artifact-visual-before-after-0001",
         "commandCount": 11
       },
-      "outputSummary": "Exported artifact-agent-readout-0001 with 11 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 11 command(s).",
       "diagnostics": [
         {
           "severity": "warning",
@@ -1852,13 +1903,142 @@
       "artifacts": [
         {
           "artifactId": "artifact-seq-0011-1",
-          "artifactKind": "agent_readout",
+          "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0011",
+          "path": "render_before_after:seq-0011",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
           "producedBySequenceId": "seq-0011",
+          "summary": "Before/after visual evidence artifact."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "not_undoable",
+        "available": false,
+        "reason": "Command does not mutate reversible state in this workspace model.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:07.000Z",
+        "startedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "export.agent_readout",
+      "commandVersion": 1,
+      "sequenceId": "seq-0012",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "agent",
+      "status": "ok",
+      "operationClass": "diagnostic_export",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": true,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.12",
+        "editorAfterVersion": "editor.v0.12",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": null,
+          "replayPath": null,
+          "replayHash": null,
+          "replayMode": "unavailable",
+          "summary": "unavailable: runtime bridge/replay integration is deferred."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": null,
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-agent-readout-0001",
+        "commandCount": 12
+      },
+      "outputSummary": "Exported artifact-agent-readout-0001 with 12 command(s).",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0012-1",
+          "artifactKind": "agent_readout",
+          "pathKind": "inline_summary",
+          "path": "agent_readout:seq-0012",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0012",
           "summary": "Human/agent review artifact index."
         }
       ],
@@ -1886,8 +2066,8 @@
   "finalState": {
     "authorityBeforeHash": null,
     "authorityAfterHash": null,
-    "editorBeforeVersion": "editor.v0.11",
-    "editorAfterVersion": "editor.v0.11",
+    "editorBeforeVersion": "editor.v0.12",
+    "editorAfterVersion": "editor.v0.12",
     "renderBeforeHash": null,
     "renderAfterHash": null,
     "selectedBefore": {
@@ -2232,12 +2412,12 @@
       {
         "id": "command_timeline_evidence_log",
         "label": "Command Timeline / Evidence Log",
-        "rowCount": 11
+        "rowCount": 12
       },
       {
         "id": "evidence_artifacts",
         "label": "Evidence / Artifacts",
-        "rowCount": 14
+        "rowCount": 15
       }
     ],
     "commandRows": [
@@ -2402,16 +2582,16 @@
       {
         "sequenceId": "seq-0010",
         "orderIndex": 10,
-        "commandId": "render.capture_before_after",
-        "label": "Capture Before/After Evidence",
+        "commandId": "selection.set_active_entity",
+        "label": "Set Active Entity",
         "status": "ok",
         "source": "GUI",
-        "requestedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
-        "operationClass": "render_evidence",
-        "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-        "outputSummary": "Exported artifact-visual-before-after-0001 with 10 command(s).",
-        "evidenceSummary": "artifact-seq-0010-1:visual_before_after",
+        "requestedAtIso": "1970-01-01T00:00:06.750Z",
+        "completedAtIso": "1970-01-01T00:00:06.750Z",
+        "operationClass": "editor_local",
+        "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0",
+        "outputSummary": "Command accepted.",
+        "evidenceSummary": "artifact-seq-0010-1:state_evidence",
         "artifactIds": [
           "artifact-seq-0010-1"
         ],
@@ -2420,6 +2600,24 @@
       {
         "sequenceId": "seq-0011",
         "orderIndex": 11,
+        "commandId": "render.capture_before_after",
+        "label": "Capture Before/After Evidence",
+        "status": "ok",
+        "source": "GUI",
+        "requestedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "operationClass": "render_evidence",
+        "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
+        "outputSummary": "Exported artifact-visual-before-after-0001 with 11 command(s).",
+        "evidenceSummary": "artifact-seq-0011-1:visual_before_after",
+        "artifactIds": [
+          "artifact-seq-0011-1"
+        ],
+        "diagnosticCount": 2
+      },
+      {
+        "sequenceId": "seq-0012",
+        "orderIndex": 12,
         "commandId": "export.agent_readout",
         "label": "Export Agent Readout",
         "status": "ok",
@@ -2428,10 +2626,10 @@
         "completedAtIso": "1970-01-01T00:00:08.000Z",
         "operationClass": "diagnostic_export",
         "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-        "outputSummary": "Exported artifact-agent-readout-0001 with 11 command(s).",
-        "evidenceSummary": "artifact-seq-0011-1:agent_readout",
+        "outputSummary": "Exported artifact-agent-readout-0001 with 12 command(s).",
+        "evidenceSummary": "artifact-seq-0012-1:agent_readout",
         "artifactIds": [
-          "artifact-seq-0011-1"
+          "artifact-seq-0012-1"
         ],
         "diagnosticCount": 2
       }
@@ -2519,21 +2717,31 @@
       },
       {
         "artifactId": "artifact-seq-0010-1",
-        "artifactKind": "visual_before_after",
-        "path": "render_before_after:seq-0010",
+        "artifactKind": "state_evidence",
+        "path": "selection_snapshot:seq-0010",
         "mediaType": "application/json",
         "contentHash": null,
         "producedBySequenceId": "seq-0010",
-        "summary": "Before/after visual evidence artifact.",
+        "summary": "Selected entity/renderable selection evidence.",
         "source": "command_result"
       },
       {
         "artifactId": "artifact-seq-0011-1",
-        "artifactKind": "agent_readout",
-        "path": "agent_readout:seq-0011",
+        "artifactKind": "visual_before_after",
+        "path": "render_before_after:seq-0011",
         "mediaType": "application/json",
         "contentHash": null,
         "producedBySequenceId": "seq-0011",
+        "summary": "Before/after visual evidence artifact.",
+        "source": "command_result"
+      },
+      {
+        "artifactId": "artifact-seq-0012-1",
+        "artifactKind": "agent_readout",
+        "path": "agent_readout:seq-0012",
+        "mediaType": "application/json",
+        "contentHash": null,
+        "producedBySequenceId": "seq-0012",
         "summary": "Human/agent review artifact index.",
         "source": "command_result"
       },
@@ -2563,8 +2771,8 @@
         "path": "artifacts/session-preview-0001/review-export.json",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0011",
-        "summary": "11 command(s), 1 visual evidence item(s), and 13 artifact ref(s) ready for review.",
+        "producedBySequenceId": "seq-0012",
+        "summary": "12 command(s), 1 visual evidence item(s), and 14 artifact ref(s) ready for review.",
         "source": "review_export"
       },
       {
@@ -2573,8 +2781,8 @@
         "path": "artifacts/studio-agent-readout.sample.json",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0011",
-        "summary": "11 command(s) recorded in the shared GUI/agent timeline.",
+        "producedBySequenceId": "seq-0012",
+        "summary": "12 command(s) recorded in the shared GUI/agent timeline.",
         "source": "agent_readout"
       }
     ],
@@ -2661,18 +2869,18 @@
         "summary": "accepted=1; before=grid-fnv1a-cc815eb0; after=grid-fnv1a-8eb9594b"
       },
       {
-        "sequenceId": "seq-0010",
+        "sequenceId": "seq-0011",
         "commandId": "render.capture_before_after",
         "role": "capture",
         "status": "ok",
-        "summary": "Exported artifact-visual-before-after-0001 with 10 command(s)."
+        "summary": "Exported artifact-visual-before-after-0001 with 11 command(s)."
       },
       {
-        "sequenceId": "seq-0011",
+        "sequenceId": "seq-0012",
         "commandId": "export.agent_readout",
         "role": "export",
         "status": "ok",
-        "summary": "Exported artifact-agent-readout-0001 with 11 command(s)."
+        "summary": "Exported artifact-agent-readout-0001 with 12 command(s)."
       }
     ],
     "evidenceRefs": [
@@ -3350,7 +3558,7 @@
       "seq-0006",
       "seq-0007",
       "seq-0008",
-      "seq-0010",
+      "seq-0011",
       "artifact-visual-before-after-0001"
     ],
     "futurePublicContractCandidates": [
@@ -4106,6 +4314,202 @@
     ],
     "summary": "mesh/demo-crate from asha-studio-demo-pack-0001 placed as 1 renderable(s); 3 render diff op(s); 4 negative smoke(s) fail closed; demo-asset-load-37f2788a"
   },
+  "entityBrowser": {
+    "schemaVersion": 1,
+    "artifactKind": "entity_browser_projection",
+    "automationLabel": "studio-entity-browser-dock",
+    "title": "Entity Browser",
+    "readiness": "ready",
+    "projectionMode": "scene_view_entity_projection",
+    "sceneId": "scene-view:voxel-basic:v1",
+    "entities": [
+      {
+        "entityId": "terrain-test-grid",
+        "label": "Voxel grid · terrain-test-grid",
+        "kind": "voxel_grid",
+        "order": 0,
+        "depth": 0,
+        "sourceState": "authoritative_rust_state",
+        "authorityObjectId": "authority:grid:voxel-basic",
+        "meshRef": null,
+        "materialRef": null,
+        "badges": [
+          "authority",
+          "pickable"
+        ],
+        "selected": false,
+        "pickable": true,
+        "evidenceSource": "StudioSceneViewModel.renderables",
+        "summary": "Authoritative 3x3 voxel terrain grid projected into the browser scene view."
+      },
+      {
+        "entityId": "selected-voxel:0,0,0",
+        "label": "Voxel · selected-voxel:0,0,0",
+        "kind": "voxel_cell",
+        "order": 1,
+        "depth": 1,
+        "sourceState": "authoritative_rust_state",
+        "authorityObjectId": "voxel:0,0,0",
+        "meshRef": null,
+        "materialRef": 1,
+        "badges": [
+          "authority",
+          "pickable",
+          "selected"
+        ],
+        "selected": true,
+        "pickable": true,
+        "evidenceSource": "StudioSceneViewModel.renderables",
+        "summary": "Selected solid voxel before preview/apply; this remains tied to authorityBeforeHash."
+      },
+      {
+        "entityId": "preview-ghost:1,0,0",
+        "label": "Preview ghost · preview-ghost:1,0,0",
+        "kind": "preview_ghost",
+        "order": 2,
+        "depth": 1,
+        "sourceState": "editor_preview_state",
+        "authorityObjectId": null,
+        "meshRef": null,
+        "materialRef": 1,
+        "badges": [
+          "preview"
+        ],
+        "selected": false,
+        "pickable": false,
+        "evidenceSource": "StudioSceneViewModel.renderables",
+        "summary": "Editor-local ghost for preview.voxel_brush at the edit anchor; not applied to Rust authority yet."
+      },
+      {
+        "entityId": "applied-voxel:1,0,0",
+        "label": "Voxel · applied-voxel:1,0,0",
+        "kind": "voxel_cell",
+        "order": 3,
+        "depth": 1,
+        "sourceState": "authoritative_rust_state",
+        "authorityObjectId": "voxel:1,0,0",
+        "meshRef": null,
+        "materialRef": 1,
+        "badges": [
+          "authority",
+          "pickable"
+        ],
+        "selected": false,
+        "pickable": true,
+        "evidenceSource": "StudioSceneViewModel.renderables",
+        "summary": "Applied authority state for the typed voxel brush at the edit anchor; tied to authorityAfterHash."
+      },
+      {
+        "entityId": "model-preview-crate",
+        "label": "Static mesh · mesh/studio-preview-crate",
+        "kind": "static_mesh",
+        "order": 4,
+        "depth": 1,
+        "sourceState": "browser_projection_reference",
+        "authorityObjectId": null,
+        "meshRef": "mesh/studio-preview-crate",
+        "materialRef": "material/studio-brushed-copper",
+        "badges": [
+          "reference",
+          "asset",
+          "material"
+        ],
+        "selected": false,
+        "pickable": false,
+        "evidenceSource": "StudioSceneViewModel.renderables",
+        "summary": "Reference browser projection of the selected model/material pair; not authoritative scene state."
+      },
+      {
+        "entityId": "scene-asset:mesh/demo-crate:1",
+        "label": "Static mesh · mesh/demo-crate",
+        "kind": "static_mesh",
+        "order": 5,
+        "depth": 1,
+        "sourceState": "browser_projection_reference",
+        "authorityObjectId": null,
+        "meshRef": "mesh/demo-crate",
+        "materialRef": "material/demo-brushed-copper",
+        "badges": [
+          "reference",
+          "asset",
+          "material"
+        ],
+        "selected": false,
+        "pickable": false,
+        "evidenceSource": "StudioSceneViewModel.renderables",
+        "summary": "Loaded demo asset mesh/demo-crate bound to material/demo-brushed-copper through scene.load_asset; reference browser projection of the placement, not authoritative scene state."
+      }
+    ],
+    "entityCount": 6,
+    "selection": {
+      "selectedEntityId": "selected-voxel:0,0,0",
+      "viewportRenderableId": "selected-voxel:0,0,0",
+      "inSync": true,
+      "commandId": "selection.set_active_entity",
+      "sequenceId": "seq-0010",
+      "actor": "gui",
+      "selectionHash": "selection-hash-voxel-basic-0-0-0-posX",
+      "summary": "Hierarchy selection of selected-voxel:0,0,0 synced to viewport renderable selected-voxel:0,0,0 via seq-0010."
+    },
+    "entityListHash": "entity-list-1d51ba8c",
+    "diagnostics": [],
+    "negativeSmokes": [
+      {
+        "id": "negative:hierarchy-readback-drift",
+        "code": "hierarchy_readback_drift",
+        "scenario": "Entity list drops a renderable present in the scene-view readback.",
+        "expectedOutcome": "failed_closed",
+        "actualOutcome": "failed_closed",
+        "diagnosticCodes": [
+          "hierarchy_readback_drift"
+        ]
+      },
+      {
+        "id": "negative:missing-selected-entity",
+        "code": "missing_selected_entity",
+        "scenario": "Selected entity id is not present in the projected entity list.",
+        "expectedOutcome": "failed_closed",
+        "actualOutcome": "failed_closed",
+        "diagnosticCodes": [
+          "missing_selected_entity"
+        ]
+      },
+      {
+        "id": "negative:stale-entity-list",
+        "code": "stale_entity_list",
+        "scenario": "Recorded entity-list hash no longer matches the recomputed scene-view projection.",
+        "expectedOutcome": "failed_closed",
+        "actualOutcome": "failed_closed",
+        "diagnosticCodes": [
+          "stale_entity_list"
+        ]
+      },
+      {
+        "id": "negative:unsupported-private-entity-source",
+        "code": "unsupported_private_entity_source",
+        "scenario": "An entity is sourced from an unsupported/private ECS source rather than public scene readback.",
+        "expectedOutcome": "failed_closed",
+        "actualOutcome": "failed_closed",
+        "diagnosticCodes": [
+          "unsupported_private_entity_source"
+        ]
+      }
+    ],
+    "automationMarkers": [
+      "studio-entity-browser-dock",
+      "entity-browser-tree-readout",
+      "entity-browser-selection-sync-readout",
+      "entity-browser-node-selected",
+      "entity-browser-node-asset",
+      "entity-browser-diagnostics-readout",
+      "selection.set_active_entity"
+    ],
+    "knownLimitations": [
+      "Entity browser is a deterministic projection of StudioSceneViewModel readback, not a private ECS or product asset database.",
+      "Selection sync flows through the public selection.set_active_entity command identity and the shared timeline, not a private UI-only callback.",
+      "Entity placement/material evidence is browser/reference projection; runtime authority bootstrap remains deferred behind the runtime-bridge readiness gate."
+    ]
+  },
   "visualEvidence": [
     {
       "schemaVersion": 1,
@@ -4240,24 +4644,35 @@
     },
     {
       "artifactId": "artifact-seq-0010-1",
-      "artifactKind": "visual_before_after",
+      "artifactKind": "state_evidence",
       "pathKind": "inline_summary",
-      "path": "render_before_after:seq-0010",
+      "path": "selection_snapshot:seq-0010",
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
       "producedBySequenceId": "seq-0010",
-      "summary": "Before/after visual evidence artifact."
+      "summary": "Selected entity/renderable selection evidence."
     },
     {
       "artifactId": "artifact-seq-0011-1",
-      "artifactKind": "agent_readout",
+      "artifactKind": "visual_before_after",
       "pathKind": "inline_summary",
-      "path": "agent_readout:seq-0011",
+      "path": "render_before_after:seq-0011",
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
       "producedBySequenceId": "seq-0011",
+      "summary": "Before/after visual evidence artifact."
+    },
+    {
+      "artifactId": "artifact-seq-0012-1",
+      "artifactKind": "agent_readout",
+      "pathKind": "inline_summary",
+      "path": "agent_readout:seq-0012",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0012",
       "summary": "Human/agent review artifact index."
     },
     {
@@ -4347,6 +4762,14 @@
       "owningLane": "asha-studio",
       "source": "src/session-workspace.ts",
       "remediation": null
+    },
+    {
+      "severity": "warning",
+      "code": "asha-studio.session.compatibility_degraded",
+      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+      "owningLane": "asha-studio",
+      "source": "src/session-workspace.ts",
+      "remediation": null
     }
   ],
   "knownLimitations": [
@@ -4354,5 +4777,5 @@
     "Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.",
     "Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred."
   ],
-  "reviewSummary": "11 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
+  "reviewSummary": "12 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
 }

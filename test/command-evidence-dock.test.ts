@@ -17,6 +17,7 @@ const expectedSequence = [
   'preview.voxel_brush',
   'authority.voxel.apply_brush',
   'scene.load_asset',
+  'selection.set_active_entity',
   'render.capture_before_after',
   'export.agent_readout',
 ];
@@ -25,8 +26,8 @@ test('command evidence dock projects shared V1 command sequence in order', () =>
   const dock = createStudioWorkspaceModel().commandEvidenceDock;
   assert.equal(dock.artifactKind, 'command_evidence_dock');
   assert.deepEqual(dock.commandRows.map((row) => row.commandId), expectedSequence);
-  assert.deepEqual(dock.commandRows.map((row) => row.orderIndex), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-  assert.deepEqual(dock.commandRows.map((row) => row.sequenceId), ['seq-0001', 'seq-0002', 'seq-0003', 'seq-0004', 'seq-0005', 'seq-0006', 'seq-0007', 'seq-0008', 'seq-0009', 'seq-0010', 'seq-0011']);
+  assert.deepEqual(dock.commandRows.map((row) => row.orderIndex), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(dock.commandRows.map((row) => row.sequenceId), ['seq-0001', 'seq-0002', 'seq-0003', 'seq-0004', 'seq-0005', 'seq-0006', 'seq-0007', 'seq-0008', 'seq-0009', 'seq-0010', 'seq-0011', 'seq-0012']);
 });
 
 test('command evidence dock exposes source/status labels and evidence summaries', () => {

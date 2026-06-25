@@ -1522,7 +1522,7 @@
       "role": "command_timeline",
       "parent": "command_evidence_dock",
       "layer": "z_0",
-      "text": "Command Timeline / Evidence Log (11)",
+      "text": "Command Timeline / Evidence Log (12)",
       "bounds": {
         "space": "viewport",
         "x": 0.009375,
@@ -1557,7 +1557,7 @@
       "role": "evidence_dock",
       "parent": "command_evidence_dock",
       "layer": "z_0",
-      "text": "Evidence / Artifacts (14)",
+      "text": "Evidence / Artifacts (15)",
       "bounds": {
         "space": "viewport",
         "x": 0.15572916666666667,

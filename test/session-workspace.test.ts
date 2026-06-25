@@ -27,6 +27,7 @@ test('studio workspace starts with a loaded scenario and visible shared timeline
     'preview.voxel_brush',
     'authority.voxel.apply_brush',
     'scene.load_asset',
+    'selection.set_active_entity',
     'render.capture_before_after',
     'export.agent_readout',
   ]);
@@ -111,6 +112,7 @@ test('readout helper preserves result ordering and final state evidence', () => 
     viewportEditor: workspace.viewportEditor,
     sceneView: workspace.sceneView,
     demoAssetLoad: workspace.demoAssetLoad,
+    entityBrowser: workspace.entityBrowser,
     generatedAtIso: '1970-01-01T00:02:00.000Z',
     knownLimitations: ['test limitation'],
   });
@@ -142,6 +144,7 @@ test('sample agent readout fixture includes exported timeline and command result
     'preview.voxel_brush',
     'authority.voxel.apply_brush',
     'scene.load_asset',
+    'selection.set_active_entity',
     'render.capture_before_after',
     'export.agent_readout',
   ]);

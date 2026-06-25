@@ -7,6 +7,8 @@ import { createStudioCommandEvidenceDockModel } from './command-evidence-dock';
 import type { StudioCommandEvidenceDockModel } from './command-evidence-dock';
 import { createStudioDemoAssetLoadModel } from './demo-asset-loading';
 import type { StudioDemoAssetLoadModel } from './demo-asset-loading';
+import { createStudioEntityBrowserModel } from './entity-browser';
+import type { StudioEntityBrowserModel } from './entity-browser';
 import { createStudioSessionMetadata } from './compatibility';
 import type { StudioCompatibilityEvidence, StudioDiagnostic, StudioRuntimeMode, StudioSessionMetadata } from './compatibility';
 import { createStudioModelMaterialPreviewModel } from './model-material-preview';
@@ -112,6 +114,7 @@ export type StudioCommandInput =
   | { readonly scenarioId: string }
   | { readonly sessionId: string }
   | { readonly sessionId: string; readonly includeVisualEvidence: boolean }
+  | { readonly sessionId: string; readonly entityId: string }
   | {
       readonly sessionId: string;
       readonly assetId: string;
@@ -198,6 +201,7 @@ export interface StudioAgentReadoutArtifact {
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly sceneView: StudioSceneViewModel;
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
+  readonly entityBrowser: StudioEntityBrowserModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
   readonly diagnostics: readonly StudioDiagnostic[];
@@ -216,6 +220,7 @@ export interface StudioWorkspaceModel {
   readonly commandBatch: StudioCommandBatchModel;
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
+  readonly entityBrowser: StudioEntityBrowserModel;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
@@ -235,6 +240,9 @@ export interface StudioCommandRequest {
   readonly completedAtIso: string;
   readonly dryRun?: boolean;
 }
+
+// The deterministic scene-view selected renderable; the hierarchy/entity browser selection syncs to it.
+const SELECTED_RENDERABLE_ID = 'selected-voxel:0,0,0';
 
 const DEFAULT_SCENARIOS: readonly StudioScenarioSummary[] = [
   { scenarioId: 'voxel-basic', label: 'Basic Voxel Scenario', status: 'available' },
@@ -257,6 +265,7 @@ function sequenceId(index: number): string {
 
 function summarizeInput(input: StudioCommandInput): string {
   if ('assetId' in input) return `sessionId=${input.sessionId}; assetId=${input.assetId}; materialId=${input.materialId}; placement.translation=[${input.placement.translation.join(',')}]; placement.rotation=[${input.placement.rotation.join(',')}]; placement.scale=[${input.placement.scale.join(',')}]`;
+  if ('entityId' in input) return `sessionId=${input.sessionId}; entityId=${input.entityId}`;
   if ('includeVisualEvidence' in input) return `sessionId=${input.sessionId}; includeVisualEvidence=${input.includeVisualEvidence}`;
   if ('sessionId' in input) return `sessionId=${input.sessionId}`;
   if ('scenarioId' in input) return `scenarioId=${input.scenarioId}`;
@@ -315,6 +324,8 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
       return { artifactId: 'artifact-viewport-interaction-proof-0001', commandCount };
     case 'scene.load_asset':
       return { artifactId: 'artifact-demo-asset-load-0001', commandCount };
+    case 'selection.set_active_entity':
+      return { kind: 'ok' };
     case 'render.capture_before_after':
       return { artifactId: 'artifact-visual-before-after-0001', commandCount };
     case 'export.agent_readout':
@@ -447,6 +458,7 @@ export function createAgentReadoutArtifact(options: {
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly sceneView: StudioSceneViewModel;
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
+  readonly entityBrowser: StudioEntityBrowserModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
   const finalState = options.results.at(-1)?.state ?? stateEvidence(options.session.compatibility, 'editor.v0.0');
@@ -469,6 +481,7 @@ export function createAgentReadoutArtifact(options: {
     viewportEditor: options.viewportEditor,
     sceneView: options.sceneView,
     demoAssetLoad: options.demoAssetLoad,
+    entityBrowser: options.entityBrowser,
     visualEvidence,
     exportedArtifacts,
     diagnostics: [...options.session.diagnostics, ...options.results.flatMap((result) => result.diagnostics)],
@@ -535,6 +548,17 @@ export function createStudioWorkspaceModel(options: {
   const loadAssetExecuted = invokeStudioCommand({ catalog, session, request: loadAssetRequest, sequenceIndex: timeline.length, status, previousResults: results });
   timeline.push(loadAssetExecuted.timelineEntry);
   results.push(loadAssetExecuted.result);
+  const selectEntityRequest: StudioCommandRequest = {
+    commandId: 'selection.set_active_entity',
+    requestedBy: 'gui',
+    sourceLabel: 'Entity browser — select active entity',
+    input: { sessionId: session.sessionId, entityId: SELECTED_RENDERABLE_ID },
+    requestedAtIso: '1970-01-01T00:00:06.750Z',
+    completedAtIso: '1970-01-01T00:00:06.750Z',
+  };
+  const selectEntityExecuted = invokeStudioCommand({ catalog, session, request: selectEntityRequest, sequenceIndex: timeline.length, status, previousResults: results });
+  timeline.push(selectEntityExecuted.timelineEntry);
+  results.push(selectEntityExecuted.result);
   const visualEvidence = createVisualEvidenceForVoxelWorkflow(voxelWorkflow);
   for (const request of [
     { commandId: 'render.capture_before_after' as const, requestedBy: 'gui' as const, sourceLabel: 'Evidence panel', input: { sessionId: session.sessionId, includeVisualEvidence: true }, requestedAtIso: '1970-01-01T00:00:07.000Z', completedAtIso: '1970-01-01T00:00:07.000Z' },
@@ -560,6 +584,7 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     visualEvidence,
   });
+  const entityBrowser = createStudioEntityBrowserModel({ sceneView, timeline });
   const sceneHierarchy = createStudioSceneHierarchyModel({
     session,
     scenario: { scenarioId: activeScenarioId, label: session.scenarioLabel, status: status === 'ready' ? 'loaded' : 'available' },
@@ -598,6 +623,7 @@ export function createStudioWorkspaceModel(options: {
     viewportEditor,
     sceneView,
     demoAssetLoad,
+    entityBrowser,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
     knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.', 'Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred.'],
@@ -613,6 +639,7 @@ export function createStudioWorkspaceModel(options: {
     commandBatch,
     modelMaterialPreview,
     demoAssetLoad,
+    entityBrowser,
     sceneHierarchy,
     selectedTargetInspector,
     commandEvidenceDock,

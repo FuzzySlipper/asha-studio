@@ -98,6 +98,40 @@ function renderSceneHierarchy(model: StudioShell): HTMLElement {
   return hierarchy;
 }
 
+function renderEntityBrowser(model: StudioShell): HTMLElement {
+  const browser = model.workspace.entityBrowser;
+  const section = markVisual(el('section', `entity-browser-dock entity-browser-dock--${browser.readiness}`), 'entity_browser', 'entity_browser');
+  section.setAttribute('aria-label', browser.automationLabel);
+  section.append(el('h2', undefined, browser.title));
+  section.append(el('p', 'panel-summary', `${browser.projectionMode}; ${browser.entityCount} entit(y/ies) from scene-view readback; readiness ${browser.readiness}.`));
+
+  const sync = el('p', 'entity-browser-selection-sync-readout');
+  sync.dataset.inSync = String(browser.selection.inSync);
+  sync.textContent = `Selection sync (${browser.selection.commandId}): ${browser.selection.selectedEntityId} → viewport ${browser.selection.viewportRenderableId} · ${browser.selection.sequenceId ?? 'no-command'} · inSync ${browser.selection.inSync}`;
+  section.append(sync);
+
+  const tree = el('ol', 'entity-browser-tree-readout');
+  for (const entity of browser.entities) {
+    const row = el('li', `entity-browser-node entity-browser-node--depth-${entity.depth} entity-browser-node-${entity.kind}${entity.selected ? ' entity-browser-node-selected' : ''}${entity.meshRef !== null ? ' entity-browser-node-asset' : ''}`);
+    row.dataset.entityId = entity.entityId;
+    row.dataset.selected = String(entity.selected);
+    row.append(el('span', 'entity-browser-node-label', entity.label));
+    row.append(el('span', 'entity-browser-node-id', entity.entityId));
+    const badges = el('span', 'entity-browser-badges');
+    for (const badge of entity.badges) badges.append(el('span', `entity-browser-badge entity-browser-badge--${badge}`, badge));
+    row.append(badges);
+    tree.append(row);
+  }
+  section.append(tree);
+
+  const diagnostics = el('p', 'entity-browser-diagnostics-readout');
+  diagnostics.textContent = browser.diagnostics.length === 0
+    ? `Diagnostics: none · negative smokes fail closed: ${browser.negativeSmokes.map((smoke) => `${smoke.code}=${smoke.actualOutcome}`).join(' | ')}`
+    : `Diagnostics (fail closed): ${browser.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join(' | ')}`;
+  section.append(diagnostics);
+  return section;
+}
+
 function renderBoundaryCard(model: StudioShell) {
   const boundary = el('section', 'boundary-card');
   boundary.setAttribute('aria-label', 'studio-boundary-readout');
@@ -407,6 +441,7 @@ function renderDockFrame(model: StudioShell, renderPhase: StudioViewport3dRender
   const leftDock = el('aside', 'studio-editor-dock studio-editor-left-dock');
   leftDock.setAttribute('aria-label', 'studio-editor-left-scene-hierarchy-dock');
   leftDock.append(renderSceneHierarchy(model));
+  leftDock.append(renderEntityBrowser(model));
   leftDock.append(renderPanel(findPanel(model, 'scenario')));
   leftDock.append(renderBoundaryCard(model));
   frame.append(leftDock);

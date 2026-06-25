@@ -12,6 +12,7 @@
     "smoke:static": "node scripts/static-smoke.mjs",
     "proof:v1": "pnpm run verify && tsx scripts/v1-proof.ts && node scripts/readback-v1-proof.mjs",
     "proof:asset-load": "pnpm run verify && tsx scripts/asset-load-proof.ts && node scripts/readback-asset-load-proof.mjs",
+    "proof:entity-browser": "pnpm run verify && tsx scripts/entity-browser-proof.ts && node scripts/readback-entity-browser-proof.mjs",
     "proof:browser": "pnpm run proof:v1 && tsx scripts/browser-visual-capture.ts && node scripts/readback-browser-capture.mjs",
     "proof:visual-contract": "pnpm run build && tsx scripts/visual-contract-candidate.ts && node scripts/readback-visual-contract-candidate.mjs",
     "proof:visual-capability": "pnpm run proof:browser && pnpm run proof:visual-contract && tsx scripts/visual-capability-proof.ts && node scripts/readback-visual-capability-proof.mjs",
@@ -44,6 +45,7 @@
       "@asha/renderer-three"
     ],
     "knownLimitations": [
+      "Task 3216 adds the ASHA Studio entity browser / hierarchy selection sync: src/entity-browser.ts projects StudioSceneViewModel renderables into a deterministic entity list (entity ids, labels, asset/material/source-state badges, selected state), syncs hierarchy selection to the viewport selected renderable through the public selection.set_active_entity command on the shared timeline, exports readback in the agent readout, and fails closed with classified diagnostics on hierarchy/readback drift, missing selected entity, stale entity-list hash, or unsupported/private entity sources. The browser is a projection, not a private ECS or product asset DB, and makes no Rust/WASM/native/Agora/GPU/performance claims.",
       "Task 3215 adds a real demo asset loading path through the public scene.load_asset command: a demo asset package (Catalog/AssetLock/FlatSceneDocument over @asha/contracts), a loader that emits a retained-mode render diff and named renderable ids, viewport projection of the loaded asset, structured provenance readback, and fail-closed negative smokes (missing/unsupported/material-mismatch/stale-lock-drift). Placement is browser/reference render-diff projection only and does not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence; refresh proof:browser/proof:visual-capability in a Chromium environment to recapture the viewport with the loaded asset.",
       "Task 3047 defines the runtime bridge readiness gate in docs/runtime-bridge-readiness-gate.md and src/runtime-bridge-readiness.ts; native/WASM authority remains fail-closed until @asha/runtime-bridge is an approved Studio public surface with runtime-bridge.v0 compatibility and runtime proof obligations.",
       "Task 3046 consolidates scene/readback, pick, visual-delta crop, command/hash correlation, deployed visual-contract layout evidence, and non-claim guardrails into one agent-facing visual capability proof; it remains browser/reference/layout evidence only and does not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
