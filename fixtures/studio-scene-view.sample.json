@@ -389,6 +389,48 @@
       "visible": true,
       "pickable": false,
       "summary": "Reference browser projection of the selected model/material pair; not authoritative scene state."
+    },
+    {
+      "renderableId": "scene-asset:mesh/demo-crate:1",
+      "kind": "static_mesh",
+      "sourceState": "browser_projection_reference",
+      "authorityObjectId": null,
+      "materialRef": "material/demo-brushed-copper",
+      "meshRef": "mesh/demo-crate",
+      "transform": {
+        "translation": {
+          "x": 2.5,
+          "y": 0.5,
+          "z": 0.5
+        },
+        "rotationQuat": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "bounds": {
+        "min": {
+          "x": 2.15,
+          "y": 0.15000000000000002,
+          "z": 0.15000000000000002
+        },
+        "max": {
+          "x": 2.85,
+          "y": 0.85,
+          "z": 0.85
+        }
+      },
+      "renderHash": "demo-asset-render-58ce100d",
+      "visible": true,
+      "pickable": false,
+      "summary": "Loaded demo asset mesh/demo-crate bound to material/demo-brushed-copper through scene.load_asset; reference browser projection of the placement, not authoritative scene state."
     }
   ],
   "selection": {
@@ -550,18 +592,20 @@
     "authorityAfterHash": "grid-fnv1a-8eb9594b",
     "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
     "renderAfterHash": "render-grid-fnv1a-8eb9594b",
-    "sceneViewHash": "scene-view-fnv1a-9214a97f",
+    "sceneViewHash": "scene-view-fnv1a-721e1cc6",
     "stateLinkage": "authority_before_to_preview_to_authority_after",
     "distinction": "rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs"
   },
   "evidenceRefs": [
     "artifact-voxel-workflow-0001",
     "artifact-model-material-preview-0001",
+    "artifact-demo-asset-load-0001",
+    "scene-asset:mesh/demo-crate:1",
     "artifact-visual-before-after-0001",
     "seq-0006",
     "seq-0007",
     "seq-0008",
-    "seq-0009",
+    "seq-0010",
     "artifact-visual-before-after-0001"
   ],
   "futurePublicContractCandidates": [

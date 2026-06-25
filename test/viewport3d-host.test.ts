@@ -16,7 +16,7 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.equal(readback.cameraId, 'studio-camera-main');
   assert.equal(readback.projectionAuthority, 'browser_projection_reference');
   assert.equal(readback.dependencyDecision, 'direct_three_local_browser_projection_dependency');
-  assert.equal(readback.visibleRenderableCount, 5);
+  assert.equal(readback.visibleRenderableCount, 6);
   assert.equal(readback.selectedRenderableId, 'selected-voxel:0,0,0');
   assert.equal(readback.selectionHash, workspace.sceneView.selection.selectionHash);
   assert.equal(readback.previewGhostId, 'preview-ghost:1,0,0');
@@ -49,6 +49,9 @@ test('viewport 3D readback proves canvas host, selected target, preview ghost, a
   assert.ok(readback.semanticMarkers.includes('selected-target-highlight'));
   assert.ok(readback.semanticMarkers.includes('preview-ghost-renderable'));
   assert.ok(readback.semanticMarkers.includes('applied-state-renderable'));
+  assert.ok(readback.semanticMarkers.includes('demo-asset-loaded-renderable'));
+  assert.ok(readback.semanticMarkers.includes('scene-asset:mesh/demo-crate:1'));
+  assert.ok(readback.renderables.some((renderable) => renderable.renderableId === 'scene-asset:mesh/demo-crate:1' && renderable.kind === 'static_mesh'));
   assert.ok(readback.limitations.some((limitation) => limitation.includes('does not claim native runtime, Agora compositor, hardware GPU, or performance evidence')));
 });
 

@@ -26,6 +26,7 @@ test('studio workspace starts with a loaded scenario and visible shared timeline
     'selection.voxel_from_screen_point',
     'preview.voxel_brush',
     'authority.voxel.apply_brush',
+    'scene.load_asset',
     'render.capture_before_after',
     'export.agent_readout',
   ]);
@@ -109,6 +110,7 @@ test('readout helper preserves result ordering and final state evidence', () => 
     commandEvidenceDock: workspace.commandEvidenceDock,
     viewportEditor: workspace.viewportEditor,
     sceneView: workspace.sceneView,
+    demoAssetLoad: workspace.demoAssetLoad,
     generatedAtIso: '1970-01-01T00:02:00.000Z',
     knownLimitations: ['test limitation'],
   });
@@ -139,6 +141,7 @@ test('sample agent readout fixture includes exported timeline and command result
     'selection.voxel_from_screen_point',
     'preview.voxel_brush',
     'authority.voxel.apply_brush',
+    'scene.load_asset',
     'render.capture_before_after',
     'export.agent_readout',
   ]);
@@ -149,5 +152,5 @@ test('sample agent readout fixture includes exported timeline and command result
   assert.equal(artifact.viewportEditor?.readiness, 'ready');
   assert.equal(artifact.sceneView?.artifactKind, 'scene_view_model');
   assert.equal(artifact.sceneView?.sceneId, 'scene-view:voxel-basic:v1');
-  assert.equal(artifact.sceneView?.renderables?.length, 5);
+  assert.equal(artifact.sceneView?.renderables?.length, 6);
 });

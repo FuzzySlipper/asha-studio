@@ -1,0 +1,20 @@
+{
+  "render": {
+    "color": {
+      "r": 0.78,
+      "g": 0.42,
+      "b": 0.18,
+      "a": 1
+    },
+    "texture": null,
+    "roughness": 0.47,
+    "emissive": 0,
+    "uvStrategy": "planar"
+  },
+  "collision": {
+    "solid": true,
+    "collidable": true,
+    "occludes": true,
+    "structuralClass": "structural"
+  }
+}

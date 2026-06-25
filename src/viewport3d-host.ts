@@ -397,6 +397,8 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
       'pick:selected-voxel-center',
       'pick:background-no-hit',
       'pick_hit_stale_readback_guard',
+      'demo-asset-loaded-renderable',
+      ...renderables.filter((renderable) => renderable.renderableId.startsWith('scene-asset:')).map((renderable) => renderable.renderableId),
     ],
     limitations: [
       'Three.js is used only as a local browser projection dependency for ASHA Studio.',

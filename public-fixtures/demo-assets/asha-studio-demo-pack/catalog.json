@@ -1,0 +1,81 @@
+{
+  "entries": [
+    {
+      "id": "material/demo-brushed-copper",
+      "kind": "material",
+      "version": 1,
+      "hash": "asset-material-c0387a10",
+      "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/materials/demo-brushed-copper.material.json",
+      "label": "Demo Brushed Copper",
+      "dependencies": [],
+      "material": {
+        "render": {
+          "color": {
+            "r": 0.78,
+            "g": 0.42,
+            "b": 0.18,
+            "a": 1
+          },
+          "texture": null,
+          "roughness": 0.47,
+          "emissive": 0,
+          "uvStrategy": "planar"
+        },
+        "collision": {
+          "solid": true,
+          "collidable": true,
+          "occludes": true,
+          "structuralClass": "structural"
+        }
+      }
+    },
+    {
+      "id": "material/demo-matte-slate",
+      "kind": "material",
+      "version": 1,
+      "hash": "asset-material-0c42a889",
+      "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/materials/demo-matte-slate.material.json",
+      "label": "Demo Matte Slate",
+      "dependencies": [],
+      "material": {
+        "render": {
+          "color": {
+            "r": 0.34,
+            "g": 0.37,
+            "b": 0.43,
+            "a": 1
+          },
+          "texture": null,
+          "roughness": 0.82,
+          "emissive": 0,
+          "uvStrategy": "flat"
+        },
+        "collision": {
+          "solid": true,
+          "collidable": true,
+          "occludes": true,
+          "structuralClass": "decorative"
+        }
+      }
+    },
+    {
+      "id": "mesh/demo-crate",
+      "kind": "mesh",
+      "version": 1,
+      "hash": "asset-mesh-6cee81db",
+      "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/models/demo-crate.mesh.json",
+      "label": "Demo Crate",
+      "dependencies": [
+        {
+          "id": "material/demo-brushed-copper",
+          "version": {
+            "req": "exact",
+            "value": 1
+          },
+          "hash": "asset-material-c0387a10"
+        }
+      ],
+      "material": null
+    }
+  ]
+}

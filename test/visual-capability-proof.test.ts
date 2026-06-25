@@ -73,7 +73,8 @@ test('studio visual capability proof consolidates scene, pick, visual delta, vis
   assertReadyGroup(proof, 'command_authority_correlation');
   assertReadyGroup(proof, 'non_claim_limitations');
 
-  assert.equal(proof.summary.visibleRenderableCount, 5);
+  assert.equal(proof.summary.visibleRenderableCount, 6);
+  assert.ok(proof.summary.renderedObjectIds.includes('scene-asset:mesh/demo-crate:1'));
   assert.equal(proof.summary.selectedObject, 'selected-voxel:0,0,0');
   assert.equal(proof.summary.previewObject, 'preview-ghost:1,0,0');
   assert.equal(proof.summary.appliedObject, 'applied-voxel:1,0,0');

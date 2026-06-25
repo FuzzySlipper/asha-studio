@@ -151,6 +151,13 @@ function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3d
   overlay.append(el('p', 'viewport-render-hash-readout', `Render hashes: ${viewportModel.previewState.renderHash} → ${viewportModel.appliedState.renderHash}`));
   overlay.append(el('p', 'viewport-camera-tool-readout', `Camera/tool proof: ${model.workspace.sceneView.interactionProof.readiness}; active ${model.workspace.sceneView.interactionProof.toolState.activeTool}; camera ${model.workspace.sceneView.interactionProof.toolState.cameraBeforeHash} → ${model.workspace.sceneView.interactionProof.toolState.cameraAfterHash}`));
   overlay.append(el('p', 'viewport-scripted-actions-readout', `Scripted actions: ${model.workspace.sceneView.interactionProof.scriptedActions.map((action) => `${action.actor}:${action.actionId}:${action.sequenceId}`).join(' | ')}`));
+  const demoAsset = model.workspace.demoAssetLoad.artifact;
+  const demoAssetReadout = markVisual(el('div', 'viewport-demo-asset-load-readout'), 'demo_asset_load', 'demo_asset_load');
+  demoAssetReadout.append(el('p', 'demo-asset-load-title', `Demo Asset Load (scene.load_asset) — ${demoAsset.readiness}`));
+  demoAssetReadout.append(el('p', 'demo-asset-load-provenance', `asset ${demoAsset.loadedAssetId} · package ${demoAsset.packageId} · source ${demoAsset.provenance.sourcePath ?? 'n/a'}`));
+  demoAssetReadout.append(el('p', 'demo-asset-load-renderables', `renderables ${demoAsset.renderableIds.join(', ')} · materials ${demoAsset.materialVariants.map((variant) => variant.materialId).join(', ')}`));
+  demoAssetReadout.append(el('p', 'demo-asset-load-smokes', `negative smokes (fail closed): ${demoAsset.negativeSmokes.map((smoke) => `${smoke.failureCode}=${smoke.actualOutcome}`).join(' | ')}`));
+  overlay.append(demoAssetReadout);
   canvas.append(overlay);
   viewport.append(canvas);
 

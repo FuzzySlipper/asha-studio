@@ -49,16 +49,24 @@ test('scene-view model defines deterministic camera, viewport, renderables, and 
     'preview-ghost:1,0,0',
     'applied-voxel:1,0,0',
     'model-preview-crate',
+    'scene-asset:mesh/demo-crate:1',
   ]);
   const terrainGrid = requireRenderable(sceneView.renderables, 'terrain-test-grid');
   const selectedVoxel = requireRenderable(sceneView.renderables, 'selected-voxel:0,0,0');
   const previewGhost = requireRenderable(sceneView.renderables, 'preview-ghost:1,0,0');
   const appliedVoxel = requireRenderable(sceneView.renderables, 'applied-voxel:1,0,0');
   const modelPreviewCrate = requireRenderable(sceneView.renderables, 'model-preview-crate');
+  const loadedDemoAsset = requireRenderable(sceneView.renderables, 'scene-asset:mesh/demo-crate:1');
 
   assert.equal(selectedVoxel.sourceState, 'authoritative_rust_state');
   assert.equal(previewGhost.sourceState, 'editor_preview_state');
   assert.equal(modelPreviewCrate.sourceState, 'browser_projection_reference');
+  assert.equal(loadedDemoAsset.kind, 'static_mesh');
+  assert.equal(loadedDemoAsset.sourceState, 'browser_projection_reference');
+  assert.equal(loadedDemoAsset.pickable, false);
+  assert.equal(loadedDemoAsset.meshRef, 'mesh/demo-crate');
+  assert.equal(loadedDemoAsset.materialRef, 'material/demo-brushed-copper');
+  assert.equal(loadedDemoAsset.renderHash, workspace.demoAssetLoad.loadedRenderables[0]?.renderHash);
   assert.equal(modelPreviewCrate.materialRef, workspace.modelMaterialPreview.artifact.selectedMaterialAsset);
   assert.equal(modelPreviewCrate.meshRef, workspace.modelMaterialPreview.artifact.selectedModelAsset);
 
@@ -143,8 +151,9 @@ test('scene-view model is exported through workspace and agent readout fixtures'
   assert.equal(fixture.artifactKind, 'scene_view_model');
   assert.equal(fixture.sceneId, workspace.sceneView.sceneId);
   assert.equal(fixture.camera?.cameraId, 'studio-camera-main');
-  assert.equal(fixture.renderables?.length, 5);
+  assert.equal(fixture.renderables?.length, 6);
   assert.equal(fixture.renderables?.find((renderable) => renderable.renderableId === 'model-preview-crate')?.materialRef, 'material/studio-brushed-copper');
+  assert.equal(fixture.renderables?.find((renderable) => renderable.renderableId === 'scene-asset:mesh/demo-crate:1')?.materialRef, 'material/demo-brushed-copper');
   assert.equal(fixture.selection?.selectedObjectId, 'voxel:0,0,0');
   assert.equal(fixture.preview?.previewGhostId, 'preview-ghost:1,0,0');
   assert.equal(fixture.hashes?.distinction, 'rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs');

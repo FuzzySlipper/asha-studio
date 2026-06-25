@@ -1,3 +1,4 @@
+import type { StudioDemoAssetLoadModel } from './demo-asset-loading';
 import type { StudioModelMaterialPreviewModel } from './model-material-preview';
 import type { StudioCommandTimelineEntry } from './session-workspace';
 import type { StudioViewportEditorPanelModel } from './viewport-editor-panel';
@@ -468,11 +469,12 @@ export function createStudioSceneViewModel(options: {
   readonly scenarioId: string;
   readonly voxelWorkflow: StudioVoxelWorkflowModel;
   readonly modelMaterialPreview: StudioModelMaterialPreviewModel;
+  readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly viewportEditor: StudioViewportEditorPanelModel;
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
 }): StudioSceneViewModel {
-  const { sessionId, scenarioId, voxelWorkflow, modelMaterialPreview, viewportEditor, timeline, visualEvidence } = options;
+  const { sessionId, scenarioId, voxelWorkflow, modelMaterialPreview, demoAssetLoad, viewportEditor, timeline, visualEvidence } = options;
   const selectedVoxel = coordToVec3(voxelWorkflow.evidence.selectedVoxel);
   const editAnchor = coordToVec3(voxelWorkflow.evidence.editAnchor);
   const pickScreenPoint = normalizedScreenPoint(voxelWorkflow.selection.pickRay.screenPoint);
@@ -572,6 +574,29 @@ export function createStudioSceneViewModel(options: {
       summary: 'Reference browser projection of the selected model/material pair; not authoritative scene state.',
     },
   ];
+  for (const placement of demoAssetLoad.loadedRenderables) {
+    renderables.push({
+      renderableId: placement.renderableId,
+      kind: 'static_mesh',
+      sourceState: 'browser_projection_reference',
+      authorityObjectId: null,
+      materialRef: placement.materialRef,
+      meshRef: placement.meshRef,
+      transform: {
+        translation: { x: placement.translation[0], y: placement.translation[1], z: placement.translation[2] },
+        rotationQuat: placement.rotationQuat,
+        scale: { x: placement.scale[0], y: placement.scale[1], z: placement.scale[2] },
+      },
+      bounds: {
+        min: { x: placement.bounds.min[0], y: placement.bounds.min[1], z: placement.bounds.min[2] },
+        max: { x: placement.bounds.max[0], y: placement.bounds.max[1], z: placement.bounds.max[2] },
+      },
+      renderHash: placement.renderHash,
+      visible: true,
+      pickable: false,
+      summary: `Loaded demo asset ${placement.meshRef} bound to ${placement.materialRef} through scene.load_asset; reference browser projection of the placement, not authoritative scene state.`,
+    });
+  }
   const hashPayload = {
     sessionId,
     scenarioId,
@@ -665,6 +690,8 @@ export function createStudioSceneViewModel(options: {
     evidenceRefs: [
       voxelWorkflow.evidence.artifactId,
       modelMaterialPreview.artifact.artifactId,
+      demoAssetLoad.artifact.artifactId,
+      ...demoAssetLoad.loadedRenderables.map((placement) => placement.renderableId),
       viewportEditor.visualEvidenceRefs[0] ?? 'visual-evidence:unavailable',
       ...timeline.filter((entry) => ['selection.voxel_from_screen_point', 'preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after'].includes(entry.commandId)).map((entry) => entry.sequenceId),
       ...visualEvidence.map((item) => item.artifactId),

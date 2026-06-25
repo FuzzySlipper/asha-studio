@@ -89,6 +89,11 @@
         "degradedReason": null
       },
       {
+        "commandId": "scene.load_asset",
+        "available": true,
+        "degradedReason": null
+      },
+      {
         "commandId": "selection.voxel_from_screen_point",
         "available": true,
         "degradedReason": null
@@ -448,6 +453,75 @@
     {
       "schemaVersion": 1,
       "sequenceId": "seq-0009",
+      "commandId": "scene.load_asset",
+      "label": "Load Asset Into Scene",
+      "menuPath": [
+        "Scene",
+        "Load Asset"
+      ],
+      "requestedBy": "agent",
+      "requestedAtIso": "1970-01-01T00:00:06.500Z",
+      "completedAtIso": "1970-01-01T00:00:06.500Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; assetId=mesh/demo-crate; materialId=material/demo-brushed-copper; placement.translation=[2.5,0.5,0.5]; placement.rotation=[0,0,0,1]; placement.scale=[1,1,1]",
+      "outputSummary": "Exported artifact-demo-asset-load-0001 with 9 command(s).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": true,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0009-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "model_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Loaded static mesh asset metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-2",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "material_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Bound material projection metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-3",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "render_diff_preview:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Retained-mode render diff that defines and places the loaded asset."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0010",
       "commandId": "render.capture_before_after",
       "label": "Capture Before/After Evidence",
       "menuPath": [
@@ -460,7 +534,7 @@
       "status": "ok",
       "operationClass": "render_evidence",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 9 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 10 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -480,21 +554,21 @@
       ],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0009-1",
+          "artifactId": "artifact-seq-0010-1",
           "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0009",
+          "path": "render_before_after:seq-0010",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0009",
+          "producedBySequenceId": "seq-0010",
           "summary": "Before/after visual evidence artifact."
         }
       ]
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0010",
+      "sequenceId": "seq-0011",
       "commandId": "export.agent_readout",
       "label": "Export Agent Readout",
       "menuPath": [
@@ -507,7 +581,7 @@
       "status": "ok",
       "operationClass": "diagnostic_export",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-agent-readout-0001 with 10 command(s).",
+      "outputSummary": "Exported artifact-agent-readout-0001 with 11 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -527,14 +601,14 @@
       ],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0010-1",
+          "artifactId": "artifact-seq-0011-1",
           "artifactKind": "agent_readout",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0010",
+          "path": "agent_readout:seq-0011",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0010",
+          "producedBySequenceId": "seq-0011",
           "summary": "Human/agent review artifact index."
         }
       ]
@@ -1402,17 +1476,17 @@
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "render.capture_before_after",
+      "commandId": "scene.load_asset",
       "commandVersion": 1,
       "sequenceId": "seq-0009",
       "batchId": null,
       "sessionId": "session-preview-0001",
-      "requestedBy": "gui",
+      "requestedBy": "agent",
       "status": "ok",
-      "operationClass": "render_evidence",
+      "operationClass": "editor_local",
       "changed": {
         "authorityChanged": false,
-        "editorChanged": false,
+        "editorChanged": true,
         "renderChanged": true,
         "workspaceChanged": false,
         "artifactsWritten": true
@@ -1481,10 +1555,10 @@
         }
       },
       "output": {
-        "artifactId": "artifact-visual-before-after-0001",
+        "artifactId": "artifact-demo-asset-load-0001",
         "commandCount": 9
       },
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 9 command(s).",
+      "outputSummary": "Exported artifact-demo-asset-load-0001 with 9 command(s).",
       "diagnostics": [
         {
           "severity": "warning",
@@ -1498,14 +1572,36 @@
       "artifacts": [
         {
           "artifactId": "artifact-seq-0009-1",
-          "artifactKind": "visual_before_after",
+          "artifactKind": "state_evidence",
           "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0009",
+          "path": "model_metadata:seq-0009",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
           "producedBySequenceId": "seq-0009",
-          "summary": "Before/after visual evidence artifact."
+          "summary": "Loaded static mesh asset metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-2",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "material_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Bound material projection metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-3",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "render_diff_preview:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Retained-mode render diff that defines and places the loaded asset."
         }
       ],
       "retry": {
@@ -1515,35 +1611,35 @@
         "requiredReadback": null
       },
       "undo": {
-        "posture": "not_undoable",
-        "available": false,
-        "reason": "Command does not mutate reversible state in this workspace model.",
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
         "inverseCommandIds": [],
         "requiresSameStateHash": false
       },
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:07.000Z",
-        "startedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "queuedAtIso": "1970-01-01T00:00:06.500Z",
+        "startedAtIso": "1970-01-01T00:00:06.500Z",
+        "completedAtIso": "1970-01-01T00:00:06.500Z",
         "durationMs": 0
       }
     },
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "export.agent_readout",
+      "commandId": "render.capture_before_after",
       "commandVersion": 1,
       "sequenceId": "seq-0010",
       "batchId": null,
       "sessionId": "session-preview-0001",
-      "requestedBy": "agent",
+      "requestedBy": "gui",
       "status": "ok",
-      "operationClass": "diagnostic_export",
+      "operationClass": "render_evidence",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
-        "renderChanged": false,
-        "workspaceChanged": true,
+        "renderChanged": true,
+        "workspaceChanged": false,
         "artifactsWritten": true
       },
       "state": {
@@ -1610,10 +1706,10 @@
         }
       },
       "output": {
-        "artifactId": "artifact-agent-readout-0001",
+        "artifactId": "artifact-visual-before-after-0001",
         "commandCount": 10
       },
-      "outputSummary": "Exported artifact-agent-readout-0001 with 10 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 10 command(s).",
       "diagnostics": [
         {
           "severity": "warning",
@@ -1627,13 +1723,142 @@
       "artifacts": [
         {
           "artifactId": "artifact-seq-0010-1",
-          "artifactKind": "agent_readout",
+          "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0010",
+          "path": "render_before_after:seq-0010",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
           "producedBySequenceId": "seq-0010",
+          "summary": "Before/after visual evidence artifact."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "not_undoable",
+        "available": false,
+        "reason": "Command does not mutate reversible state in this workspace model.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:07.000Z",
+        "startedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "export.agent_readout",
+      "commandVersion": 1,
+      "sequenceId": "seq-0011",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "agent",
+      "status": "ok",
+      "operationClass": "diagnostic_export",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": true,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.11",
+        "editorAfterVersion": "editor.v0.11",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": null,
+          "replayPath": null,
+          "replayHash": null,
+          "replayMode": "unavailable",
+          "summary": "unavailable: runtime bridge/replay integration is deferred."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": null,
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-agent-readout-0001",
+        "commandCount": 11
+      },
+      "outputSummary": "Exported artifact-agent-readout-0001 with 11 command(s).",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "asha-studio.session.compatibility_degraded",
+          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+          "owningLane": "asha-studio",
+          "source": "src/session-workspace.ts",
+          "remediation": null
+        }
+      ],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0011-1",
+          "artifactKind": "agent_readout",
+          "pathKind": "inline_summary",
+          "path": "agent_readout:seq-0011",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0011",
           "summary": "Human/agent review artifact index."
         }
       ],
@@ -1661,8 +1886,8 @@
   "finalState": {
     "authorityBeforeHash": null,
     "authorityAfterHash": null,
-    "editorBeforeVersion": "editor.v0.10",
-    "editorAfterVersion": "editor.v0.10",
+    "editorBeforeVersion": "editor.v0.11",
+    "editorAfterVersion": "editor.v0.11",
     "renderBeforeHash": null,
     "renderAfterHash": null,
     "selectedBefore": {
@@ -2007,12 +2232,12 @@
       {
         "id": "command_timeline_evidence_log",
         "label": "Command Timeline / Evidence Log",
-        "rowCount": 10
+        "rowCount": 11
       },
       {
         "id": "evidence_artifacts",
         "label": "Evidence / Artifacts",
-        "rowCount": 11
+        "rowCount": 14
       }
     ],
     "commandRows": [
@@ -2157,6 +2382,26 @@
       {
         "sequenceId": "seq-0009",
         "orderIndex": 9,
+        "commandId": "scene.load_asset",
+        "label": "Load Asset Into Scene",
+        "status": "ok",
+        "source": "AGENT",
+        "requestedAtIso": "1970-01-01T00:00:06.500Z",
+        "completedAtIso": "1970-01-01T00:00:06.500Z",
+        "operationClass": "editor_local",
+        "inputSummary": "sessionId=session-preview-0001; assetId=mesh/demo-crate; materialId=material/demo-brushed-copper; placement.translation=[2.5,0.5,0.5]; placement.rotation=[0,0,0,1]; placement.scale=[1,1,1]",
+        "outputSummary": "Exported artifact-demo-asset-load-0001 with 9 command(s).",
+        "evidenceSummary": "artifact-seq-0009-1:state_evidence, artifact-seq-0009-2:state_evidence, artifact-seq-0009-3:state_evidence",
+        "artifactIds": [
+          "artifact-seq-0009-1",
+          "artifact-seq-0009-2",
+          "artifact-seq-0009-3"
+        ],
+        "diagnosticCount": 2
+      },
+      {
+        "sequenceId": "seq-0010",
+        "orderIndex": 10,
         "commandId": "render.capture_before_after",
         "label": "Capture Before/After Evidence",
         "status": "ok",
@@ -2165,16 +2410,16 @@
         "completedAtIso": "1970-01-01T00:00:07.000Z",
         "operationClass": "render_evidence",
         "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-        "outputSummary": "Exported artifact-visual-before-after-0001 with 9 command(s).",
-        "evidenceSummary": "artifact-seq-0009-1:visual_before_after",
+        "outputSummary": "Exported artifact-visual-before-after-0001 with 10 command(s).",
+        "evidenceSummary": "artifact-seq-0010-1:visual_before_after",
         "artifactIds": [
-          "artifact-seq-0009-1"
+          "artifact-seq-0010-1"
         ],
         "diagnosticCount": 2
       },
       {
-        "sequenceId": "seq-0010",
-        "orderIndex": 10,
+        "sequenceId": "seq-0011",
+        "orderIndex": 11,
         "commandId": "export.agent_readout",
         "label": "Export Agent Readout",
         "status": "ok",
@@ -2183,10 +2428,10 @@
         "completedAtIso": "1970-01-01T00:00:08.000Z",
         "operationClass": "diagnostic_export",
         "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-        "outputSummary": "Exported artifact-agent-readout-0001 with 10 command(s).",
-        "evidenceSummary": "artifact-seq-0010-1:agent_readout",
+        "outputSummary": "Exported artifact-agent-readout-0001 with 11 command(s).",
+        "evidenceSummary": "artifact-seq-0011-1:agent_readout",
         "artifactIds": [
-          "artifact-seq-0010-1"
+          "artifact-seq-0011-1"
         ],
         "diagnosticCount": 2
       }
@@ -2244,21 +2489,51 @@
       },
       {
         "artifactId": "artifact-seq-0009-1",
-        "artifactKind": "visual_before_after",
-        "path": "render_before_after:seq-0009",
+        "artifactKind": "state_evidence",
+        "path": "model_metadata:seq-0009",
         "mediaType": "application/json",
         "contentHash": null,
         "producedBySequenceId": "seq-0009",
-        "summary": "Before/after visual evidence artifact.",
+        "summary": "Loaded static mesh asset metadata.",
+        "source": "command_result"
+      },
+      {
+        "artifactId": "artifact-seq-0009-2",
+        "artifactKind": "state_evidence",
+        "path": "material_metadata:seq-0009",
+        "mediaType": "application/json",
+        "contentHash": null,
+        "producedBySequenceId": "seq-0009",
+        "summary": "Bound material projection metadata.",
+        "source": "command_result"
+      },
+      {
+        "artifactId": "artifact-seq-0009-3",
+        "artifactKind": "state_evidence",
+        "path": "render_diff_preview:seq-0009",
+        "mediaType": "application/json",
+        "contentHash": null,
+        "producedBySequenceId": "seq-0009",
+        "summary": "Retained-mode render diff that defines and places the loaded asset.",
         "source": "command_result"
       },
       {
         "artifactId": "artifact-seq-0010-1",
-        "artifactKind": "agent_readout",
-        "path": "agent_readout:seq-0010",
+        "artifactKind": "visual_before_after",
+        "path": "render_before_after:seq-0010",
         "mediaType": "application/json",
         "contentHash": null,
         "producedBySequenceId": "seq-0010",
+        "summary": "Before/after visual evidence artifact.",
+        "source": "command_result"
+      },
+      {
+        "artifactId": "artifact-seq-0011-1",
+        "artifactKind": "agent_readout",
+        "path": "agent_readout:seq-0011",
+        "mediaType": "application/json",
+        "contentHash": null,
+        "producedBySequenceId": "seq-0011",
         "summary": "Human/agent review artifact index.",
         "source": "command_result"
       },
@@ -2288,8 +2563,8 @@
         "path": "artifacts/session-preview-0001/review-export.json",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0010",
-        "summary": "10 command(s), 1 visual evidence item(s), and 10 artifact ref(s) ready for review.",
+        "producedBySequenceId": "seq-0011",
+        "summary": "11 command(s), 1 visual evidence item(s), and 13 artifact ref(s) ready for review.",
         "source": "review_export"
       },
       {
@@ -2298,8 +2573,8 @@
         "path": "artifacts/studio-agent-readout.sample.json",
         "mediaType": "application/json",
         "contentHash": null,
-        "producedBySequenceId": "seq-0010",
-        "summary": "10 command(s) recorded in the shared GUI/agent timeline.",
+        "producedBySequenceId": "seq-0011",
+        "summary": "11 command(s) recorded in the shared GUI/agent timeline.",
         "source": "agent_readout"
       }
     ],
@@ -2386,18 +2661,18 @@
         "summary": "accepted=1; before=grid-fnv1a-cc815eb0; after=grid-fnv1a-8eb9594b"
       },
       {
-        "sequenceId": "seq-0009",
+        "sequenceId": "seq-0010",
         "commandId": "render.capture_before_after",
         "role": "capture",
         "status": "ok",
-        "summary": "Exported artifact-visual-before-after-0001 with 9 command(s)."
+        "summary": "Exported artifact-visual-before-after-0001 with 10 command(s)."
       },
       {
-        "sequenceId": "seq-0010",
+        "sequenceId": "seq-0011",
         "commandId": "export.agent_readout",
         "role": "export",
         "status": "ok",
-        "summary": "Exported artifact-agent-readout-0001 with 10 command(s)."
+        "summary": "Exported artifact-agent-readout-0001 with 11 command(s)."
       }
     ],
     "evidenceRefs": [
@@ -2859,6 +3134,48 @@
         "visible": true,
         "pickable": false,
         "summary": "Reference browser projection of the selected model/material pair; not authoritative scene state."
+      },
+      {
+        "renderableId": "scene-asset:mesh/demo-crate:1",
+        "kind": "static_mesh",
+        "sourceState": "browser_projection_reference",
+        "authorityObjectId": null,
+        "materialRef": "material/demo-brushed-copper",
+        "meshRef": "mesh/demo-crate",
+        "transform": {
+          "translation": {
+            "x": 2.5,
+            "y": 0.5,
+            "z": 0.5
+          },
+          "rotationQuat": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        },
+        "bounds": {
+          "min": {
+            "x": 2.15,
+            "y": 0.15000000000000002,
+            "z": 0.15000000000000002
+          },
+          "max": {
+            "x": 2.85,
+            "y": 0.85,
+            "z": 0.85
+          }
+        },
+        "renderHash": "demo-asset-render-58ce100d",
+        "visible": true,
+        "pickable": false,
+        "summary": "Loaded demo asset mesh/demo-crate bound to material/demo-brushed-copper through scene.load_asset; reference browser projection of the placement, not authoritative scene state."
       }
     ],
     "selection": {
@@ -3020,18 +3337,20 @@
       "authorityAfterHash": "grid-fnv1a-8eb9594b",
       "renderBeforeHash": "render-grid-fnv1a-cc815eb0",
       "renderAfterHash": "render-grid-fnv1a-8eb9594b",
-      "sceneViewHash": "scene-view-fnv1a-9214a97f",
+      "sceneViewHash": "scene-view-fnv1a-721e1cc6",
       "stateLinkage": "authority_before_to_preview_to_authority_after",
       "distinction": "rust_authority_hashes_are_inputs_browser_projection_hashes_are_reference_outputs"
     },
     "evidenceRefs": [
       "artifact-voxel-workflow-0001",
       "artifact-model-material-preview-0001",
+      "artifact-demo-asset-load-0001",
+      "scene-asset:mesh/demo-crate:1",
       "artifact-visual-before-after-0001",
       "seq-0006",
       "seq-0007",
       "seq-0008",
-      "seq-0009",
+      "seq-0010",
       "artifact-visual-before-after-0001"
     ],
     "futurePublicContractCandidates": [
@@ -3044,6 +3363,748 @@
       "Rust/WASM/native runtime authority is represented only by before/after authority hashes supplied by existing Studio evidence.",
       "Preview ghost state is editor-local until authority.voxel.apply_brush accepts the typed command and changes authorityAfterHash."
     ]
+  },
+  "demoAssetLoad": {
+    "artifact": {
+      "schemaVersion": 1,
+      "artifactKind": "demo_asset_load",
+      "artifactId": "artifact-demo-asset-load-0001",
+      "sessionId": "session-preview-0001",
+      "scenarioId": "voxel-basic",
+      "readiness": "ready",
+      "commandId": "scene.load_asset",
+      "commandInput": {
+        "sessionId": "session-preview-0001",
+        "assetId": "mesh/demo-crate",
+        "materialId": "material/demo-brushed-copper",
+        "placement": {
+          "translation": [
+            2.5,
+            0.5,
+            0.5
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      "packageId": "asha-studio-demo-pack-0001",
+      "packagePath": "public-fixtures/demo-assets/asha-studio-demo-pack",
+      "catalog": {
+        "entries": [
+          {
+            "id": "material/demo-brushed-copper",
+            "kind": "material",
+            "version": 1,
+            "hash": "asset-material-c0387a10",
+            "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/materials/demo-brushed-copper.material.json",
+            "label": "Demo Brushed Copper",
+            "dependencies": [],
+            "material": {
+              "render": {
+                "color": {
+                  "r": 0.78,
+                  "g": 0.42,
+                  "b": 0.18,
+                  "a": 1
+                },
+                "texture": null,
+                "roughness": 0.47,
+                "emissive": 0,
+                "uvStrategy": "planar"
+              },
+              "collision": {
+                "solid": true,
+                "collidable": true,
+                "occludes": true,
+                "structuralClass": "structural"
+              }
+            }
+          },
+          {
+            "id": "material/demo-matte-slate",
+            "kind": "material",
+            "version": 1,
+            "hash": "asset-material-0c42a889",
+            "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/materials/demo-matte-slate.material.json",
+            "label": "Demo Matte Slate",
+            "dependencies": [],
+            "material": {
+              "render": {
+                "color": {
+                  "r": 0.34,
+                  "g": 0.37,
+                  "b": 0.43,
+                  "a": 1
+                },
+                "texture": null,
+                "roughness": 0.82,
+                "emissive": 0,
+                "uvStrategy": "flat"
+              },
+              "collision": {
+                "solid": true,
+                "collidable": true,
+                "occludes": true,
+                "structuralClass": "decorative"
+              }
+            }
+          },
+          {
+            "id": "mesh/demo-crate",
+            "kind": "mesh",
+            "version": 1,
+            "hash": "asset-mesh-6cee81db",
+            "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/models/demo-crate.mesh.json",
+            "label": "Demo Crate",
+            "dependencies": [
+              {
+                "id": "material/demo-brushed-copper",
+                "version": {
+                  "req": "exact",
+                  "value": 1
+                },
+                "hash": "asset-material-c0387a10"
+              }
+            ],
+            "material": null
+          }
+        ]
+      },
+      "lock": {
+        "entries": [
+          {
+            "id": "material/demo-brushed-copper",
+            "kind": "material",
+            "version": 1,
+            "hash": "asset-material-c0387a10",
+            "dependencies": []
+          },
+          {
+            "id": "material/demo-matte-slate",
+            "kind": "material",
+            "version": 1,
+            "hash": "asset-material-0c42a889",
+            "dependencies": []
+          },
+          {
+            "id": "mesh/demo-crate",
+            "kind": "mesh",
+            "version": 1,
+            "hash": "asset-mesh-6cee81db",
+            "dependencies": [
+              "material/demo-brushed-copper"
+            ]
+          }
+        ]
+      },
+      "scene": {
+        "schemaVersion": 1,
+        "id": 7301,
+        "metadata": {
+          "name": "ASHA Studio Demo Asset Package",
+          "authoringFormatVersion": 1
+        },
+        "dependencies": [
+          {
+            "id": "mesh/demo-crate",
+            "version": {
+              "req": "exact",
+              "value": 1
+            },
+            "hash": "asset-mesh-6cee81db"
+          },
+          {
+            "id": "material/demo-brushed-copper",
+            "version": {
+              "req": "exact",
+              "value": 1
+            },
+            "hash": "asset-material-c0387a10"
+          }
+        ],
+        "nodes": [
+          {
+            "id": 1,
+            "parent": null,
+            "childOrder": 0,
+            "label": "Demo Crate",
+            "tags": [
+              "demo",
+              "asset-loading"
+            ],
+            "transform": {
+              "translation": [
+                2.5,
+                0.5,
+                0.5
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "kind": {
+              "kind": "staticMesh",
+              "asset": {
+                "id": "mesh/demo-crate",
+                "version": {
+                  "req": "exact",
+                  "value": 1
+                },
+                "hash": "asset-mesh-6cee81db"
+              }
+            }
+          }
+        ]
+      },
+      "staticMesh": {
+        "asset": "mesh/demo-crate",
+        "payload": {
+          "layout": {
+            "vertexCount": 8,
+            "indexCount": 36,
+            "indexWidth": "u32",
+            "attributes": [
+              {
+                "name": "position",
+                "components": 3,
+                "kind": "f32"
+              },
+              {
+                "name": "normal",
+                "components": 3,
+                "kind": "f32"
+              }
+            ]
+          },
+          "groups": [
+            {
+              "materialSlot": 0,
+              "start": 0,
+              "count": 36
+            }
+          ],
+          "bounds": {
+            "min": [
+              -0.5,
+              -0.5,
+              -0.5
+            ],
+            "max": [
+              0.5,
+              0.5,
+              0.5
+            ]
+          },
+          "source": {
+            "kind": "inline",
+            "positions": [
+              -0.5,
+              -0.5,
+              -0.5,
+              0.5,
+              -0.5,
+              -0.5,
+              0.5,
+              0.5,
+              -0.5,
+              -0.5,
+              0.5,
+              -0.5,
+              -0.5,
+              -0.5,
+              0.5,
+              0.5,
+              -0.5,
+              0.5,
+              0.5,
+              0.5,
+              0.5,
+              -0.5,
+              0.5,
+              0.5
+            ],
+            "normals": [
+              0,
+              0,
+              -1,
+              0,
+              0,
+              -1,
+              0,
+              0,
+              -1,
+              0,
+              0,
+              -1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1
+            ],
+            "indices": [
+              0,
+              1,
+              2,
+              2,
+              3,
+              0,
+              4,
+              6,
+              5,
+              6,
+              4,
+              7,
+              0,
+              4,
+              5,
+              5,
+              1,
+              0,
+              3,
+              2,
+              6,
+              6,
+              7,
+              3,
+              1,
+              5,
+              6,
+              6,
+              2,
+              1,
+              0,
+              3,
+              7,
+              7,
+              4,
+              0
+            ]
+          },
+          "provenance": "staticAsset"
+        },
+        "materialSlots": [
+          {
+            "slot": 0,
+            "material": "material/demo-brushed-copper"
+          }
+        ],
+        "collision": {
+          "kind": "aabbFallback"
+        }
+      },
+      "loadedAssetId": "mesh/demo-crate",
+      "rendererClassification": "contract_render_diff_reference",
+      "loadDiff": {
+        "ops": [
+          {
+            "op": "defineMaterial",
+            "material": {
+              "id": "material/demo-brushed-copper",
+              "color": [
+                0.78,
+                0.42,
+                0.18,
+                1
+              ],
+              "texture": null,
+              "roughness": 0.47,
+              "emissive": 0,
+              "uvStrategy": "planar"
+            }
+          },
+          {
+            "op": "defineStaticMesh",
+            "asset": {
+              "asset": "mesh/demo-crate",
+              "payload": {
+                "layout": {
+                  "vertexCount": 8,
+                  "indexCount": 36,
+                  "indexWidth": "u32",
+                  "attributes": [
+                    {
+                      "name": "position",
+                      "components": 3,
+                      "kind": "f32"
+                    },
+                    {
+                      "name": "normal",
+                      "components": 3,
+                      "kind": "f32"
+                    }
+                  ]
+                },
+                "groups": [
+                  {
+                    "materialSlot": 0,
+                    "start": 0,
+                    "count": 36
+                  }
+                ],
+                "bounds": {
+                  "min": [
+                    -0.5,
+                    -0.5,
+                    -0.5
+                  ],
+                  "max": [
+                    0.5,
+                    0.5,
+                    0.5
+                  ]
+                },
+                "source": {
+                  "kind": "inline",
+                  "positions": [
+                    -0.5,
+                    -0.5,
+                    -0.5,
+                    0.5,
+                    -0.5,
+                    -0.5,
+                    0.5,
+                    0.5,
+                    -0.5,
+                    -0.5,
+                    0.5,
+                    -0.5,
+                    -0.5,
+                    -0.5,
+                    0.5,
+                    0.5,
+                    -0.5,
+                    0.5,
+                    0.5,
+                    0.5,
+                    0.5,
+                    -0.5,
+                    0.5,
+                    0.5
+                  ],
+                  "normals": [
+                    0,
+                    0,
+                    -1,
+                    0,
+                    0,
+                    -1,
+                    0,
+                    0,
+                    -1,
+                    0,
+                    0,
+                    -1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1
+                  ],
+                  "indices": [
+                    0,
+                    1,
+                    2,
+                    2,
+                    3,
+                    0,
+                    4,
+                    6,
+                    5,
+                    6,
+                    4,
+                    7,
+                    0,
+                    4,
+                    5,
+                    5,
+                    1,
+                    0,
+                    3,
+                    2,
+                    6,
+                    6,
+                    7,
+                    3,
+                    1,
+                    5,
+                    6,
+                    6,
+                    2,
+                    1,
+                    0,
+                    3,
+                    7,
+                    7,
+                    4,
+                    0
+                  ]
+                },
+                "provenance": "staticAsset"
+              },
+              "materialSlots": [
+                {
+                  "slot": 0,
+                  "material": "material/demo-brushed-copper"
+                }
+              ],
+              "collision": {
+                "kind": "aabbFallback"
+              }
+            }
+          },
+          {
+            "op": "createStaticMeshInstance",
+            "handle": 7101,
+            "parent": null,
+            "instance": {
+              "asset": "mesh/demo-crate",
+              "transform": {
+                "translation": [
+                  2.5,
+                  0.5,
+                  0.5
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "materialOverrides": [],
+              "metadata": {
+                "source": null,
+                "tags": [],
+                "label": "Demo Crate"
+              }
+            }
+          }
+        ]
+      },
+      "renderableIds": [
+        "scene-asset:mesh/demo-crate:1"
+      ],
+      "placements": [
+        {
+          "renderableId": "scene-asset:mesh/demo-crate:1",
+          "sceneNodeId": 1,
+          "meshRef": "mesh/demo-crate",
+          "materialRef": "material/demo-brushed-copper",
+          "translation": [
+            2.5,
+            0.5,
+            0.5
+          ],
+          "rotationQuat": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "bounds": {
+            "min": [
+              2.15,
+              0.15000000000000002,
+              0.15000000000000002
+            ],
+            "max": [
+              2.85,
+              0.85,
+              0.85
+            ]
+          },
+          "renderHash": "demo-asset-render-58ce100d"
+        }
+      ],
+      "materialVariants": [
+        {
+          "materialId": "material/demo-brushed-copper",
+          "label": "Demo Brushed Copper",
+          "hash": "asset-material-c0387a10",
+          "structuralClass": "structural"
+        },
+        {
+          "materialId": "material/demo-matte-slate",
+          "label": "Demo Matte Slate",
+          "hash": "asset-material-0c42a889",
+          "structuralClass": "decorative"
+        }
+      ],
+      "provenance": {
+        "assetId": "mesh/demo-crate",
+        "packageId": "asha-studio-demo-pack-0001",
+        "packagePath": "public-fixtures/demo-assets/asha-studio-demo-pack",
+        "sourcePath": "public-fixtures/demo-assets/asha-studio-demo-pack/models/demo-crate.mesh.json",
+        "meshRef": "mesh/demo-crate",
+        "materialRefs": [
+          "material/demo-brushed-copper"
+        ],
+        "catalogVersion": 1,
+        "catalogHash": "asset-mesh-6cee81db",
+        "lockHash": "asset-mesh-6cee81db",
+        "sceneId": 7301,
+        "entityPlacementNodeIds": [
+          1
+        ]
+      },
+      "negativeSmokes": [
+        {
+          "id": "negative:missing-asset",
+          "failureCode": "missing_asset",
+          "scenario": "Asset-lock pins mesh/demo-crate but the catalog no longer contains it.",
+          "expectedOutcome": "failed_closed",
+          "actualOutcome": "failed_closed",
+          "classifiedCodes": [
+            "missing"
+          ],
+          "diagnostic": "Locked asset is missing from the catalog: mesh/demo-crate."
+        },
+        {
+          "id": "negative:unsupported-format",
+          "failureCode": "unsupported_format",
+          "scenario": "Scene staticMesh node references a script-kind catalog asset.",
+          "expectedOutcome": "failed_closed",
+          "actualOutcome": "failed_closed",
+          "classifiedCodes": [
+            "asset-kind-mismatch"
+          ],
+          "diagnostic": "Asset script/demo-behaviour is a script; a staticMesh node requires a mesh-kind catalog asset."
+        },
+        {
+          "id": "negative:material-mismatch",
+          "failureCode": "material_mismatch",
+          "scenario": "Mesh catalog entry references a mesh asset where a material is required.",
+          "expectedOutcome": "failed_closed",
+          "actualOutcome": "failed_closed",
+          "classifiedCodes": [
+            "wrong-kind-reference"
+          ],
+          "diagnostic": "Mesh material slot references a non-material asset: mesh/demo-crate."
+        },
+        {
+          "id": "negative:stale-catalog-lock-drift",
+          "failureCode": "stale_catalog_lock_drift",
+          "scenario": "Catalog mesh version advanced to 2 while the asset lock still pins version 1.",
+          "expectedOutcome": "failed_closed",
+          "actualOutcome": "failed_closed",
+          "classifiedCodes": [
+            "stale-version"
+          ],
+          "diagnostic": "Catalog drifted from the pinned asset lock: mesh/demo-crate:stale-version."
+        }
+      ],
+      "loadEvidenceHash": "demo-asset-load-37f2788a",
+      "metadataHash": "demo-asset-metadata-f969d84a",
+      "surfaceFindings": [
+        {
+          "surface": "@asha/contracts",
+          "status": "available_public",
+          "evidence": "Catalog/CatalogEntry/AssetLock/LockFinding/FlatSceneDocument/StaticMeshAsset/RenderFrameDiff DTOs and classified validation codes are exported from the @asha/contracts package root."
+        },
+        {
+          "surface": "@asha/command-registry",
+          "status": "available_public",
+          "evidence": "ASHA command registry exposes the scene.load_asset command identity with editor-local render-diff evidence and Scene > Load Asset GUI mirror."
+        },
+        {
+          "surface": "@asha/runtime-bridge",
+          "status": "deferred",
+          "evidence": "Runtime placement/authority bootstrap is deferred; this slice loads reference render-diff evidence without importing runtime transports."
+        },
+        {
+          "surface": "@asha/renderer-three",
+          "status": "not_required_for_reference_load",
+          "evidence": "Studio projects the loaded asset through its own Three.js viewport host without importing renderer internals."
+        }
+      ],
+      "diagnostics": [],
+      "knownLimitations": [
+        "Demo asset loading uses public @asha/contracts DTOs and Studio-owned reference render-diff evidence; it does not import renderer internals or claim native runtime placement.",
+        "The browser-safe loader constructs the package in memory; the committed on-disk package files under packagePath (catalog.json, asset-lock.json, scene.json, models/*.mesh.json, materials/*.material.json) are the canonical source and are verified to match (and hashed) by proof:asset-load.",
+        "Asset placement renders as browser/reference projection; Rust/WASM authority bootstrap of the scene document remains deferred until @asha/runtime-bridge compatibility is approved here.",
+        "Negative smokes classify failures with public catalog/lock/scene validation codes; they are reference fail-closed evidence, not runtime authority rejections."
+      ]
+    },
+    "loadedRenderables": [
+      {
+        "renderableId": "scene-asset:mesh/demo-crate:1",
+        "sceneNodeId": 1,
+        "meshRef": "mesh/demo-crate",
+        "materialRef": "material/demo-brushed-copper",
+        "translation": [
+          2.5,
+          0.5,
+          0.5
+        ],
+        "rotationQuat": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "bounds": {
+          "min": [
+            2.15,
+            0.15000000000000002,
+            0.15000000000000002
+          ],
+          "max": [
+            2.85,
+            0.85,
+            0.85
+          ]
+        },
+        "renderHash": "demo-asset-render-58ce100d"
+      }
+    ],
+    "summary": "mesh/demo-crate from asha-studio-demo-pack-0001 placed as 1 renderable(s); 3 render diff op(s); 4 negative smoke(s) fail closed; demo-asset-load-37f2788a"
   },
   "visualEvidence": [
     {
@@ -3146,24 +4207,57 @@
     },
     {
       "artifactId": "artifact-seq-0009-1",
-      "artifactKind": "visual_before_after",
+      "artifactKind": "state_evidence",
       "pathKind": "inline_summary",
-      "path": "render_before_after:seq-0009",
+      "path": "model_metadata:seq-0009",
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
       "producedBySequenceId": "seq-0009",
-      "summary": "Before/after visual evidence artifact."
+      "summary": "Loaded static mesh asset metadata."
+    },
+    {
+      "artifactId": "artifact-seq-0009-2",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "material_metadata:seq-0009",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0009",
+      "summary": "Bound material projection metadata."
+    },
+    {
+      "artifactId": "artifact-seq-0009-3",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "render_diff_preview:seq-0009",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0009",
+      "summary": "Retained-mode render diff that defines and places the loaded asset."
     },
     {
       "artifactId": "artifact-seq-0010-1",
-      "artifactKind": "agent_readout",
+      "artifactKind": "visual_before_after",
       "pathKind": "inline_summary",
-      "path": "agent_readout:seq-0010",
+      "path": "render_before_after:seq-0010",
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
       "producedBySequenceId": "seq-0010",
+      "summary": "Before/after visual evidence artifact."
+    },
+    {
+      "artifactId": "artifact-seq-0011-1",
+      "artifactKind": "agent_readout",
+      "pathKind": "inline_summary",
+      "path": "agent_readout:seq-0011",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0011",
       "summary": "Human/agent review artifact index."
     },
     {
@@ -3245,11 +4339,20 @@
       "owningLane": "asha-studio",
       "source": "src/session-workspace.ts",
       "remediation": null
+    },
+    {
+      "severity": "warning",
+      "code": "asha-studio.session.compatibility_degraded",
+      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
+      "owningLane": "asha-studio",
+      "source": "src/session-workspace.ts",
+      "remediation": null
     }
   ],
   "knownLimitations": [
     "Mock/reference session model with typed public VoxelCommand proposal/apply evidence.",
-    "Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content."
+    "Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.",
+    "Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred."
   ],
-  "reviewSummary": "10 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
+  "reviewSummary": "11 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
 }
