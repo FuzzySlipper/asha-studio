@@ -132,8 +132,8 @@
     "commandId": "selection.set_active_entity",
     "sequenceId": "seq-0010",
     "actor": "gui",
-    "selectionHash": "selection-hash-voxel-basic-0-0-0-posX",
-    "summary": "Hierarchy selection of selected-voxel:0,0,0 synced to viewport renderable selected-voxel:0,0,0 via seq-0010."
+    "selectionHash": "selection-022e7e8a",
+    "summary": "Hierarchy selection command selected selected-voxel:0,0,0 → viewport renderable selected-voxel:0,0,0 via seq-0010; inSync true."
   },
   "entityListHash": "entity-list-1d51ba8c",
   "diagnostics": [],
@@ -176,6 +176,16 @@
       "actualOutcome": "failed_closed",
       "diagnosticCodes": [
         "unsupported_private_entity_source"
+      ]
+    },
+    {
+      "id": "negative:selection-command-mismatch",
+      "code": "selection_sync_mismatch",
+      "scenario": "A selection.set_active_entity command selected a different entity than the viewport selected renderable.",
+      "expectedOutcome": "failed_closed",
+      "actualOutcome": "failed_closed",
+      "diagnosticCodes": [
+        "selection_sync_mismatch"
       ]
     }
   ],

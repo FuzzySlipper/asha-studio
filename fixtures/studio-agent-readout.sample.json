@@ -539,7 +539,7 @@
       "status": "ok",
       "operationClass": "editor_local",
       "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0",
-      "outputSummary": "Command accepted.",
+      "outputSummary": "Selected entity selected-voxel:0,0,0 synced to renderable selected-voxel:0,0,0 (selected=true).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": true,
@@ -1711,13 +1711,13 @@
           "summary": "No active typed selection."
         },
         "selectedAfter": {
-          "kind": "none",
+          "kind": "object",
           "voxelSelection": null,
-          "objectId": null,
+          "objectId": "selected-voxel:0,0,0",
           "modelId": null,
           "materialId": null,
-          "evidenceHash": null,
-          "summary": "No active typed selection."
+          "evidenceHash": "selection-022e7e8a",
+          "summary": "Active entity selected-voxel:0,0,0 selected from the hierarchy and synced to the viewport renderable."
         },
         "replay": {
           "replayArtifactId": null,
@@ -1758,9 +1758,12 @@
         }
       },
       "output": {
-        "kind": "ok"
+        "entityId": "selected-voxel:0,0,0",
+        "renderableId": "selected-voxel:0,0,0",
+        "selectionHash": "selection-022e7e8a",
+        "selected": true
       },
-      "outputSummary": "Command accepted.",
+      "outputSummary": "Selected entity selected-voxel:0,0,0 synced to renderable selected-voxel:0,0,0 (selected=true).",
       "diagnostics": [
         {
           "severity": "warning",
@@ -2590,7 +2593,7 @@
         "completedAtIso": "1970-01-01T00:00:06.750Z",
         "operationClass": "editor_local",
         "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0",
-        "outputSummary": "Command accepted.",
+        "outputSummary": "Selected entity selected-voxel:0,0,0 synced to renderable selected-voxel:0,0,0 (selected=true).",
         "evidenceSummary": "artifact-seq-0010-1:state_evidence",
         "artifactIds": [
           "artifact-seq-0010-1"
@@ -4448,8 +4451,8 @@
       "commandId": "selection.set_active_entity",
       "sequenceId": "seq-0010",
       "actor": "gui",
-      "selectionHash": "selection-hash-voxel-basic-0-0-0-posX",
-      "summary": "Hierarchy selection of selected-voxel:0,0,0 synced to viewport renderable selected-voxel:0,0,0 via seq-0010."
+      "selectionHash": "selection-022e7e8a",
+      "summary": "Hierarchy selection command selected selected-voxel:0,0,0 → viewport renderable selected-voxel:0,0,0 via seq-0010; inSync true."
     },
     "entityListHash": "entity-list-1d51ba8c",
     "diagnostics": [],
@@ -4492,6 +4495,16 @@
         "actualOutcome": "failed_closed",
         "diagnosticCodes": [
           "unsupported_private_entity_source"
+        ]
+      },
+      {
+        "id": "negative:selection-command-mismatch",
+        "code": "selection_sync_mismatch",
+        "scenario": "A selection.set_active_entity command selected a different entity than the viewport selected renderable.",
+        "expectedOutcome": "failed_closed",
+        "actualOutcome": "failed_closed",
+        "diagnosticCodes": [
+          "selection_sync_mismatch"
         ]
       }
     ],

@@ -68,8 +68,9 @@ function main(): void {
     { id: 5, requirement: 'selection syncs to the viewport renderable through selection.set_active_entity', status: browser.selection.inSync && browser.selection.commandId === 'selection.set_active_entity' && selectEntry !== undefined && browser.selection.sequenceId === selectEntry.sequenceId ? 'passed' : 'failed', evidence: `${browser.selection.selectedEntityId} -> ${browser.selection.viewportRenderableId} via ${browser.selection.sequenceId}` },
     { id: 6, requirement: 'selected entity resolves to a visible viewport renderable', status: selectedInViewport && viewport.selectedRenderableId === browser.selection.viewportRenderableId ? 'passed' : 'failed', evidence: `viewport selected ${viewport.selectedRenderableId}` },
     { id: 7, requirement: 'live projection has no fail-closed diagnostics', status: browser.diagnostics.length === 0 && browser.readiness === 'ready' ? 'passed' : 'failed', evidence: `${browser.diagnostics.length} diagnostic(s)` },
-    { id: 8, requirement: 'negative smokes fail closed for drift/missing/stale/private-source', status: browser.negativeSmokes.length === 4 && browser.negativeSmokes.every((smoke) => smoke.actualOutcome === 'failed_closed' && smoke.diagnosticCodes.includes(smoke.code)) ? 'passed' : 'failed', evidence: browser.negativeSmokes.map((smoke) => `${smoke.code}=${smoke.actualOutcome}`).join('; ') },
+    { id: 8, requirement: 'negative smokes fail closed for drift/missing/stale/private-source/selection-mismatch', status: browser.negativeSmokes.length === 5 && browser.negativeSmokes.every((smoke) => smoke.actualOutcome === 'failed_closed' && smoke.diagnosticCodes.includes(smoke.code)) ? 'passed' : 'failed', evidence: browser.negativeSmokes.map((smoke) => `${smoke.code}=${smoke.actualOutcome}`).join('; ') },
     { id: 9, requirement: 'entity browser is exported in the agent readout', status: workspace.exportedReadout.entityBrowser.artifactKind === 'entity_browser_projection' ? 'passed' : 'failed', evidence: workspace.exportedReadout.entityBrowser.automationLabel },
+    { id: 10, requirement: 'selection.set_active_entity command result matches its public output schema and carries the selected entity', status: (() => { const result = workspace.commandResults.find((entry) => entry.commandId === 'selection.set_active_entity'); const output = result?.output; return output !== null && output !== undefined && 'entityId' in output && output.entityId === browser.selection.selectedEntityId && output.renderableId === browser.selection.viewportRenderableId && output.selected === true ? 'passed' : 'failed'; })(), evidence: JSON.stringify(workspace.commandResults.find((entry) => entry.commandId === 'selection.set_active_entity')?.output ?? null) },
   ];
 
   const proof = {
@@ -83,6 +84,7 @@ function main(): void {
     entityCount: browser.entityCount,
     entityIds: browser.entities.map((entity) => entity.entityId),
     selection: browser.selection,
+    selectionCommandOutput: workspace.commandResults.find((entry) => entry.commandId === 'selection.set_active_entity')?.output ?? null,
     entityListHash: browser.entityListHash,
     diagnostics: browser.diagnostics,
     negativeSmokes: browser.negativeSmokes,

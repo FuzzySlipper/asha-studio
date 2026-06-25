@@ -4,7 +4,9 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { computeEntityListHash, validateEntityBrowser } from '../src/entity-browser';
+import { COMMAND_MANIFEST, requireKnownCommand, validateExampleAgainstSchema } from '@asha/command-registry';
+
+import { computeEntityListHash, createStudioEntityBrowserModel, validateEntityBrowser, validateSelectionSync } from '../src/entity-browser';
 import { createStudioWorkspaceModel } from '../src/session-workspace';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -33,7 +35,12 @@ test('entity browser selection syncs to the viewport renderable through the shar
   assert.equal(browser.selection.selectedEntityId, workspace.sceneView.selection.selectedRenderableId);
   assert.equal(browser.selection.viewportRenderableId, workspace.sceneView.selection.selectedRenderableId);
   assert.equal(browser.selection.inSync, true);
-  assert.equal(browser.selection.selectionHash, workspace.sceneView.selection.selectionHash);
+  // selectionHash is sourced from the typed selection.set_active_entity command result output.
+  const selectResult = workspace.commandResults.find((entry) => entry.commandId === 'selection.set_active_entity');
+  assert.ok(selectResult?.output && 'selectionHash' in selectResult.output);
+  if (selectResult?.output && 'selectionHash' in selectResult.output) {
+    assert.equal(browser.selection.selectionHash, selectResult.output.selectionHash);
+  }
   // The selection command is recorded in the shared GUI/agent timeline.
   const selectEntry = workspace.timeline.find((entry) => entry.commandId === 'selection.set_active_entity');
   assert.ok(selectEntry);
@@ -74,13 +81,52 @@ test('entity browser fails closed on drift, missing selection, stale list, and p
 
 test('entity browser negative smokes all fail closed with their classified code', () => {
   const smokes = createStudioWorkspaceModel().entityBrowser.negativeSmokes;
-  assert.equal(smokes.length, 4);
-  for (const code of ['hierarchy_readback_drift', 'missing_selected_entity', 'stale_entity_list', 'unsupported_private_entity_source'] as const) {
+  assert.equal(smokes.length, 5);
+  for (const code of ['hierarchy_readback_drift', 'missing_selected_entity', 'stale_entity_list', 'unsupported_private_entity_source', 'selection_sync_mismatch'] as const) {
     const smoke = smokes.find((entry) => entry.code === code);
     assert.ok(smoke, `missing smoke ${code}`);
     assert.equal(smoke.actualOutcome, 'failed_closed');
     assert.ok(smoke.diagnosticCodes.includes(code));
   }
+});
+
+test('selection.set_active_entity command result matches its public output schema and carries the selection', () => {
+  const workspace = createStudioWorkspaceModel();
+  const result = workspace.commandResults.find((entry) => entry.commandId === 'selection.set_active_entity');
+  assert.ok(result);
+  const command = requireKnownCommand('selection.set_active_entity', COMMAND_MANIFEST);
+  // Finding 1 regression: the actual Studio command result output validates against the registry schema.
+  assert.deepEqual(validateExampleAgainstSchema('selection.set_active_entity', 'typedOutputExample', result.output ?? {}, command.outputSchema.shape), []);
+  assert.ok(result.output && 'entityId' in result.output);
+  if (result.output && 'entityId' in result.output) {
+    assert.equal(result.output.entityId, workspace.sceneView.selection.selectedRenderableId);
+    assert.equal(result.output.renderableId, workspace.sceneView.selection.selectedRenderableId);
+    assert.equal(result.output.selected, true);
+  }
+  // And the command result records the active selection in state.selectedAfter.
+  assert.equal(result.state.selectedAfter?.kind, 'object');
+  assert.equal(result.state.selectedAfter?.objectId, workspace.sceneView.selection.selectedRenderableId);
+});
+
+test('entity browser fails closed when the selection command selected a different entity than the viewport', () => {
+  const workspace = createStudioWorkspaceModel();
+  // Finding 2 regression: a selection command that selected a different entity must NOT report ready.
+  const mismatchedResults = workspace.commandResults.map((result) =>
+    result.commandId === 'selection.set_active_entity' && result.output && 'entityId' in result.output
+      ? { ...result, output: { ...result.output, entityId: 'scene-asset:mesh/demo-crate:1', renderableId: 'scene-asset:mesh/demo-crate:1' } }
+      : result,
+  );
+  const browser = createStudioEntityBrowserModel({ sceneView: workspace.sceneView, timeline: workspace.timeline, commandResults: mismatchedResults });
+  assert.equal(browser.readiness, 'failed_closed');
+  assert.equal(browser.selection.inSync, false);
+  assert.ok(browser.diagnostics.some((diagnostic) => diagnostic.code === 'selection_sync_mismatch'));
+});
+
+test('validateSelectionSync flags missing and mismatched selection commands', () => {
+  const ids = ['selected-voxel:0,0,0', 'scene-asset:mesh/demo-crate:1'];
+  assert.deepEqual(validateSelectionSync({ commandPresent: true, commandEntityId: 'selected-voxel:0,0,0', commandRenderableId: 'selected-voxel:0,0,0', commandSelected: true, viewportSelectedRenderableId: 'selected-voxel:0,0,0', entityIds: ids }), []);
+  assert.ok(validateSelectionSync({ commandPresent: false, commandEntityId: null, commandRenderableId: null, commandSelected: false, viewportSelectedRenderableId: 'selected-voxel:0,0,0', entityIds: ids }).some((d) => d.code === 'missing_selection_command'));
+  assert.ok(validateSelectionSync({ commandPresent: true, commandEntityId: 'scene-asset:mesh/demo-crate:1', commandRenderableId: 'scene-asset:mesh/demo-crate:1', commandSelected: true, viewportSelectedRenderableId: 'selected-voxel:0,0,0', entityIds: ids }).some((d) => d.code === 'selection_sync_mismatch'));
 });
 
 test('entity browser is exported through the agent readout and sample fixture', () => {
@@ -98,5 +144,5 @@ test('entity browser is exported through the agent readout and sample fixture', 
   assert.equal(fixture.entityCount, 6);
   assert.equal(fixture.selection?.inSync, true);
   assert.equal(fixture.selection?.commandId, 'selection.set_active_entity');
-  assert.equal(fixture.negativeSmokes?.length, 4);
+  assert.equal(fixture.negativeSmokes?.length, 5);
 });

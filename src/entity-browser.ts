@@ -1,4 +1,4 @@
-import type { StudioCommandTimelineEntry } from './session-workspace';
+import type { StudioCommandResult, StudioCommandTimelineEntry } from './session-workspace';
 import type { StudioSceneViewModel, StudioSceneViewRenderable, StudioSceneViewRenderableKind } from './scene-view-model';
 
 export type StudioEntityBrowserReadiness = 'ready' | 'failed_closed';
@@ -8,7 +8,9 @@ export type StudioEntityBrowserDiagnosticCode =
   | 'hierarchy_readback_drift'
   | 'missing_selected_entity'
   | 'stale_entity_list'
-  | 'unsupported_private_entity_source';
+  | 'unsupported_private_entity_source'
+  | 'selection_sync_mismatch'
+  | 'missing_selection_command';
 
 const ALLOWED_SOURCE_STATES: readonly StudioEntitySourceState[] = ['authoritative_rust_state', 'editor_preview_state', 'browser_projection_reference'];
 
@@ -155,7 +157,34 @@ export function validateEntityBrowser(input: {
   return diagnostics;
 }
 
-function negativeSmokes(baseEntities: readonly { readonly entityId: string; readonly sourceState: string; readonly selected: boolean }[], sceneRenderableIds: readonly string[], hash: string): readonly StudioEntityBrowserNegativeSmoke[] {
+/**
+ * Validates that the recorded `selection.set_active_entity` command result actually selected the
+ * entity the viewport reports as selected. Fails closed on a missing command or a command whose
+ * selected entity/renderable does not match the viewport selection.
+ */
+export function validateSelectionSync(input: {
+  readonly commandPresent: boolean;
+  readonly commandEntityId: string | null;
+  readonly commandRenderableId: string | null;
+  readonly commandSelected: boolean;
+  readonly viewportSelectedRenderableId: string;
+  readonly entityIds: readonly string[];
+}): readonly StudioEntityBrowserDiagnostic[] {
+  if (!input.commandPresent) {
+    return [{ code: 'missing_selection_command', severity: 'error', message: 'No selection.set_active_entity command result recorded in the shared timeline.' }];
+  }
+  if (
+    input.commandEntityId !== input.viewportSelectedRenderableId
+    || input.commandRenderableId !== input.viewportSelectedRenderableId
+    || !input.commandSelected
+    || !input.entityIds.includes(input.viewportSelectedRenderableId)
+  ) {
+    return [{ code: 'selection_sync_mismatch', severity: 'error', message: `selection.set_active_entity selected ${input.commandEntityId ?? 'null'}/${input.commandRenderableId ?? 'null'} (selected=${input.commandSelected}) but the viewport selected renderable is ${input.viewportSelectedRenderableId}.` }];
+  }
+  return [];
+}
+
+function negativeSmokes(baseEntities: readonly { readonly entityId: string; readonly sourceState: string; readonly selected: boolean }[], sceneRenderableIds: readonly string[], hash: string, viewportSelectedRenderableId: string): readonly StudioEntityBrowserNegativeSmoke[] {
   const smokes: StudioEntityBrowserNegativeSmoke[] = [];
 
   const driftDiags = validateEntityBrowser({
@@ -195,14 +224,26 @@ function negativeSmokes(baseEntities: readonly { readonly entityId: string; read
   });
   smokes.push({ id: 'negative:unsupported-private-entity-source', code: 'unsupported_private_entity_source', scenario: 'An entity is sourced from an unsupported/private ECS source rather than public scene readback.', expectedOutcome: 'failed_closed', actualOutcome: privateDiags.some((d) => d.code === 'unsupported_private_entity_source') ? 'failed_closed' : 'ready', diagnosticCodes: privateDiags.map((d) => d.code) });
 
+  // A selection.set_active_entity command that selected a different entity than the viewport renderable.
+  const mismatchDiags = validateSelectionSync({
+    commandPresent: true,
+    commandEntityId: 'scene-asset:mesh/demo-crate:1',
+    commandRenderableId: 'scene-asset:mesh/demo-crate:1',
+    commandSelected: true,
+    viewportSelectedRenderableId,
+    entityIds: baseEntities.map((entity) => entity.entityId),
+  });
+  smokes.push({ id: 'negative:selection-command-mismatch', code: 'selection_sync_mismatch', scenario: 'A selection.set_active_entity command selected a different entity than the viewport selected renderable.', expectedOutcome: 'failed_closed', actualOutcome: mismatchDiags.some((d) => d.code === 'selection_sync_mismatch') ? 'failed_closed' : 'ready', diagnosticCodes: mismatchDiags.map((d) => d.code) });
+
   return smokes;
 }
 
 export function createStudioEntityBrowserModel(options: {
   readonly sceneView: StudioSceneViewModel;
   readonly timeline: readonly StudioCommandTimelineEntry[];
+  readonly commandResults: readonly StudioCommandResult[];
 }): StudioEntityBrowserModel {
-  const { sceneView, timeline } = options;
+  const { sceneView, timeline, commandResults } = options;
   const selectedRenderableId = sceneView.selection.selectedRenderableId;
   const entities: StudioEntityNode[] = sceneView.renderables.map((renderable, index) => {
     const selected = renderable.renderableId === selectedRenderableId;
@@ -227,18 +268,32 @@ export function createStudioEntityBrowserModel(options: {
   const sceneRenderableIds = sceneView.renderables.map((renderable) => renderable.renderableId);
 
   const selectEntry = timeline.find((entry) => entry.commandId === 'selection.set_active_entity') ?? null;
-  const selectionSyncInSync = entities.some((entity) => entity.entityId === selectedRenderableId);
+  const selectResult = commandResults.find((result) => result.commandId === 'selection.set_active_entity') ?? null;
+  const selectOutput = selectResult !== null && selectResult.output !== null && 'entityId' in selectResult.output ? selectResult.output : null;
+  const commandEntityId = selectOutput?.entityId ?? null;
+  const commandRenderableId = selectOutput?.renderableId ?? null;
+  const commandSelected = selectOutput?.selected ?? false;
+
+  const selectionDiagnostics = validateSelectionSync({
+    commandPresent: selectOutput !== null,
+    commandEntityId,
+    commandRenderableId,
+    commandSelected,
+    viewportSelectedRenderableId: sceneView.selection.selectedRenderableId,
+    entityIds: entities.map((entity) => entity.entityId),
+  });
+  const selectionInSync = selectionDiagnostics.length === 0;
   const selection: StudioEntitySelectionSync = {
-    selectedEntityId: selectedRenderableId,
+    selectedEntityId: commandEntityId ?? selectedRenderableId,
     viewportRenderableId: sceneView.selection.selectedRenderableId,
-    inSync: selectionSyncInSync && selectedRenderableId === sceneView.selection.selectedRenderableId,
+    inSync: selectionInSync,
     commandId: 'selection.set_active_entity',
     sequenceId: selectEntry?.sequenceId ?? null,
     actor: selectEntry?.requestedBy === 'agent' ? 'agent' : selectEntry?.requestedBy === 'gui' ? 'gui' : null,
-    selectionHash: sceneView.selection.selectionHash,
-    summary: selectEntry === null
-      ? 'No shared selection.set_active_entity command recorded; hierarchy selection not synced.'
-      : `Hierarchy selection of ${selectedRenderableId} synced to viewport renderable ${sceneView.selection.selectedRenderableId} via ${selectEntry.sequenceId}.`,
+    selectionHash: selectOutput?.selectionHash ?? sceneView.selection.selectionHash,
+    summary: selectOutput === null
+      ? 'No shared selection.set_active_entity command result recorded; hierarchy selection not synced.'
+      : `Hierarchy selection command selected ${commandEntityId} → viewport renderable ${sceneView.selection.selectedRenderableId} via ${selectEntry?.sequenceId ?? 'unknown'}; inSync ${selectionInSync}.`,
   };
 
   const diagnostics = [
@@ -249,15 +304,13 @@ export function createStudioEntityBrowserModel(options: {
       recordedHash: entityListHash,
       recomputedHash: entityListHash,
     }),
-    ...(selection.sequenceId === null
-      ? [{ code: 'missing_selected_entity' as const, severity: 'error' as const, message: 'No selection.set_active_entity command recorded in the shared timeline.' }]
-      : []),
-    ...(selection.inSync ? [] : [{ code: 'hierarchy_readback_drift' as const, severity: 'error' as const, message: 'Hierarchy selection is not in sync with the viewport selected renderable.' }]),
+    ...selectionDiagnostics,
   ];
   const negatives = negativeSmokes(
     entities.map((entity) => ({ entityId: entity.entityId, sourceState: entity.sourceState, selected: entity.selected })),
     sceneRenderableIds,
     entityListHash,
+    sceneView.selection.selectedRenderableId,
   );
   const negativesFailClosed = negatives.every((smoke) => smoke.actualOutcome === 'failed_closed' && smoke.diagnosticCodes.includes(smoke.code));
   const readiness: StudioEntityBrowserReadiness = diagnostics.length === 0 && negativesFailClosed ? 'ready' : 'failed_closed';

@@ -25,15 +25,22 @@ if (artifact.selection?.inSync !== true) fail('hierarchy selection is not synced
 if (!artifact.selection?.sequenceId) fail('selection command not recorded in the shared timeline');
 if (artifact.selection.selectedEntityId !== artifact.selection.viewportRenderableId) fail('selected entity does not match viewport renderable');
 if (!Array.isArray(artifact.diagnostics) || artifact.diagnostics.length !== 0) fail('live entity browser must have no fail-closed diagnostics');
-const requiredCodes = ['hierarchy_readback_drift', 'missing_selected_entity', 'stale_entity_list', 'unsupported_private_entity_source'];
-if (!Array.isArray(artifact.negativeSmokes) || artifact.negativeSmokes.length !== 4) fail('expected 4 negative smokes');
+const output = artifact.selectionCommandOutput;
+if (output === null || typeof output !== 'object' || typeof output.entityId !== 'string' || typeof output.renderableId !== 'string' || typeof output.selectionHash !== 'string' || output.selected !== true) {
+  fail('selection.set_active_entity command result does not carry the typed SetActiveEntityOutput evidence');
+}
+if (output.entityId !== artifact.selection.selectedEntityId || output.renderableId !== artifact.selection.viewportRenderableId) {
+  fail('selection command output entity/renderable does not match the synced viewport selection');
+}
+const requiredCodes = ['hierarchy_readback_drift', 'missing_selected_entity', 'stale_entity_list', 'unsupported_private_entity_source', 'selection_sync_mismatch'];
+if (!Array.isArray(artifact.negativeSmokes) || artifact.negativeSmokes.length !== 5) fail('expected 5 negative smokes');
 for (const code of requiredCodes) {
   const smoke = artifact.negativeSmokes.find((entry) => entry.code === code);
   if (smoke === undefined) fail(`missing negative smoke for ${code}`);
   if (smoke.actualOutcome !== 'failed_closed') fail(`negative smoke ${code} did not fail closed`);
   if (!Array.isArray(smoke.diagnosticCodes) || !smoke.diagnosticCodes.includes(code)) fail(`negative smoke ${code} lacks its classified diagnostic`);
 }
-if (!Array.isArray(artifact.proofSteps) || artifact.proofSteps.length !== 9) fail('proofSteps must contain 9 requirements');
+if (!Array.isArray(artifact.proofSteps) || artifact.proofSteps.length !== 10) fail('proofSteps must contain 10 requirements');
 for (const step of artifact.proofSteps) {
   if (step.status !== 'passed') fail(`proof step ${step.id} did not pass: ${step.requirement}`);
 }

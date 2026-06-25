@@ -125,7 +125,8 @@ export type StudioCommandInput =
 export type StudioCommandOutput =
   | { readonly kind: 'ok' }
   | { readonly sessionId: string; readonly status: StudioWorkspaceStatus }
-  | { readonly artifactId: string; readonly commandCount: number };
+  | { readonly artifactId: string; readonly commandCount: number }
+  | { readonly entityId: string; readonly renderableId: string; readonly selectionHash: string; readonly selected: boolean };
 
 export interface StudioCommandInvocation {
   readonly schemaVersion: 1;
@@ -244,6 +245,31 @@ export interface StudioCommandRequest {
 // The deterministic scene-view selected renderable; the hierarchy/entity browser selection syncs to it.
 const SELECTED_RENDERABLE_ID = 'selected-voxel:0,0,0';
 
+function selectionHashFor(sessionId: string, entityId: string): string {
+  const text = `${sessionId}:${entityId}`;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `selection-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function selectionEvidenceFor(commandId: StudioCommandId, input: StudioCommandInput, selectionHash: string | null): StudioSelectionEvidence {
+  if (commandId === 'selection.set_active_entity' && 'entityId' in input) {
+    return {
+      kind: 'object',
+      voxelSelection: null,
+      objectId: input.entityId,
+      modelId: null,
+      materialId: null,
+      evidenceHash: selectionHash,
+      summary: `Active entity ${input.entityId} selected from the hierarchy and synced to the viewport renderable.`,
+    };
+  }
+  return NONE_SELECTION;
+}
+
 const DEFAULT_SCENARIOS: readonly StudioScenarioSummary[] = [
   { scenarioId: 'voxel-basic', label: 'Basic Voxel Scenario', status: 'available' },
   { scenarioId: 'scenario-placeholder', label: 'Placeholder Studio scenario', status: 'available' },
@@ -274,6 +300,7 @@ function summarizeInput(input: StudioCommandInput): string {
 
 function summarizeOutput(output: StudioCommandOutput | null): string {
   if (output === null) return 'No output.';
+  if ('entityId' in output) return `Selected entity ${output.entityId} synced to renderable ${output.renderableId} (selected=${output.selected}).`;
   if ('artifactId' in output) return `Exported ${output.artifactId} with ${output.commandCount} command(s).`;
   if ('status' in output) return `Session ${output.sessionId} is ${output.status}.`;
   return 'Command accepted.';
@@ -313,7 +340,7 @@ function diagnostic(severity: StudioDiagnostic['severity'], code: string, messag
   return { severity, code, message, owningLane: 'asha-studio', source: 'src/session-workspace.ts', remediation: null };
 }
 
-function outputFor(commandId: StudioCommandId, sessionId: string, status: StudioWorkspaceStatus, commandCount: number): StudioCommandOutput | null {
+function outputFor(commandId: StudioCommandId, sessionId: string, status: StudioWorkspaceStatus, commandCount: number, input: StudioCommandInput, selectionHash: string | null): StudioCommandOutput | null {
   switch (commandId) {
     case 'session.start':
     case 'session.load_scenario':
@@ -324,8 +351,10 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
       return { artifactId: 'artifact-viewport-interaction-proof-0001', commandCount };
     case 'scene.load_asset':
       return { artifactId: 'artifact-demo-asset-load-0001', commandCount };
-    case 'selection.set_active_entity':
-      return { kind: 'ok' };
+    case 'selection.set_active_entity': {
+      const entityId = 'entityId' in input ? input.entityId : '';
+      return { entityId, renderableId: entityId, selectionHash: selectionHash ?? selectionHashFor(sessionId, entityId), selected: true };
+    }
     case 'render.capture_before_after':
       return { artifactId: 'artifact-visual-before-after-0001', commandCount };
     case 'export.agent_readout':
@@ -335,7 +364,7 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
   }
 }
 
-function stateEvidence(compatibility: StudioCompatibilityEvidence, editorVersion: string): StudioStateEvidence {
+function stateEvidence(compatibility: StudioCompatibilityEvidence, editorVersion: string, selectedAfter: StudioSelectionEvidence = NONE_SELECTION): StudioStateEvidence {
   return {
     authorityBeforeHash: null,
     authorityAfterHash: null,
@@ -344,7 +373,7 @@ function stateEvidence(compatibility: StudioCompatibilityEvidence, editorVersion
     renderBeforeHash: null,
     renderAfterHash: null,
     selectedBefore: NONE_SELECTION,
-    selectedAfter: NONE_SELECTION,
+    selectedAfter,
     replay: { replayArtifactId: null, replayPath: null, replayHash: null, replayMode: 'unavailable', summary: 'unavailable: runtime bridge/replay integration is deferred.' },
     compatibility,
   };
@@ -386,7 +415,11 @@ export function invokeStudioCommand(options: {
   const nextStatus = options.request.commandId === 'session.start' || options.request.commandId === 'session.load_scenario' ? 'ready' : options.status;
   const commandDiagnostics = options.session.diagnostics.length === 0 ? [] : [diagnostic('warning', 'asha-studio.session.compatibility_degraded', 'Compatibility diagnostics are present on the session; command result records degraded evidence.')];
   const artifacts = artifactFor(command, sequence);
-  const output = outputFor(options.request.commandId, options.session.sessionId, nextStatus, options.previousResults.length + 1);
+  const selectionHash = options.request.commandId === 'selection.set_active_entity' && 'entityId' in options.request.input
+    ? selectionHashFor(options.session.sessionId, options.request.input.entityId)
+    : null;
+  const output = outputFor(options.request.commandId, options.session.sessionId, nextStatus, options.previousResults.length + 1, options.request.input, selectionHash);
+  const selectedAfter = selectionEvidenceFor(options.request.commandId, options.request.input, selectionHash);
   const changed = changedFor(command, artifacts.length > 0);
   const invocation: StudioCommandInvocation = {
     schemaVersion: 1,
@@ -417,7 +450,7 @@ export function invokeStudioCommand(options: {
     status: commandDiagnostics.some((item) => item.severity === 'error') ? 'failed' : 'ok',
     operationClass: command.operationClass,
     changed,
-    state: stateEvidence(options.session.compatibility, `editor.v0.${options.sequenceIndex + 1}`),
+    state: stateEvidence(options.session.compatibility, `editor.v0.${options.sequenceIndex + 1}`, selectedAfter),
     output,
     outputSummary: summarizeOutput(output),
     diagnostics: commandDiagnostics,
@@ -584,7 +617,7 @@ export function createStudioWorkspaceModel(options: {
     timeline,
     visualEvidence,
   });
-  const entityBrowser = createStudioEntityBrowserModel({ sceneView, timeline });
+  const entityBrowser = createStudioEntityBrowserModel({ sceneView, timeline, commandResults: results });
   const sceneHierarchy = createStudioSceneHierarchyModel({
     session,
     scenario: { scenarioId: activeScenarioId, label: session.scenarioLabel, status: status === 'ready' ? 'loaded' : 'available' },
