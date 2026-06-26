@@ -6,16 +6,16 @@ import { createStudioShellModel, getVisibleCommands } from '../src/studio-model'
 test('studio shell exposes editor dock frame regions for the Unity-ish layout slice', () => {
   const model = createStudioShellModel();
   assert.deepEqual(model.editorShellRegions.map((region) => region.automationLabel), [
-    'studio-editor-app-status-bar',
-    'studio-editor-left-scene-hierarchy-dock',
-    'studio-editor-central-viewport-dock',
-    'studio-editor-right-inspector-dock',
-    'studio-editor-bottom-command-evidence-dock',
+    'studio-left-scene-hierarchy-panel',
+    'studio-menu-top-bar',
+    'studio-viewport-top-bar',
+    'studio-viewport-scene-panel',
+    'studio-bottom-assets-panel',
+    'studio-right-inspector-panel',
   ]);
-  assert.equal(model.editorShellRegions.find((region) => region.id === 'centralViewportDock')?.status, 'implemented_frame');
-  assert.equal(model.editorShellRegions.find((region) => region.id === 'leftHierarchyDock')?.status, 'implemented_frame');
-  assert.equal(model.editorShellRegions.find((region) => region.id === 'rightInspectorDock')?.status, 'implemented_frame');
-  assert.equal(model.editorShellRegions.find((region) => region.id === 'bottomCommandEvidenceDock')?.status, 'implemented_frame');
+  assert.deepEqual(model.editorShellRegions.map((region) => region.regionNumber), [1, 2, 3, 4, 5, 6]);
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'viewportScenePanel')?.status, 'implemented_frame');
+  assert.equal(model.editorShellRegions.find((region) => region.id === 'bottomAssetsPanel')?.label, 'Bottom panel - Assets');
 });
 
 test('studio shell exposes every required V1 panel', () => {

@@ -13,6 +13,48 @@
       "type": "object_exists"
     },
     {
+      "id": "studio_layout_root_exists",
+      "importance": "critical",
+      "object": "studio_layout_root",
+      "type": "object_exists"
+    },
+    {
+      "id": "studio_menu_top_bar_exists",
+      "importance": "critical",
+      "object": "studio_menu_top_bar",
+      "type": "object_exists"
+    },
+    {
+      "id": "studio_left_scene_hierarchy_panel_exists",
+      "importance": "critical",
+      "object": "studio_left_scene_hierarchy_panel",
+      "type": "object_exists"
+    },
+    {
+      "id": "studio_viewport_top_bar_exists",
+      "importance": "critical",
+      "object": "studio_viewport_top_bar",
+      "type": "object_exists"
+    },
+    {
+      "id": "studio_viewport_scene_panel_exists",
+      "importance": "critical",
+      "object": "studio_viewport_scene_panel",
+      "type": "object_exists"
+    },
+    {
+      "id": "studio_bottom_assets_panel_exists",
+      "importance": "critical",
+      "object": "studio_bottom_assets_panel",
+      "type": "object_exists"
+    },
+    {
+      "id": "studio_right_inspector_panel_exists",
+      "importance": "critical",
+      "object": "studio_right_inspector_panel",
+      "type": "object_exists"
+    },
+    {
       "id": "scene_hierarchy_exists",
       "importance": "critical",
       "object": "scene_hierarchy",
@@ -93,18 +135,6 @@
       "importance": "major",
       "object": "evidence_dock",
       "type": "containment"
-    },
-    {
-      "edge": "top",
-      "id": "primary_docks_top_aligned",
-      "importance": "major",
-      "items": [
-        "scene_hierarchy",
-        "central_3d_viewport",
-        "selected_target_inspector"
-      ],
-      "tolerance_norm": 0.02,
-      "type": "alignment"
     },
     {
       "id": "central_viewport_bounds_stable",
@@ -196,6 +226,13 @@
   "layers": [
     {
       "contains": [
+        "studio_layout_root",
+        "studio_menu_top_bar",
+        "studio_left_scene_hierarchy_panel",
+        "studio_viewport_top_bar",
+        "studio_viewport_scene_panel",
+        "studio_bottom_assets_panel",
+        "studio_right_inspector_panel",
         "export_review_artifact_button",
         "run_proof_button",
         "scene_hierarchy",
@@ -210,6 +247,167 @@
     }
   ],
   "objects": [
+    {
+      "bounds": {
+        "h": 1,
+        "px": {
+          "h": 1080,
+          "w": 1920,
+          "x": 0,
+          "y": 0
+        },
+        "space": "viewport",
+        "w": 1,
+        "x": 0,
+        "y": 0
+      },
+      "domain_role": "studio_layout_root",
+      "id": "studio_layout_root",
+      "importance": "critical",
+      "kind": "panel",
+      "layer": "z_0",
+      "parent": "viewport",
+      "role": "studio_layout_root",
+      "semantic_description": "Default ASHA Studio six-region layout root"
+    },
+    {
+      "bounds": {
+        "h": 0.05925925925925926,
+        "px": {
+          "h": 64,
+          "w": 1920,
+          "x": 0,
+          "y": 0
+        },
+        "space": "viewport",
+        "w": 1,
+        "x": 0,
+        "y": 0
+      },
+      "domain_role": "studio_menu_top_bar",
+      "id": "studio_menu_top_bar",
+      "importance": "critical",
+      "kind": "toolbar",
+      "layer": "z_0",
+      "parent": "studio_layout_root",
+      "role": "studio_menu_top_bar",
+      "semantic_description": "Region 2 menu top bar"
+    },
+    {
+      "bounds": {
+        "h": 0.7425925925925926,
+        "px": {
+          "h": 802,
+          "w": 282,
+          "x": 0,
+          "y": 64
+        },
+        "space": "viewport",
+        "w": 0.146875,
+        "x": 0,
+        "y": 0.05925925925925926
+      },
+      "domain_role": "studio_left_scene_hierarchy_panel",
+      "id": "studio_left_scene_hierarchy_panel",
+      "importance": "critical",
+      "kind": "panel",
+      "layer": "z_0",
+      "parent": "studio_layout_root",
+      "role": "studio_left_scene_hierarchy_panel",
+      "semantic_description": "Region 1 left Scene / Hierarchy panel"
+    },
+    {
+      "bounds": {
+        "h": 0.040740740740740744,
+        "px": {
+          "h": 44,
+          "w": 1316,
+          "x": 282,
+          "y": 64
+        },
+        "space": "viewport",
+        "w": 0.6854166666666667,
+        "x": 0.146875,
+        "y": 0.05925925925925926
+      },
+      "domain_role": "studio_viewport_top_bar",
+      "id": "studio_viewport_top_bar",
+      "importance": "critical",
+      "kind": "toolbar",
+      "layer": "z_0",
+      "parent": "studio_layout_root",
+      "role": "studio_viewport_top_bar",
+      "semantic_description": "Region 3 viewport top bar"
+    },
+    {
+      "bounds": {
+        "h": 0.6944444444444444,
+        "px": {
+          "h": 750,
+          "w": 1316,
+          "x": 282,
+          "y": 116
+        },
+        "space": "viewport",
+        "w": 0.6854166666666667,
+        "x": 0.146875,
+        "y": 0.10740740740740741
+      },
+      "domain_role": "studio_viewport_scene_panel",
+      "id": "studio_viewport_scene_panel",
+      "importance": "critical",
+      "kind": "panel",
+      "layer": "z_0",
+      "parent": "studio_layout_root",
+      "role": "studio_viewport_scene_panel",
+      "semantic_description": "Region 4 dominant viewport scene panel"
+    },
+    {
+      "bounds": {
+        "h": 0.19814814814814816,
+        "px": {
+          "h": 214,
+          "w": 1920,
+          "x": 0,
+          "y": 866
+        },
+        "space": "viewport",
+        "w": 1,
+        "x": 0,
+        "y": 0.8018518518518518
+      },
+      "domain_role": "studio_bottom_assets_panel",
+      "id": "studio_bottom_assets_panel",
+      "importance": "critical",
+      "kind": "panel",
+      "layer": "z_0",
+      "parent": "studio_layout_root",
+      "role": "studio_bottom_assets_panel",
+      "semantic_description": "Region 5 bottom Assets panel"
+    },
+    {
+      "bounds": {
+        "h": 0.7425925925925926,
+        "px": {
+          "h": 802,
+          "w": 322,
+          "x": 1598,
+          "y": 64
+        },
+        "space": "viewport",
+        "w": 0.16770833333333332,
+        "x": 0.8322916666666667,
+        "y": 0.05925925925925926
+      },
+      "domain_role": "studio_right_inspector_panel",
+      "id": "studio_right_inspector_panel",
+      "importance": "critical",
+      "kind": "panel",
+      "layer": "z_0",
+      "parent": "studio_layout_root",
+      "role": "studio_right_inspector_panel",
+      "semantic_description": "Region 6 right Inspector panel"
+    },
     {
       "bounds": {
         "h": 0.02962962962962963,
@@ -323,17 +521,17 @@
     },
     {
       "bounds": {
-        "h": 0.6759259259259259,
+        "h": 0.6925925925925925,
         "px": {
-          "h": 730,
-          "w": 1232,
-          "x": 312,
-          "y": 54
+          "h": 748,
+          "w": 1314,
+          "x": 283,
+          "y": 117
         },
         "space": "viewport",
-        "w": 0.6416666666666667,
-        "x": 0.1625,
-        "y": 0.05
+        "w": 0.684375,
+        "x": 0.14739583333333334,
+        "y": 0.10833333333333334
       },
       "confidence": 0.76,
       "domain_role": "central_3d_viewport",
@@ -514,6 +712,13 @@
   "project": {
     "id": "asha",
     "roles": [
+      "studio_layout_root",
+      "studio_menu_top_bar",
+      "studio_left_scene_hierarchy_panel",
+      "studio_viewport_top_bar",
+      "studio_viewport_scene_panel",
+      "studio_bottom_assets_panel",
+      "studio_right_inspector_panel",
       "review_artifact_export",
       "proof_runner",
       "scene_hierarchy",

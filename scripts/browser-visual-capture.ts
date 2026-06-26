@@ -193,34 +193,39 @@ const v1ProofPath = join(v1ProofDir, 'index.json');
 const outDir = join(root, 'artifacts', 'browser-capture', 'latest');
 const editorShellMarkerGroups = [
   {
-    groupId: 'top_app_status_bar',
-    label: 'ASHA top app/status bar and limitation chips',
-    markers: ['ASHA Studio', 'studio-editor-app-status-bar', 'runtime bridge: runtime-bridge.v0', 'native / Agora / GPU: not claimed', 'boundary: public package roots only'],
+    groupId: 'six_region_layout_root',
+    label: 'Fixed six-region shell root',
+    markers: ['studio-layout-root', 'studio-menu-top-bar', 'studio-left-scene-hierarchy-panel', 'studio-viewport-top-bar', 'studio-viewport-scene-panel', 'studio-bottom-assets-panel', 'studio-right-inspector-panel'],
   },
   {
-    groupId: 'left_scene_hierarchy_dock',
-    label: 'Left scene/hierarchy dock',
-    markers: ['studio-editor-left-scene-hierarchy-dock', 'Scene / Hierarchy', 'studio-scene-hierarchy-dock', 'scene-hierarchy-tree-readout', 'authority-backed', 'preview-only', 'State legend'],
+    groupId: 'menu_top_bar',
+    label: 'Region 2 menu top bar',
+    markers: ['ASHA Studio', 'studio-editor-app-status-bar', 'runtime bridge: runtime-bridge.v0', 'native / Agora / GPU: not claimed', 'boundary: public package roots only', 'Debug readout', 'Export', 'Run proof'],
   },
   {
-    groupId: 'central_reference_viewport',
-    label: 'Central Three.js viewport',
-    markers: ['studio-editor-central-viewport-dock', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 6', 'demo-asset-loaded-renderable', 'Demo Asset Load (scene.load_asset)', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'viewport_camera_tool_interaction_proof', 'viewport-camera-tool-readout', 'viewport-scripted-actions-readout', 'gui.frame_selected_target', 'agent.select_visible_voxel', 'gui.toggle_preview_ghost', 'camera_tool_stale_readback_guard', 'viewport_pick_hit_test_evidence', 'pick:selected-voxel-center', 'pick:background-no-hit', 'pick_hit_stale_readback_guard', 'viewport_visual_delta_crop_proof', 'visual-delta:selected-before-crop', 'visual-delta:applied-after-crop', 'visual_delta_stale_readback_guard', 'shading: Three.js local browser projection'],
+    groupId: 'left_scene_hierarchy_panel',
+    label: 'Region 1 left scene/hierarchy panel',
+    markers: ['studio-left-scene-hierarchy-panel', 'Scene / Hierarchy', 'scene_hierarchy', 'authority-backed / projected / preview-only'],
   },
   {
-    groupId: 'right_inspector_dock',
-    label: 'Right selected-target inspector dock',
-    markers: ['studio-editor-right-inspector-dock', 'Inspector / Selected Target', 'Proposed by Studio (TS), projection only.', 'Validated by Authority (Rust), authoritative state.', 'Authority transition', 'Render projection', 'software_snapshot_reference', 'no native runtime, Agora, GPU, or performance claim'],
+    groupId: 'viewport_top_bar',
+    label: 'Region 3 viewport toolbar',
+    markers: ['studio-viewport-top-bar', 'Viewport toolbar', 'select / orbit / frame / grid / gizmo / shading', 'Grid on', 'Gizmo on'],
   },
   {
-    groupId: 'bottom_command_evidence_dock',
-    label: 'Bottom command timeline/evidence dock',
-    markers: ['studio-editor-bottom-command-evidence-dock', 'Command Timeline / Evidence Log', 'Evidence / Artifacts', 'artifact-review-export-0001', 'artifact-agent-readout-0001', 'not a second private command log'],
+    groupId: 'dominant_viewport_scene_panel',
+    label: 'Region 4 dominant viewport scene panel',
+    markers: ['studio-viewport-scene-panel', 'Viewport / Scene View', 'central_3d_viewport', 'Viewport — terrain-test-grid', 'studio-central-reference-viewport-canvas', 'studio-real-browser-3d-viewport-host', 'studio-3d-webgl-canvas', 'viewport-axis-gizmo', 'viewport_3d_readback', 'three_local_browser_projection', 'visible renderables 6', 'selected selected-voxel:0,0,0', 'preview preview-ghost:1,0,0', 'applied applied-voxel:1,0,0', 'viewport_camera_tool_interaction_proof', 'camera_tool_stale_readback_guard', 'viewport_pick_hit_test_evidence', 'pick_hit_stale_readback_guard', 'viewport_visual_delta_crop_proof', 'visual_delta_stale_readback_guard', 'shading: Three.js local browser projection'],
   },
   {
-    groupId: 'preview_applied_authority_render_readouts',
-    label: 'Preview vs applied authority/render readouts',
-    markers: ['preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after', 'Capture readiness: ready', 'Authority hash:', 'Render hash:'],
+    groupId: 'bottom_assets_panel',
+    label: 'Region 5 bottom assets panel',
+    markers: ['studio-bottom-assets-panel', 'Assets / Bottom Panel', 'command_evidence_dock', 'Command Timeline', 'Evidence / Artifacts', 'artifact-review-export-0001', 'artifact-agent-readout-0001', 'not a second private command log'],
+  },
+  {
+    groupId: 'right_inspector_panel',
+    label: 'Region 6 right inspector panel',
+    markers: ['studio-right-inspector-panel', 'Inspector', 'selected_target_inspector', 'Selected', 'Authority'],
   },
 ] as const;
 const requiredAppMarkers = editorShellMarkerGroups.flatMap((group) => group.markers);

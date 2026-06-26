@@ -14,6 +14,13 @@ if (jsFiles.length === 0) {
 const bundleText = jsFiles.map((file) => readFileSync(join(assetDir, file), 'utf8')).join('\n');
 for (const expected of [
   'ASHA Studio',
+  'studio-layout-root',
+  'studio-menu-top-bar',
+  'studio-left-scene-hierarchy-panel',
+  'studio-viewport-top-bar',
+  'studio-viewport-scene-panel',
+  'studio-bottom-assets-panel',
+  'studio-right-inspector-panel',
   'studio-editor-app-status-bar',
   'studio-editor-left-scene-hierarchy-dock',
   'studio-editor-central-viewport-dock',

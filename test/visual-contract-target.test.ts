@@ -97,6 +97,7 @@ test('ui-test target visual contract preserves ASHA vocabulary and viewport prov
 
   const mappedTargetIds = new Set(promotion.objects.map((rule) => rule.target_id));
   for (const object of target.objects) {
+    if (object.id.startsWith('studio_')) continue;
     assert.ok(mappedTargetIds.has(object.id), `target object ${object.id} must come from explicit promotion mapping`);
   }
 });

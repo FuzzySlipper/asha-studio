@@ -16,7 +16,8 @@ export interface StudioPanelModel {
 }
 
 export interface StudioShellRegionModel {
-  readonly id: 'topbar' | 'leftHierarchyDock' | 'centralViewportDock' | 'rightInspectorDock' | 'bottomCommandEvidenceDock';
+  readonly id: 'leftSceneHierarchyPanel' | 'menuTopBar' | 'viewportTopBar' | 'viewportScenePanel' | 'bottomAssetsPanel' | 'rightInspectorPanel';
+  readonly regionNumber: 1 | 2 | 3 | 4 | 5 | 6;
   readonly label: string;
   readonly automationLabel: string;
   readonly status: 'implemented_frame' | 'placeholder_internals';
@@ -103,11 +104,12 @@ const PANEL_MODELS: readonly StudioPanelModel[] = [
 ] as const;
 
 const EDITOR_SHELL_REGIONS: readonly StudioShellRegionModel[] = [
-  { id: 'topbar', label: 'ASHA app/status bar', automationLabel: 'studio-editor-app-status-bar', status: 'implemented_frame' },
-  { id: 'leftHierarchyDock', label: 'Scene / Hierarchy dock', automationLabel: 'studio-editor-left-scene-hierarchy-dock', status: 'implemented_frame' },
-  { id: 'centralViewportDock', label: 'Central viewport dock', automationLabel: 'studio-editor-central-viewport-dock', status: 'implemented_frame' },
-  { id: 'rightInspectorDock', label: 'Inspector / Readout dock', automationLabel: 'studio-editor-right-inspector-dock', status: 'implemented_frame' },
-  { id: 'bottomCommandEvidenceDock', label: 'Command timeline / Evidence dock', automationLabel: 'studio-editor-bottom-command-evidence-dock', status: 'implemented_frame' },
+  { id: 'leftSceneHierarchyPanel', regionNumber: 1, label: 'Left side panel - Scene / Hierarchy', automationLabel: 'studio-left-scene-hierarchy-panel', status: 'placeholder_internals' },
+  { id: 'menuTopBar', regionNumber: 2, label: 'Menu top bar', automationLabel: 'studio-menu-top-bar', status: 'placeholder_internals' },
+  { id: 'viewportTopBar', regionNumber: 3, label: 'Viewport top bar', automationLabel: 'studio-viewport-top-bar', status: 'placeholder_internals' },
+  { id: 'viewportScenePanel', regionNumber: 4, label: 'Viewport / scene view panel', automationLabel: 'studio-viewport-scene-panel', status: 'implemented_frame' },
+  { id: 'bottomAssetsPanel', regionNumber: 5, label: 'Bottom panel - Assets', automationLabel: 'studio-bottom-assets-panel', status: 'placeholder_internals' },
+  { id: 'rightInspectorPanel', regionNumber: 6, label: 'Right panel - Inspector', automationLabel: 'studio-right-inspector-panel', status: 'placeholder_internals' },
 ] as const;
 
 const FORBIDDEN_IMPORT_EXAMPLES = [

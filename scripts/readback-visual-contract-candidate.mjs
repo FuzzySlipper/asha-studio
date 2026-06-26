@@ -44,6 +44,13 @@ if (candidate.project?.vocabulary !== 'asha_studio_current_dom_visual_contract_v
 
 const objects = new Map(candidate.objects.map((object) => [object.id, object]));
 const requiredVisualRoles = {
+  studio_layout_root: 'studio_layout_root',
+  studio_menu_top_bar: 'studio_menu_top_bar',
+  studio_left_scene_hierarchy_panel: 'studio_left_scene_hierarchy_panel',
+  studio_viewport_top_bar: 'studio_viewport_top_bar',
+  studio_viewport_scene_panel: 'studio_viewport_scene_panel',
+  studio_bottom_assets_panel: 'studio_bottom_assets_panel',
+  studio_right_inspector_panel: 'studio_right_inspector_panel',
   export_review_artifact_button: 'review_artifact_export',
   run_proof_button: 'proof_runner',
   scene_hierarchy: 'scene_hierarchy',

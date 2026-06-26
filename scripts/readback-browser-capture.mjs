@@ -40,12 +40,13 @@ if (artifact.correlation?.visualHashDelta?.changed !== true) fail('visual hash d
 if (!Array.isArray(artifact.readiness?.appMissingMarkers) || artifact.readiness.appMissingMarkers.length !== 0) fail('app route has missing markers');
 if (!Array.isArray(artifact.readiness?.proofMissingMarkers) || artifact.readiness.proofMissingMarkers.length !== 0) fail('proof route has missing markers');
 const requiredGroupIds = new Set([
-  'top_app_status_bar',
-  'left_scene_hierarchy_dock',
-  'central_reference_viewport',
-  'right_inspector_dock',
-  'bottom_command_evidence_dock',
-  'preview_applied_authority_render_readouts',
+  'six_region_layout_root',
+  'menu_top_bar',
+  'left_scene_hierarchy_panel',
+  'viewport_top_bar',
+  'dominant_viewport_scene_panel',
+  'bottom_assets_panel',
+  'right_inspector_panel',
 ]);
 if (!Array.isArray(artifact.readiness?.markerGroups)) fail('readiness markerGroups missing');
 for (const groupId of requiredGroupIds) {
@@ -56,6 +57,8 @@ for (const groupId of requiredGroupIds) {
   if (!Array.isArray(group.requiredMarkers) || group.requiredMarkers.length === 0) fail(`editor-shell marker group has no required markers: ${groupId}`);
 }
 if (!artifact.readiness.requiredMarkers.includes('studio-3d-webgl-canvas')) fail('3D canvas marker not required');
+if (!artifact.readiness.requiredMarkers.includes('studio-layout-root')) fail('six-region layout root marker not required');
+if (!artifact.readiness.requiredMarkers.includes('studio-bottom-assets-panel')) fail('bottom assets panel marker not required');
 if (!artifact.readiness.requiredMarkers.includes('three_local_browser_projection')) fail('Three.js browser projection marker not required');
 if (!artifact.readiness.requiredMarkers.includes('native / Agora / GPU: not claimed')) fail('no-GPU/Agora marker not required');
 if (artifact.viewport3dCanvasDom?.detectionMode !== 'chromium_dump_dom_canvas_element') fail('viewport3d canvas DOM detection mode missing');

@@ -66,6 +66,184 @@ function renderTopBar(model: StudioShell): HTMLElement {
   return topBar;
 }
 
+function appendRegionMarker(parent: HTMLElement, visualId: string, visualRole: string): HTMLElement {
+  const marker = markVisual(el('div', 'studio-region-legacy-marker'), visualId, visualRole);
+  parent.append(marker);
+  return marker;
+}
+
+function renderRegionNumber(value: string): HTMLElement {
+  return el('span', 'studio-region-number', value);
+}
+
+function renderRegionTitle(number: string, title: string, summary: string): HTMLElement {
+  const header = el('div', 'studio-region-title');
+  header.append(renderRegionNumber(number));
+  const copy = el('div');
+  copy.append(el('h2', undefined, title));
+  copy.append(el('p', undefined, summary));
+  header.append(copy);
+  return header;
+}
+
+function renderSixRegionMenuBar(model: StudioShell): HTMLElement {
+  const topBar = markVisual(el('header', 'studio-menu-top-bar'), 'studio-menu-top-bar', 'studio_menu_top_bar');
+  topBar.setAttribute('aria-label', 'studio-editor-app-status-bar');
+  topBar.append(renderRegionNumber('2'));
+
+  const brand = el('div', 'studio-menu-brand');
+  brand.append(el('strong', undefined, model.appTitle));
+  brand.append(el('span', undefined, `${model.workspace.scenario.label} / ${model.workspace.status}`));
+  topBar.append(brand);
+
+  const chips = el('div', 'studio-menu-chips');
+  for (const chip of [
+    { text: model.compatibility.contractsVersion, visualId: 'contracts_version_label', visualRole: 'compatibility_label' },
+    { text: 'command-registry.v0', visualId: 'command_registry_version_label', visualRole: 'compatibility_label', proofText: model.compatibility.commandRegistryVersion },
+    { text: 'runtime-bridge.v0', visualId: 'runtime_bridge_marker', visualRole: 'compatibility_label', proofText: `runtime bridge: ${model.compatibility.runtimeBridgeVersion ?? 'missing'}` },
+    { text: 'no native/GPU claim', visualId: 'no_agora_gpu_native_claim_limitation', visualRole: 'limitation_label', proofText: 'native / Agora / GPU: not claimed' },
+    { text: 'public roots only', visualId: 'public_package_boundary_label', visualRole: 'limitation_label', proofText: 'boundary: public package roots only' },
+  ]) {
+    const node = markVisual(el('span', 'studio-menu-chip', chip.text), chip.visualId, chip.visualRole);
+    if ('proofText' in chip && chip.proofText !== undefined) node.append(el('span', 'studio-sr-marker', chip.proofText));
+    chips.append(node);
+  }
+  topBar.append(chips);
+
+  const actions = el('div', 'studio-menu-actions');
+  actions.append(markVisual(el('a', 'studio-menu-action', 'Debug readout'), 'debug_readout_route_button', 'debug_route_link'));
+  (actions.lastElementChild as HTMLAnchorElement).href = '?debug=1';
+  actions.append(markVisual(el('span', 'studio-menu-action', 'Export'), 'export_review_artifact_button', 'review_artifact_export'));
+  actions.append(markVisual(el('span', 'studio-menu-action', 'Run proof'), 'run_proof_button', 'proof_runner'));
+  topBar.append(actions);
+  return topBar;
+}
+
+function renderSixRegionLeftPanel(model: StudioShell): HTMLElement {
+  const panel = markVisual(el('aside', 'studio-region studio-left-scene-hierarchy-panel'), 'studio-left-scene-hierarchy-panel', 'studio_left_scene_hierarchy_panel');
+  panel.setAttribute('aria-label', 'studio-left-scene-hierarchy-panel');
+  const legacy = appendRegionMarker(panel, 'scene_hierarchy', 'scene_hierarchy');
+  legacy.append(renderRegionTitle('1', 'Scene / Hierarchy', 'Placeholder tree region. Real hierarchy migration follows this shell pass.'));
+  const list = el('ol', 'studio-placeholder-tree');
+  for (const item of [
+    model.workspace.scenario.label,
+    model.workspace.sceneView.renderables[0]?.renderableId ?? 'Selected renderable',
+    model.workspace.demoAssetLoad.artifact.loadedAssetId,
+  ]) {
+    list.append(el('li', undefined, item));
+  }
+  legacy.append(list);
+  legacy.append(el('p', 'studio-region-footnote', 'authority-backed / projected / preview-only'));
+  return panel;
+}
+
+function renderSixRegionViewportTopBar(model: StudioShell): HTMLElement {
+  const toolbar = markVisual(el('section', 'studio-viewport-top-bar'), 'studio-viewport-top-bar', 'studio_viewport_top_bar');
+  toolbar.setAttribute('aria-label', 'studio-viewport-top-bar');
+  toolbar.append(renderRegionNumber('3'));
+  const title = el('div', 'studio-viewport-toolbar-title');
+  title.append(el('strong', undefined, 'Viewport toolbar'));
+  title.append(el('span', undefined, 'select / orbit / frame / grid / gizmo / shading'));
+  toolbar.append(title);
+  const chips = el('div', 'studio-viewport-toolbar-chips');
+  for (const label of ['Select', 'Orbit', 'Frame', 'Grid on', 'Gizmo on', 'Three.js projection']) {
+    chips.append(el('span', 'studio-toolbar-chip', label));
+  }
+  toolbar.append(chips);
+  return toolbar;
+}
+
+function renderSixRegionViewportPanel(model: StudioShell, renderPhase: StudioViewport3dRenderPhase): HTMLElement {
+  const panel = markVisual(el('section', 'studio-region studio-viewport-scene-panel'), 'studio-viewport-scene-panel', 'studio_viewport_scene_panel');
+  panel.setAttribute('aria-label', 'studio-viewport-scene-panel');
+  panel.dataset.viewportPhase = renderPhase;
+  const legacy = appendRegionMarker(panel, 'central_3d_viewport', 'central_3d_viewport');
+  const header = el('div', 'studio-viewport-scene-label');
+  header.append(renderRegionTitle('4', 'Viewport / Scene View', 'Dominant unobstructed workspace.'));
+  const readout = el('div', 'studio-viewport-compact-readout');
+  readout.append(el('span', undefined, 'Viewport — terrain-test-grid'));
+  readout.append(el('span', undefined, 'studio-central-reference-viewport-canvas'));
+  readout.append(el('span', undefined, 'shading: Three.js local browser projection'));
+  readout.append(el('span', undefined, 'visible renderables 6'));
+  header.append(readout);
+  legacy.append(header);
+  const canvas = el('div', 'studio-six-region-viewport-canvas');
+  canvas.setAttribute('aria-label', 'studio-central-reference-viewport-canvas');
+  canvas.dataset.viewportHost = 'real-browser-3d-canvas';
+  canvas.append(renderStudioViewport3dHost(model.workspace.sceneView, { renderPhase, gizmo: model.workspace.transformGizmo }));
+  legacy.append(canvas);
+  const footer = el('div', 'studio-viewport-proof-strip');
+  for (const item of [
+    { text: 'runtime proof', visualId: 'viewport_runtime_bridge_authority', proofText: 'runtime bridge: native authority proven by proof:runtime-bridge' },
+    { text: 'software_snapshot_reference', visualId: 'software_snapshot_reference_limitation' },
+    { text: 'no native/GPU claim', visualId: 'viewport_no_agora_gpu_native_claim_limitation', proofText: 'native / Agora / GPU: not claimed' },
+  ]) {
+    const chip = markVisual(el('span', 'studio-proof-chip', item.text), item.visualId, 'limitation_label');
+    if ('proofText' in item && item.proofText !== undefined) chip.append(el('span', 'studio-sr-marker', item.proofText));
+    footer.append(chip);
+  }
+  legacy.append(footer);
+  return panel;
+}
+
+function renderSixRegionBottomPanel(model: StudioShell): HTMLElement {
+  const panel = markVisual(el('section', 'studio-region studio-bottom-assets-panel'), 'studio-bottom-assets-panel', 'studio_bottom_assets_panel');
+  panel.setAttribute('aria-label', 'studio-bottom-assets-panel');
+  const legacy = appendRegionMarker(panel, 'command_evidence_dock', 'command_evidence_dock');
+  legacy.append(renderRegionTitle('5', 'Assets / Bottom Panel', 'Assets first. Evidence and timeline are compact secondary tabs.'));
+  const assets = el('div', 'studio-asset-shelf');
+  for (const asset of [
+    model.workspace.demoAssetLoad.artifact.loadedAssetId,
+    model.workspace.modelMaterialPreview.artifact.selectedModelAsset,
+    model.workspace.modelMaterialPreview.artifact.selectedMaterialAsset,
+  ]) {
+    assets.append(el('span', 'studio-asset-chip', asset));
+  }
+  legacy.append(assets);
+  const tabs = el('div', 'studio-bottom-secondary-tabs');
+  tabs.append(markVisual(el('span', 'studio-bottom-tab', 'Command Timeline'), 'command_timeline', 'command_timeline'));
+  tabs.append(markVisual(el('span', 'studio-bottom-tab', 'Evidence / Artifacts'), 'evidence_dock', 'evidence_dock'));
+  tabs.append(el('span', 'studio-bottom-tab', model.workspace.reviewArtifact.artifactId));
+  tabs.append(el('span', 'studio-bottom-tab', model.workspace.exportedReadout.artifactId));
+  tabs.append(el('span', 'studio-bottom-tab', 'not a second private command log'));
+  legacy.append(tabs);
+  return panel;
+}
+
+function renderSixRegionRightPanel(model: StudioShell): HTMLElement {
+  const panel = markVisual(el('aside', 'studio-region studio-right-inspector-panel'), 'studio-right-inspector-panel', 'studio_right_inspector_panel');
+  panel.setAttribute('aria-label', 'studio-right-inspector-panel');
+  const legacy = appendRegionMarker(panel, 'selected_target_inspector', 'selected_target_inspector');
+  legacy.append(renderRegionTitle('6', 'Inspector', 'Selected target properties placeholder.'));
+  const fields = el('dl', 'studio-inspector-placeholder-fields');
+  for (const [label, value] of [
+    ['Selected', model.workspace.selectedTargetInspector.selectedTarget.selectedVoxel],
+    ['Entity', model.workspace.selectedEntityInspector.selectedEntityId],
+    ['Material', model.workspace.selectedTargetInspector.selectedTarget.materialAsset],
+    ['Authority', model.workspace.selectedTargetInspector.transition.authorityAfterHash],
+  ] as const) {
+    fields.append(el('dt', undefined, label));
+    fields.append(el('dd', undefined, value));
+  }
+  legacy.append(fields);
+  return panel;
+}
+
+function renderSixRegionLayout(model: StudioShell, renderPhase: StudioViewport3dRenderPhase): HTMLElement {
+  const layout = markVisual(el('div', 'studio-layout-root'), 'studio-layout-root', 'studio_layout_root');
+  layout.setAttribute('aria-label', 'studio-layout-root');
+  layout.append(renderSixRegionMenuBar(model));
+  layout.append(renderSixRegionLeftPanel(model));
+  const viewportStack = el('main', 'studio-viewport-stack');
+  viewportStack.setAttribute('aria-label', 'studio-editor-central-viewport-dock');
+  viewportStack.append(renderSixRegionViewportTopBar(model));
+  viewportStack.append(renderSixRegionViewportPanel(model, renderPhase));
+  layout.append(viewportStack);
+  layout.append(renderSixRegionRightPanel(model));
+  layout.append(renderSixRegionBottomPanel(model));
+  return layout;
+}
+
 function renderSceneHierarchy(model: StudioShell): HTMLElement {
   const hierarchyModel = model.workspace.sceneHierarchy;
   const hierarchy = markVisual(el('section', 'scene-hierarchy-dock'), 'scene_hierarchy', 'scene_hierarchy');
@@ -559,6 +737,11 @@ function visualContractModeFromLocation(): boolean {
   return new URLSearchParams(window.location.search).get('visualContract') === '1';
 }
 
+function debugModeFromLocation(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('debug') === '1';
+}
+
 function renderApp(): void {
   const model = createStudioShellModel();
   const app = document.querySelector<HTMLDivElement>('#app');
@@ -568,8 +751,14 @@ function renderApp(): void {
 
   const shell = markVisual(el('div', 'studio-shell'), 'asha_studio_shell', 'asha_studio_shell');
   if (visualContractModeFromLocation()) shell.classList.add('studio-shell--visual-contract-proof');
-  shell.append(renderTopBar(model));
-  shell.append(renderDockFrame(model, viewportPhaseFromLocation()));
+  if (debugModeFromLocation()) {
+    shell.classList.add('studio-shell--debug-readout');
+    shell.append(renderTopBar(model));
+    shell.append(renderDockFrame(model, viewportPhaseFromLocation()));
+  } else {
+    shell.classList.add('studio-shell--six-region');
+    shell.append(renderSixRegionLayout(model, viewportPhaseFromLocation()));
+  }
   app.replaceChildren(shell);
 }
 

@@ -16,6 +16,13 @@
     "captureMode": "viewport-clipped",
     "rootSelector": "[data-visual-id=\"asha_studio_shell\"]",
     "requiredVisualObjects": [
+      "studio_layout_root",
+      "studio_menu_top_bar",
+      "studio_left_scene_hierarchy_panel",
+      "studio_viewport_top_bar",
+      "studio_viewport_scene_panel",
+      "studio_bottom_assets_panel",
+      "studio_right_inspector_panel",
       "export_review_artifact_button",
       "run_proof_button",
       "scene_hierarchy",
@@ -38,30 +45,29 @@
     "authentication": "remote /etc/den-services/visual-contract.env bearer token; token never stored in proof artifacts"
   },
   "currentCompare": {
-    "runId": "83a0b46e2aa6b186a41e9117",
+    "runId": "9c318c2075ebbae49fb0f339",
     "verdict": "pass",
     "failureCount": 0,
     "failures": [],
-    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/83a0b46e2aa6b186a41e9117/artifacts/report.json",
-    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/83a0b46e2aa6b186a41e9117/artifacts/diff.overlay.svg",
-    "localReportArtifact": "fixtures/visual-contract/artifacts/83a0b46e2aa6b186a41e9117/report.json",
-    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/83a0b46e2aa6b186a41e9117/diff.overlay.svg"
+    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/9c318c2075ebbae49fb0f339/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/9c318c2075ebbae49fb0f339/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/9c318c2075ebbae49fb0f339/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/9c318c2075ebbae49fb0f339/diff.overlay.svg"
   },
   "negativeCompare": {
-    "runId": "7c88d9e60980d75aa994b394",
+    "runId": "9958fd3db2f4d43f62e43782",
     "verdict": "fail",
-    "failureCount": 5,
+    "failureCount": 4,
     "failures": [
       "selected_target_inspector_exists",
       "central_viewport_is_dominant",
       "inspector_right_of_viewport",
-      "primary_docks_top_aligned",
       "central_viewport_bounds_stable"
     ],
-    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/7c88d9e60980d75aa994b394/artifacts/report.json",
-    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/7c88d9e60980d75aa994b394/artifacts/diff.overlay.svg",
-    "localReportArtifact": "fixtures/visual-contract/artifacts/7c88d9e60980d75aa994b394/report.json",
-    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/7c88d9e60980d75aa994b394/diff.overlay.svg"
+    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/9958fd3db2f4d43f62e43782/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/9958fd3db2f4d43f62e43782/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/9958fd3db2f4d43f62e43782/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/9958fd3db2f4d43f62e43782/diff.overlay.svg"
   },
   "validation": {
     "candidate": {
@@ -71,10 +77,10 @@
       "counts": {
         "spaces": 1,
         "layers": 2,
-        "objects": 46,
-        "relations": 3000,
+        "objects": 36,
+        "relations": 1793,
         "constraints": 0,
-        "evidence": 46
+        "evidence": 36
       }
     },
     "negative": {
@@ -84,10 +90,10 @@
       "counts": {
         "spaces": 1,
         "layers": 2,
-        "objects": 36,
-        "relations": 1753,
+        "objects": 34,
+        "relations": 1593,
         "constraints": 0,
-        "evidence": 36
+        "evidence": 34
       }
     }
   },

@@ -48,6 +48,13 @@ const deployedServiceBaseUrl = process.env.ASHA_VISUAL_CONTRACT_BASE_URL ?? 'htt
 const deployedVisualContractsUrl = `${deployedServiceBaseUrl}/visual-contracts`;
 
 const requiredVisualObjects = [
+  'studio_layout_root',
+  'studio_menu_top_bar',
+  'studio_left_scene_hierarchy_panel',
+  'studio_viewport_top_bar',
+  'studio_viewport_scene_panel',
+  'studio_bottom_assets_panel',
+  'studio_right_inspector_panel',
   'export_review_artifact_button',
   'run_proof_button',
   'scene_hierarchy',
@@ -210,6 +217,13 @@ curl -fsS -H "Authorization: Bearer \${DEN_VISUAL_CONTRACT_SERVICE_TOKEN}" ${JSO
 }
 
 const requiredVisualRoles: Record<string, string> = {
+  studio_layout_root: 'studio_layout_root',
+  studio_menu_top_bar: 'studio_menu_top_bar',
+  studio_left_scene_hierarchy_panel: 'studio_left_scene_hierarchy_panel',
+  studio_viewport_top_bar: 'studio_viewport_top_bar',
+  studio_viewport_scene_panel: 'studio_viewport_scene_panel',
+  studio_bottom_assets_panel: 'studio_bottom_assets_panel',
+  studio_right_inspector_panel: 'studio_right_inspector_panel',
   export_review_artifact_button: 'review_artifact_export',
   run_proof_button: 'proof_runner',
   scene_hierarchy: 'scene_hierarchy',
