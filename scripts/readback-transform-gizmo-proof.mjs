@@ -37,16 +37,19 @@ if (!Array.isArray(transform?.before) || !Array.isArray(transform?.after)) fail(
 if (transform.before.join(',') === transform.after.join(',')) fail('gizmo transform must change the translation (before != after)');
 
 const output = artifact.applyCommandOutput;
-if (output === null || typeof output !== 'object' || !Array.isArray(output.translationAfter) || output.applied !== true || output.mode !== 'apply') {
+if (output === null || typeof output !== 'object' || !Array.isArray(output.translationAfter) || !Array.isArray(output.translationBefore) || output.applied !== true || output.mode !== 'apply') {
   fail('transform.translate_entity apply result does not carry the typed before/after evidence');
 }
-if (output.entityId !== artifact.selectedEntityId || output.renderableId !== artifact.selectedEntityId || output.transformHash !== edit.transformHash || output.translationAfter.join(',') !== transform.after.join(',')) {
-  fail('transform.translate_entity apply output does not match the synced gizmo edit');
+if (output.entityId !== artifact.selectedEntityId || output.renderableId !== artifact.selectedEntityId || output.transformHash !== edit.transformHash || output.translationBefore.join(',') !== transform.before.join(',') || output.translationAfter.join(',') !== transform.after.join(',')) {
+  fail('transform.translate_entity apply output does not match the synced gizmo edit (before or after)');
 }
 
 const preview = artifact.previewCommandOutput;
-if (preview === null || typeof preview !== 'object' || preview.mode !== 'preview' || preview.applied !== false) {
+if (preview === null || typeof preview !== 'object' || preview.mode !== 'preview' || preview.applied !== false || !Array.isArray(preview.translationAfter)) {
   fail('transform.translate_entity preview result must be an editor-local, non-committed preview');
+}
+if (preview.entityId !== artifact.selectedEntityId || preview.axis !== artifact.activeAxis || preview.translationAfter.join(',') !== transform.after.join(',') || transform.preview.join(',') !== transform.after.join(',')) {
+  fail('transform.translate_entity preview output does not match the expected editor-local preview translation');
 }
 
 const viewport = artifact.viewportTransformGizmo;
@@ -55,14 +58,18 @@ if (viewport === null || typeof viewport !== 'object' || viewport.applied !== tr
 }
 
 const requiredCodes = ['missing_selected_entity', 'stale_gizmo_selection', 'missing_gizmo_handle', 'transform_readback_mismatch', 'private_mutation_path'];
-if (!Array.isArray(artifact.negativeSmokes) || artifact.negativeSmokes.length !== 5) fail('expected 5 negative smokes');
-for (const code of requiredCodes) {
-  const smoke = artifact.negativeSmokes.find((entry) => entry.code === code);
-  if (smoke === undefined) fail(`missing negative smoke for ${code}`);
-  if (smoke.actualOutcome !== 'failed_closed') fail(`negative smoke ${code} did not fail closed`);
-  if (!Array.isArray(smoke.diagnosticCodes) || !smoke.diagnosticCodes.includes(code)) fail(`negative smoke ${code} lacks its classified diagnostic`);
+if (!Array.isArray(artifact.negativeSmokes) || artifact.negativeSmokes.length !== 7) fail('expected 7 negative smokes');
+for (const smoke of artifact.negativeSmokes) {
+  if (smoke.actualOutcome !== 'failed_closed') fail(`negative smoke ${smoke.id} did not fail closed`);
+  if (!Array.isArray(smoke.diagnosticCodes) || !smoke.diagnosticCodes.includes(smoke.code)) fail(`negative smoke ${smoke.id} lacks its classified diagnostic`);
 }
-if (!Array.isArray(artifact.proofSteps) || artifact.proofSteps.length !== 11) fail('proofSteps must contain 11 requirements');
+for (const code of requiredCodes) {
+  if (!artifact.negativeSmokes.some((entry) => entry.code === code)) fail(`missing negative smoke for ${code}`);
+}
+for (const id of ['negative:transform-readback-mismatch-after', 'negative:transform-readback-mismatch-before', 'negative:preview-readback-mismatch']) {
+  if (!artifact.negativeSmokes.some((entry) => entry.id === id)) fail(`missing transform/readback mismatch smoke ${id}`);
+}
+if (!Array.isArray(artifact.proofSteps) || artifact.proofSteps.length !== 12) fail('proofSteps must contain 12 requirements');
 for (const step of artifact.proofSteps) {
   if (step.status !== 'passed') fail(`proof step ${step.id} did not pass: ${step.requirement}`);
 }

@@ -179,10 +179,15 @@ export function validateGizmoHandles(input: {
   return [];
 }
 
+function sameVec3(a: StudioVec3 | null, b: StudioVec3): boolean {
+  return a !== null && a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 /**
- * Validates that the recorded `transform.translate_entity` command result actually translated the
- * selected entity to the after-transform the gizmo reports. Fails closed on a missing command result
- * or a command whose entity/renderable/axis/translation does not match the recorded gizmo edit.
+ * Validates that the committed `transform.translate_entity` apply command actually translated the
+ * selected entity from the recorded before-transform to the recorded after-transform the gizmo
+ * reports. Fails closed on a missing command result or a command whose entity/renderable/axis/
+ * before/after translation does not match the recorded gizmo edit.
  */
 export function validateGizmoEdit(input: {
   readonly commandPresent: boolean;
@@ -190,24 +195,57 @@ export function validateGizmoEdit(input: {
   readonly commandRenderableId: string | null;
   readonly commandAxis: StudioTransformAxis | null;
   readonly commandApplied: boolean;
+  readonly commandTranslationBefore: StudioVec3 | null;
   readonly commandTranslationAfter: StudioVec3 | null;
   readonly recordedAxis: StudioTransformAxis;
+  readonly recordedTranslationBefore: StudioVec3;
   readonly recordedTranslationAfter: StudioVec3;
   readonly viewportSelectedRenderableId: string;
 }): readonly StudioGizmoDiagnostic[] {
-  if (!input.commandPresent || input.commandTranslationAfter === null) {
+  if (!input.commandPresent || input.commandTranslationAfter === null || input.commandTranslationBefore === null) {
     return [{ code: 'transform_readback_mismatch', severity: 'error', message: 'No applied transform.translate_entity command result recorded in the shared timeline for the gizmo edit.' }];
   }
-  const sameTranslation = input.commandTranslationAfter.length === input.recordedTranslationAfter.length
-    && input.commandTranslationAfter.every((value, index) => value === input.recordedTranslationAfter[index]);
   if (
     input.commandEntityId !== input.viewportSelectedRenderableId
     || input.commandRenderableId !== input.viewportSelectedRenderableId
     || input.commandAxis !== input.recordedAxis
     || !input.commandApplied
-    || !sameTranslation
+    || !sameVec3(input.commandTranslationBefore, input.recordedTranslationBefore)
+    || !sameVec3(input.commandTranslationAfter, input.recordedTranslationAfter)
   ) {
-    const message = `transform.translate_entity translated ${input.commandEntityId ?? 'null'}/${input.commandRenderableId ?? 'null'} along ${input.commandAxis ?? 'null'} to [${(input.commandTranslationAfter ?? []).join(', ')}] (applied=${input.commandApplied}) but the gizmo edit is ${input.recordedAxis} → [${input.recordedTranslationAfter.join(', ')}] on ${input.viewportSelectedRenderableId}.`;
+    const message = `transform.translate_entity translated ${input.commandEntityId ?? 'null'}/${input.commandRenderableId ?? 'null'} along ${input.commandAxis ?? 'null'} [${(input.commandTranslationBefore ?? []).join(', ')}] → [${(input.commandTranslationAfter ?? []).join(', ')}] (applied=${input.commandApplied}) but the gizmo edit is ${input.recordedAxis} [${input.recordedTranslationBefore.join(', ')}] → [${input.recordedTranslationAfter.join(', ')}] on ${input.viewportSelectedRenderableId}.`;
+    return [{ code: 'transform_readback_mismatch', severity: 'error', message }];
+  }
+  return [];
+}
+
+/**
+ * Validates that the editor-local `transform.translate_entity` preview command targets the same
+ * selected entity/axis as the apply and previews the expected (before + delta) translation without
+ * committing (`applied=false`). Fails closed on a missing/contradictory preview readback.
+ */
+export function validateGizmoPreview(input: {
+  readonly previewPresent: boolean;
+  readonly commandEntityId: string | null;
+  readonly commandRenderableId: string | null;
+  readonly commandAxis: StudioTransformAxis | null;
+  readonly commandApplied: boolean | null;
+  readonly commandTranslationAfter: StudioVec3 | null;
+  readonly recordedAxis: StudioTransformAxis;
+  readonly expectedPreviewAfter: StudioVec3;
+  readonly viewportSelectedRenderableId: string;
+}): readonly StudioGizmoDiagnostic[] {
+  if (!input.previewPresent || input.commandTranslationAfter === null) {
+    return [{ code: 'transform_readback_mismatch', severity: 'error', message: 'No editor-local transform.translate_entity preview result recorded in the shared timeline for the gizmo edit.' }];
+  }
+  if (
+    input.commandEntityId !== input.viewportSelectedRenderableId
+    || input.commandRenderableId !== input.viewportSelectedRenderableId
+    || input.commandAxis !== input.recordedAxis
+    || input.commandApplied !== false
+    || !sameVec3(input.commandTranslationAfter, input.expectedPreviewAfter)
+  ) {
+    const message = `transform.translate_entity preview targeted ${input.commandEntityId ?? 'null'}/${input.commandRenderableId ?? 'null'} along ${input.commandAxis ?? 'null'} to [${(input.commandTranslationAfter ?? []).join(', ')}] (applied=${input.commandApplied}) but the gizmo expects an editor-local preview of ${input.recordedAxis} → [${input.expectedPreviewAfter.join(', ')}] on ${input.viewportSelectedRenderableId}.`;
     return [{ code: 'transform_readback_mismatch', severity: 'error', message }];
   }
   return [];
@@ -235,6 +273,7 @@ function negativeSmokes(args: {
   readonly activeAxis: StudioTransformAxis;
   readonly handles: readonly { readonly axis: StudioTransformAxis; readonly visible: boolean; readonly commandId: string | null }[];
   readonly recordedAxis: StudioTransformAxis;
+  readonly recordedTranslationBefore: StudioVec3;
   readonly recordedTranslationAfter: StudioVec3;
 }): readonly StudioGizmoNegativeSmoke[] {
   const smokes: StudioGizmoNegativeSmoke[] = [];
@@ -263,18 +302,48 @@ function negativeSmokes(args: {
   });
   smokes.push({ id: 'negative:missing-gizmo-handle', code: 'missing_gizmo_handle', scenario: 'The gizmo exposes no visible command-wired handle for the active axis.', expectedOutcome: 'failed_closed', actualOutcome: handleDiags.some((d) => d.code === 'missing_gizmo_handle') ? 'failed_closed' : 'ready', diagnosticCodes: handleDiags.map((d) => d.code) });
 
-  const mismatchDiags = validateGizmoEdit({
+  const mismatchAfterDiags = validateGizmoEdit({
     commandPresent: true,
     commandEntityId: args.viewportSelectedRenderableId,
     commandRenderableId: args.viewportSelectedRenderableId,
     commandAxis: args.recordedAxis,
     commandApplied: true,
+    commandTranslationBefore: args.recordedTranslationBefore,
     commandTranslationAfter: [args.recordedTranslationAfter[0] + 9, args.recordedTranslationAfter[1], args.recordedTranslationAfter[2]],
     recordedAxis: args.recordedAxis,
+    recordedTranslationBefore: args.recordedTranslationBefore,
     recordedTranslationAfter: args.recordedTranslationAfter,
     viewportSelectedRenderableId: args.viewportSelectedRenderableId,
   });
-  smokes.push({ id: 'negative:transform-readback-mismatch', code: 'transform_readback_mismatch', scenario: 'A transform.translate_entity command moved the entity to a different translation than the gizmo readback.', expectedOutcome: 'failed_closed', actualOutcome: mismatchDiags.some((d) => d.code === 'transform_readback_mismatch') ? 'failed_closed' : 'ready', diagnosticCodes: mismatchDiags.map((d) => d.code) });
+  smokes.push({ id: 'negative:transform-readback-mismatch-after', code: 'transform_readback_mismatch', scenario: 'A transform.translate_entity apply command moved the entity to a different after-translation than the gizmo readback.', expectedOutcome: 'failed_closed', actualOutcome: mismatchAfterDiags.some((d) => d.code === 'transform_readback_mismatch') ? 'failed_closed' : 'ready', diagnosticCodes: mismatchAfterDiags.map((d) => d.code) });
+
+  const mismatchBeforeDiags = validateGizmoEdit({
+    commandPresent: true,
+    commandEntityId: args.viewportSelectedRenderableId,
+    commandRenderableId: args.viewportSelectedRenderableId,
+    commandAxis: args.recordedAxis,
+    commandApplied: true,
+    commandTranslationBefore: [args.recordedTranslationBefore[0] + 9, args.recordedTranslationBefore[1], args.recordedTranslationBefore[2]],
+    commandTranslationAfter: args.recordedTranslationAfter,
+    recordedAxis: args.recordedAxis,
+    recordedTranslationBefore: args.recordedTranslationBefore,
+    recordedTranslationAfter: args.recordedTranslationAfter,
+    viewportSelectedRenderableId: args.viewportSelectedRenderableId,
+  });
+  smokes.push({ id: 'negative:transform-readback-mismatch-before', code: 'transform_readback_mismatch', scenario: 'A transform.translate_entity apply command reports a stale before-translation that contradicts the scene-view readback.', expectedOutcome: 'failed_closed', actualOutcome: mismatchBeforeDiags.some((d) => d.code === 'transform_readback_mismatch') ? 'failed_closed' : 'ready', diagnosticCodes: mismatchBeforeDiags.map((d) => d.code) });
+
+  const previewMismatchDiags = validateGizmoPreview({
+    previewPresent: true,
+    commandEntityId: args.viewportSelectedRenderableId,
+    commandRenderableId: args.viewportSelectedRenderableId,
+    commandAxis: args.recordedAxis,
+    commandApplied: false,
+    commandTranslationAfter: [args.recordedTranslationAfter[0] + 9, args.recordedTranslationAfter[1], args.recordedTranslationAfter[2]],
+    recordedAxis: args.recordedAxis,
+    expectedPreviewAfter: args.recordedTranslationAfter,
+    viewportSelectedRenderableId: args.viewportSelectedRenderableId,
+  });
+  smokes.push({ id: 'negative:preview-readback-mismatch', code: 'transform_readback_mismatch', scenario: 'A transform.translate_entity preview command previews a different translation than the editor-local expected preview.', expectedOutcome: 'failed_closed', actualOutcome: previewMismatchDiags.some((d) => d.code === 'transform_readback_mismatch') ? 'failed_closed' : 'ready', diagnosticCodes: previewMismatchDiags.map((d) => d.code) });
 
   const privateDiags = validateGizmoMutationSource({ applied: true, mutationSource: 'private_ui_callback' });
   smokes.push({ id: 'negative:private-mutation-path', code: 'private_mutation_path', scenario: 'A committed transform was applied through a hidden/private UI-only callback instead of the public typed command.', expectedOutcome: 'failed_closed', actualOutcome: privateDiags.some((d) => d.code === 'private_mutation_path') ? 'failed_closed' : 'ready', diagnosticCodes: privateDiags.map((d) => d.code) });
@@ -333,10 +402,11 @@ export function createStudioTransformGizmoModel(options: {
 
   const baseTranslation = renderable?.transform.translation ?? { x: 0, y: 0, z: 0 };
   // translationBefore is read from the shared scene-view renderable, independent of the command
-  // output, so a command that reports a wrong after-translation is detectable as a mismatch.
+  // output, so a command that reports a wrong before/after-translation is detectable as a mismatch.
   const translationBefore: StudioVec3 = [baseTranslation.x, baseTranslation.y, baseTranslation.z];
-  const activeAxis: StudioTransformAxis = applyOutput?.axis ?? 'x';
-  const delta = applyOutput?.delta ?? 0;
+  const sourceOutput = applyOutput ?? previewOutput;
+  const activeAxis: StudioTransformAxis = sourceOutput?.axis ?? 'x';
+  const delta = sourceOutput?.delta ?? 0;
   const translationAfter = translateAlong(translationBefore, activeAxis, delta);
   const previewTranslation = previewOutput?.translationAfter ?? translationAfter;
   const applied = applyOutput?.applied ?? false;
@@ -364,12 +434,25 @@ export function createStudioTransformGizmoModel(options: {
     commandRenderableId: applyOutput?.renderableId ?? null,
     commandAxis: applyOutput?.axis ?? null,
     commandApplied: applied,
+    commandTranslationBefore: applyOutput?.translationBefore ?? null,
     commandTranslationAfter: applyOutput?.translationAfter ?? null,
     recordedAxis: activeAxis,
+    recordedTranslationBefore: translationBefore,
     recordedTranslationAfter: translationAfter,
     viewportSelectedRenderableId: selectedRenderableId,
   });
-  const editInSync = editDiagnostics.length === 0;
+  const previewDiagnostics = validateGizmoPreview({
+    previewPresent: previewOutput !== null,
+    commandEntityId: previewOutput?.entityId ?? null,
+    commandRenderableId: previewOutput?.renderableId ?? null,
+    commandAxis: previewOutput?.axis ?? null,
+    commandApplied: previewOutput?.applied ?? null,
+    commandTranslationAfter: previewOutput?.translationAfter ?? null,
+    recordedAxis: activeAxis,
+    expectedPreviewAfter: translationAfter,
+    viewportSelectedRenderableId: selectedRenderableId,
+  });
+  const editInSync = editDiagnostics.length === 0 && previewDiagnostics.length === 0;
   const mutationSource: StudioGizmoMutationSource = applyOutput !== null ? GIZMO_MUTATION_SOURCE : 'private_ui_callback';
 
   const edit: StudioGizmoEdit = {
@@ -414,6 +497,7 @@ export function createStudioTransformGizmoModel(options: {
     }),
     ...validateGizmoHandles({ handles, activeAxis }),
     ...editDiagnostics,
+    ...previewDiagnostics,
     ...validateGizmoMutationSource({ applied, mutationSource }),
   ];
   const negatives = negativeSmokes({
@@ -424,6 +508,7 @@ export function createStudioTransformGizmoModel(options: {
     activeAxis,
     handles,
     recordedAxis: activeAxis,
+    recordedTranslationBefore: translationBefore,
     recordedTranslationAfter: translationAfter,
   });
   const negativesFailClosed = negatives.every((smoke) => smoke.actualOutcome === 'failed_closed' && smoke.diagnosticCodes.includes(smoke.code));

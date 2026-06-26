@@ -862,14 +862,14 @@
       "bounds": {
         "space": "viewport",
         "x": 0.18541666666666667,
-        "y": 0.39537037037037037,
+        "y": 0.3768518518518518,
         "w": 0.5958333333333333,
-        "h": 0.07407407407407407,
+        "h": 0.09259259259259259,
         "px": {
           "x": 356,
-          "y": 427,
+          "y": 407,
           "w": 1144,
-          "h": 80
+          "h": 100
         }
       },
       "importance": "major",
@@ -14567,18 +14567,6 @@
       "confidence": 0.9
     },
     {
-      "type": "below",
-      "a": "transform_gizmo",
-      "b": "applied_state_renderable",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "applied_state_renderable",
-      "b": "transform_gizmo",
-      "confidence": 0.84
-    },
-    {
       "type": "aligned_left",
       "items": [
         "applied_state_renderable",
@@ -15147,18 +15135,6 @@
       "confidence": 0.84
     },
     {
-      "type": "below",
-      "a": "transform_gizmo",
-      "b": "preview_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "preview_state_marker",
-      "b": "transform_gizmo",
-      "confidence": 0.84
-    },
-    {
       "type": "right_of",
       "a": "node_32",
       "b": "transform_gizmo",
@@ -15192,18 +15168,6 @@
       "type": "left_of",
       "a": "transform_gizmo",
       "b": "applied_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "transform_gizmo",
-      "b": "applied_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "applied_state_marker",
-      "b": "transform_gizmo",
       "confidence": 0.84
     },
     {

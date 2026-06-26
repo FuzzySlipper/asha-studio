@@ -38,17 +38,17 @@
     "authentication": "remote /etc/den-services/visual-contract.env bearer token; token never stored in proof artifacts"
   },
   "currentCompare": {
-    "runId": "03f7171b23b26223fd16de25",
+    "runId": "6e6525dff7a9581a0939179f",
     "verdict": "pass",
     "failureCount": 0,
     "failures": [],
-    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/03f7171b23b26223fd16de25/artifacts/report.json",
-    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/03f7171b23b26223fd16de25/artifacts/diff.overlay.svg",
-    "localReportArtifact": "fixtures/visual-contract/artifacts/03f7171b23b26223fd16de25/report.json",
-    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/03f7171b23b26223fd16de25/diff.overlay.svg"
+    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/6e6525dff7a9581a0939179f/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/6e6525dff7a9581a0939179f/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/6e6525dff7a9581a0939179f/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/6e6525dff7a9581a0939179f/diff.overlay.svg"
   },
   "negativeCompare": {
-    "runId": "73490c21c195820ed4cad081",
+    "runId": "96f7ab9f94cc8f7c51693c6f",
     "verdict": "fail",
     "failureCount": 5,
     "failures": [
@@ -58,10 +58,10 @@
       "primary_docks_top_aligned",
       "central_viewport_bounds_stable"
     ],
-    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/73490c21c195820ed4cad081/artifacts/report.json",
-    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/73490c21c195820ed4cad081/artifacts/diff.overlay.svg",
-    "localReportArtifact": "fixtures/visual-contract/artifacts/73490c21c195820ed4cad081/report.json",
-    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/73490c21c195820ed4cad081/diff.overlay.svg"
+    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/96f7ab9f94cc8f7c51693c6f/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/96f7ab9f94cc8f7c51693c6f/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/96f7ab9f94cc8f7c51693c6f/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/96f7ab9f94cc8f7c51693c6f/diff.overlay.svg"
   },
   "validation": {
     "candidate": {
@@ -72,7 +72,7 @@
         "spaces": 1,
         "layers": 2,
         "objects": 46,
-        "relations": 2965,
+        "relations": 2959,
         "constraints": 0,
         "evidence": 46
       }
@@ -85,7 +85,7 @@
         "spaces": 1,
         "layers": 2,
         "objects": 36,
-        "relations": 1728,
+        "relations": 1726,
         "constraints": 0,
         "evidence": 36
       }

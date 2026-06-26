@@ -124,9 +124,29 @@
       ]
     },
     {
-      "id": "negative:transform-readback-mismatch",
+      "id": "negative:transform-readback-mismatch-after",
       "code": "transform_readback_mismatch",
-      "scenario": "A transform.translate_entity command moved the entity to a different translation than the gizmo readback.",
+      "scenario": "A transform.translate_entity apply command moved the entity to a different after-translation than the gizmo readback.",
+      "expectedOutcome": "failed_closed",
+      "actualOutcome": "failed_closed",
+      "diagnosticCodes": [
+        "transform_readback_mismatch"
+      ]
+    },
+    {
+      "id": "negative:transform-readback-mismatch-before",
+      "code": "transform_readback_mismatch",
+      "scenario": "A transform.translate_entity apply command reports a stale before-translation that contradicts the scene-view readback.",
+      "expectedOutcome": "failed_closed",
+      "actualOutcome": "failed_closed",
+      "diagnosticCodes": [
+        "transform_readback_mismatch"
+      ]
+    },
+    {
+      "id": "negative:preview-readback-mismatch",
+      "code": "transform_readback_mismatch",
+      "scenario": "A transform.translate_entity preview command previews a different translation than the editor-local expected preview.",
       "expectedOutcome": "failed_closed",
       "actualOutcome": "failed_closed",
       "diagnosticCodes": [

@@ -12,6 +12,7 @@ import {
   validateGizmoEdit,
   validateGizmoHandles,
   validateGizmoMutationSource,
+  validateGizmoPreview,
   validateGizmoSelection,
 } from '../src/transform-gizmo';
 import { createStudioWorkspaceModel } from '../src/session-workspace';
@@ -105,6 +106,34 @@ test('gizmo fails closed when the apply command moved a different entity than th
   assert.ok(gizmo.diagnostics.some((diagnostic) => diagnostic.code === 'transform_readback_mismatch'));
 });
 
+test('gizmo fails closed when the apply command reports a stale before-translation', () => {
+  const workspace = createStudioWorkspaceModel();
+  const staleBefore = workspace.commandResults.map((result) =>
+    result.commandId === 'transform.translate_entity' && result.output && 'translationBefore' in result.output && result.output.mode === 'apply'
+      ? { ...result, output: { ...result.output, translationBefore: [99, 99, 99] as const } }
+      : result,
+  );
+  const gizmo = createStudioTransformGizmoModel({ sceneView: workspace.sceneView, timeline: workspace.timeline, commandResults: staleBefore });
+  assert.equal(gizmo.readiness, 'failed_closed');
+  assert.equal(gizmo.edit.inSync, false);
+  assert.ok(gizmo.diagnostics.some((diagnostic) => diagnostic.code === 'transform_readback_mismatch'));
+});
+
+test('gizmo fails closed when the preview command previews a different translation than expected', () => {
+  const workspace = createStudioWorkspaceModel();
+  const stalePreview = workspace.commandResults.map((result) =>
+    result.commandId === 'transform.translate_entity' && result.output && 'translationAfter' in result.output && result.output.mode === 'preview'
+      ? { ...result, output: { ...result.output, translationAfter: [99, 99, 99] as const } }
+      : result,
+  );
+  const gizmo = createStudioTransformGizmoModel({ sceneView: workspace.sceneView, timeline: workspace.timeline, commandResults: stalePreview });
+  assert.equal(gizmo.readiness, 'failed_closed');
+  assert.equal(gizmo.edit.inSync, false);
+  assert.deepEqual(gizmo.transform.preview, [99, 99, 99]);
+  assert.notDeepEqual(gizmo.transform.after, gizmo.transform.preview);
+  assert.ok(gizmo.diagnostics.some((diagnostic) => diagnostic.code === 'transform_readback_mismatch'));
+});
+
 test('gizmo fails closed when the apply command is absent (no committed public transform)', () => {
   const workspace = createStudioWorkspaceModel();
   const withoutApply = workspace.commandResults.filter((result) => !(result.commandId === 'transform.translate_entity' && result.output && 'mode' in result.output && result.output.mode === 'apply'));
@@ -134,10 +163,19 @@ test('validateGizmoHandles, validateGizmoEdit, and validateGizmoMutationSource f
   assert.ok(validateGizmoHandles({ handles, activeAxis: 'y' }).some((d) => d.code === 'missing_gizmo_handle'));
   assert.ok(validateGizmoHandles({ handles: handles.filter((h) => h.axis !== 'x'), activeAxis: 'x' }).some((d) => d.code === 'missing_gizmo_handle'));
 
-  const ok = validateGizmoEdit({ commandPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: true, commandTranslationAfter: [2.5, 0.5, 0.5], recordedAxis: 'x', recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' });
+  const ok = validateGizmoEdit({ commandPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: true, commandTranslationBefore: [0.5, 0.5, 0.5], commandTranslationAfter: [2.5, 0.5, 0.5], recordedAxis: 'x', recordedTranslationBefore: [0.5, 0.5, 0.5], recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' });
   assert.deepEqual(ok, []);
-  assert.ok(validateGizmoEdit({ commandPresent: false, commandEntityId: null, commandRenderableId: null, commandAxis: null, commandApplied: false, commandTranslationAfter: null, recordedAxis: 'x', recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
-  assert.ok(validateGizmoEdit({ commandPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: true, commandTranslationAfter: [9, 0.5, 0.5], recordedAxis: 'x', recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
+  assert.ok(validateGizmoEdit({ commandPresent: false, commandEntityId: null, commandRenderableId: null, commandAxis: null, commandApplied: false, commandTranslationBefore: null, commandTranslationAfter: null, recordedAxis: 'x', recordedTranslationBefore: [0.5, 0.5, 0.5], recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
+  assert.ok(validateGizmoEdit({ commandPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: true, commandTranslationBefore: [0.5, 0.5, 0.5], commandTranslationAfter: [9, 0.5, 0.5], recordedAxis: 'x', recordedTranslationBefore: [0.5, 0.5, 0.5], recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
+  // A stale before-translation fails closed even when the after-translation is correct.
+  assert.ok(validateGizmoEdit({ commandPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: true, commandTranslationBefore: [99, 99, 99], commandTranslationAfter: [2.5, 0.5, 0.5], recordedAxis: 'x', recordedTranslationBefore: [0.5, 0.5, 0.5], recordedTranslationAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
+
+  // Preview must target the same entity/axis, preview the expected after, and stay uncommitted (applied=false).
+  const previewOk = validateGizmoPreview({ previewPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: false, commandTranslationAfter: [2.5, 0.5, 0.5], recordedAxis: 'x', expectedPreviewAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' });
+  assert.deepEqual(previewOk, []);
+  assert.ok(validateGizmoPreview({ previewPresent: false, commandEntityId: null, commandRenderableId: null, commandAxis: null, commandApplied: null, commandTranslationAfter: null, recordedAxis: 'x', expectedPreviewAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
+  assert.ok(validateGizmoPreview({ previewPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: true, commandTranslationAfter: [2.5, 0.5, 0.5], recordedAxis: 'x', expectedPreviewAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
+  assert.ok(validateGizmoPreview({ previewPresent: true, commandEntityId: 'e', commandRenderableId: 'e', commandAxis: 'x', commandApplied: false, commandTranslationAfter: [9, 0.5, 0.5], recordedAxis: 'x', expectedPreviewAfter: [2.5, 0.5, 0.5], viewportSelectedRenderableId: 'e' }).some((d) => d.code === 'transform_readback_mismatch'));
 
   assert.deepEqual(validateGizmoMutationSource({ applied: true, mutationSource: 'transform.translate_entity_command' }), []);
   assert.ok(validateGizmoMutationSource({ applied: true, mutationSource: 'private_ui_callback' }).some((d) => d.code === 'private_mutation_path'));
@@ -145,12 +183,14 @@ test('validateGizmoHandles, validateGizmoEdit, and validateGizmoMutationSource f
 
 test('gizmo negative smokes all fail closed with their classified code', () => {
   const smokes = createStudioWorkspaceModel().transformGizmo.negativeSmokes;
-  assert.equal(smokes.length, 5);
+  assert.equal(smokes.length, 7);
+  assert.ok(smokes.every((smoke) => smoke.actualOutcome === 'failed_closed' && smoke.diagnosticCodes.includes(smoke.code)));
   for (const code of ['missing_selected_entity', 'stale_gizmo_selection', 'missing_gizmo_handle', 'transform_readback_mismatch', 'private_mutation_path'] as const) {
-    const smoke = smokes.find((entry) => entry.code === code);
-    assert.ok(smoke, `missing smoke ${code}`);
-    assert.equal(smoke.actualOutcome, 'failed_closed');
-    assert.ok(smoke.diagnosticCodes.includes(code));
+    assert.ok(smokes.some((smoke) => smoke.code === code), `missing smoke ${code}`);
+  }
+  // transform_readback_mismatch is covered for after, before, and preview evidence.
+  for (const id of ['negative:transform-readback-mismatch-after', 'negative:transform-readback-mismatch-before', 'negative:preview-readback-mismatch'] as const) {
+    assert.ok(smokes.some((smoke) => smoke.id === id), `missing smoke ${id}`);
   }
 });
 
@@ -173,5 +213,5 @@ test('gizmo is exported through the agent readout and sample fixture', () => {
   assert.equal(fixture.edit?.commandId, 'transform.translate_entity');
   assert.equal(fixture.edit?.mutationSource, 'transform.translate_entity_command');
   assert.equal(fixture.handles?.length, 3);
-  assert.equal(fixture.negativeSmokes?.length, 5);
+  assert.equal(fixture.negativeSmokes?.length, 7);
 });
