@@ -13,9 +13,9 @@ import {
 import { createStudioWorkspaceModel } from '../src/session-workspace';
 
 // Live harness: serves the built Studio dist, launches it as a real webview surface under the Agora
-// Wayfire compositor, waits for a presented frame, captures the compositor surface, and validates the
-// result through the pure model in src/agora-compositor-capture.ts. This proof is environment-gated:
-// it requires a live compositor (compositorctl) and is NOT part of `pnpm run verify`.
+// Wayfire compositor, lets the launched surface settle, captures the compositor surface, and validates
+// the result through the pure model in src/agora-compositor-capture.ts. This proof is environment-
+// gated: it requires a live compositor (compositorctl) and is NOT part of `pnpm run verify`.
 
 const root = process.cwd();
 const distDir = join(root, 'dist');

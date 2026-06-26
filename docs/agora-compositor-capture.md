@@ -7,10 +7,10 @@ diagnostics.
 ## What it is
 
 `pnpm run proof:agora-compositor` builds the Studio app, serves the static `dist/`, launches it as a
-real webview **surface under the Wayfire/Agora compositor**, waits for a presented frame, and captures
-the **composited on-screen surface** via `compositorctl capture --export`. This is stronger than the
-existing Chromium headless screenshot backend (`pnpm run proof:browser`): it is an actual compositor
-surface frame, not an off-screen browser render.
+real webview **surface under the Wayfire/Agora compositor**, lets the launched surface settle, and
+captures the **composited on-screen surface** via `compositorctl capture --export`. This is stronger
+than the existing Chromium headless screenshot backend (`pnpm run proof:browser`): it is an actual
+compositor surface frame, not an off-screen browser render.
 
 It is **optional and additive**. It is environment-gated (requires a live compositor) and is **not**
 part of `pnpm run verify`. The required browser-screenshot + visual-contract proof
@@ -32,8 +32,10 @@ checks the visual capability proof (selected object + after-render hash).
   minimum. A solid/black/no-frame surface cannot pass on a single signal.
 - `wrong_surface_identity` — surface title must contain `ASHA Studio`, the captured frame surface id
   must match the launched surface, and dimensions must clear the minimum.
-- `stale_compositor_frame` — capture must be after launch start, within the freshness window, and the
-  surface must have presented at least one frame (`frame_count >= 1`).
+- `stale_compositor_frame` — capture must be after launch start and within the freshness window. Frame
+  presentation is proved by the compositor `visual_inspection.status` being `visible` plus the
+  independent pixel metrics above; `frameCountAtCapture`/`frame_count` is recorded as informational
+  evidence only because WebKitGTK webview surfaces can render visible content without incrementing it.
 - `uncorrelated_studio_timeline` — the frame is stamped with `asha_command_sequence_id` equal to the
   studio `render.capture_before_after` timeline sequence, which must exist in the timeline; when the
   visual capability proof is present it must be ready and agree on the selected object and after-render
