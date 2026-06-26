@@ -482,6 +482,18 @@
       }
     }
   ],
+  "optionalBackends": [
+    {
+      "backendId": "agora_compositor_capture",
+      "captureBackend": "agora_compositor",
+      "captureMode": "compositor_surface",
+      "integration": "additive",
+      "required": false,
+      "proofCommand": "pnpm run proof:agora-compositor",
+      "artifactPath": "artifacts/agora-compositor/latest/index.json",
+      "note": "Optional real Agora compositor surface capture of the Studio app. Its agora_compositor_capture_proof references and cross-validates this proof (selected object + after-render hash); it does not gate this proof's readiness and does not alter the browser-screenshot non-claims above. The not_agora_compositor non-claim describes the browser-screenshot backend, which remains a Chromium screenshot regardless."
+    }
+  ],
   "negativeSmokes": [
     {
       "smokeId": "negative_missing_scene_readback",

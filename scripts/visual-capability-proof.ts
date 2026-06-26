@@ -120,6 +120,16 @@ interface VisualCapabilityProof {
     readonly nonClaims: readonly string[];
   };
   readonly capabilityGroups: readonly CapabilityGroup[];
+  readonly optionalBackends: readonly {
+    readonly backendId: 'agora_compositor_capture';
+    readonly captureBackend: 'agora_compositor';
+    readonly captureMode: 'compositor_surface';
+    readonly integration: 'additive';
+    readonly required: false;
+    readonly proofCommand: 'pnpm run proof:agora-compositor';
+    readonly artifactPath: string;
+    readonly note: string;
+  }[];
   readonly negativeSmokes: readonly {
     readonly smokeId: string;
     readonly expectedGroup: CapabilityGroup['groupId'];
@@ -372,6 +382,18 @@ export function buildProof(browser: BrowserCaptureArtifact, visualContract: Visu
       nonClaims: ['not_native_runtime', 'not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence'],
     },
     capabilityGroups: groups,
+    optionalBackends: [
+      {
+        backendId: 'agora_compositor_capture',
+        captureBackend: 'agora_compositor',
+        captureMode: 'compositor_surface',
+        integration: 'additive',
+        required: false,
+        proofCommand: 'pnpm run proof:agora-compositor',
+        artifactPath: 'artifacts/agora-compositor/latest/index.json',
+        note: 'Optional real Agora compositor surface capture of the Studio app. Its agora_compositor_capture_proof references and cross-validates this proof (selected object + after-render hash); it does not gate this proof\'s readiness and does not alter the browser-screenshot non-claims above. The not_agora_compositor non-claim describes the browser-screenshot backend, which remains a Chromium screenshot regardless.',
+      },
+    ],
     negativeSmokes: [
       { smokeId: 'negative_missing_scene_readback', expectedGroup: 'scene_readback', status: 'expected_failed_closed', diagnosticCodes: ['missing_scene_readback'] },
       { smokeId: 'negative_missing_pick_evidence', expectedGroup: 'pick', status: 'expected_failed_closed', diagnosticCodes: ['missing_pick_evidence'] },

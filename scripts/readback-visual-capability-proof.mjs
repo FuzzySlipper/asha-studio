@@ -108,6 +108,17 @@ for (const expected of ['not_native_runtime', 'not_wasm_authority', 'not_agora_c
   if (!proof.summary?.nonClaims?.includes(expected)) fail(`summary missing non-claim ${expected}`);
 }
 
+// Optional additive backends must be declared as references that do not weaken the required proof.
+const agora = (proof.optionalBackends ?? []).find((backend) => backend.backendId === 'agora_compositor_capture');
+if (agora === undefined) fail('missing optional agora_compositor_capture backend reference');
+if (agora.captureBackend !== 'agora_compositor' || agora.captureMode !== 'compositor_surface') fail('agora optional backend misclassified');
+if (agora.required !== false || agora.integration !== 'additive') fail('agora optional backend must be additive and not required');
+if (agora.proofCommand !== 'pnpm run proof:agora-compositor') fail('agora optional backend proofCommand mismatch');
+// The required browser-screenshot non-claims must remain intact even with the optional backend declared.
+for (const expected of ['not_native_runtime', 'not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
+  if (!proof.summary?.nonClaims?.includes(expected)) fail(`optional backend must not remove non-claim ${expected}`);
+}
+
 const smokeById = new Map((proof.negativeSmokes ?? []).map((smoke) => [smoke.smokeId, smoke]));
 const expectedSmokes = {
   negative_missing_scene_readback: ['missing_scene_readback'],
