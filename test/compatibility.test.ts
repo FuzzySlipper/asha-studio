@@ -27,19 +27,18 @@ test('current Studio compatibility metadata records ASHA public surfaces', () =>
   assert.equal(evidence.contractsVersion, 'contracts.v0');
   assert.equal(evidence.commandRegistryVersion, 'command-registry.v0');
   assert.equal(evidence.studioEvidenceVersion, 'studio-evidence.deferred-v0');
-  assert.equal(evidence.runtimeBridgeVersion, null);
-  assert.deepEqual(evidence.supportedRuntimeModes, ['mock', 'reference', 'unavailable']);
+  assert.equal(evidence.runtimeBridgeVersion, 'runtime-bridge.v0');
+  assert.deepEqual(evidence.supportedRuntimeModes, ['mock', 'reference', 'native', 'unavailable']);
   assert.deepEqual(
     evidence.ashaPackageVersions.map((item) => `${item.packageName}@${item.version}`),
-    ['@asha/contracts@0.1.0', '@asha/command-registry@0.1.0', '@asha/editor-tools@0.1.0'],
+    ['@asha/contracts@0.1.0', '@asha/command-registry@0.1.0', '@asha/editor-tools@0.1.0', '@asha/runtime-bridge@0.1.0'],
   );
 });
 
-test('mock runtime mode is compatible but records deferred runtime bridge diagnostic', () => {
+test('mock runtime mode is compatible with runtime bridge metadata present', () => {
   const result = checkCompatibility(buildCurrentCompatibilityEvidence(), 'mock');
   assert.equal(result.ok, true);
-  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.runtime_bridge_deferred'));
-  assert.ok(result.diagnostics.every((diagnostic) => diagnostic.severity !== 'error'));
+  assert.deepEqual(result.diagnostics, []);
 });
 
 test('contract compatibility mismatch fails closed with explicit diagnostic', () => {
@@ -54,11 +53,10 @@ test('command registry compatibility mismatch fails closed with explicit diagnos
   assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.command_registry_mismatch' && diagnostic.severity === 'error'));
 });
 
-test('native runtime mode fails closed until runtime bridge metadata is present', () => {
+test('native runtime mode is compatible when runtime bridge metadata is present', () => {
   const result = checkCompatibility(buildCurrentCompatibilityEvidence(), 'native');
-  assert.equal(result.ok, false);
-  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.unsupported_runtime_mode'));
-  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.runtime_bridge_missing'));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.diagnostics, []);
 });
 
 test('missing required package surface fails closed in generated evidence', () => {
@@ -122,7 +120,7 @@ test('session metadata projects compatibility diagnostics into artifact readback
   assert.equal(metadata.compatibility.commandRegistryVersion, 'command-registry.v0');
   assert.ok(metadata.capabilities.length > 0);
   assert.ok(metadata.capabilities.every((capability) => capability.available));
-  assert.ok(metadata.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.runtime_bridge_deferred'));
+  assert.deepEqual(metadata.diagnostics, []);
 });
 
 test('sample session metadata artifact readback carries compatibility fields', () => {
@@ -130,7 +128,7 @@ test('sample session metadata artifact readback carries compatibility fields', (
   assert.equal(artifact.runtimeMode, 'mock');
   assert.equal(artifact.compatibility?.contractsVersion, 'contracts.v0');
   assert.equal(artifact.compatibility?.commandRegistryVersion, 'command-registry.v0');
-  assert.equal(artifact.compatibility?.runtimeBridgeVersion, null);
+  assert.equal(artifact.compatibility?.runtimeBridgeVersion, 'runtime-bridge.v0');
   const result = checkCompatibility(artifact.compatibility as StudioCompatibilityEvidence, 'mock');
   assert.equal(result.ok, true);
 });

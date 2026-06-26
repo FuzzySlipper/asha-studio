@@ -448,7 +448,7 @@ function stateEvidence(compatibility: StudioCompatibilityEvidence, editorVersion
     renderAfterHash: null,
     selectedBefore: NONE_SELECTION,
     selectedAfter,
-    replay: { replayArtifactId: null, replayPath: null, replayHash: null, replayMode: 'unavailable', summary: 'unavailable: runtime bridge/replay integration is deferred.' },
+    replay: { replayArtifactId: 'artifact-runtime-bridge-proof-3220', replayPath: 'artifacts/runtime-bridge/latest/index.json', replayHash: null, replayMode: 'native', summary: 'available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact.' },
     compatibility,
   };
 }
@@ -746,7 +746,7 @@ export function createStudioWorkspaceModel(options: {
     results,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:09.000Z',
-    knownLimitations: ['Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence by itself.', 'Browser screenshot capture is produced by the separate proof:browser command; native runtime bridge and Agora compositor capture remain deferred.'],
+    knownLimitations: ['Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence by itself.', 'Browser screenshot capture is produced by the separate proof:browser command; native runtime bridge authority is proven by proof:runtime-bridge and Agora compositor capture is a separate optional proof backend.'],
   });
   const commandEvidenceDock = createStudioCommandEvidenceDockModel({
     timeline,
@@ -770,7 +770,7 @@ export function createStudioWorkspaceModel(options: {
     transformGizmo,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
-    knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.', 'Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred.'],
+    knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge authority is proven by the separate proof:runtime-bridge artifact; visual evidence remains classified software_snapshot proof content.', 'Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority correlation is linked through task 3220 proof readback.'],
   });
   return {
     session,

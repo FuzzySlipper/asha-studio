@@ -22,14 +22,14 @@ test('model/material preview uses only public contract DTO shapes', () => {
   assert.match(preview.svgPreview, /Model \/ Material Preview/);
 });
 
-test('model/material preview records promoted public command surface and deferred runtime consumption', () => {
+test('model/material preview records promoted public command and runtime surfaces', () => {
   const preview = createStudioModelMaterialPreviewModel({ sessionId: 'session-custom', scenarioId: 'model-material-basic' });
   assert.equal(preview.artifact.sessionId, 'session-custom');
   assert.equal(preview.artifact.scenarioId, 'model-material-basic');
   assert.ok(preview.artifact.surfaceFindings.some((finding) => finding.surface === '@asha/contracts' && finding.status === 'available_public'));
   assert.ok(preview.artifact.surfaceFindings.some((finding) => finding.surface === '@asha/command-registry' && finding.status === 'available_public'));
   assert.equal(preview.artifact.blockingFeatureRequests.length, 0);
-  assert.ok(preview.artifact.knownLimitations.some((limitation) => limitation.includes('runtime transport consumption remains deferred')));
+  assert.ok(preview.artifact.knownLimitations.some((limitation) => limitation.includes('native readback for this specific operation remains fail-closed')));
 });
 
 test('sample model/material preview fixture records public-surface evidence', () => {

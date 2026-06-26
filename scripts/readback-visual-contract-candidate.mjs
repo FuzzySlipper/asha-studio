@@ -60,7 +60,7 @@ for (const id of proof.capture.requiredVisualObjects ?? []) {
   if (object.domain_role !== expectedRole && object.role !== expectedRole) fail(`candidate object ${id} missing matching ASHA role ${expectedRole}`);
   if (!object.evidence_refs?.includes(`web_node:${id}`)) fail(`candidate object ${id} missing web_node evidence ref`);
 }
-for (const id of ['runtime_deferred_limitation', 'no_agora_gpu_native_claim_limitation', 'selection_outline', 'preview_ghost', 'axis_gizmo', 'applied_state_renderable']) {
+for (const id of ['runtime_bridge_marker', 'viewport_runtime_bridge_authority', 'no_agora_gpu_native_claim_limitation', 'selection_outline', 'preview_ghost', 'axis_gizmo', 'applied_state_renderable']) {
   if (!objects.has(id)) fail(`candidate missing visual affordance marker ${id}`);
 }
 const central = objects.get('central_3d_viewport')?.bounds;

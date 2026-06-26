@@ -123,7 +123,7 @@ export function createStudioSceneHierarchyModel(options: {
       depth: 3,
       badges: ['projected'],
       evidenceSource: 'StudioModelMaterialPreviewModel.artifact.selectedModelAsset',
-      summary: `Model context is a reference projection; runtime bridge consumption remains deferred.`,
+      summary: `Model context is a reference projection; runtime bridge authority is linked through proof:runtime-bridge.`,
     },
   ];
   return {

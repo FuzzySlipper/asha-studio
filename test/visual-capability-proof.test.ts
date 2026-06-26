@@ -64,13 +64,14 @@ test('studio visual capability proof consolidates scene, pick, visual delta, vis
   assert.equal(proof.taskId, 3046);
   assert.equal(proof.readiness, 'ready');
   assert.equal(proof.proofCommand, 'pnpm run proof:visual-capability');
-  assert.equal(proof.capabilityGroups.length, 6);
+  assert.equal(proof.capabilityGroups.length, 7);
 
   assertReadyGroup(proof, 'scene_readback');
   assertReadyGroup(proof, 'pick');
   assertReadyGroup(proof, 'visual_delta_crop');
   assertReadyGroup(proof, 'visual_contract_layout_affordance');
   assertReadyGroup(proof, 'command_authority_correlation');
+  assertReadyGroup(proof, 'runtime_authority_bridge');
   assertReadyGroup(proof, 'non_claim_limitations');
 
   assert.equal(proof.summary.visibleRenderableCount, 6);
@@ -81,7 +82,7 @@ test('studio visual capability proof consolidates scene, pick, visual delta, vis
   assert.notEqual(proof.summary.beforeRenderHash, proof.summary.afterRenderHash);
   assert.ok(proof.summary.renderedObjectIds.includes('applied-voxel:1,0,0'));
   assert.ok(proof.summary.visualContractRunIds.length === 2);
-  for (const expected of ['not_native_runtime', 'not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
+  for (const expected of ['not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
     assert.ok(proof.summary.nonClaims.includes(expected), `missing ${expected}`);
   }
 });
@@ -91,6 +92,7 @@ type PickEvidence = { readonly sourceTimelineCommandId: string; readonly hit: { 
 type DeltaEvidence = { readonly beforeCrop: { readonly linkedCommandId: string; readonly screenshotPath: string; readonly cropPath: string }; readonly afterCrop: { readonly linkedCommandId: string; readonly screenshotPath: string; readonly cropPath: string }; readonly staleReadbackGuard: { readonly mismatchPolicy: string } };
 type VisualContractEvidence = { readonly service: { readonly mode: string }; readonly currentCompare: { readonly verdict: string; readonly localReportArtifact: string; readonly localDiffOverlayArtifact: string }; readonly negativeCompare: { readonly verdict: string; readonly failures: readonly string[]; readonly localReportArtifact: string; readonly localDiffOverlayArtifact: string } };
 type CommandEvidence = { readonly timelineCommandIds: readonly string[] };
+type RuntimeEvidence = { readonly runtimeMode: string; readonly authoritySource: string; readonly compatibilityVersion: string | null; readonly command: { readonly commandId: string; readonly commandResult: { readonly rejected: number }; readonly authorityBeforeHash: string; readonly authorityAfterHash: string }; readonly replay: { readonly replayStep: { readonly diverged: boolean; readonly hash: string }; readonly expectedHash: string } };
 
 test('studio visual capability proof exposes reviewer handles without parsing screenshots', () => {
   const proof = readProof();
@@ -99,11 +101,13 @@ test('studio visual capability proof exposes reviewer handles without parsing sc
   const delta = assertReadyGroup(proof, 'visual_delta_crop');
   const visualContract = assertReadyGroup(proof, 'visual_contract_layout_affordance');
   const command = assertReadyGroup(proof, 'command_authority_correlation');
+  const runtime = assertReadyGroup(proof, 'runtime_authority_bridge');
   const sceneEvidence = scene.evidence as SceneEvidence;
   const pickEvidence = pick.evidence as PickEvidence;
   const deltaEvidence = delta.evidence as DeltaEvidence;
   const visualContractEvidence = visualContract.evidence as VisualContractEvidence;
   const commandEvidence = command.evidence as CommandEvidence;
+  const runtimeEvidence = runtime.evidence as RuntimeEvidence;
 
   assert.equal(sceneEvidence.camera.changed, true);
   assert.equal(sceneEvidence.selectedRenderableId, proof.summary.selectedObject);
@@ -136,6 +140,14 @@ test('studio visual capability proof exposes reviewer handles without parsing sc
   for (const commandId of ['selection.voxel_from_screen_point', 'preview.voxel_brush', 'authority.voxel.apply_brush', 'render.capture_before_after', 'export.agent_readout']) {
     assert.ok(commandEvidence.timelineCommandIds.includes(commandId), `missing command correlation ${commandId}`);
   }
+  assert.equal(runtimeEvidence.runtimeMode, 'native');
+  assert.equal(runtimeEvidence.authoritySource, 'rust_native_runtime_bridge');
+  assert.equal(runtimeEvidence.compatibilityVersion, 'runtime-bridge.v0');
+  assert.equal(runtimeEvidence.command.commandId, 'authority.voxel.apply_brush');
+  assert.equal(runtimeEvidence.command.commandResult.rejected, 0);
+  assert.notEqual(runtimeEvidence.command.authorityBeforeHash, runtimeEvidence.command.authorityAfterHash);
+  assert.equal(runtimeEvidence.replay.replayStep.diverged, false);
+  assert.equal(runtimeEvidence.replay.replayStep.hash, runtimeEvidence.replay.expectedHash);
 });
 
 test('studio visual capability proof records required fail-closed negative smokes', () => {
@@ -146,6 +158,11 @@ test('studio visual capability proof records required fail-closed negative smoke
     negative_missing_pick_evidence: ['missing_pick_evidence'],
     negative_stale_visual_delta: ['stale_visual_delta_scene_hash', 'stale_visual_delta_crop_hash'],
     negative_missing_failed_visual_contract_proof: ['missing_visual_contract_proof', 'visual_contract_candidate_failed'],
+    negative_missing_runtime_bridge_metadata: ['missing_runtime_bridge_metadata'],
+    negative_runtime_bridge_version_mismatch: ['runtime_bridge_version_mismatch'],
+    negative_runtime_bridge_stale_snapshot: ['stale_runtime_snapshot'],
+    negative_runtime_bridge_replay_mismatch: ['replay_mismatch'],
+    negative_runtime_bridge_raw_transport_bypass: ['raw_transport_bypass'],
     negative_unsupported_evidence_claims: ['unsupported_gpu_claim'],
   } as const;
   assert.equal(proof.negativeSmokes.length, Object.keys(expected).length);

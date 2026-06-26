@@ -3,17 +3,22 @@
   "artifactKind": "studio_visual_capability_proof",
   "taskId": 3046,
   "readiness": "ready",
-  "generatedAtIso": "2026-06-26T03:14:49.969Z",
+  "generatedAtIso": "2026-06-26T06:51:34.819Z",
   "proofCommand": "pnpm run proof:visual-capability",
   "inputArtifacts": {
     "browserCapture": {
       "path": "artifacts/browser-capture/latest/index.json",
-      "sha256": "sha256-9ea8db5827492a2ae97a704dee6208cc18aef84c281913bf48c2d22ff2e8b69b",
+      "sha256": "sha256-01bb78918f1c9b2061d52fc7a2c3870cc67491353c02412430b47419849f9c49",
       "artifactKind": "browser_visual_capture_proof"
+    },
+    "runtimeBridge": {
+      "path": "artifacts/runtime-bridge/latest/index.json",
+      "sha256": "sha256-15814eb95e91a7074908df97910e383e4cc6780a6638a60213db6705d9147348",
+      "artifactKind": "studio_runtime_bridge_integration_proof"
     },
     "visualContract": {
       "path": "fixtures/visual-contract/asha-studio-current.proof.json",
-      "sha256": "sha256-2af2770f76ab3bf0cfb0260b9c7d3f4b0edb976fa601e8cb1fd1138b9e2963c8",
+      "sha256": "sha256-c540aa60bcb16f88fb065a892be8dbe89cd5fd813450129694c0343f4e5a5ac2",
       "artifactKind": "asha_studio_current_visual_contract_proof"
     }
   },
@@ -35,11 +40,10 @@
     "beforeCropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-before-crop.png",
     "afterCropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-after-crop.png",
     "visualContractRunIds": [
-      "6e6525dff7a9581a0939179f",
-      "96f7ab9f94cc8f7c51693c6f"
+      "38149dc946082c2b4563d1e0",
+      "2b958d29bef2e0185e7819f7"
     ],
     "nonClaims": [
-      "not_native_runtime",
       "not_wasm_authority",
       "not_agora_compositor",
       "not_hardware_gpu",
@@ -247,8 +251,8 @@
           "phase": "before",
           "screenshotPath": "artifacts/browser-capture/latest/studio-app-viewport-before.png",
           "cropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-before-crop.png",
-          "cropSha256": "sha256-6a50d17f74bb7f82448acf5c091434728a7bc2594c0a8ca425ae09ad2704111f",
-          "pixelHash": "sha256-6a50d17f74bb7f82448acf5c091434728a7bc2594c0a8ca425ae09ad2704111f",
+          "cropSha256": "sha256-796e9c33dde1321a4eeebb8b996212981918ea9d7677c16b2e2f3cda8ec75351",
+          "pixelHash": "sha256-796e9c33dde1321a4eeebb8b996212981918ea9d7677c16b2e2f3cda8ec75351",
           "mediaType": "image/png",
           "byteLength": 34114,
           "cropRect": {
@@ -275,8 +279,8 @@
           "phase": "after",
           "screenshotPath": "artifacts/browser-capture/latest/studio-app-viewport-after.png",
           "cropPath": "artifacts/browser-capture/latest/viewport-edit-anchor-after-crop.png",
-          "cropSha256": "sha256-6aaa6c28f75fb30555758f0406fb729253823a679be9b4559c2813edb80cb4f7",
-          "pixelHash": "sha256-6aaa6c28f75fb30555758f0406fb729253823a679be9b4559c2813edb80cb4f7",
+          "cropSha256": "sha256-1eec87b9a1a52856c4184ca4fdba2d3d44bd600bebc5941f18d4c5de1be9ee19",
+          "pixelHash": "sha256-1eec87b9a1a52856c4184ca4fdba2d3d44bd600bebc5941f18d4c5de1be9ee19",
           "mediaType": "image/png",
           "byteLength": 34058,
           "cropRect": {
@@ -301,44 +305,44 @@
         "staleReadbackGuard": {
           "requiredBeforeSceneHash": "render-grid-fnv1a-cc815eb0",
           "requiredAfterSceneHash": "render-grid-fnv1a-8eb9594b",
-          "requiredBeforeCropHash": "sha256-6a50d17f74bb7f82448acf5c091434728a7bc2594c0a8ca425ae09ad2704111f",
-          "requiredAfterCropHash": "sha256-6aaa6c28f75fb30555758f0406fb729253823a679be9b4559c2813edb80cb4f7",
+          "requiredBeforeCropHash": "sha256-796e9c33dde1321a4eeebb8b996212981918ea9d7677c16b2e2f3cda8ec75351",
+          "requiredAfterCropHash": "sha256-1eec87b9a1a52856c4184ca4fdba2d3d44bd600bebc5941f18d4c5de1be9ee19",
           "mismatchPolicy": "failed_closed"
         },
         "screenshots": [
           {
             "name": "studio-app",
             "path": "artifacts/browser-capture/latest/studio-app.png",
-            "sha256": "sha256-04de7af944a7c6e772e442e665150b6f6463e960016e4b64c517e56c8c3f19ea",
+            "sha256": "sha256-b72861aea9be5f1f0beee2cb63faeb31bf392f0d792e104fab79f74ebe7cf6b9",
             "mediaType": "image/png",
-            "byteLength": 1011934,
+            "byteLength": 1023021,
             "width": 1280,
             "height": 2200
           },
           {
             "name": "studio-app-viewport-before",
             "path": "artifacts/browser-capture/latest/studio-app-viewport-before.png",
-            "sha256": "sha256-50aad7a9d588c901031d1dde18afe3776ff809a0ee0604fe21a4f7fd65b374b9",
+            "sha256": "sha256-96d9aa67a1e2f3cbb9060e7ff63ea1708579738dc6f683f88964a9fc040a2797",
             "mediaType": "image/png",
-            "byteLength": 1011895,
+            "byteLength": 1022989,
             "width": 1280,
             "height": 2200
           },
           {
             "name": "studio-app-viewport-after",
             "path": "artifacts/browser-capture/latest/studio-app-viewport-after.png",
-            "sha256": "sha256-53f40a5e68c1701df340e6dfb60b80a9e5fe28012945936da4735f139cb550c1",
+            "sha256": "sha256-7dcfd5336604e176e804c28206a3e280e2cef7c32e97a3e6262e3dfb585abc71",
             "mediaType": "image/png",
-            "byteLength": 1011920,
+            "byteLength": 1023001,
             "width": 1280,
             "height": 2200
           },
           {
             "name": "v1-proof-before-after",
             "path": "artifacts/browser-capture/latest/v1-proof-before-after.png",
-            "sha256": "sha256-8266053cd22f5943eaed21e3d8cb4bbf48e4a8a887101c47709fa9055fe24fe1",
+            "sha256": "sha256-6f59f0d652f9a1d4236ac330cb2ec38d4595c69eff21cc81a42736506dc551bb",
             "mediaType": "image/png",
-            "byteLength": 155184,
+            "byteLength": 155142,
             "width": 1280,
             "height": 2200
           }
@@ -393,17 +397,17 @@
           ]
         },
         "currentCompare": {
-          "runId": "6e6525dff7a9581a0939179f",
+          "runId": "38149dc946082c2b4563d1e0",
           "verdict": "pass",
           "failureCount": 0,
           "failures": [],
-          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/6e6525dff7a9581a0939179f/artifacts/report.json",
-          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/6e6525dff7a9581a0939179f/artifacts/diff.overlay.svg",
-          "localReportArtifact": "fixtures/visual-contract/artifacts/6e6525dff7a9581a0939179f/report.json",
-          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/6e6525dff7a9581a0939179f/diff.overlay.svg"
+          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/38149dc946082c2b4563d1e0/artifacts/report.json",
+          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/38149dc946082c2b4563d1e0/artifacts/diff.overlay.svg",
+          "localReportArtifact": "fixtures/visual-contract/artifacts/38149dc946082c2b4563d1e0/report.json",
+          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/38149dc946082c2b4563d1e0/diff.overlay.svg"
         },
         "negativeCompare": {
-          "runId": "96f7ab9f94cc8f7c51693c6f",
+          "runId": "2b958d29bef2e0185e7819f7",
           "verdict": "fail",
           "failureCount": 5,
           "failures": [
@@ -413,10 +417,10 @@
             "primary_docks_top_aligned",
             "central_viewport_bounds_stable"
           ],
-          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/96f7ab9f94cc8f7c51693c6f/artifacts/report.json",
-          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/96f7ab9f94cc8f7c51693c6f/artifacts/diff.overlay.svg",
-          "localReportArtifact": "fixtures/visual-contract/artifacts/96f7ab9f94cc8f7c51693c6f/report.json",
-          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/96f7ab9f94cc8f7c51693c6f/diff.overlay.svg"
+          "reportArtifact": "http://127.0.0.1:8086/visual-contracts/2b958d29bef2e0185e7819f7/artifacts/report.json",
+          "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/2b958d29bef2e0185e7819f7/artifacts/diff.overlay.svg",
+          "localReportArtifact": "fixtures/visual-contract/artifacts/2b958d29bef2e0185e7819f7/report.json",
+          "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/2b958d29bef2e0185e7819f7/diff.overlay.svg"
         },
         "limitations": [
           "Visual-contract proof is browser layout/affordance evidence only; it does not claim ASHA Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
@@ -455,6 +459,141 @@
           "afterRenderHash": "render-grid-fnv1a-8eb9594b",
           "changed": true
         }
+      }
+    },
+    {
+      "groupId": "runtime_authority_bridge",
+      "label": "Runtime bridge authority evidence",
+      "status": "ready",
+      "diagnostics": [],
+      "evidence": {
+        "runtimeMode": "native",
+        "authoritySource": "rust_native_runtime_bridge",
+        "replaySource": "runtime_bridge_quarantined_replay_facade",
+        "compatibilityVersion": "runtime-bridge.v0",
+        "packageVersion": "0.1.0",
+        "stableOperationCount": 18,
+        "manifestOperations": [
+          "initialize_engine",
+          "step_simulation",
+          "submit_commands",
+          "pick_voxel",
+          "apply_collision_constrained_camera_input",
+          "select_voxel",
+          "read_voxel_mesh_evidence",
+          "read_render_diffs",
+          "read_model_material_preview",
+          "create_camera",
+          "apply_first_person_camera_input",
+          "read_camera_projection",
+          "get_buffer",
+          "release_buffer",
+          "load_world_bundle",
+          "save_current_world",
+          "get_composition_status",
+          "unload_world",
+          "load_replay_fixture",
+          "run_replay_step"
+        ],
+        "command": {
+          "commandId": "authority.voxel.apply_brush",
+          "sequenceId": "seq-0008",
+          "runtimeSessionId": "native-engine-1",
+          "snapshotBeforeId": "snapshot:grid-fnv1a-cc815eb0",
+          "snapshotAfterId": "snapshot:grid-fnv1a-8eb9594b",
+          "authorityBeforeHash": "grid-fnv1a-cc815eb0",
+          "authorityAfterHash": "grid-fnv1a-8eb9594b",
+          "commandBatch": {
+            "commands": [
+              {
+                "op": "setVoxel",
+                "grid": 0,
+                "coord": {
+                  "x": 1,
+                  "y": 0,
+                  "z": 0
+                },
+                "value": {
+                  "kind": "solid",
+                  "material": 1
+                }
+              }
+            ]
+          },
+          "commandResult": {
+            "accepted": 1,
+            "rejected": 0,
+            "rejections": []
+          }
+        },
+        "render": {
+          "snapshotId": "snapshot:grid-fnv1a-8eb9594b",
+          "frameCursor": 0,
+          "renderDiff": {
+            "ops": []
+          },
+          "renderReadbackHash": "runtime-render-d58e9bd3"
+        },
+        "replay": {
+          "replayMode": "quarantined_runtime_facade",
+          "replayRecordId": "runtime-replay-2f2e5605",
+          "replayStep": {
+            "step": 1,
+            "hash": "mock-0-1",
+            "diverged": false
+          },
+          "expectedHash": "mock-0-1"
+        },
+        "negativeSmokes": [
+          {
+            "smokeId": "negative_missing_runtime_bridge_metadata",
+            "expectedCode": "missing_runtime_bridge_metadata",
+            "actualOutcome": "failed_closed",
+            "diagnosticCodes": [
+              "missing_runtime_bridge_metadata"
+            ]
+          },
+          {
+            "smokeId": "negative_runtime_bridge_version_mismatch",
+            "expectedCode": "runtime_bridge_version_mismatch",
+            "actualOutcome": "failed_closed",
+            "diagnosticCodes": [
+              "runtime_bridge_version_mismatch"
+            ]
+          },
+          {
+            "smokeId": "negative_missing_facade_operation",
+            "expectedCode": "missing_facade_operation",
+            "actualOutcome": "failed_closed",
+            "diagnosticCodes": [
+              "missing_facade_operation"
+            ]
+          },
+          {
+            "smokeId": "negative_stale_runtime_snapshot",
+            "expectedCode": "stale_runtime_snapshot",
+            "actualOutcome": "failed_closed",
+            "diagnosticCodes": [
+              "stale_runtime_snapshot"
+            ]
+          },
+          {
+            "smokeId": "negative_replay_mismatch",
+            "expectedCode": "replay_mismatch",
+            "actualOutcome": "failed_closed",
+            "diagnosticCodes": [
+              "replay_mismatch"
+            ]
+          },
+          {
+            "smokeId": "negative_raw_transport_bypass",
+            "expectedCode": "raw_transport_bypass",
+            "actualOutcome": "failed_closed",
+            "diagnosticCodes": [
+              "raw_transport_bypass"
+            ]
+          }
+        ]
       }
     },
     {
@@ -527,6 +666,46 @@
       "diagnosticCodes": [
         "missing_visual_contract_proof",
         "visual_contract_candidate_failed"
+      ]
+    },
+    {
+      "smokeId": "negative_missing_runtime_bridge_metadata",
+      "expectedGroup": "runtime_authority_bridge",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "missing_runtime_bridge_metadata"
+      ]
+    },
+    {
+      "smokeId": "negative_runtime_bridge_version_mismatch",
+      "expectedGroup": "runtime_authority_bridge",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "runtime_bridge_version_mismatch"
+      ]
+    },
+    {
+      "smokeId": "negative_runtime_bridge_stale_snapshot",
+      "expectedGroup": "runtime_authority_bridge",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "stale_runtime_snapshot"
+      ]
+    },
+    {
+      "smokeId": "negative_runtime_bridge_replay_mismatch",
+      "expectedGroup": "runtime_authority_bridge",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "replay_mismatch"
+      ]
+    },
+    {
+      "smokeId": "negative_runtime_bridge_raw_transport_bypass",
+      "expectedGroup": "runtime_authority_bridge",
+      "status": "expected_failed_closed",
+      "diagnosticCodes": [
+        "raw_transport_bypass"
       ]
     },
     {

@@ -2,23 +2,29 @@
 
 Task: `asha#3047`
 
-This gate defines what must be true before ASHA Studio may replace its current
-browser-reference `StudioSceneViewModel` / Three.js projection state with
-authoritative runtime or WASM snapshots. It is a readiness contract, not a live
-runtime integration.
+This gate defines what must be true before ASHA Studio may claim authoritative
+runtime evidence beside its browser-reference `StudioSceneViewModel` / Three.js
+projection state. It is a readiness contract for the narrow runtime facade path,
+not permission to import raw transports or make browser projection authoritative.
 
 ## Current status
 
-Current Studio V1 remains **browser/reference** for visual state:
+Current Studio V1 remains **browser/reference** for visual projection, with a
+narrow post-`asha#3220` runtime-authority proof path:
 
-- `@asha/contracts`, `@asha/command-registry`, and `@asha/editor-tools` are the
-  only approved ASHA package roots in source.
-- `@asha/runtime-bridge` remains deferred in package metadata and boundary
-  policy.
-- `native` and `wasm` runtime modes fail closed through `src/compatibility.ts`.
+- `@asha/contracts`, `@asha/command-registry`, `@asha/editor-tools`, and
+  `@asha/runtime-bridge` are approved ASHA package roots in Studio source.
+- `@asha/runtime-bridge` is approved only as the public facade package root for
+  the narrow task `asha#3220` proof path.
+- `native` runtime mode is enabled/ready only when Studio records
+  `runtime-bridge.v0` metadata and satisfies the proof obligations in this gate.
+- `wasm` remains fail-closed until a future task proves an equivalent public
+  facade path and metadata.
+- `@asha/native-bridge` and `@asha/wasm-replay-bridge` remain forbidden Studio
+  imports.
 - Browser/Three.js evidence is useful projection/readback proof, not runtime
-  authority, native execution, Agora compositor capture, hardware GPU evidence,
-  or performance evidence.
+  authority by itself, Agora compositor capture, hardware GPU evidence, or
+  performance evidence.
 
 The machine-readable Studio-side gate lives in
 `src/runtime-bridge-readiness.ts` and can be inspected with
@@ -34,7 +40,7 @@ session/readout/proof artifacts:
 |---|---:|---:|---|
 | `@asha/contracts` | `contracts.v0` | `0.1.0` | Generated semantic DTO/type border. Import root only. |
 | `@asha/command-registry` | `command-registry.v0` | `0.1.0` | Public command identity/catalog surface. Import root only. |
-| `@asha/runtime-bridge` | `runtime-bridge.v0` | `0.1.0` | Public runtime facade. Import root only after boundary policy approval. |
+| `@asha/runtime-bridge` | `runtime-bridge.v0` | `0.1.0` | Public runtime facade for the narrow post-`asha#3220` authority path. Import root only. |
 
 `@asha/native-bridge` and `@asha/wasm-replay-bridge` remain forbidden Studio
 imports. Runtime/native/replay details must be hidden behind the
@@ -42,7 +48,7 @@ imports. Runtime/native/replay details must be hidden behind the
 
 ## Required public DTOs
 
-A future runtime integration task must provide or identify public DTOs for:
+The runtime integration path must provide or identify public DTOs for:
 
 1. runtime bridge compatibility metadata (`runtime-bridge.v0`);
 2. authoritative scene snapshots: object ids, transforms, material refs,
@@ -64,8 +70,8 @@ allowed.
 
 ## Required facade operations
 
-A future runtime integration task must prove the public facade supports bounded,
-typed operations for:
+The runtime integration path must prove the public facade supports bounded, typed
+operations for:
 
 - starting or attaching to an authoritative runtime session;
 - reading an authoritative scene snapshot;
@@ -79,9 +85,8 @@ blob inside Studio.
 
 ## Required proof updates
 
-When runtime authority becomes available, the future integration task must update
-Studio proof artifacts so reviewers can distinguish browser projection from
-runtime authority:
+When Studio claims runtime authority, proof artifacts must distinguish browser
+projection from runtime authority:
 
 - session metadata records `runtimeBridgeVersion: "runtime-bridge.v0"`, the
   runtime mode, ASHA commit, package versions, and operation/facade evidence;
@@ -117,10 +122,10 @@ The gate status is:
 - `ready` only when `runtimeBridgeVersion === "runtime-bridge.v0"`, the requested
   runtime mode is enabled, and compatibility diagnostics contain no errors.
 
-## Checklist for future runtime-integration tasks
+## Checklist for runtime-integration tasks
 
-1. Promote `@asha/runtime-bridge` as an approved Studio package root in
-   `boundary-policy.json` and `package.json` only after the public facade reports
+1. Keep `@asha/runtime-bridge` as the approved Studio package root in
+   `boundary-policy.json` and `package.json` only while the public facade reports
    `runtime-bridge.v0`.
 2. Record `contracts.v0`, `command-registry.v0`, `runtime-bridge.v0`, ASHA commit,
    and package versions in session/readout artifacts.

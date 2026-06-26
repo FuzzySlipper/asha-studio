@@ -16,6 +16,7 @@ function makeFixture(
     '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
     '@asha/contracts': 'link:../asha/ts/packages/contracts',
     '@asha/editor-tools': 'link:../asha/ts/packages/editor-tools',
+    '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
   },
   extraFiles: Record<string, string> = {},
   extraPackageJson: Record<string, unknown> = {},
@@ -54,6 +55,17 @@ test('boundary checker accepts package-root command registry imports', () => {
   }
 });
 
+test('boundary checker accepts package-root runtime bridge imports', () => {
+  const root = makeFixture("import { MANIFEST_OPERATIONS } from '@asha/runtime-bridge';\nconsole.log(MANIFEST_OPERATIONS);\n");
+  try {
+    const result = runChecker(root);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /boundary check: OK/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('boundary checker rejects ASHA package subpath imports', () => {
   const badImport = `import { x } from '${'@asha/command-registry'}/src/internal';\nconsole.log(x);\n`;
   const root = makeFixture(badImport);
@@ -65,7 +77,7 @@ test('boundary checker rejects ASHA package subpath imports', () => {
 });
 
 test('boundary checker rejects unapproved ASHA package-root imports from source', () => {
-  const badImport = `import { createRuntimeBridge } from '${'@asha/runtime-bridge'}';\nconsole.log(createRuntimeBridge);\n`;
+  const badImport = `import { DevtoolsPanel } from '${'@asha/devtools'}';\nconsole.log(DevtoolsPanel);\n`;
   const root = makeFixture(badImport);
   try {
     assertRejected(root, /unapproved ASHA package/);
@@ -81,6 +93,7 @@ test('boundary checker rejects explicitly forbidden raw package imports', () => 
     '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
     '@asha/contracts': 'link:../asha/ts/packages/contracts',
     '@asha/editor-tools': 'link:../asha/ts/packages/editor-tools',
+    '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
     [forbiddenPackage]: 'link:../asha/ts/packages/native-bridge',
   });
   try {

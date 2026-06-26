@@ -229,7 +229,7 @@ async function main(): Promise<void> {
     ],
     knownLimitations: [
       'V1 proof uses software_snapshot functional proof-content evidence, not browser screenshot, Agora capture, hardware GPU, or performance evidence.',
-      'Native runtime bridge execution remains deferred; command application evidence is typed public-contract Studio reference evidence.',
+      'Native runtime bridge execution is proven by the separate proof:runtime-bridge artifact; this V1 proof keeps browser/reference visual evidence as a complementary projection channel.',
     ],
   };
   const failedSteps = proofSteps.filter((step) => step.status !== 'passed');

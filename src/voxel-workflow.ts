@@ -296,7 +296,7 @@ function commandResult(args: {
       renderAfterHash: args.renderAfterHash,
       selectedBefore: null,
       selectedAfter: null,
-      replay: { replayArtifactId: null, replayPath: null, replayHash: null, replayMode: 'unavailable', summary: 'unavailable: runtime bridge replay integration is deferred.' },
+      replay: { replayArtifactId: 'artifact-runtime-bridge-proof-3220', replayPath: 'artifacts/runtime-bridge/latest/index.json', replayHash: null, replayMode: 'native', summary: 'available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes.' },
       compatibility: args.compatibility,
     },
     output: null,

@@ -195,7 +195,7 @@ const editorShellMarkerGroups = [
   {
     groupId: 'top_app_status_bar',
     label: 'ASHA top app/status bar and limitation chips',
-    markers: ['ASHA Studio', 'studio-editor-app-status-bar', 'runtime bridge: deferred', 'native / Agora / GPU: not claimed', 'boundary: public package roots only'],
+    markers: ['ASHA Studio', 'studio-editor-app-status-bar', 'runtime bridge: runtime-bridge.v0', 'native / Agora / GPU: not claimed', 'boundary: public package roots only'],
   },
   {
     groupId: 'left_scene_hierarchy_dock',

@@ -76,6 +76,53 @@ interface VisualContractProof {
   readonly limitations: readonly string[];
 }
 
+interface RuntimeBridgeProof {
+  readonly schemaVersion: 1;
+  readonly artifactKind: 'studio_runtime_bridge_integration_proof';
+  readonly readiness: 'ready' | 'failed_closed';
+  readonly runtimeMode: 'native';
+  readonly authoritySource: 'rust_native_runtime_bridge';
+  readonly replaySource: 'runtime_bridge_quarantined_replay_facade';
+  readonly evidence: {
+    readonly metadata: {
+      readonly compatibilityVersion: string | null;
+      readonly packageVersion: string | null;
+      readonly importedFromPackageRoot: boolean;
+    };
+    readonly operations: {
+      readonly stableOperationCount: number;
+      readonly manifestOperations: readonly { readonly manifestName: string; readonly facadeMethod: string; readonly surface: string }[];
+    };
+    readonly command: {
+      readonly commandId: string;
+      readonly sequenceId: string;
+      readonly runtimeSessionId: string;
+      readonly snapshotBeforeId: string;
+      readonly snapshotAfterId: string;
+      readonly authorityBeforeHash: string;
+      readonly authorityAfterHash: string;
+      readonly commandResult: { readonly accepted: number; readonly rejected: number };
+    };
+    readonly render: {
+      readonly snapshotId: string;
+      readonly renderDiff: { readonly ops: readonly unknown[] };
+      readonly renderReadbackHash: string;
+    };
+    readonly replay: {
+      readonly replayMode: string;
+      readonly replayRecordId: string;
+      readonly replayStep: { readonly hash: string; readonly diverged: boolean };
+      readonly expectedHash: string;
+    };
+    readonly rawTransportImports: readonly string[];
+  };
+  readonly negativeSmokes: readonly {
+    readonly smokeId: string;
+    readonly actualOutcome: string;
+    readonly diagnosticCodes: readonly string[];
+  }[];
+}
+
 type CapabilityStatus = 'ready' | 'failed_closed';
 type DiagnosticSeverity = 'info' | 'warning' | 'error';
 
@@ -88,7 +135,7 @@ interface CapabilityDiagnostic {
 }
 
 interface CapabilityGroup {
-  readonly groupId: 'scene_readback' | 'pick' | 'visual_delta_crop' | 'visual_contract_layout_affordance' | 'command_authority_correlation' | 'non_claim_limitations';
+  readonly groupId: 'scene_readback' | 'pick' | 'visual_delta_crop' | 'visual_contract_layout_affordance' | 'command_authority_correlation' | 'runtime_authority_bridge' | 'non_claim_limitations';
   readonly label: string;
   readonly status: CapabilityStatus;
   readonly diagnostics: readonly CapabilityDiagnostic[];
@@ -105,6 +152,7 @@ interface VisualCapabilityProof {
   readonly inputArtifacts: {
     readonly browserCapture: { readonly path: string; readonly sha256: string; readonly artifactKind: string };
     readonly visualContract: { readonly path: string; readonly sha256: string; readonly artifactKind: string };
+    readonly runtimeBridge?: { readonly path: string; readonly sha256: string; readonly artifactKind: string };
   };
   readonly summary: {
     readonly renderedObjectIds: readonly string[];
@@ -141,6 +189,7 @@ interface VisualCapabilityProof {
 const root = process.cwd();
 const outDir = join(root, 'artifacts', 'visual-capability', 'latest');
 const browserCapturePath = join(root, 'artifacts', 'browser-capture', 'latest', 'index.json');
+const runtimeBridgeProofPath = join(root, 'artifacts', 'runtime-bridge', 'latest', 'index.json');
 const visualContractProofPath = join(root, 'fixtures', 'visual-contract', 'asha-studio-current.proof.json');
 const fixturePath = join(root, 'fixtures', 'studio-visual-capability-proof.sample.json');
 const artifactPath = join(outDir, 'index.json');
@@ -327,6 +376,53 @@ function commandAuthorityGroup(browser: BrowserCaptureArtifact): CapabilityGroup
   };
 }
 
+function runtimeAuthorityGroup(runtime: RuntimeBridgeProof | null, browser: BrowserCaptureArtifact): CapabilityGroup {
+  const groupId = 'runtime_authority_bridge' as const;
+  const diagnostics: CapabilityDiagnostic[] = [];
+  if (runtime === null) {
+    diagnostics.push(diagnostic(groupId, 'missing_runtime_bridge_proof', 'error', 'Runtime bridge integration proof is missing; run pnpm run proof:runtime-bridge first.'));
+    return {
+      groupId,
+      label: 'Runtime bridge authority evidence',
+      status: 'failed_closed',
+      diagnostics,
+      evidence: null,
+    };
+  }
+  if (runtime.artifactKind !== 'studio_runtime_bridge_integration_proof') diagnostics.push(diagnostic(groupId, 'missing_runtime_bridge_proof', 'error', 'Runtime bridge integration proof has the wrong artifact kind.'));
+  if (runtime.readiness !== 'ready') diagnostics.push(diagnostic(groupId, 'runtime_bridge_not_ready', 'error', `Runtime bridge proof readiness is ${runtime.readiness}.`));
+  if (runtime.runtimeMode !== 'native' || runtime.authoritySource !== 'rust_native_runtime_bridge') diagnostics.push(diagnostic(groupId, 'runtime_bridge_not_native_authority', 'error', 'Runtime bridge proof is not classified as native Rust authority.'));
+  if (runtime.evidence.metadata.compatibilityVersion !== 'runtime-bridge.v0') diagnostics.push(diagnostic(groupId, 'runtime_bridge_version_mismatch', 'error', `Runtime bridge compatibility is ${runtime.evidence.metadata.compatibilityVersion ?? 'null'}.`));
+  if (runtime.evidence.metadata.importedFromPackageRoot !== true) diagnostics.push(diagnostic(groupId, 'runtime_bridge_raw_transport_bypass', 'error', 'Runtime bridge proof did not use the package-root facade.'));
+  if (runtime.evidence.command.commandId !== 'authority.voxel.apply_brush') diagnostics.push(diagnostic(groupId, 'runtime_bridge_command_mismatch', 'error', `Runtime command id is ${runtime.evidence.command.commandId}.`));
+  if (!browser.correlation.timelineCommandIds.includes(runtime.evidence.command.commandId)) diagnostics.push(diagnostic(groupId, 'runtime_bridge_timeline_mismatch', 'error', 'Runtime command is absent from the browser/Studio command timeline.'));
+  if (runtime.evidence.command.snapshotBeforeId === runtime.evidence.command.snapshotAfterId || runtime.evidence.command.authorityBeforeHash === runtime.evidence.command.authorityAfterHash) diagnostics.push(diagnostic(groupId, 'runtime_bridge_stale_snapshot', 'error', 'Runtime before/after authority snapshot did not change.'));
+  if (runtime.evidence.command.commandResult.rejected !== 0) diagnostics.push(diagnostic(groupId, 'runtime_bridge_command_rejected', 'error', `Runtime command rejected ${runtime.evidence.command.commandResult.rejected} command(s).`));
+  if (!Array.isArray(runtime.evidence.render.renderDiff.ops)) diagnostics.push(diagnostic(groupId, 'runtime_bridge_render_readback_missing', 'error', 'Runtime render readback did not return a contract-shaped RenderFrameDiff.'));
+  if (runtime.evidence.render.snapshotId !== runtime.evidence.command.snapshotAfterId) diagnostics.push(diagnostic(groupId, 'runtime_bridge_render_snapshot_mismatch', 'error', 'Runtime render readback is not linked to the after snapshot.'));
+  if (runtime.evidence.replay.replayStep.diverged || runtime.evidence.replay.replayStep.hash !== runtime.evidence.replay.expectedHash) diagnostics.push(diagnostic(groupId, 'runtime_bridge_replay_mismatch', 'error', 'Runtime bridge replay evidence diverged.'));
+  if (runtime.evidence.rawTransportImports.length > 0) diagnostics.push(diagnostic(groupId, 'runtime_bridge_raw_transport_bypass', 'error', 'Runtime bridge proof referenced forbidden raw transport imports.'));
+  return {
+    groupId,
+    label: 'Runtime bridge authority evidence',
+    status: statusFrom(diagnostics),
+    diagnostics,
+    evidence: {
+      runtimeMode: runtime.runtimeMode,
+      authoritySource: runtime.authoritySource,
+      replaySource: runtime.replaySource,
+      compatibilityVersion: runtime.evidence.metadata.compatibilityVersion,
+      packageVersion: runtime.evidence.metadata.packageVersion,
+      stableOperationCount: runtime.evidence.operations.stableOperationCount,
+      manifestOperations: runtime.evidence.operations.manifestOperations.map((operation) => operation.manifestName),
+      command: runtime.evidence.command,
+      render: runtime.evidence.render,
+      replay: runtime.evidence.replay,
+      negativeSmokes: runtime.negativeSmokes,
+    },
+  };
+}
+
 function limitationsGroup(browser: BrowserCaptureArtifact, visualContract: VisualContractProof): CapabilityGroup {
   const groupId = 'non_claim_limitations' as const;
   const diagnostics: CapabilityDiagnostic[] = [];
@@ -348,13 +444,14 @@ function limitationsGroup(browser: BrowserCaptureArtifact, visualContract: Visua
   };
 }
 
-export function buildProof(browser: BrowserCaptureArtifact, visualContract: VisualContractProof, inputHashes: VisualCapabilityProof['inputArtifacts']): VisualCapabilityProof {
+export function buildProof(browser: BrowserCaptureArtifact, visualContract: VisualContractProof, inputHashes: VisualCapabilityProof['inputArtifacts'], runtimeBridge: RuntimeBridgeProof | null = null): VisualCapabilityProof {
   const groups = [
     sceneReadbackGroup(browser),
     pickGroup(browser),
     visualDeltaGroup(browser),
     visualContractGroup(visualContract),
     commandAuthorityGroup(browser),
+    runtimeAuthorityGroup(runtimeBridge, browser),
     limitationsGroup(browser, visualContract),
   ] satisfies readonly CapabilityGroup[];
   const ready = groups.every((group) => group.status === 'ready');
@@ -379,7 +476,7 @@ export function buildProof(browser: BrowserCaptureArtifact, visualContract: Visu
       beforeCropPath: browser.viewportVisualDelta?.beforeCrop.cropPath ?? null,
       afterCropPath: browser.viewportVisualDelta?.afterCrop.cropPath ?? null,
       visualContractRunIds: [visualContract.currentCompare.runId, visualContract.negativeCompare.runId],
-      nonClaims: ['not_native_runtime', 'not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence'],
+      nonClaims: ['not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence'],
     },
     capabilityGroups: groups,
     optionalBackends: [
@@ -399,6 +496,11 @@ export function buildProof(browser: BrowserCaptureArtifact, visualContract: Visu
       { smokeId: 'negative_missing_pick_evidence', expectedGroup: 'pick', status: 'expected_failed_closed', diagnosticCodes: ['missing_pick_evidence'] },
       { smokeId: 'negative_stale_visual_delta', expectedGroup: 'visual_delta_crop', status: 'expected_failed_closed', diagnosticCodes: ['stale_visual_delta_scene_hash', 'stale_visual_delta_crop_hash'] },
       { smokeId: 'negative_missing_failed_visual_contract_proof', expectedGroup: 'visual_contract_layout_affordance', status: 'expected_failed_closed', diagnosticCodes: ['missing_visual_contract_proof', 'visual_contract_candidate_failed'] },
+      { smokeId: 'negative_missing_runtime_bridge_metadata', expectedGroup: 'runtime_authority_bridge', status: 'expected_failed_closed', diagnosticCodes: ['missing_runtime_bridge_metadata'] },
+      { smokeId: 'negative_runtime_bridge_version_mismatch', expectedGroup: 'runtime_authority_bridge', status: 'expected_failed_closed', diagnosticCodes: ['runtime_bridge_version_mismatch'] },
+      { smokeId: 'negative_runtime_bridge_stale_snapshot', expectedGroup: 'runtime_authority_bridge', status: 'expected_failed_closed', diagnosticCodes: ['stale_runtime_snapshot'] },
+      { smokeId: 'negative_runtime_bridge_replay_mismatch', expectedGroup: 'runtime_authority_bridge', status: 'expected_failed_closed', diagnosticCodes: ['replay_mismatch'] },
+      { smokeId: 'negative_runtime_bridge_raw_transport_bypass', expectedGroup: 'runtime_authority_bridge', status: 'expected_failed_closed', diagnosticCodes: ['raw_transport_bypass'] },
       { smokeId: 'negative_unsupported_evidence_claims', expectedGroup: 'non_claim_limitations', status: 'expected_failed_closed', diagnosticCodes: ['unsupported_gpu_claim'] },
     ],
   };
@@ -406,11 +508,13 @@ export function buildProof(browser: BrowserCaptureArtifact, visualContract: Visu
 
 function main(): void {
   const browserInput = readJsonWithHash<BrowserCaptureArtifact>(browserCapturePath);
+  const runtimeInput = readJsonWithHash<RuntimeBridgeProof>(runtimeBridgeProofPath);
   const visualContractInput = readJsonWithHash<VisualContractProof>(visualContractProofPath);
   const proof = buildProof(browserInput.value, visualContractInput.value, {
     browserCapture: { path: relative(root, browserCapturePath), sha256: browserInput.sha256, artifactKind: browserInput.value.artifactKind },
+    runtimeBridge: { path: relative(root, runtimeBridgeProofPath), sha256: runtimeInput.sha256, artifactKind: runtimeInput.value.artifactKind },
     visualContract: { path: relative(root, visualContractProofPath), sha256: visualContractInput.sha256, artifactKind: visualContractInput.value.artifactKind },
-  });
+  }, runtimeInput.value);
   mkdirSync(outDir, { recursive: true });
   writeFileSync(artifactPath, `${JSON.stringify(proof, null, 2)}\n`);
   writeFileSync(fixturePath, `${JSON.stringify(proof, null, 2)}\n`);

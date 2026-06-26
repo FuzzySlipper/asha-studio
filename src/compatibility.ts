@@ -91,7 +91,7 @@ export interface StudioPackageSurfaceReadback {
 }
 
 export const STUDIO_EVIDENCE_DEFERRED_VERSION = 'studio-evidence.deferred-v0';
-export const SUPPORTED_RUNTIME_MODES: readonly StudioRuntimeMode[] = ['mock', 'reference', 'unavailable'];
+export const SUPPORTED_RUNTIME_MODES: readonly StudioRuntimeMode[] = ['mock', 'reference', 'native', 'unavailable'];
 
 const ASHA_PACKAGE_LINK_ROOT = ['link:..', 'asha', 'ts', 'packages'].join('/');
 
@@ -130,11 +130,11 @@ export const ASHA_COMPATIBILITY_REQUIREMENTS: readonly StudioCompatibilityRequir
     packageName: '@asha/runtime-bridge',
     compatibilityVersion: 'runtime-bridge.v0',
     packageVersion: '0.1.0',
-    packageLink: null,
+    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/runtime-bridge`,
     requiredForStartup: false,
-    presentInStudio: false,
+    presentInStudio: true,
     owningLane: 'rust-bridge',
-    source: 'ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it',
+    source: 'ts/packages/runtime-bridge/compatibility.json; task asha#3220 approved the public Studio package-root link',
   },
 ];
 

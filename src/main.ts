@@ -51,7 +51,7 @@ function renderTopBar(model: StudioShell): HTMLElement {
   for (const chip of [
     { text: model.compatibility.contractsVersion, visualId: 'contracts_version_label', visualRole: 'compatibility_label' },
     { text: model.compatibility.commandRegistryVersion, visualId: 'command_registry_version_label', visualRole: 'compatibility_label' },
-    { text: `runtime bridge: ${model.compatibility.runtimeBridgeVersion ?? 'deferred'}`, visualId: 'runtime_deferred_limitation', visualRole: 'limitation_label' },
+    { text: `runtime bridge: ${model.compatibility.runtimeBridgeVersion ?? 'missing'}`, visualId: 'runtime_bridge_marker', visualRole: 'compatibility_label' },
     { text: 'native / Agora / GPU: not claimed', visualId: 'no_agora_gpu_native_claim_limitation', visualRole: 'limitation_label' },
     { text: 'boundary: public package roots only', visualId: 'public_package_boundary_label', visualRole: 'limitation_label' },
   ]) {
@@ -205,7 +205,7 @@ function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3d
   for (const limitation of [
     { text: 'projection: software_snapshot_reference', visualId: 'software_snapshot_reference_limitation' },
     { text: 'source: shared workspace/readout state', visualId: 'shared_workspace_source_label' },
-    { text: 'runtime bridge: deferred — no live execution claimed', visualId: 'viewport_runtime_deferred_limitation' },
+    { text: 'runtime bridge: native authority proven by proof:runtime-bridge', visualId: 'viewport_runtime_bridge_authority' },
     { text: 'native / Agora / GPU: not claimed', visualId: 'viewport_no_agora_gpu_native_claim_limitation' },
   ]) {
     footer.append(markVisual(el('span', 'viewport-limitation-chip', limitation.text), limitation.visualId, 'limitation_label'));

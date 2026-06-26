@@ -31,13 +31,13 @@ test('runtime bridge readiness gate is deferred and non-blocking for current ref
   assert.equal(gate.status, 'deferred');
   assert.equal(gate.requiredCompatibility.packageName, '@asha/runtime-bridge');
   assert.equal(gate.requiredCompatibility.compatibilityVersion, 'runtime-bridge.v0');
-  assert.equal(gate.requiredCompatibility.approvedStudioImport, false);
-  assert.ok(gate.diagnostics.some((diagnostic) => diagnostic.code === 'asha.runtime_bridge_readiness.deferred_for_reference_mode' && diagnostic.severity === 'warning'));
+  assert.equal(gate.requiredCompatibility.approvedStudioImport, true);
+  assert.deepEqual(gate.diagnostics, []);
   assert.ok(gate.nonClaimsUntilReady.includes('browser_projection_only_until_runtime_snapshot_and_replay_evidence_exist'));
 });
 
 test('runtime bridge readiness gate fails closed for native mode when bridge metadata is absent', () => {
-  const gate = evaluateRuntimeBridgeReadinessGate(buildCurrentCompatibilityEvidence(), 'native');
+  const gate = evaluateRuntimeBridgeReadinessGate({ ...buildCurrentCompatibilityEvidence(), runtimeBridgeVersion: null, supportedRuntimeModes: ['mock', 'reference', 'unavailable'] }, 'native');
   assert.equal(gate.status, 'failed_closed');
   assert.ok(gate.diagnostics.some((diagnostic) => diagnostic.code === 'asha.compatibility.runtime_bridge_missing' && diagnostic.severity === 'error'));
   assert.ok(gate.diagnostics.some((diagnostic) => diagnostic.code === 'asha.runtime_bridge_readiness.runtime_bridge_absent' && diagnostic.severity === 'error'));
@@ -51,7 +51,7 @@ test('runtime bridge readiness gate fails closed for mismatched runtime bridge c
 });
 
 test('runtime bridge readiness gate can become ready only with matching bridge metadata and enabled runtime mode', () => {
-  const gate = evaluateRuntimeBridgeReadinessGate(runtimeReadyEvidence(), 'native');
+  const gate = evaluateRuntimeBridgeReadinessGate(buildCurrentCompatibilityEvidence(), 'native');
   assert.equal(gate.status, 'ready');
   assert.equal(gate.diagnostics.length, 0);
 });

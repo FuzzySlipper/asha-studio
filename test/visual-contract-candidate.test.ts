@@ -81,7 +81,7 @@ test('current Studio visual-contract candidate carries stable ASHA DOM markers',
     assert.equal(object.role ?? object.domain_role, expectedRoles[id]);
     assert.ok(object.evidence_refs?.includes(`web_node:${id}`), `missing web_node evidence ref for ${id}`);
   }
-  for (const id of ['runtime_deferred_limitation', 'no_agora_gpu_native_claim_limitation', 'selection_outline', 'preview_ghost', 'axis_gizmo', 'applied_state_renderable']) {
+  for (const id of ['runtime_bridge_marker', 'viewport_runtime_bridge_authority', 'no_agora_gpu_native_claim_limitation', 'selection_outline', 'preview_ghost', 'axis_gizmo', 'applied_state_renderable']) {
     assert.ok(objects.has(id), `missing visual affordance marker ${id}`);
   }
 

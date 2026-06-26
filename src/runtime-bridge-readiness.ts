@@ -228,7 +228,7 @@ export function evaluateRuntimeBridgeReadinessGate(
       packageName: '@asha/runtime-bridge',
       compatibilityVersion: 'runtime-bridge.v0',
       packageVersion: '0.1.0',
-      approvedStudioImport: false,
+      approvedStudioImport: true,
       requiredForRuntimeAuthority: true,
     },
     requiredPublicDtos: REQUIRED_RUNTIME_BRIDGE_DTOS,

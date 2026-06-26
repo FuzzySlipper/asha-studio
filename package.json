@@ -16,15 +16,17 @@
     "proof:inspector": "pnpm run verify && tsx scripts/selected-entity-inspector-proof.ts && node scripts/readback-selected-entity-inspector-proof.mjs",
     "proof:gizmo": "pnpm run verify && tsx scripts/transform-gizmo-proof.ts && node scripts/readback-transform-gizmo-proof.mjs",
     "proof:agora-compositor": "pnpm run build && tsx scripts/agora-compositor-capture.ts && node scripts/readback-agora-compositor-capture.mjs",
+    "proof:runtime-bridge": "pnpm run build && tsx scripts/runtime-bridge-proof.ts && node scripts/readback-runtime-bridge-proof.mjs",
     "proof:browser": "pnpm run proof:v1 && tsx scripts/browser-visual-capture.ts && node scripts/readback-browser-capture.mjs",
     "proof:visual-contract": "pnpm run build && tsx scripts/visual-contract-candidate.ts && node scripts/readback-visual-contract-candidate.mjs",
-    "proof:visual-capability": "pnpm run proof:browser && pnpm run proof:visual-contract && tsx scripts/visual-capability-proof.ts && node scripts/readback-visual-capability-proof.mjs",
+    "proof:visual-capability": "pnpm run proof:runtime-bridge && pnpm run proof:browser && pnpm run proof:visual-contract && tsx scripts/visual-capability-proof.ts && node scripts/readback-visual-capability-proof.mjs",
     "verify": "pnpm run check:boundaries && pnpm run test && pnpm run build && pnpm run smoke:static"
   },
   "dependencies": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
+    "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge",
     "three": "^0.184.0"
   },
   "devDependencies": {
@@ -39,11 +41,11 @@
     "allowedAshaPackages": [
       "@asha/command-registry",
       "@asha/contracts",
-      "@asha/editor-tools"
+      "@asha/editor-tools",
+      "@asha/runtime-bridge"
     ],
     "deferredPublicPackages": [
       "@asha/studio-evidence",
-      "@asha/runtime-bridge",
       "@asha/devtools",
       "@asha/renderer-three"
     ],
@@ -53,7 +55,8 @@
       "Task 3217 adds the ASHA Studio selected entity inspector read/edit surface: src/selected-entity-inspector.ts projects the shared scene-view selected entity into identity/provenance/transform readback plus a typed field list, and adds one editable field (name) routed through the new public entity.set_name command on the shared GUI/agent timeline. The applied display name updates the viewport 3D readback (selectedEntityName + selected-entity-name marker) and is exported in the agent readout. The inspector fails closed with classified diagnostics on missing_selected_entity, inspector_readback_drift, stale_inspector_state, unsupported_field_edit, and edit_command_mismatch; transform/material/provenance fields are read-only browser/reference readback and make no Rust/WASM/native/Agora/GPU/performance claims. Verified by pnpm run proof:inspector.",
       "Task 3216 adds the ASHA Studio entity browser / hierarchy selection sync: src/entity-browser.ts projects StudioSceneViewModel renderables into a deterministic entity list (entity ids, labels, asset/material/source-state badges, selected state), syncs hierarchy selection to the viewport selected renderable through the public selection.set_active_entity command on the shared timeline, exports readback in the agent readout, and fails closed with classified diagnostics on hierarchy/readback drift, missing selected entity, stale entity-list hash, or unsupported/private entity sources. The browser is a projection, not a private ECS or product asset DB, and makes no Rust/WASM/native/Agora/GPU/performance claims.",
       "Task 3215 adds a real demo asset loading path through the public scene.load_asset command: a demo asset package (Catalog/AssetLock/FlatSceneDocument over @asha/contracts), a loader that emits a retained-mode render diff and named renderable ids, viewport projection of the loaded asset, structured provenance readback, and fail-closed negative smokes (missing/unsupported/material-mismatch/stale-lock-drift). Placement is browser/reference render-diff projection only and does not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence; refresh proof:browser/proof:visual-capability in a Chromium environment to recapture the viewport with the loaded asset.",
-      "Task 3047 defines the runtime bridge readiness gate in docs/runtime-bridge-readiness-gate.md and src/runtime-bridge-readiness.ts; native/WASM authority remains fail-closed until @asha/runtime-bridge is an approved Studio public surface with runtime-bridge.v0 compatibility and runtime proof obligations.",
+      "Task 3220 promotes @asha/runtime-bridge as an approved Studio public package root and adds pnpm run proof:runtime-bridge: a native runtime facade proof that records runtime-bridge.v0 metadata, exercises initializeEngine/loadWorldBundle/submitCommands/stepSimulation/readRenderDiffs/saveCurrentWorld/getCompositionStatus through the public facade, links authority.voxel.apply_brush to runtime snapshot ids and before/after authority hashes, and uses the quarantined runtime facade replay surface for replay evidence without importing raw native/WASM transports. Negative smokes fail closed on missing/mismatched bridge metadata, missing operation, stale snapshot, replay mismatch, and raw transport bypass.",
+      "Task 3047 defines the runtime bridge readiness gate in docs/runtime-bridge-readiness-gate.md and src/runtime-bridge-readiness.ts; native runtime bridge authority now requires @asha/runtime-bridge runtime-bridge.v0 metadata and the task 3220 proof obligations, while direct @asha/native-bridge and @asha/wasm-replay-bridge imports remain forbidden.",
       "Task 3046 consolidates scene/readback, pick, visual-delta crop, command/hash correlation, deployed visual-contract layout evidence, and non-claim guardrails into one agent-facing visual capability proof; it remains browser/reference/layout evidence only and does not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
       "Task 3123 adds ASHA visual-contract candidate markers and proof generation for browser layout/affordance evidence only; visual-contract passes do not claim Rust/WASM authority, native runtime, Agora compositor, hardware GPU, or performance evidence.",
       "Task 3045 adds viewport visual delta/crop proof with same-region edit-anchor crops sourced from distinct before/after viewport phase screenshots, before/after scene and crop hashes, linked command/source-state IDs, and stale-readback fail-closed guards.",

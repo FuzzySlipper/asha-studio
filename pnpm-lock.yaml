@@ -17,6 +17,9 @@ importers:
       '@asha/editor-tools':
         specifier: link:../asha/ts/packages/editor-tools
         version: link:../asha/ts/packages/editor-tools
+      '@asha/runtime-bridge':
+        specifier: link:../asha/ts/packages/runtime-bridge
+        version: link:../asha/ts/packages/runtime-bridge
       three:
         specifier: ^0.184.0
         version: 0.184.0

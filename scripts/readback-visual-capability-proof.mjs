@@ -48,12 +48,16 @@ if (proof.proofCommand !== 'pnpm run proof:visual-capability') fail(`proofComman
 
 const browserPath = proof.inputArtifacts?.browserCapture?.path;
 const visualContractPath = proof.inputArtifacts?.visualContract?.path;
+const runtimeBridgePath = proof.inputArtifacts?.runtimeBridge?.path;
 requirePath(browserPath, 'browser capture input');
 requirePath(visualContractPath, 'visual-contract input');
+requirePath(runtimeBridgePath, 'runtime bridge input');
 if (sha256Text(readFileSync(join(root, browserPath), 'utf8')) !== proof.inputArtifacts.browserCapture.sha256) fail('browser capture input hash mismatch');
 if (sha256Text(readFileSync(join(root, visualContractPath), 'utf8')) !== proof.inputArtifacts.visualContract.sha256) fail('visual-contract input hash mismatch');
+if (sha256Text(readFileSync(join(root, runtimeBridgePath), 'utf8')) !== proof.inputArtifacts.runtimeBridge.sha256) fail('runtime bridge input hash mismatch');
 if (proof.inputArtifacts.browserCapture.artifactKind !== 'browser_visual_capture_proof') fail('browser input kind mismatch');
 if (proof.inputArtifacts.visualContract.artifactKind !== 'asha_studio_current_visual_contract_proof') fail('visual-contract input kind mismatch');
+if (proof.inputArtifacts.runtimeBridge.artifactKind !== 'studio_runtime_bridge_integration_proof') fail('runtime bridge input kind mismatch');
 
 const scene = requireReadyGroup(proof, 'scene_readback');
 if (scene.evidence?.visibleRenderableCount < 1) fail('scene group visible renderable count missing');
@@ -99,12 +103,27 @@ for (const commandId of ['inspection.editor_state', 'selection.voxel_from_screen
 if (command.evidence?.visualHashDelta?.changed !== true) fail('command visual hash delta did not change');
 if (command.evidence?.reviewCaptureReadiness !== 'ready') fail('command review capture readiness is not ready');
 
+const runtime = requireReadyGroup(proof, 'runtime_authority_bridge');
+if (runtime.evidence?.runtimeMode !== 'native') fail('runtime bridge group must use native mode');
+if (runtime.evidence?.authoritySource !== 'rust_native_runtime_bridge') fail('runtime bridge authority source mismatch');
+if (runtime.evidence?.compatibilityVersion !== 'runtime-bridge.v0') fail('runtime bridge compatibility mismatch');
+if (runtime.evidence?.command?.commandId !== 'authority.voxel.apply_brush') fail('runtime bridge command mismatch');
+if (runtime.evidence?.command?.commandResult?.rejected !== 0) fail('runtime bridge command rejected commands');
+if (runtime.evidence?.command?.authorityBeforeHash === runtime.evidence?.command?.authorityAfterHash) fail('runtime bridge authority hashes did not change');
+if (runtime.evidence?.render?.snapshotId !== runtime.evidence?.command?.snapshotAfterId) fail('runtime render readback snapshot mismatch');
+if (!Array.isArray(runtime.evidence?.render?.renderDiff?.ops)) fail('runtime render diff ops missing');
+if (runtime.evidence?.replay?.replayStep?.diverged !== false) fail('runtime replay diverged');
+if (runtime.evidence?.replay?.replayStep?.hash !== runtime.evidence?.replay?.expectedHash) fail('runtime replay hash mismatch');
+for (const required of ['initialize_engine', 'submit_commands', 'read_render_diffs', 'load_replay_fixture', 'run_replay_step']) {
+  if (!runtime.evidence?.manifestOperations?.includes(required)) fail(`runtime bridge group missing operation ${required}`);
+}
+
 const limitations = requireReadyGroup(proof, 'non_claim_limitations');
 if (limitations.evidence?.captureBackend?.gpuClaim !== 'not_claimed') fail('limitations group must preserve gpuClaim not_claimed');
 for (const claim of proof.summary?.nonClaims ?? []) {
   if (!String(claim).startsWith('not_')) fail(`non-claim marker malformed: ${claim}`);
 }
-for (const expected of ['not_native_runtime', 'not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
+for (const expected of ['not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
   if (!proof.summary?.nonClaims?.includes(expected)) fail(`summary missing non-claim ${expected}`);
 }
 
@@ -115,7 +134,7 @@ if (agora.captureBackend !== 'agora_compositor' || agora.captureMode !== 'compos
 if (agora.required !== false || agora.integration !== 'additive') fail('agora optional backend must be additive and not required');
 if (agora.proofCommand !== 'pnpm run proof:agora-compositor') fail('agora optional backend proofCommand mismatch');
 // The required browser-screenshot non-claims must remain intact even with the optional backend declared.
-for (const expected of ['not_native_runtime', 'not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
+for (const expected of ['not_wasm_authority', 'not_agora_compositor', 'not_hardware_gpu', 'not_performance_evidence']) {
   if (!proof.summary?.nonClaims?.includes(expected)) fail(`optional backend must not remove non-claim ${expected}`);
 }
 
@@ -125,6 +144,11 @@ const expectedSmokes = {
   negative_missing_pick_evidence: ['missing_pick_evidence'],
   negative_stale_visual_delta: ['stale_visual_delta_scene_hash', 'stale_visual_delta_crop_hash'],
   negative_missing_failed_visual_contract_proof: ['missing_visual_contract_proof', 'visual_contract_candidate_failed'],
+  negative_missing_runtime_bridge_metadata: ['missing_runtime_bridge_metadata'],
+  negative_runtime_bridge_version_mismatch: ['runtime_bridge_version_mismatch'],
+  negative_runtime_bridge_stale_snapshot: ['stale_runtime_snapshot'],
+  negative_runtime_bridge_replay_mismatch: ['replay_mismatch'],
+  negative_runtime_bridge_raw_transport_bypass: ['raw_transport_bypass'],
   negative_unsupported_evidence_claims: ['unsupported_gpu_claim'],
 };
 for (const [smokeId, codes] of Object.entries(expectedSmokes)) {

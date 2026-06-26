@@ -11,7 +11,7 @@
     "contractsVersion": "contracts.v0",
     "commandRegistryVersion": "command-registry.v0",
     "studioEvidenceVersion": "studio-evidence.deferred-v0",
-    "runtimeBridgeVersion": null,
+    "runtimeBridgeVersion": "runtime-bridge.v0",
     "ashaCommit": null,
     "ashaPackageVersions": [
       {
@@ -28,12 +28,18 @@
         "packageName": "@asha/editor-tools",
         "version": "0.1.0",
         "commit": null
+      },
+      {
+        "packageName": "@asha/runtime-bridge",
+        "version": "0.1.0",
+        "commit": null
       }
     ],
     "studioCommit": null,
     "supportedRuntimeModes": [
       "mock",
       "reference",
+      "native",
       "unavailable"
     ]
   },
@@ -105,17 +111,8 @@
     }
   ],
   "knownLimitations": [
-    "Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface.",
+    "Native runtime bridge integration is available through the approved @asha/runtime-bridge package root and remains guarded by the task 3220 proof/readback path.",
     "Studio evidence schema package is deferred; session metadata records compatibility only."
   ],
-  "diagnostics": [
-    {
-      "severity": "warning",
-      "code": "asha.compatibility.runtime_bridge_deferred",
-      "message": "@asha/runtime-bridge is not present in this Studio build; command execution must remain unavailable or mock/reference only.",
-      "owningLane": "rust-bridge",
-      "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
-      "remediation": "Track the runtime bridge integration task before enabling command execution."
-    }
-  ]
+  "diagnostics": []
 }

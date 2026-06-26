@@ -219,13 +219,13 @@ export function createStudioModelMaterialPreviewModel(options: {
     surfaceFindings: [
       { surface: '@asha/contracts', status: 'available_public', evidence: 'CatalogEntry/MaterialProjection/StaticMeshAsset/RenderFrameDiff plus ModelMaterialPreviewRequest/Snapshot are exported from the @asha/contracts package root.' },
       { surface: '@asha/command-registry', status: 'available_public', evidence: 'ASHA command registry exposes inspection.material, inspection.model, and preview.model_material command identities.' },
-      { surface: '@asha/runtime-bridge', status: 'deferred', evidence: 'ASHA now defines a public read_model_material_preview bridge operation, but this Studio slice still avoids runtime transport imports until runtime-bridge compatibility is approved here.' },
+      { surface: '@asha/runtime-bridge', status: 'available_public', evidence: 'ASHA defines a public read_model_material_preview bridge operation; native model/material readback may still fail closed until that specific operation is wired.' },
       { surface: '@asha/renderer-three', status: 'not_required_for_reference_preview', evidence: 'This narrow Studio preview records contract render-diff descriptors and SVG proof content without importing renderer internals.' },
     ],
     blockingFeatureRequests: [],
     knownLimitations: [
       'Preview uses public @asha/contracts DTOs and Studio-owned SVG proof content; it does not import renderer internals or claim native runtime rendering.',
-      'ASHA public command/runtime surfaces now exist upstream for model/material preview, but Studio runtime transport consumption remains deferred until @asha/runtime-bridge compatibility is approved for this repo.',
+      'ASHA public command/runtime surfaces exist upstream for model/material preview; native readback for this specific operation remains fail-closed until wired behind @asha/runtime-bridge.',
     ],
   };
   return {

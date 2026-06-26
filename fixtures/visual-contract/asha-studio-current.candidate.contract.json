@@ -61,7 +61,7 @@
         "preview_state_marker",
         "public_package_boundary_label",
         "run_proof_button",
-        "runtime_deferred_limitation",
+        "runtime_bridge_marker",
         "scene_hierarchy",
         "selected_target_inspector",
         "selection_outline",
@@ -70,7 +70,7 @@
         "studio_app_status_bar",
         "transform_gizmo",
         "viewport_no_agora_gpu_native_claim_limitation",
-        "viewport_runtime_deferred_limitation"
+        "viewport_runtime_bridge_authority"
       ]
     },
     {
@@ -162,12 +162,12 @@
       "bounds": {
         "space": "viewport",
         "x": 0.033854166666666664,
-        "y": 0.012037037037037037,
+        "y": 0.027777777777777776,
         "w": 0.0640625,
         "h": 0.026851851851851852,
         "px": {
           "x": 65,
-          "y": 13,
+          "y": 30,
           "w": 123,
           "h": 29
         }
@@ -197,12 +197,12 @@
       "bounds": {
         "space": "viewport",
         "x": 0.3625,
-        "y": 0.010185185185185186,
+        "y": 0.008333333333333333,
         "w": 0.049479166666666664,
         "h": 0.028703703703703703,
         "px": {
           "x": 696,
-          "y": 11,
+          "y": 9,
           "w": 95,
           "h": 31
         }
@@ -232,12 +232,12 @@
       "bounds": {
         "space": "viewport",
         "x": 0.4161458333333333,
-        "y": 0.010185185185185186,
+        "y": 0.008333333333333333,
         "w": 0.07864583333333333,
         "h": 0.028703703703703703,
         "px": {
           "x": 799,
-          "y": 11,
+          "y": 9,
           "w": 151,
           "h": 31
         }
@@ -258,29 +258,29 @@
       }
     },
     {
-      "id": "runtime_deferred_limitation",
+      "id": "runtime_bridge_marker",
       "kind": "text",
-      "role": "limitation_label",
+      "role": "compatibility_label",
       "parent": "studio_app_status_bar",
       "layer": "z_0",
-      "text": "runtime bridge: deferred",
+      "text": "runtime bridge: runtime-bridge.v0",
       "bounds": {
         "space": "viewport",
         "x": 0.49895833333333334,
-        "y": 0.010185185185185186,
-        "w": 0.09010416666666667,
+        "y": 0.008333333333333333,
+        "w": 0.12083333333333333,
         "h": 0.028703703703703703,
         "px": {
           "x": 958,
-          "y": 11,
-          "w": 173,
+          "y": 9,
+          "w": 232,
           "h": 31
         }
       },
       "importance": "major",
       "confidence": 0.96,
       "evidence_refs": [
-        "web_node:runtime_deferred_limitation"
+        "web_node:runtime_bridge_marker"
       ],
       "style": {
         "background": "rgba(9, 14, 28, 0.62)",
@@ -301,13 +301,13 @@
       "text": "native / Agora / GPU: not claimed",
       "bounds": {
         "space": "viewport",
-        "x": 0.5932291666666667,
-        "y": 0.010185185185185186,
+        "x": 0.6234375,
+        "y": 0.008333333333333333,
         "w": 0.11666666666666667,
         "h": 0.028703703703703703,
         "px": {
-          "x": 1139,
-          "y": 11,
+          "x": 1197,
+          "y": 9,
           "w": 224,
           "h": 31
         }
@@ -336,13 +336,13 @@
       "text": "boundary: public package roots only",
       "bounds": {
         "space": "viewport",
-        "x": 0.7140625,
-        "y": 0.010185185185185186,
+        "x": 0.3625,
+        "y": 0.044444444444444446,
         "w": 0.12708333333333333,
         "h": 0.028703703703703703,
         "px": {
-          "x": 1371,
-          "y": 11,
+          "x": 696,
+          "y": 48,
           "w": 244,
           "h": 31
         }
@@ -372,12 +372,12 @@
       "bounds": {
         "space": "viewport",
         "x": 0.8546875,
-        "y": 0.010185185185185186,
+        "y": 0.026851851851851852,
         "w": 0.084375,
         "h": 0.028703703703703703,
         "px": {
           "x": 1641,
-          "y": 11,
+          "y": 29,
           "w": 162,
           "h": 31
         }
@@ -407,12 +407,12 @@
       "bounds": {
         "space": "viewport",
         "x": 0.9432291666666667,
-        "y": 0.010185185185185186,
+        "y": 0.026851851851851852,
         "w": 0.04791666666666667,
         "h": 0.028703703703703703,
         "px": {
           "x": 1811,
-          "y": 11,
+          "y": 29,
           "w": 92,
           "h": 31
         }
@@ -993,29 +993,29 @@
       }
     },
     {
-      "id": "viewport_runtime_deferred_limitation",
+      "id": "viewport_runtime_bridge_authority",
       "kind": "text",
       "role": "limitation_label",
       "parent": "central_3d_viewport",
       "layer": "z_0",
-      "text": "runtime bridge: deferred — no live execution claimed",
+      "text": "runtime bridge: native authority proven by proof:runtime-bridge",
       "bounds": {
         "space": "viewport",
         "x": 0.45416666666666666,
         "y": 0.5824074074074074,
-        "w": 0.17760416666666667,
+        "w": 0.21197916666666666,
         "h": 0.028703703703703703,
         "px": {
           "x": 872,
           "y": 629,
-          "w": 341,
+          "w": 407,
           "h": 31
         }
       },
       "importance": "major",
       "confidence": 0.96,
       "evidence_refs": [
-        "web_node:viewport_runtime_deferred_limitation"
+        "web_node:viewport_runtime_bridge_authority"
       ],
       "style": {
         "background": "rgba(9, 14, 28, 0.72)",
@@ -1036,12 +1036,12 @@
       "text": "native / Agora / GPU: not claimed",
       "bounds": {
         "space": "viewport",
-        "x": 0.6354166666666666,
+        "x": 0.6703125,
         "y": 0.5824074074074074,
         "w": 0.1140625,
         "h": 0.028703703703703703,
         "px": {
-          "x": 1220,
+          "x": 1287,
           "y": 629,
           "w": 219,
           "h": 31
@@ -1752,14 +1752,14 @@
     },
     {
       "type": "inside",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "asha_studio_shell",
       "confidence": 0.9
     },
     {
       "type": "contains",
       "a": "asha_studio_shell",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.9
     },
     {
@@ -2028,14 +2028,14 @@
     },
     {
       "type": "inside",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "asha_studio_shell",
       "confidence": 0.9
     },
     {
       "type": "contains",
       "a": "asha_studio_shell",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.9
     },
     {
@@ -2352,14 +2352,14 @@
     },
     {
       "type": "inside",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "studio_app_status_bar",
       "confidence": 0.9
     },
     {
       "type": "contains",
       "a": "studio_app_status_bar",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.9
     },
     {
@@ -2375,16 +2375,16 @@
       "confidence": 0.9
     },
     {
-      "type": "inside",
+      "type": "below",
       "a": "public_package_boundary_label",
       "b": "studio_app_status_bar",
-      "confidence": 0.9
+      "confidence": 0.84
     },
     {
-      "type": "contains",
+      "type": "above",
       "a": "studio_app_status_bar",
       "b": "public_package_boundary_label",
-      "confidence": 0.9
+      "confidence": 0.84
     },
     {
       "type": "inside",
@@ -2628,14 +2628,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "studio_app_status_bar",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "studio_app_status_bar",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -2927,6 +2927,18 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "node_2",
+      "b": "contracts_version_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "contracts_version_label",
+      "b": "node_2",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
       "a": "command_registry_version_label",
       "b": "node_2",
@@ -2939,15 +2951,39 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "node_2",
+      "b": "command_registry_version_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "command_registry_version_label",
+      "b": "node_2",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_2",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_2",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_2",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "node_2",
       "confidence": 0.84
     },
     {
@@ -2963,6 +2999,18 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "node_2",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_2",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
       "a": "public_package_boundary_label",
       "b": "node_2",
@@ -2970,6 +3018,18 @@
     },
     {
       "type": "left_of",
+      "a": "node_2",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "public_package_boundary_label",
+      "b": "node_2",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
       "a": "node_2",
       "b": "public_package_boundary_label",
       "confidence": 0.84
@@ -3348,26 +3408,26 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_2",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_2",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_2",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_2",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -3776,14 +3836,14 @@
     },
     {
       "type": "right_of",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "contracts_version_label",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "contracts_version_label",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
@@ -3799,16 +3859,24 @@
       "confidence": 0.84
     },
     {
-      "type": "right_of",
+      "type": "below",
       "a": "public_package_boundary_label",
       "b": "contracts_version_label",
       "confidence": 0.84
     },
     {
-      "type": "left_of",
+      "type": "above",
       "a": "contracts_version_label",
       "b": "public_package_boundary_label",
       "confidence": 0.84
+    },
+    {
+      "type": "aligned_left",
+      "items": [
+        "contracts_version_label",
+        "public_package_boundary_label"
+      ],
+      "confidence": 0.82
     },
     {
       "type": "right_of",
@@ -3823,6 +3891,18 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "export_review_artifact_button",
+      "b": "contracts_version_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "contracts_version_label",
+      "b": "export_review_artifact_button",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
       "a": "run_proof_button",
       "b": "contracts_version_label",
@@ -3830,6 +3910,18 @@
     },
     {
       "type": "left_of",
+      "a": "contracts_version_label",
+      "b": "run_proof_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "run_proof_button",
+      "b": "contracts_version_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
       "a": "contracts_version_label",
       "b": "run_proof_button",
       "confidence": 0.84
@@ -4112,26 +4204,26 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "contracts_version_label",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "contracts_version_label",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "contracts_version_label",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "contracts_version_label",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -4532,14 +4624,14 @@
     },
     {
       "type": "right_of",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "command_registry_version_label",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "command_registry_version_label",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
@@ -4555,13 +4647,13 @@
       "confidence": 0.84
     },
     {
-      "type": "right_of",
+      "type": "below",
       "a": "public_package_boundary_label",
       "b": "command_registry_version_label",
       "confidence": 0.84
     },
     {
-      "type": "left_of",
+      "type": "above",
       "a": "command_registry_version_label",
       "b": "public_package_boundary_label",
       "confidence": 0.84
@@ -4579,6 +4671,18 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "export_review_artifact_button",
+      "b": "command_registry_version_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "command_registry_version_label",
+      "b": "export_review_artifact_button",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
       "a": "run_proof_button",
       "b": "command_registry_version_label",
@@ -4586,6 +4690,18 @@
     },
     {
       "type": "left_of",
+      "a": "command_registry_version_label",
+      "b": "run_proof_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "run_proof_button",
+      "b": "command_registry_version_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
       "a": "command_registry_version_label",
       "b": "run_proof_button",
       "confidence": 0.84
@@ -4868,14 +4984,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "command_registry_version_label",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "command_registry_version_label",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -5277,1410 +5393,1482 @@
     {
       "type": "right_of",
       "a": "no_agora_gpu_native_claim_limitation",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "no_agora_gpu_native_claim_limitation",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "public_package_boundary_label",
-      "b": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
+      "b": "public_package_boundary_label",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "runtime_deferred_limitation",
+      "a": "public_package_boundary_label",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "public_package_boundary_label",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
       "b": "public_package_boundary_label",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "export_review_artifact_button",
-      "b": "runtime_deferred_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
       "b": "export_review_artifact_button",
       "confidence": 0.84
     },
     {
-      "type": "right_of",
-      "a": "run_proof_button",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "run_proof_button",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_10",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "node_10",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
       "type": "below",
-      "a": "node_10",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_10",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "scene_hierarchy",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "scene_hierarchy",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "scene_hierarchy",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "scene_hierarchy",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_12",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "node_12",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_12",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_12",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_13",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_13",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "central_3d_viewport",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "central_3d_viewport",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_15",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "node_15",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_15",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_15",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_16",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_16",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_17",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_17",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "axis_gizmo",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "axis_gizmo",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "axis_gizmo",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "axis_gizmo",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "selection_outline",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "selection_outline",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "selection_outline",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "selection_outline",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "preview_ghost",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "preview_ghost",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "preview_ghost",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "preview_ghost",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "applied_state_renderable",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "applied_state_renderable",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "applied_state_renderable",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "applied_state_renderable",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "transform_gizmo",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "transform_gizmo",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "demo_asset_load",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "demo_asset_load",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "software_snapshot_reference_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "software_snapshot_reference_limitation",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "software_snapshot_reference_limitation",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "software_snapshot_reference_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "shared_workspace_source_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "shared_workspace_source_label",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "shared_workspace_source_label",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "shared_workspace_source_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "viewport_runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "viewport_no_agora_gpu_native_claim_limitation",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "viewport_no_agora_gpu_native_claim_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "viewport_no_agora_gpu_native_claim_limitation",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "viewport_no_agora_gpu_native_claim_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_28",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_28",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_28",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_28",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "selected_target_inspector",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "selected_target_inspector",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "selected_target_inspector",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "selected_target_inspector",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_30",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_30",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_30",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_30",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "preview_state_marker",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "preview_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "preview_state_marker",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "preview_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_32",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_32",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_32",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_32",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "applied_state_marker",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "applied_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "applied_state_marker",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "applied_state_marker",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_34",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_34",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_34",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_34",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_35",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_35",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_35",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_35",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_36",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_36",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_36",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_36",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_37",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_37",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_37",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_37",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "node_38",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "runtime_deferred_limitation",
-      "b": "node_38",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_38",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_38",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_39",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_39",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "command_evidence_dock",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "command_evidence_dock",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_41",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_41",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "command_timeline",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "command_timeline",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "command_timeline",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "command_timeline",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "runtime_deferred_limitation",
-      "b": "evidence_dock",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "evidence_dock",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "evidence_dock",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "evidence_dock",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_44",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_44",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "node_45",
-      "b": "runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "runtime_deferred_limitation",
-      "b": "node_45",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "public_package_boundary_label",
-      "b": "no_agora_gpu_native_claim_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
-      "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
       "a": "export_review_artifact_button",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
-      "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "type": "above",
+      "a": "runtime_bridge_marker",
       "b": "export_review_artifact_button",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "run_proof_button",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
+      "b": "run_proof_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "run_proof_button",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
       "b": "run_proof_button",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_10",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_10",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_10",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_10",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "scene_hierarchy",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "scene_hierarchy",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "scene_hierarchy",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "scene_hierarchy",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_12",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_12",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_12",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_12",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_13",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_13",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "central_3d_viewport",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "central_3d_viewport",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_15",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_15",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_15",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_15",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_16",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_16",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_17",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_17",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "axis_gizmo",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "axis_gizmo",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "axis_gizmo",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "axis_gizmo",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "selection_outline",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "selection_outline",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "selection_outline",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "selection_outline",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "preview_ghost",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "preview_ghost",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "preview_ghost",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "preview_ghost",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "applied_state_renderable",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "applied_state_renderable",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "applied_state_renderable",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "applied_state_renderable",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "transform_gizmo",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "transform_gizmo",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "demo_asset_load",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "demo_asset_load",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "software_snapshot_reference_limitation",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "software_snapshot_reference_limitation",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "software_snapshot_reference_limitation",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "software_snapshot_reference_limitation",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "shared_workspace_source_label",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "shared_workspace_source_label",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "shared_workspace_source_label",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "shared_workspace_source_label",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "a": "viewport_runtime_bridge_authority",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
-      "b": "viewport_runtime_deferred_limitation",
+      "a": "runtime_bridge_marker",
+      "b": "viewport_runtime_bridge_authority",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "viewport_no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "runtime_bridge_marker",
+      "b": "viewport_no_agora_gpu_native_claim_limitation",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "viewport_no_agora_gpu_native_claim_limitation",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "viewport_no_agora_gpu_native_claim_limitation",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_28",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_28",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_28",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_28",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "selected_target_inspector",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "selected_target_inspector",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "selected_target_inspector",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "selected_target_inspector",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_30",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_30",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_30",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_30",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "preview_state_marker",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "preview_state_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "preview_state_marker",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "preview_state_marker",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_32",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_32",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_32",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_32",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "applied_state_marker",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "applied_state_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "applied_state_marker",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "applied_state_marker",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_34",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_34",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_34",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_34",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_35",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_35",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_35",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_35",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_36",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_36",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_36",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_36",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_37",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_37",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_37",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_37",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_38",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_38",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_38",
-      "b": "no_agora_gpu_native_claim_limitation",
+      "b": "runtime_bridge_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "no_agora_gpu_native_claim_limitation",
+      "a": "runtime_bridge_marker",
       "b": "node_38",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_39",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "node_39",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "command_evidence_dock",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "command_evidence_dock",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_41",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "node_41",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "runtime_bridge_marker",
+      "b": "command_timeline",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "command_timeline",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "command_timeline",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "command_timeline",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "runtime_bridge_marker",
+      "b": "evidence_dock",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "evidence_dock",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "evidence_dock",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "evidence_dock",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_44",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "node_44",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_45",
+      "b": "runtime_bridge_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "runtime_bridge_marker",
+      "b": "node_45",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "public_package_boundary_label",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "export_review_artifact_button",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "export_review_artifact_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "export_review_artifact_button",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "export_review_artifact_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "run_proof_button",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "run_proof_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "run_proof_button",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "run_proof_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_10",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "node_10",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_10",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_10",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "scene_hierarchy",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "scene_hierarchy",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "scene_hierarchy",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "scene_hierarchy",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_12",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "node_12",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_12",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_12",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_13",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_13",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "central_3d_viewport",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "central_3d_viewport",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_15",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "node_15",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_15",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_15",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_16",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_16",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_17",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_17",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "axis_gizmo",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "axis_gizmo",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "axis_gizmo",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "axis_gizmo",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "selection_outline",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "selection_outline",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "selection_outline",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "selection_outline",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "preview_ghost",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "preview_ghost",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "preview_ghost",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "preview_ghost",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "applied_state_renderable",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "applied_state_renderable",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "applied_state_renderable",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "applied_state_renderable",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "transform_gizmo",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "transform_gizmo",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "demo_asset_load",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "demo_asset_load",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "software_snapshot_reference_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "software_snapshot_reference_limitation",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "software_snapshot_reference_limitation",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "software_snapshot_reference_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "shared_workspace_source_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "shared_workspace_source_label",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "shared_workspace_source_label",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "shared_workspace_source_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "viewport_runtime_bridge_authority",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "viewport_runtime_bridge_authority",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "viewport_no_agora_gpu_native_claim_limitation",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "viewport_no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_28",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_28",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_28",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_28",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "selected_target_inspector",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "selected_target_inspector",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "selected_target_inspector",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "selected_target_inspector",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_30",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_30",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_30",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_30",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "preview_state_marker",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "preview_state_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "preview_state_marker",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "preview_state_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_32",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_32",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_32",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_32",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "applied_state_marker",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "applied_state_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "applied_state_marker",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "applied_state_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_34",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_34",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_34",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_34",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_35",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_35",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_35",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_35",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_36",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_36",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_36",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_36",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_37",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_37",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_37",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_37",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_38",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_38",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_38",
+      "b": "no_agora_gpu_native_claim_limitation",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "no_agora_gpu_native_claim_limitation",
+      "b": "node_38",
+      "confidence": 0.84
+    },
+    {
+      "type": "below",
+      "a": "node_39",
       "b": "no_agora_gpu_native_claim_limitation",
       "confidence": 0.84
     },
@@ -6799,6 +6987,18 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "public_package_boundary_label",
+      "b": "export_review_artifact_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "export_review_artifact_button",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
       "a": "run_proof_button",
       "b": "public_package_boundary_label",
@@ -6811,6 +7011,18 @@
       "confidence": 0.84
     },
     {
+      "type": "below",
+      "a": "public_package_boundary_label",
+      "b": "run_proof_button",
+      "confidence": 0.84
+    },
+    {
+      "type": "above",
+      "a": "run_proof_button",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
       "type": "right_of",
       "a": "public_package_boundary_label",
       "b": "node_10",
@@ -6823,18 +7035,6 @@
       "confidence": 0.84
     },
     {
-      "type": "below",
-      "a": "node_10",
-      "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "public_package_boundary_label",
-      "b": "node_10",
-      "confidence": 0.84
-    },
-    {
       "type": "right_of",
       "a": "public_package_boundary_label",
       "b": "scene_hierarchy",
@@ -6844,18 +7044,6 @@
       "type": "left_of",
       "a": "scene_hierarchy",
       "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "below",
-      "a": "scene_hierarchy",
-      "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
-      "a": "public_package_boundary_label",
-      "b": "scene_hierarchy",
       "confidence": 0.84
     },
     {
@@ -6883,40 +7071,28 @@
       "confidence": 0.84
     },
     {
-      "type": "below",
-      "a": "node_13",
-      "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "above",
+      "type": "inside",
       "a": "public_package_boundary_label",
       "b": "node_13",
-      "confidence": 0.84
+      "confidence": 0.9
     },
     {
-      "type": "below",
-      "a": "central_3d_viewport",
+      "type": "contains",
+      "a": "node_13",
       "b": "public_package_boundary_label",
-      "confidence": 0.84
+      "confidence": 0.9
     },
     {
-      "type": "above",
+      "type": "inside",
       "a": "public_package_boundary_label",
       "b": "central_3d_viewport",
-      "confidence": 0.84
+      "confidence": 0.9
     },
     {
-      "type": "right_of",
-      "a": "public_package_boundary_label",
-      "b": "node_15",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "node_15",
+      "type": "contains",
+      "a": "central_3d_viewport",
       "b": "public_package_boundary_label",
-      "confidence": 0.84
+      "confidence": 0.9
     },
     {
       "type": "below",
@@ -6955,6 +7131,18 @@
       "confidence": 0.84
     },
     {
+      "type": "right_of",
+      "a": "axis_gizmo",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "axis_gizmo",
+      "confidence": 0.84
+    },
+    {
       "type": "below",
       "a": "axis_gizmo",
       "b": "public_package_boundary_label",
@@ -6988,18 +7176,6 @@
       "type": "above",
       "a": "public_package_boundary_label",
       "b": "selection_outline",
-      "confidence": 0.84
-    },
-    {
-      "type": "right_of",
-      "a": "public_package_boundary_label",
-      "b": "preview_ghost",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "preview_ghost",
-      "b": "public_package_boundary_label",
       "confidence": 0.84
     },
     {
@@ -7087,18 +7263,6 @@
       "confidence": 0.84
     },
     {
-      "type": "right_of",
-      "a": "public_package_boundary_label",
-      "b": "shared_workspace_source_label",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "shared_workspace_source_label",
-      "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
       "type": "below",
       "a": "shared_workspace_source_label",
       "b": "public_package_boundary_label",
@@ -7111,27 +7275,27 @@
       "confidence": 0.84
     },
     {
-      "type": "right_of",
-      "a": "public_package_boundary_label",
-      "b": "viewport_runtime_deferred_limitation",
-      "confidence": 0.84
-    },
-    {
-      "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
-      "b": "public_package_boundary_label",
-      "confidence": 0.84
-    },
-    {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "public_package_boundary_label",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "public_package_boundary_label",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "viewport_no_agora_gpu_native_claim_limitation",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "viewport_no_agora_gpu_native_claim_limitation",
       "confidence": 0.84
     },
     {
@@ -7147,27 +7311,39 @@
       "confidence": 0.84
     },
     {
-      "type": "below",
+      "type": "right_of",
       "a": "node_28",
       "b": "public_package_boundary_label",
       "confidence": 0.84
     },
     {
-      "type": "above",
+      "type": "left_of",
       "a": "public_package_boundary_label",
       "b": "node_28",
       "confidence": 0.84
     },
     {
-      "type": "below",
+      "type": "right_of",
       "a": "selected_target_inspector",
       "b": "public_package_boundary_label",
       "confidence": 0.84
     },
     {
-      "type": "above",
+      "type": "left_of",
       "a": "public_package_boundary_label",
       "b": "selected_target_inspector",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_30",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "node_30",
       "confidence": 0.84
     },
     {
@@ -7183,6 +7359,18 @@
       "confidence": 0.84
     },
     {
+      "type": "right_of",
+      "a": "preview_state_marker",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "preview_state_marker",
+      "confidence": 0.84
+    },
+    {
       "type": "below",
       "a": "preview_state_marker",
       "b": "public_package_boundary_label",
@@ -7192,6 +7380,18 @@
       "type": "above",
       "a": "public_package_boundary_label",
       "b": "preview_state_marker",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_32",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "node_32",
       "confidence": 0.84
     },
     {
@@ -7255,6 +7455,18 @@
       "confidence": 0.84
     },
     {
+      "type": "right_of",
+      "a": "node_35",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "node_35",
+      "confidence": 0.84
+    },
+    {
       "type": "below",
       "a": "node_35",
       "b": "public_package_boundary_label",
@@ -7264,6 +7476,18 @@
       "type": "above",
       "a": "public_package_boundary_label",
       "b": "node_35",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_36",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "node_36",
       "confidence": 0.84
     },
     {
@@ -7279,6 +7503,18 @@
       "confidence": 0.84
     },
     {
+      "type": "right_of",
+      "a": "node_37",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "node_37",
+      "confidence": 0.84
+    },
+    {
       "type": "below",
       "a": "node_37",
       "b": "public_package_boundary_label",
@@ -7288,6 +7524,18 @@
       "type": "above",
       "a": "public_package_boundary_label",
       "b": "node_37",
+      "confidence": 0.84
+    },
+    {
+      "type": "right_of",
+      "a": "node_38",
+      "b": "public_package_boundary_label",
+      "confidence": 0.84
+    },
+    {
+      "type": "left_of",
+      "a": "public_package_boundary_label",
+      "b": "node_38",
       "confidence": 0.84
     },
     {
@@ -7809,25 +8057,25 @@
     {
       "type": "right_of",
       "a": "export_review_artifact_button",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "export_review_artifact_button",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "export_review_artifact_button",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "export_review_artifact_button",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -8481,25 +8729,25 @@
     {
       "type": "right_of",
       "a": "run_proof_button",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "run_proof_button",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "run_proof_button",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "run_proof_button",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -9000,14 +9248,14 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_10",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_10",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -9524,14 +9772,14 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "scene_hierarchy",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "scene_hierarchy",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -10148,26 +10396,26 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_12",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "node_12",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_12",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_12",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -10780,14 +11028,14 @@
     },
     {
       "type": "inside",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_13",
       "confidence": 0.9
     },
     {
       "type": "contains",
       "a": "node_13",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.9
     },
     {
@@ -11268,14 +11516,14 @@
     },
     {
       "type": "inside",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "central_3d_viewport",
       "confidence": 0.9
     },
     {
       "type": "contains",
       "a": "central_3d_viewport",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.9
     },
     {
@@ -11764,14 +12012,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_15",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_15",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -12300,14 +12548,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_16",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_16",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -12756,14 +13004,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_17",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_17",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -13245,25 +13493,25 @@
     {
       "type": "right_of",
       "a": "axis_gizmo",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "axis_gizmo",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "axis_gizmo",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "axis_gizmo",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -13732,26 +13980,26 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "selection_outline",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "selection_outline",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "selection_outline",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "selection_outline",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -14184,26 +14432,26 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "preview_ghost",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "preview_ghost",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "preview_ghost",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "preview_ghost",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -14640,26 +14888,26 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "applied_state_renderable",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "applied_state_renderable",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "applied_state_renderable",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "applied_state_renderable",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -15052,14 +15300,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "transform_gizmo",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "transform_gizmo",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -15420,14 +15668,14 @@
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "demo_asset_load",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "demo_asset_load",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -15792,14 +16040,14 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "software_snapshot_reference_limitation",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "software_snapshot_reference_limitation",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -16160,14 +16408,14 @@
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "shared_workspace_source_label",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "shared_workspace_source_label",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
@@ -16533,360 +16781,360 @@
     {
       "type": "right_of",
       "a": "viewport_no_agora_gpu_native_claim_limitation",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "viewport_no_agora_gpu_native_claim_limitation",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_28",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_28",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "selected_target_inspector",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "selected_target_inspector",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_30",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_30",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_30",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_30",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "preview_state_marker",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "preview_state_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "preview_state_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "preview_state_marker",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_32",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_32",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_32",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_32",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "applied_state_marker",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "applied_state_marker",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "applied_state_marker",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "applied_state_marker",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_34",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_34",
       "confidence": 0.84
     },
     {
       "type": "below",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_34",
       "confidence": 0.84
     },
     {
       "type": "above",
       "a": "node_34",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_35",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_35",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_35",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_35",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_36",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_36",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_36",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_36",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_37",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_37",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_37",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_37",
       "confidence": 0.84
     },
     {
       "type": "right_of",
       "a": "node_38",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "left_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_38",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_38",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_38",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_39",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_39",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "command_evidence_dock",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "command_evidence_dock",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_41",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_41",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "command_timeline",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "command_timeline",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "command_timeline",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "command_timeline",
       "confidence": 0.84
     },
     {
       "type": "right_of",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "evidence_dock",
       "confidence": 0.84
     },
     {
       "type": "left_of",
       "a": "evidence_dock",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "evidence_dock",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "evidence_dock",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_44",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_44",
       "confidence": 0.84
     },
     {
       "type": "below",
       "a": "node_45",
-      "b": "viewport_runtime_deferred_limitation",
+      "b": "viewport_runtime_bridge_authority",
       "confidence": 0.84
     },
     {
       "type": "above",
-      "a": "viewport_runtime_deferred_limitation",
+      "a": "viewport_runtime_bridge_authority",
       "b": "node_45",
       "confidence": 0.84
     },
@@ -19783,11 +20031,11 @@
         "confidence": 0.96
       },
       {
-        "id": "web_node:runtime_deferred_limitation",
+        "id": "web_node:runtime_bridge_marker",
         "kind": "dom_accessibility_box_style",
-        "source_ref": "runtime_deferred_limitation",
+        "source_ref": "runtime_bridge_marker",
         "object_refs": [
-          "runtime_deferred_limitation"
+          "runtime_bridge_marker"
         ],
         "confidence": 0.96
       },
@@ -19972,11 +20220,11 @@
         "confidence": 0.96
       },
       {
-        "id": "web_node:viewport_runtime_deferred_limitation",
+        "id": "web_node:viewport_runtime_bridge_authority",
         "kind": "dom_accessibility_box_style",
-        "source_ref": "viewport_runtime_deferred_limitation",
+        "source_ref": "viewport_runtime_bridge_authority",
         "object_refs": [
-          "viewport_runtime_deferred_limitation"
+          "viewport_runtime_bridge_authority"
         ],
         "confidence": 0.96
       },

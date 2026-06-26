@@ -4,17 +4,20 @@
   "allowedSourceImports": [
     "@asha/command-registry",
     "@asha/contracts",
-    "@asha/editor-tools"
+    "@asha/editor-tools",
+    "@asha/runtime-bridge"
   ],
   "allowedLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
-    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools"
+    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
+    "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
   },
   "requiredLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
-    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools"
+    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
+    "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
   },
   "forbiddenPackages": [
     "@asha/native-bridge",

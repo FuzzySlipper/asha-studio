@@ -650,14 +650,14 @@ export function createStudioDemoAssetLoadModel(options: {
     surfaceFindings: [
       { surface: '@asha/contracts', status: 'available_public', evidence: 'Catalog/CatalogEntry/AssetLock/LockFinding/FlatSceneDocument/StaticMeshAsset/RenderFrameDiff DTOs and classified validation codes are exported from the @asha/contracts package root.' },
       { surface: '@asha/command-registry', status: 'available_public', evidence: 'ASHA command registry exposes the scene.load_asset command identity with editor-local render-diff evidence and Scene > Load Asset GUI mirror.' },
-      { surface: '@asha/runtime-bridge', status: 'deferred', evidence: 'Runtime placement/authority bootstrap is deferred; this slice loads reference render-diff evidence without importing runtime transports.' },
+      { surface: '@asha/runtime-bridge', status: 'available_public', evidence: 'Runtime authority bootstrap is proven by proof:runtime-bridge; this slice still loads reference render-diff evidence without importing raw transports.' },
       { surface: '@asha/renderer-three', status: 'not_required_for_reference_load', evidence: 'Studio projects the loaded asset through its own Three.js viewport host without importing renderer internals.' },
     ],
     diagnostics: [],
     knownLimitations: [
       'Demo asset loading uses public @asha/contracts DTOs and Studio-owned reference render-diff evidence; it does not import renderer internals or claim native runtime placement.',
       'The browser-safe loader constructs the package in memory; the committed on-disk package files under packagePath (catalog.json, asset-lock.json, scene.json, models/*.mesh.json, materials/*.material.json) are the canonical source and are verified to match (and hashed) by proof:asset-load.',
-      'Asset placement renders as browser/reference projection; Rust/WASM authority bootstrap of the scene document remains deferred until @asha/runtime-bridge compatibility is approved here.',
+      'Asset placement renders as browser/reference projection; Rust/native authority correlation is proven separately by the runtime bridge proof until this specific scene document path is fully runtime-backed.',
       'Negative smokes classify failures with public catalog/lock/scene validation codes; they are reference fail-closed evidence, not runtime authority rejections.',
     ],
   };
