@@ -439,8 +439,8 @@
     },
     {
       "surface": "@asha/runtime-bridge",
-      "status": "deferred",
-      "evidence": "ASHA now defines a public read_model_material_preview bridge operation, but this Studio slice still avoids runtime transport imports until runtime-bridge compatibility is approved here."
+      "status": "available_public",
+      "evidence": "ASHA defines a public read_model_material_preview bridge operation; native model/material readback may still fail closed until that specific operation is wired."
     },
     {
       "surface": "@asha/renderer-three",
@@ -451,6 +451,6 @@
   "blockingFeatureRequests": [],
   "knownLimitations": [
     "Preview uses public @asha/contracts DTOs and Studio-owned SVG proof content; it does not import renderer internals or claim native runtime rendering.",
-    "ASHA public command/runtime surfaces now exist upstream for model/material preview, but Studio runtime transport consumption remains deferred until @asha/runtime-bridge compatibility is approved for this repo."
+    "ASHA public command/runtime surfaces exist upstream for model/material preview; native readback for this specific operation remains fail-closed until wired behind @asha/runtime-bridge."
   ]
 }

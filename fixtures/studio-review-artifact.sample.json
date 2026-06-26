@@ -16,7 +16,7 @@
       "contractsVersion": "contracts.v0",
       "commandRegistryVersion": "command-registry.v0",
       "studioEvidenceVersion": "studio-evidence.deferred-v0",
-      "runtimeBridgeVersion": null,
+      "runtimeBridgeVersion": "runtime-bridge.v0",
       "ashaCommit": null,
       "ashaPackageVersions": [
         {
@@ -33,12 +33,18 @@
           "packageName": "@asha/editor-tools",
           "version": "0.1.0",
           "commit": null
+        },
+        {
+          "packageName": "@asha/runtime-bridge",
+          "version": "0.1.0",
+          "commit": null
         }
       ],
       "studioCommit": null,
       "supportedRuntimeModes": [
         "mock",
         "reference",
+        "native",
         "unavailable"
       ]
     },
@@ -74,7 +80,42 @@
         "degradedReason": null
       },
       {
+        "commandId": "inspection.material",
+        "available": true,
+        "degradedReason": null
+      },
+      {
+        "commandId": "inspection.model",
+        "available": true,
+        "degradedReason": null
+      },
+      {
+        "commandId": "preview.model_material",
+        "available": true,
+        "degradedReason": null
+      },
+      {
+        "commandId": "scene.load_asset",
+        "available": true,
+        "degradedReason": null
+      },
+      {
         "commandId": "selection.voxel_from_screen_point",
+        "available": true,
+        "degradedReason": null
+      },
+      {
+        "commandId": "selection.set_active_entity",
+        "available": true,
+        "degradedReason": null
+      },
+      {
+        "commandId": "entity.set_name",
+        "available": true,
+        "degradedReason": null
+      },
+      {
+        "commandId": "transform.translate_entity",
         "available": true,
         "degradedReason": null
       },
@@ -110,19 +151,11 @@
       }
     ],
     "knownLimitations": [
-      "Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface.",
+      "Native runtime bridge integration is available only through the approved @asha/runtime-bridge package root and remains guarded by proof:runtime-bridge.",
+      "WASM runtime and raw replay/native transports remain forbidden or fail-closed unless a separate public facade proof enables them.",
       "Studio evidence schema package is deferred; session metadata records compatibility only."
     ],
-    "diagnostics": [
-      {
-        "severity": "warning",
-        "code": "asha.compatibility.runtime_bridge_deferred",
-        "message": "@asha/runtime-bridge is not present in this Studio build; command execution must remain unavailable or mock/reference only.",
-        "owningLane": "rust-bridge",
-        "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
-        "remediation": "Track the runtime bridge integration task before enabling command execution."
-      }
-    ]
+    "diagnostics": []
   },
   "studio": {
     "repo": "FuzzySlipper/asha-studio",
@@ -140,7 +173,7 @@
     "contractsVersion": "contracts.v0",
     "commandRegistryVersion": "command-registry.v0",
     "studioEvidenceVersion": "studio-evidence.deferred-v0",
-    "runtimeBridgeVersion": null,
+    "runtimeBridgeVersion": "runtime-bridge.v0",
     "ashaCommit": null,
     "ashaPackageVersions": [
       {
@@ -157,12 +190,18 @@
         "packageName": "@asha/editor-tools",
         "version": "0.1.0",
         "commit": null
+      },
+      {
+        "packageName": "@asha/runtime-bridge",
+        "version": "0.1.0",
+        "commit": null
       }
     ],
     "studioCommit": null,
     "supportedRuntimeModes": [
       "mock",
       "reference",
+      "native",
       "unavailable"
     ]
   },
@@ -191,16 +230,7 @@
         "workspaceChanged": true,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0001-1",
@@ -238,16 +268,7 @@
         "workspaceChanged": true,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0002-1",
@@ -285,16 +306,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0003-1",
@@ -312,6 +324,44 @@
     {
       "schemaVersion": 1,
       "sequenceId": "seq-0004",
+      "commandId": "inspection.editor_state",
+      "label": "Inspect Editor State",
+      "menuPath": [
+        "Inspect",
+        "Editor State"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:03.000Z",
+      "completedAtIso": "1970-01-01T00:00:03.000Z",
+      "status": "ok",
+      "operationClass": "read_only",
+      "inputSummary": "sessionId=session-preview-0001",
+      "outputSummary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0004-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0004",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0004",
+          "summary": "Editor-local state snapshot."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0005",
       "commandId": "inspection.voxel",
       "label": "Inspect Voxel",
       "menuPath": [
@@ -319,8 +369,8 @@
         "Voxel"
       ],
       "requestedBy": "gui",
-      "requestedAtIso": "1970-01-01T00:00:04.000Z",
-      "completedAtIso": "1970-01-01T00:00:04.000Z",
+      "requestedAtIso": "1970-01-01T00:00:05.000Z",
+      "completedAtIso": "1970-01-01T00:00:05.000Z",
       "status": "ok",
       "operationClass": "read_only",
       "inputSummary": "voxel=(0,0,0)",
@@ -337,7 +387,7 @@
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0005",
+      "sequenceId": "seq-0006",
       "commandId": "selection.voxel_from_screen_point",
       "label": "Select Voxel From Screen Point",
       "menuPath": [
@@ -345,8 +395,8 @@
         "Voxel From Screen Point"
       ],
       "requestedBy": "agent",
-      "requestedAtIso": "1970-01-01T00:00:05.000Z",
-      "completedAtIso": "1970-01-01T00:00:05.000Z",
+      "requestedAtIso": "1970-01-01T00:00:06.000Z",
+      "completedAtIso": "1970-01-01T00:00:06.000Z",
       "status": "ok",
       "operationClass": "editor_local",
       "inputSummary": "screen=(0.5,0.5)",
@@ -363,7 +413,7 @@
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0006",
+      "sequenceId": "seq-0007",
       "commandId": "preview.voxel_brush",
       "label": "Preview Voxel Brush",
       "menuPath": [
@@ -371,8 +421,8 @@
         "Preview Voxel Brush"
       ],
       "requestedBy": "gui",
-      "requestedAtIso": "1970-01-01T00:00:06.000Z",
-      "completedAtIso": "1970-01-01T00:00:06.000Z",
+      "requestedAtIso": "1970-01-01T00:00:07.000Z",
+      "completedAtIso": "1970-01-01T00:00:07.000Z",
       "status": "ok",
       "operationClass": "editor_local",
       "inputSummary": "place material=1 at editAnchor=(1,0,0)",
@@ -389,7 +439,7 @@
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0007",
+      "sequenceId": "seq-0008",
       "commandId": "authority.voxel.apply_brush",
       "label": "Apply Voxel Brush",
       "menuPath": [
@@ -397,8 +447,8 @@
         "Apply Voxel Brush"
       ],
       "requestedBy": "agent",
-      "requestedAtIso": "1970-01-01T00:00:07.000Z",
-      "completedAtIso": "1970-01-01T00:00:07.000Z",
+      "requestedAtIso": "1970-01-01T00:00:08.000Z",
+      "completedAtIso": "1970-01-01T00:00:08.000Z",
       "status": "ok",
       "operationClass": "authority_mutating",
       "inputSummary": "VoxelCommand.setVoxel grid=0 coord=(1,0,0) material=1",
@@ -420,14 +470,226 @@
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0007",
+          "producedBySequenceId": "seq-0008",
           "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
         }
       ]
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0008",
+      "sequenceId": "seq-0009",
+      "commandId": "scene.load_asset",
+      "label": "Load Asset Into Scene",
+      "menuPath": [
+        "Scene",
+        "Load Asset"
+      ],
+      "requestedBy": "agent",
+      "requestedAtIso": "1970-01-01T00:00:06.500Z",
+      "completedAtIso": "1970-01-01T00:00:06.500Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; assetId=mesh/demo-crate; materialId=material/demo-brushed-copper; placement.translation=[2.5,0.5,0.5]; placement.rotation=[0,0,0,1]; placement.scale=[1,1,1]",
+      "outputSummary": "Exported artifact-demo-asset-load-0001 with 9 command(s).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": true,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0009-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "model_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Loaded static mesh asset metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-2",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "material_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Bound material projection metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-3",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "render_diff_preview:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Retained-mode render diff that defines and places the loaded asset."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0010",
+      "commandId": "selection.set_active_entity",
+      "label": "Set Active Entity",
+      "menuPath": [
+        "Select",
+        "Active Entity"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:06.750Z",
+      "completedAtIso": "1970-01-01T00:00:06.750Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0",
+      "outputSummary": "Selected entity selected-voxel:0,0,0 synced to renderable selected-voxel:0,0,0 (selected=true).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0010-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "selection_snapshot:seq-0010",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0010",
+          "summary": "Selected entity/renderable selection evidence."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0011",
+      "commandId": "entity.set_name",
+      "label": "Set Entity Name",
+      "menuPath": [
+        "Inspect",
+        "Rename Entity"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:06.875Z",
+      "completedAtIso": "1970-01-01T00:00:06.875Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0; name=Primary terrain voxel",
+      "outputSummary": "Renamed entity selected-voxel:0,0,0 to \"Primary terrain voxel\" on renderable selected-voxel:0,0,0 (applied=true).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0011-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0011",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0011",
+          "summary": "Editor-local selected-entity name edit evidence."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0012",
+      "commandId": "transform.translate_entity",
+      "label": "Translate Entity",
+      "menuPath": [
+        "Transform",
+        "Translate Along Axis"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:06.900Z",
+      "completedAtIso": "1970-01-01T00:00:06.900Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0; axis=x; delta=2; mode=preview",
+      "outputSummary": "Translated entity selected-voxel:0,0,0 along x by 2 (preview) to [2.5, 0.5, 0.5] on renderable selected-voxel:0,0,0 (applied=false).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0012-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0012",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0012",
+          "summary": "Editor-local selected-entity transform translate evidence."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0013",
+      "commandId": "transform.translate_entity",
+      "label": "Translate Entity",
+      "menuPath": [
+        "Transform",
+        "Translate Along Axis"
+      ],
+      "requestedBy": "gui",
+      "requestedAtIso": "1970-01-01T00:00:06.950Z",
+      "completedAtIso": "1970-01-01T00:00:06.950Z",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "inputSummary": "sessionId=session-preview-0001; entityId=selected-voxel:0,0,0; axis=x; delta=2; mode=apply",
+      "outputSummary": "Translated entity selected-voxel:0,0,0 along x by 2 (apply) to [2.5, 0.5, 0.5] on renderable selected-voxel:0,0,0 (applied=true).",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "diagnostics": [],
+      "artifactRefs": [
+        {
+          "artifactId": "artifact-seq-0013-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0013",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0013",
+          "summary": "Editor-local selected-entity transform translate evidence."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "sequenceId": "seq-0014",
       "commandId": "render.capture_before_after",
       "label": "Capture Before/After Evidence",
       "menuPath": [
@@ -440,7 +702,7 @@
       "status": "ok",
       "operationClass": "render_evidence",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 8 command(s).",
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 14 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -448,33 +710,24 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0008-1",
+          "artifactId": "artifact-seq-0014-1",
           "artifactKind": "visual_before_after",
           "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0008",
+          "path": "render_before_after:seq-0014",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0008",
+          "producedBySequenceId": "seq-0014",
           "summary": "Before/after visual evidence artifact."
         }
       ]
     },
     {
       "schemaVersion": 1,
-      "sequenceId": "seq-0009",
+      "sequenceId": "seq-0015",
       "commandId": "export.agent_readout",
       "label": "Export Agent Readout",
       "menuPath": [
@@ -487,7 +740,7 @@
       "status": "ok",
       "operationClass": "diagnostic_export",
       "inputSummary": "sessionId=session-preview-0001; includeVisualEvidence=true",
-      "outputSummary": "Exported artifact-agent-readout-0001 with 9 command(s).",
+      "outputSummary": "Exported artifact-agent-readout-0001 with 15 command(s).",
       "changed": {
         "authorityChanged": false,
         "editorChanged": false,
@@ -495,26 +748,17 @@
         "workspaceChanged": true,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
-          "artifactId": "artifact-seq-0009-1",
+          "artifactId": "artifact-seq-0015-1",
           "artifactKind": "agent_readout",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0009",
+          "path": "agent_readout:seq-0015",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0009",
+          "producedBySequenceId": "seq-0015",
           "summary": "Human/agent review artifact index."
         }
       ]
@@ -565,17 +809,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -592,12 +836,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -606,16 +856,7 @@
         "kind": "ok"
       },
       "outputSummary": "Command accepted.",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0001-1",
@@ -693,17 +934,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -720,12 +961,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -734,16 +981,7 @@
         "kind": "ok"
       },
       "outputSummary": "Command accepted.",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0002-1",
@@ -821,17 +1059,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -848,12 +1086,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -863,16 +1107,7 @@
         "status": "ready"
       },
       "outputSummary": "Session session-preview-0001 is ready.",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0003-1",
@@ -909,9 +1144,135 @@
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "inspection.voxel",
+      "commandId": "inspection.editor_state",
       "commandVersion": 1,
       "sequenceId": "seq-0004",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "read_only",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.4",
+        "editorAfterVersion": "editor.v0.4",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-viewport-interaction-proof-0001",
+        "commandCount": 4
+      },
+      "outputSummary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0004-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0004",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0004",
+          "summary": "Editor-local state snapshot."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "not_undoable",
+        "available": false,
+        "reason": "Command does not mutate reversible state in this workspace model.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:03.000Z",
+        "startedAtIso": "1970-01-01T00:00:03.000Z",
+        "completedAtIso": "1970-01-01T00:00:03.000Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "inspection.voxel",
+      "commandVersion": 1,
+      "sequenceId": "seq-0005",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "gui",
@@ -934,17 +1295,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -961,12 +1322,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -983,9 +1350,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:04.000Z",
-        "startedAtIso": "1970-01-01T00:00:04.000Z",
-        "completedAtIso": "1970-01-01T00:00:04.000Z",
+        "queuedAtIso": "1970-01-01T00:00:05.000Z",
+        "startedAtIso": "1970-01-01T00:00:05.000Z",
+        "completedAtIso": "1970-01-01T00:00:05.000Z",
         "durationMs": 0
       }
     },
@@ -994,7 +1361,7 @@
       "artifactKind": "command_result",
       "commandId": "selection.voxel_from_screen_point",
       "commandVersion": 1,
-      "sequenceId": "seq-0005",
+      "sequenceId": "seq-0006",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "agent",
@@ -1017,17 +1384,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1044,12 +1411,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1066,9 +1439,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:05.000Z",
-        "startedAtIso": "1970-01-01T00:00:05.000Z",
-        "completedAtIso": "1970-01-01T00:00:05.000Z",
+        "queuedAtIso": "1970-01-01T00:00:06.000Z",
+        "startedAtIso": "1970-01-01T00:00:06.000Z",
+        "completedAtIso": "1970-01-01T00:00:06.000Z",
         "durationMs": 0
       }
     },
@@ -1077,7 +1450,7 @@
       "artifactKind": "command_result",
       "commandId": "preview.voxel_brush",
       "commandVersion": 1,
-      "sequenceId": "seq-0006",
+      "sequenceId": "seq-0007",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "gui",
@@ -1100,17 +1473,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1127,12 +1500,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1149,9 +1528,9 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:06.000Z",
-        "startedAtIso": "1970-01-01T00:00:06.000Z",
-        "completedAtIso": "1970-01-01T00:00:06.000Z",
+        "queuedAtIso": "1970-01-01T00:00:07.000Z",
+        "startedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
         "durationMs": 0
       }
     },
@@ -1160,7 +1539,7 @@
       "artifactKind": "command_result",
       "commandId": "authority.voxel.apply_brush",
       "commandVersion": 1,
-      "sequenceId": "seq-0007",
+      "sequenceId": "seq-0008",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "agent",
@@ -1183,17 +1562,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1210,12 +1589,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1232,7 +1617,7 @@
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0007",
+          "producedBySequenceId": "seq-0008",
           "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
         }
       ],
@@ -1244,157 +1629,28 @@
       },
       "undo": null,
       "timing": {
-        "queuedAtIso": "1970-01-01T00:00:07.000Z",
-        "startedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "queuedAtIso": "1970-01-01T00:00:08.000Z",
+        "startedAtIso": "1970-01-01T00:00:08.000Z",
+        "completedAtIso": "1970-01-01T00:00:08.000Z",
         "durationMs": 0
       }
     },
     {
       "schemaVersion": 1,
       "artifactKind": "command_result",
-      "commandId": "render.capture_before_after",
-      "commandVersion": 1,
-      "sequenceId": "seq-0008",
-      "batchId": null,
-      "sessionId": "session-preview-0001",
-      "requestedBy": "gui",
-      "status": "ok",
-      "operationClass": "render_evidence",
-      "changed": {
-        "authorityChanged": false,
-        "editorChanged": false,
-        "renderChanged": true,
-        "workspaceChanged": false,
-        "artifactsWritten": true
-      },
-      "state": {
-        "authorityBeforeHash": null,
-        "authorityAfterHash": null,
-        "editorBeforeVersion": "editor.v0.8",
-        "editorAfterVersion": "editor.v0.8",
-        "renderBeforeHash": null,
-        "renderAfterHash": null,
-        "selectedBefore": {
-          "kind": "none",
-          "voxelSelection": null,
-          "objectId": null,
-          "modelId": null,
-          "materialId": null,
-          "evidenceHash": null,
-          "summary": "No active typed selection."
-        },
-        "selectedAfter": {
-          "kind": "none",
-          "voxelSelection": null,
-          "objectId": null,
-          "modelId": null,
-          "materialId": null,
-          "evidenceHash": null,
-          "summary": "No active typed selection."
-        },
-        "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
-          "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
-        },
-        "compatibility": {
-          "contractsVersion": "contracts.v0",
-          "commandRegistryVersion": "command-registry.v0",
-          "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
-          "ashaCommit": null,
-          "ashaPackageVersions": [
-            {
-              "packageName": "@asha/contracts",
-              "version": "0.1.0",
-              "commit": null
-            },
-            {
-              "packageName": "@asha/command-registry",
-              "version": "0.1.0",
-              "commit": null
-            },
-            {
-              "packageName": "@asha/editor-tools",
-              "version": "0.1.0",
-              "commit": null
-            }
-          ],
-          "studioCommit": null,
-          "supportedRuntimeModes": [
-            "mock",
-            "reference",
-            "unavailable"
-          ]
-        }
-      },
-      "output": {
-        "artifactId": "artifact-visual-before-after-0001",
-        "commandCount": 8
-      },
-      "outputSummary": "Exported artifact-visual-before-after-0001 with 8 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
-      "artifacts": [
-        {
-          "artifactId": "artifact-seq-0008-1",
-          "artifactKind": "visual_before_after",
-          "pathKind": "inline_summary",
-          "path": "render_before_after:seq-0008",
-          "mediaType": "application/json",
-          "contentHash": null,
-          "byteLength": null,
-          "producedBySequenceId": "seq-0008",
-          "summary": "Before/after visual evidence artifact."
-        }
-      ],
-      "retry": {
-        "safe": true,
-        "classification": "safe_to_retry",
-        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
-        "requiredReadback": null
-      },
-      "undo": {
-        "posture": "not_undoable",
-        "available": false,
-        "reason": "Command does not mutate reversible state in this workspace model.",
-        "inverseCommandIds": [],
-        "requiresSameStateHash": false
-      },
-      "timing": {
-        "queuedAtIso": "1970-01-01T00:00:07.000Z",
-        "startedAtIso": "1970-01-01T00:00:07.000Z",
-        "completedAtIso": "1970-01-01T00:00:07.000Z",
-        "durationMs": 0
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "artifactKind": "command_result",
-      "commandId": "export.agent_readout",
+      "commandId": "scene.load_asset",
       "commandVersion": 1,
       "sequenceId": "seq-0009",
       "batchId": null,
       "sessionId": "session-preview-0001",
       "requestedBy": "agent",
       "status": "ok",
-      "operationClass": "diagnostic_export",
+      "operationClass": "editor_local",
       "changed": {
         "authorityChanged": false,
-        "editorChanged": false,
-        "renderChanged": false,
-        "workspaceChanged": true,
+        "editorChanged": true,
+        "renderChanged": true,
+        "workspaceChanged": false,
         "artifactsWritten": true
       },
       "state": {
@@ -1423,17 +1679,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1450,41 +1706,851 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-demo-asset-load-0001",
+        "commandCount": 9
+      },
+      "outputSummary": "Exported artifact-demo-asset-load-0001 with 9 command(s).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0009-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "model_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Loaded static mesh asset metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-2",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "material_metadata:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Bound material projection metadata."
+        },
+        {
+          "artifactId": "artifact-seq-0009-3",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "render_diff_preview:seq-0009",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0009",
+          "summary": "Retained-mode render diff that defines and places the loaded asset."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:06.500Z",
+        "startedAtIso": "1970-01-01T00:00:06.500Z",
+        "completedAtIso": "1970-01-01T00:00:06.500Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "selection.set_active_entity",
+      "commandVersion": 1,
+      "sequenceId": "seq-0010",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.10",
+        "editorAfterVersion": "editor.v0.10",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "object",
+          "voxelSelection": null,
+          "objectId": "selected-voxel:0,0,0",
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": "selection-022e7e8a",
+          "summary": "Active entity selected-voxel:0,0,0 selected from the hierarchy and synced to the viewport renderable."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "entityId": "selected-voxel:0,0,0",
+        "renderableId": "selected-voxel:0,0,0",
+        "selectionHash": "selection-022e7e8a",
+        "selected": true
+      },
+      "outputSummary": "Selected entity selected-voxel:0,0,0 synced to renderable selected-voxel:0,0,0 (selected=true).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0010-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "selection_snapshot:seq-0010",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0010",
+          "summary": "Selected entity/renderable selection evidence."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:06.750Z",
+        "startedAtIso": "1970-01-01T00:00:06.750Z",
+        "completedAtIso": "1970-01-01T00:00:06.750Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "entity.set_name",
+      "commandVersion": 1,
+      "sequenceId": "seq-0011",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.11",
+        "editorAfterVersion": "editor.v0.11",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "object",
+          "voxelSelection": null,
+          "objectId": "selected-voxel:0,0,0",
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": "entity-name-872d0ffb",
+          "summary": "Selected entity selected-voxel:0,0,0 renamed to \"Primary terrain voxel\" through the editor-local inspector edit."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "entityId": "selected-voxel:0,0,0",
+        "renderableId": "selected-voxel:0,0,0",
+        "name": "Primary terrain voxel",
+        "nameHash": "entity-name-872d0ffb",
+        "applied": true
+      },
+      "outputSummary": "Renamed entity selected-voxel:0,0,0 to \"Primary terrain voxel\" on renderable selected-voxel:0,0,0 (applied=true).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0011-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0011",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0011",
+          "summary": "Editor-local selected-entity name edit evidence."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:06.875Z",
+        "startedAtIso": "1970-01-01T00:00:06.875Z",
+        "completedAtIso": "1970-01-01T00:00:06.875Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "transform.translate_entity",
+      "commandVersion": 1,
+      "sequenceId": "seq-0012",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.12",
+        "editorAfterVersion": "editor.v0.12",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "object",
+          "voxelSelection": null,
+          "objectId": "selected-voxel:0,0,0",
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": "entity-transform-efb7126e",
+          "summary": "Selected entity selected-voxel:0,0,0 translated along x by 2 (preview) through the editor-local transform gizmo."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "entityId": "selected-voxel:0,0,0",
+        "renderableId": "selected-voxel:0,0,0",
+        "axis": "x",
+        "delta": 2,
+        "mode": "preview",
+        "translationBefore": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "translationAfter": [
+          2.5,
+          0.5,
+          0.5
+        ],
+        "transformHash": "entity-transform-efb7126e",
+        "applied": false
+      },
+      "outputSummary": "Translated entity selected-voxel:0,0,0 along x by 2 (preview) to [2.5, 0.5, 0.5] on renderable selected-voxel:0,0,0 (applied=false).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0012-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0012",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0012",
+          "summary": "Editor-local selected-entity transform translate evidence."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:06.900Z",
+        "startedAtIso": "1970-01-01T00:00:06.900Z",
+        "completedAtIso": "1970-01-01T00:00:06.900Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "transform.translate_entity",
+      "commandVersion": 1,
+      "sequenceId": "seq-0013",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "editor_local",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": true,
+        "renderChanged": false,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.13",
+        "editorAfterVersion": "editor.v0.13",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "object",
+          "voxelSelection": null,
+          "objectId": "selected-voxel:0,0,0",
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": "entity-transform-5c321d7a",
+          "summary": "Selected entity selected-voxel:0,0,0 translated along x by 2 (apply) through the editor-local transform gizmo."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "entityId": "selected-voxel:0,0,0",
+        "renderableId": "selected-voxel:0,0,0",
+        "axis": "x",
+        "delta": 2,
+        "mode": "apply",
+        "translationBefore": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "translationAfter": [
+          2.5,
+          0.5,
+          0.5
+        ],
+        "transformHash": "entity-transform-5c321d7a",
+        "applied": true
+      },
+      "outputSummary": "Translated entity selected-voxel:0,0,0 along x by 2 (apply) to [2.5, 0.5, 0.5] on renderable selected-voxel:0,0,0 (applied=true).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0013-1",
+          "artifactKind": "state_evidence",
+          "pathKind": "inline_summary",
+          "path": "editor_state:seq-0013",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0013",
+          "summary": "Editor-local selected-entity transform translate evidence."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "editor_local",
+        "available": true,
+        "reason": "Editor-local command can restore previous editor snapshot.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:06.950Z",
+        "startedAtIso": "1970-01-01T00:00:06.950Z",
+        "completedAtIso": "1970-01-01T00:00:06.950Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "render.capture_before_after",
+      "commandVersion": 1,
+      "sequenceId": "seq-0014",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "gui",
+      "status": "ok",
+      "operationClass": "render_evidence",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": true,
+        "workspaceChanged": false,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.14",
+        "editorAfterVersion": "editor.v0.14",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
+            "unavailable"
+          ]
+        }
+      },
+      "output": {
+        "artifactId": "artifact-visual-before-after-0001",
+        "commandCount": 14
+      },
+      "outputSummary": "Exported artifact-visual-before-after-0001 with 14 command(s).",
+      "diagnostics": [],
+      "artifacts": [
+        {
+          "artifactId": "artifact-seq-0014-1",
+          "artifactKind": "visual_before_after",
+          "pathKind": "inline_summary",
+          "path": "render_before_after:seq-0014",
+          "mediaType": "application/json",
+          "contentHash": null,
+          "byteLength": null,
+          "producedBySequenceId": "seq-0014",
+          "summary": "Before/after visual evidence artifact."
+        }
+      ],
+      "retry": {
+        "safe": true,
+        "classification": "safe_to_retry",
+        "reason": "Read-only/editor/export command is safe in this mock/reference session model.",
+        "requiredReadback": null
+      },
+      "undo": {
+        "posture": "not_undoable",
+        "available": false,
+        "reason": "Command does not mutate reversible state in this workspace model.",
+        "inverseCommandIds": [],
+        "requiresSameStateHash": false
+      },
+      "timing": {
+        "queuedAtIso": "1970-01-01T00:00:07.000Z",
+        "startedAtIso": "1970-01-01T00:00:07.000Z",
+        "completedAtIso": "1970-01-01T00:00:07.000Z",
+        "durationMs": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "artifactKind": "command_result",
+      "commandId": "export.agent_readout",
+      "commandVersion": 1,
+      "sequenceId": "seq-0015",
+      "batchId": null,
+      "sessionId": "session-preview-0001",
+      "requestedBy": "agent",
+      "status": "ok",
+      "operationClass": "diagnostic_export",
+      "changed": {
+        "authorityChanged": false,
+        "editorChanged": false,
+        "renderChanged": false,
+        "workspaceChanged": true,
+        "artifactsWritten": true
+      },
+      "state": {
+        "authorityBeforeHash": null,
+        "authorityAfterHash": null,
+        "editorBeforeVersion": "editor.v0.15",
+        "editorAfterVersion": "editor.v0.15",
+        "renderBeforeHash": null,
+        "renderAfterHash": null,
+        "selectedBefore": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "selectedAfter": {
+          "kind": "none",
+          "voxelSelection": null,
+          "objectId": null,
+          "modelId": null,
+          "materialId": null,
+          "evidenceHash": null,
+          "summary": "No active typed selection."
+        },
+        "replay": {
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
+          "replayHash": null,
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
+        },
+        "compatibility": {
+          "contractsVersion": "contracts.v0",
+          "commandRegistryVersion": "command-registry.v0",
+          "studioEvidenceVersion": "studio-evidence.deferred-v0",
+          "runtimeBridgeVersion": "runtime-bridge.v0",
+          "ashaCommit": null,
+          "ashaPackageVersions": [
+            {
+              "packageName": "@asha/contracts",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/command-registry",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/editor-tools",
+              "version": "0.1.0",
+              "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
+            }
+          ],
+          "studioCommit": null,
+          "supportedRuntimeModes": [
+            "mock",
+            "reference",
+            "native",
             "unavailable"
           ]
         }
       },
       "output": {
         "artifactId": "artifact-agent-readout-0001",
-        "commandCount": 9
+        "commandCount": 15
       },
-      "outputSummary": "Exported artifact-agent-readout-0001 with 9 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "outputSummary": "Exported artifact-agent-readout-0001 with 15 command(s).",
+      "diagnostics": [],
       "artifacts": [
         {
-          "artifactId": "artifact-seq-0009-1",
+          "artifactId": "artifact-seq-0015-1",
           "artifactKind": "agent_readout",
           "pathKind": "inline_summary",
-          "path": "agent_readout:seq-0009",
+          "path": "agent_readout:seq-0015",
           "mediaType": "application/json",
           "contentHash": null,
           "byteLength": null,
-          "producedBySequenceId": "seq-0009",
+          "producedBySequenceId": "seq-0015",
           "summary": "Human/agent review artifact index."
         }
       ],
@@ -1512,8 +2578,8 @@
   "finalState": {
     "authorityBeforeHash": null,
     "authorityAfterHash": null,
-    "editorBeforeVersion": "editor.v0.9",
-    "editorAfterVersion": "editor.v0.9",
+    "editorBeforeVersion": "editor.v0.15",
+    "editorAfterVersion": "editor.v0.15",
     "renderBeforeHash": null,
     "renderAfterHash": null,
     "selectedBefore": {
@@ -1535,17 +2601,17 @@
       "summary": "No active typed selection."
     },
     "replay": {
-      "replayArtifactId": null,
-      "replayPath": null,
+      "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+      "replayPath": "artifacts/runtime-bridge/latest/index.json",
       "replayHash": null,
-      "replayMode": "unavailable",
-      "summary": "unavailable: runtime bridge/replay integration is deferred."
+      "replayMode": "native",
+      "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
     },
     "compatibility": {
       "contractsVersion": "contracts.v0",
       "commandRegistryVersion": "command-registry.v0",
       "studioEvidenceVersion": "studio-evidence.deferred-v0",
-      "runtimeBridgeVersion": null,
+      "runtimeBridgeVersion": "runtime-bridge.v0",
       "ashaCommit": null,
       "ashaPackageVersions": [
         {
@@ -1562,12 +2628,18 @@
           "packageName": "@asha/editor-tools",
           "version": "0.1.0",
           "commit": null
+        },
+        {
+          "packageName": "@asha/runtime-bridge",
+          "version": "0.1.0",
+          "commit": null
         }
       ],
       "studioCommit": null,
       "supportedRuntimeModes": [
         "mock",
         "reference",
+        "native",
         "unavailable"
       ]
     }
@@ -1586,7 +2658,7 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-cc815eb0",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "Before visual snapshot: 1 occupied voxel before apply."
       },
       "afterArtifact": {
@@ -1597,21 +2669,21 @@
         "mediaType": "image/svg+xml",
         "contentHash": "render-grid-fnv1a-8eb9594b",
         "byteLength": null,
-        "producedBySequenceId": "seq-0007",
+        "producedBySequenceId": "seq-0008",
         "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
       },
       "beforeRenderHash": "render-grid-fnv1a-cc815eb0",
       "afterRenderHash": "render-grid-fnv1a-8eb9594b",
       "commandSequenceIds": [
-        "seq-0007"
+        "seq-0008"
       ],
       "captureMode": "software_snapshot",
       "evidenceClassification": "proof_content",
       "captureReadiness": "ready",
       "summary": "Software visual before/after evidence for voxel edit at (1, 0, 0); render hashes changed.",
       "limitations": [
-        "Software snapshot evidence is functional proof-content evidence, not hardware GPU/performance evidence.",
-        "Native browser screenshot capture is deferred until the browser/Agora evidence task."
+        "Software snapshot evidence is functional proof-content evidence, not browser/Agora/hardware GPU/performance evidence.",
+        "Browser screenshot capture is available through the separate proof:browser command and correlates back to this review artifact."
       ]
     }
   ],
@@ -1650,6 +2722,17 @@
       "summary": "Status readback for the active session."
     },
     {
+      "artifactId": "artifact-seq-0004-1",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "editor_state:seq-0004",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0004",
+      "summary": "Editor-local state snapshot."
+    },
+    {
       "artifactId": "artifact-voxel-workflow-0001",
       "artifactKind": "state_evidence",
       "pathKind": "inline_summary",
@@ -1657,29 +2740,106 @@
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
-      "producedBySequenceId": "seq-0007",
+      "producedBySequenceId": "seq-0008",
       "summary": "Voxel inspect/select/preview/apply structured before/after evidence."
     },
     {
-      "artifactId": "artifact-seq-0008-1",
-      "artifactKind": "visual_before_after",
-      "pathKind": "inline_summary",
-      "path": "render_before_after:seq-0008",
-      "mediaType": "application/json",
-      "contentHash": null,
-      "byteLength": null,
-      "producedBySequenceId": "seq-0008",
-      "summary": "Before/after visual evidence artifact."
-    },
-    {
       "artifactId": "artifact-seq-0009-1",
-      "artifactKind": "agent_readout",
+      "artifactKind": "state_evidence",
       "pathKind": "inline_summary",
-      "path": "agent_readout:seq-0009",
+      "path": "model_metadata:seq-0009",
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
       "producedBySequenceId": "seq-0009",
+      "summary": "Loaded static mesh asset metadata."
+    },
+    {
+      "artifactId": "artifact-seq-0009-2",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "material_metadata:seq-0009",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0009",
+      "summary": "Bound material projection metadata."
+    },
+    {
+      "artifactId": "artifact-seq-0009-3",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "render_diff_preview:seq-0009",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0009",
+      "summary": "Retained-mode render diff that defines and places the loaded asset."
+    },
+    {
+      "artifactId": "artifact-seq-0010-1",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "selection_snapshot:seq-0010",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0010",
+      "summary": "Selected entity/renderable selection evidence."
+    },
+    {
+      "artifactId": "artifact-seq-0011-1",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "editor_state:seq-0011",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0011",
+      "summary": "Editor-local selected-entity name edit evidence."
+    },
+    {
+      "artifactId": "artifact-seq-0012-1",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "editor_state:seq-0012",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0012",
+      "summary": "Editor-local selected-entity transform translate evidence."
+    },
+    {
+      "artifactId": "artifact-seq-0013-1",
+      "artifactKind": "state_evidence",
+      "pathKind": "inline_summary",
+      "path": "editor_state:seq-0013",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0013",
+      "summary": "Editor-local selected-entity transform translate evidence."
+    },
+    {
+      "artifactId": "artifact-seq-0014-1",
+      "artifactKind": "visual_before_after",
+      "pathKind": "inline_summary",
+      "path": "render_before_after:seq-0014",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0014",
+      "summary": "Before/after visual evidence artifact."
+    },
+    {
+      "artifactId": "artifact-seq-0015-1",
+      "artifactKind": "agent_readout",
+      "pathKind": "inline_summary",
+      "path": "agent_readout:seq-0015",
+      "mediaType": "application/json",
+      "contentHash": null,
+      "byteLength": null,
+      "producedBySequenceId": "seq-0015",
       "summary": "Human/agent review artifact index."
     },
     {
@@ -1690,7 +2850,7 @@
       "mediaType": "image/svg+xml",
       "contentHash": "render-grid-fnv1a-cc815eb0",
       "byteLength": null,
-      "producedBySequenceId": "seq-0007",
+      "producedBySequenceId": "seq-0008",
       "summary": "Before visual snapshot: 1 occupied voxel before apply."
     },
     {
@@ -1701,7 +2861,7 @@
       "mediaType": "image/svg+xml",
       "contentHash": "render-grid-fnv1a-8eb9594b",
       "byteLength": null,
-      "producedBySequenceId": "seq-0007",
+      "producedBySequenceId": "seq-0008",
       "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
     },
     {
@@ -1712,64 +2872,15 @@
       "mediaType": "application/json",
       "contentHash": null,
       "byteLength": null,
-      "producedBySequenceId": "seq-0009",
+      "producedBySequenceId": "seq-0015",
       "summary": "Review-grade export artifact with command timeline, state evidence, visual evidence refs, compatibility, and limitations."
     }
   ],
-  "diagnostics": [
-    {
-      "severity": "warning",
-      "code": "asha.compatibility.runtime_bridge_deferred",
-      "message": "@asha/runtime-bridge is not present in this Studio build; command execution must remain unavailable or mock/reference only.",
-      "owningLane": "rust-bridge",
-      "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
-      "remediation": "Track the runtime bridge integration task before enabling command execution."
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    }
-  ],
+  "diagnostics": [],
   "knownLimitations": [
-    "Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence.",
-    "Native runtime bridge/browser screenshot capture remains deferred."
+    "Software snapshot visual evidence is functional proof-content evidence, not browser/GPU evidence by itself.",
+    "Browser screenshot capture is produced by the separate proof:browser command; native runtime bridge authority is proven by proof:runtime-bridge and Agora compositor capture is a separate optional proof backend."
   ],
   "captureReadiness": "ready",
-  "reviewSummary": "9 command(s), 1 visual evidence item(s), and 9 artifact ref(s) ready for review."
+  "reviewSummary": "15 command(s), 1 visual evidence item(s), and 17 artifact ref(s) ready for review."
 }

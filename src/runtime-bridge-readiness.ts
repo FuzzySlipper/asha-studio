@@ -176,7 +176,7 @@ function runtimeBridgeSpecificDiagnostics(evidence: StudioCompatibilityEvidence,
         'asha.runtime_bridge_readiness.runtime_bridge_absent',
         `Runtime mode ${runtimeMode} cannot become authoritative because Studio has no @asha/runtime-bridge compatibility marker.`,
         source,
-        'Keep Studio in mock/reference/unavailable mode until @asha/runtime-bridge is an approved public package root and reports runtime-bridge.v0.',
+        'Keep Studio in mock/reference/unavailable mode until the approved @asha/runtime-bridge package root reports runtime-bridge.v0.',
       ));
     } else if (evidence.runtimeBridgeVersion !== expected) {
       diagnostics.push(runtimeDiagnostic(

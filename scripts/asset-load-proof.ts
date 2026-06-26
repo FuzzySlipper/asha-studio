@@ -138,7 +138,7 @@ function main(): void {
     ],
     knownLimitations: [
       'Demo asset loading uses public @asha/contracts DTOs and the public scene.load_asset command; placement is browser/reference render-diff projection evidence only.',
-      'Native/Rust/WASM authority bootstrap of the loaded scene document remains deferred until @asha/runtime-bridge compatibility is approved for Studio.',
+      'Native runtime bridge authority is proven separately by proof:runtime-bridge; this loaded scene document path remains browser/reference projection until it is specifically runtime-backed.',
       'This proof does not claim native runtime, Agora compositor, hardware GPU, or performance evidence; refresh proof:browser/proof:visual-capability in a Chromium environment to recapture the viewport with the loaded asset.',
     ],
   };

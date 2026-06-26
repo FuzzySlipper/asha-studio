@@ -352,7 +352,8 @@ export function createStudioSessionMetadata(options: {
       degradedReason: compatibilityCheck.ok ? null : 'Compatibility check failed closed; see diagnostics.',
     })),
     knownLimitations: options.knownLimitations ?? [
-      'Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface.',
+      'Native runtime bridge integration is available only through the approved @asha/runtime-bridge package root and remains guarded by proof:runtime-bridge.',
+      'WASM runtime and raw replay/native transports remain forbidden or fail-closed unless a separate public facade proof enables them.',
       'Studio evidence schema package is deferred; session metadata records compatibility only.',
     ],
     diagnostics: compatibilityCheck.diagnostics,

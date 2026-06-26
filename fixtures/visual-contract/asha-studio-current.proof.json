@@ -38,17 +38,17 @@
     "authentication": "remote /etc/den-services/visual-contract.env bearer token; token never stored in proof artifacts"
   },
   "currentCompare": {
-    "runId": "38149dc946082c2b4563d1e0",
+    "runId": "83a0b46e2aa6b186a41e9117",
     "verdict": "pass",
     "failureCount": 0,
     "failures": [],
-    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/38149dc946082c2b4563d1e0/artifacts/report.json",
-    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/38149dc946082c2b4563d1e0/artifacts/diff.overlay.svg",
-    "localReportArtifact": "fixtures/visual-contract/artifacts/38149dc946082c2b4563d1e0/report.json",
-    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/38149dc946082c2b4563d1e0/diff.overlay.svg"
+    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/83a0b46e2aa6b186a41e9117/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/83a0b46e2aa6b186a41e9117/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/83a0b46e2aa6b186a41e9117/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/83a0b46e2aa6b186a41e9117/diff.overlay.svg"
   },
   "negativeCompare": {
-    "runId": "2b958d29bef2e0185e7819f7",
+    "runId": "7c88d9e60980d75aa994b394",
     "verdict": "fail",
     "failureCount": 5,
     "failures": [
@@ -58,10 +58,10 @@
       "primary_docks_top_aligned",
       "central_viewport_bounds_stable"
     ],
-    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/2b958d29bef2e0185e7819f7/artifacts/report.json",
-    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/2b958d29bef2e0185e7819f7/artifacts/diff.overlay.svg",
-    "localReportArtifact": "fixtures/visual-contract/artifacts/2b958d29bef2e0185e7819f7/report.json",
-    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/2b958d29bef2e0185e7819f7/diff.overlay.svg"
+    "reportArtifact": "http://127.0.0.1:8086/visual-contracts/7c88d9e60980d75aa994b394/artifacts/report.json",
+    "diffOverlayArtifact": "http://127.0.0.1:8086/visual-contracts/7c88d9e60980d75aa994b394/artifacts/diff.overlay.svg",
+    "localReportArtifact": "fixtures/visual-contract/artifacts/7c88d9e60980d75aa994b394/report.json",
+    "localDiffOverlayArtifact": "fixtures/visual-contract/artifacts/7c88d9e60980d75aa994b394/diff.overlay.svg"
   },
   "validation": {
     "candidate": {

@@ -16,7 +16,7 @@
       "contractsVersion": "contracts.v0",
       "commandRegistryVersion": "command-registry.v0",
       "studioEvidenceVersion": "studio-evidence.deferred-v0",
-      "runtimeBridgeVersion": null,
+      "runtimeBridgeVersion": "runtime-bridge.v0",
       "ashaCommit": null,
       "ashaPackageVersions": [
         {
@@ -33,12 +33,18 @@
           "packageName": "@asha/editor-tools",
           "version": "0.1.0",
           "commit": null
+        },
+        {
+          "packageName": "@asha/runtime-bridge",
+          "version": "0.1.0",
+          "commit": null
         }
       ],
       "studioCommit": null,
       "supportedRuntimeModes": [
         "mock",
         "reference",
+        "native",
         "unavailable"
       ]
     },
@@ -145,19 +151,11 @@
       }
     ],
     "knownLimitations": [
-      "Runtime bridge integration is deferred; native/wasm modes fail closed until @asha/runtime-bridge is an approved Studio public surface.",
+      "Native runtime bridge integration is available only through the approved @asha/runtime-bridge package root and remains guarded by proof:runtime-bridge.",
+      "WASM runtime and raw replay/native transports remain forbidden or fail-closed unless a separate public facade proof enables them.",
       "Studio evidence schema package is deferred; session metadata records compatibility only."
     ],
-    "diagnostics": [
-      {
-        "severity": "warning",
-        "code": "asha.compatibility.runtime_bridge_deferred",
-        "message": "@asha/runtime-bridge is not present in this Studio build; command execution must remain unavailable or mock/reference only.",
-        "owningLane": "rust-bridge",
-        "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
-        "remediation": "Track the runtime bridge integration task before enabling command execution."
-      }
-    ]
+    "diagnostics": []
   },
   "commandCatalogHash": null,
   "commandTimeline": [
@@ -184,16 +182,7 @@
         "workspaceChanged": true,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0001-1",
@@ -231,16 +220,7 @@
         "workspaceChanged": true,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0002-1",
@@ -278,16 +258,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0003-1",
@@ -325,16 +296,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0004-1",
@@ -488,16 +450,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0009-1",
@@ -557,16 +510,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0010-1",
@@ -604,16 +548,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0011-1",
@@ -651,16 +586,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0012-1",
@@ -698,16 +624,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0013-1",
@@ -745,16 +662,7 @@
         "workspaceChanged": false,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0014-1",
@@ -792,16 +700,7 @@
         "workspaceChanged": true,
         "artifactsWritten": true
       },
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifactRefs": [
         {
           "artifactId": "artifact-seq-0015-1",
@@ -862,17 +761,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -889,12 +788,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -903,16 +808,7 @@
         "kind": "ok"
       },
       "outputSummary": "Command accepted.",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0001-1",
@@ -990,17 +886,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1017,12 +913,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1031,16 +933,7 @@
         "kind": "ok"
       },
       "outputSummary": "Command accepted.",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0002-1",
@@ -1118,17 +1011,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1145,12 +1038,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1160,16 +1059,7 @@
         "status": "ready"
       },
       "outputSummary": "Session session-preview-0001 is ready.",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0003-1",
@@ -1247,17 +1137,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1274,12 +1164,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1289,16 +1185,7 @@
         "commandCount": 4
       },
       "outputSummary": "Exported artifact-viewport-interaction-proof-0001 with 4 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0004-1",
@@ -1360,17 +1247,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1387,12 +1274,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1443,17 +1336,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1470,12 +1363,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1526,17 +1425,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1553,12 +1452,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1609,17 +1514,17 @@
         "selectedBefore": null,
         "selectedAfter": null,
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; this command result records the linked runtime proof path rather than embedding replay bytes."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1636,12 +1541,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1720,17 +1631,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1747,12 +1658,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1762,16 +1679,7 @@
         "commandCount": 9
       },
       "outputSummary": "Exported artifact-demo-asset-load-0001 with 9 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0009-1",
@@ -1871,17 +1779,17 @@
           "summary": "Active entity selected-voxel:0,0,0 selected from the hierarchy and synced to the viewport renderable."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -1898,12 +1806,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -1915,16 +1829,7 @@
         "selected": true
       },
       "outputSummary": "Selected entity selected-voxel:0,0,0 synced to renderable selected-voxel:0,0,0 (selected=true).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0010-1",
@@ -2002,17 +1907,17 @@
           "summary": "Selected entity selected-voxel:0,0,0 renamed to \"Primary terrain voxel\" through the editor-local inspector edit."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -2029,12 +1934,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -2047,16 +1958,7 @@
         "applied": true
       },
       "outputSummary": "Renamed entity selected-voxel:0,0,0 to \"Primary terrain voxel\" on renderable selected-voxel:0,0,0 (applied=true).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0011-1",
@@ -2134,17 +2036,17 @@
           "summary": "Selected entity selected-voxel:0,0,0 translated along x by 2 (preview) through the editor-local transform gizmo."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -2161,12 +2063,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -2191,16 +2099,7 @@
         "applied": false
       },
       "outputSummary": "Translated entity selected-voxel:0,0,0 along x by 2 (preview) to [2.5, 0.5, 0.5] on renderable selected-voxel:0,0,0 (applied=false).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0012-1",
@@ -2278,17 +2177,17 @@
           "summary": "Selected entity selected-voxel:0,0,0 translated along x by 2 (apply) through the editor-local transform gizmo."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -2305,12 +2204,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -2335,16 +2240,7 @@
         "applied": true
       },
       "outputSummary": "Translated entity selected-voxel:0,0,0 along x by 2 (apply) to [2.5, 0.5, 0.5] on renderable selected-voxel:0,0,0 (applied=true).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0013-1",
@@ -2422,17 +2318,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -2449,12 +2345,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -2464,16 +2366,7 @@
         "commandCount": 14
       },
       "outputSummary": "Exported artifact-visual-before-after-0001 with 14 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0014-1",
@@ -2551,17 +2444,17 @@
           "summary": "No active typed selection."
         },
         "replay": {
-          "replayArtifactId": null,
-          "replayPath": null,
+          "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+          "replayPath": "artifacts/runtime-bridge/latest/index.json",
           "replayHash": null,
-          "replayMode": "unavailable",
-          "summary": "unavailable: runtime bridge/replay integration is deferred."
+          "replayMode": "native",
+          "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
         },
         "compatibility": {
           "contractsVersion": "contracts.v0",
           "commandRegistryVersion": "command-registry.v0",
           "studioEvidenceVersion": "studio-evidence.deferred-v0",
-          "runtimeBridgeVersion": null,
+          "runtimeBridgeVersion": "runtime-bridge.v0",
           "ashaCommit": null,
           "ashaPackageVersions": [
             {
@@ -2578,12 +2471,18 @@
               "packageName": "@asha/editor-tools",
               "version": "0.1.0",
               "commit": null
+            },
+            {
+              "packageName": "@asha/runtime-bridge",
+              "version": "0.1.0",
+              "commit": null
             }
           ],
           "studioCommit": null,
           "supportedRuntimeModes": [
             "mock",
             "reference",
+            "native",
             "unavailable"
           ]
         }
@@ -2593,16 +2492,7 @@
         "commandCount": 15
       },
       "outputSummary": "Exported artifact-agent-readout-0001 with 15 command(s).",
-      "diagnostics": [
-        {
-          "severity": "warning",
-          "code": "asha-studio.session.compatibility_degraded",
-          "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-          "owningLane": "asha-studio",
-          "source": "src/session-workspace.ts",
-          "remediation": null
-        }
-      ],
+      "diagnostics": [],
       "artifacts": [
         {
           "artifactId": "artifact-seq-0015-1",
@@ -2663,17 +2553,17 @@
       "summary": "No active typed selection."
     },
     "replay": {
-      "replayArtifactId": null,
-      "replayPath": null,
+      "replayArtifactId": "artifact-runtime-bridge-proof-3220",
+      "replayPath": "artifacts/runtime-bridge/latest/index.json",
       "replayHash": null,
-      "replayMode": "unavailable",
-      "summary": "unavailable: runtime bridge/replay integration is deferred."
+      "replayMode": "native",
+      "summary": "available via pnpm run proof:runtime-bridge; command-local replay record is linked through the runtime bridge proof artifact."
     },
     "compatibility": {
       "contractsVersion": "contracts.v0",
       "commandRegistryVersion": "command-registry.v0",
       "studioEvidenceVersion": "studio-evidence.deferred-v0",
-      "runtimeBridgeVersion": null,
+      "runtimeBridgeVersion": "runtime-bridge.v0",
       "ashaCommit": null,
       "ashaPackageVersions": [
         {
@@ -2690,12 +2580,18 @@
           "packageName": "@asha/editor-tools",
           "version": "0.1.0",
           "commit": null
+        },
+        {
+          "packageName": "@asha/runtime-bridge",
+          "version": "0.1.0",
+          "commit": null
         }
       ],
       "studioCommit": null,
       "supportedRuntimeModes": [
         "mock",
         "reference",
+        "native",
         "unavailable"
       ]
     }
@@ -2797,7 +2693,7 @@
           "projected"
         ],
         "evidenceSource": "StudioModelMaterialPreviewModel.artifact.selectedModelAsset",
-        "summary": "Model context is a reference projection; runtime bridge consumption remains deferred."
+        "summary": "Model context is a reference projection; runtime bridge authority is linked through proof:runtime-bridge."
       }
     ],
     "legend": [
@@ -3011,7 +2907,7 @@
         "artifactIds": [
           "artifact-seq-0001-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0002",
@@ -3029,7 +2925,7 @@
         "artifactIds": [
           "artifact-seq-0002-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0003",
@@ -3047,7 +2943,7 @@
         "artifactIds": [
           "artifact-seq-0003-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0004",
@@ -3065,7 +2961,7 @@
         "artifactIds": [
           "artifact-seq-0004-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0005",
@@ -3151,7 +3047,7 @@
           "artifact-seq-0009-2",
           "artifact-seq-0009-3"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0010",
@@ -3169,7 +3065,7 @@
         "artifactIds": [
           "artifact-seq-0010-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0011",
@@ -3187,7 +3083,7 @@
         "artifactIds": [
           "artifact-seq-0011-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0012",
@@ -3205,7 +3101,7 @@
         "artifactIds": [
           "artifact-seq-0012-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0013",
@@ -3223,7 +3119,7 @@
         "artifactIds": [
           "artifact-seq-0013-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0014",
@@ -3241,7 +3137,7 @@
         "artifactIds": [
           "artifact-seq-0014-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       },
       {
         "sequenceId": "seq-0015",
@@ -3259,7 +3155,7 @@
         "artifactIds": [
           "artifact-seq-0015-1"
         ],
-        "diagnosticCount": 2
+        "diagnosticCount": 0
       }
     ],
     "artifactRows": [
@@ -4917,8 +4813,8 @@
         },
         {
           "surface": "@asha/runtime-bridge",
-          "status": "deferred",
-          "evidence": "Runtime placement/authority bootstrap is deferred; this slice loads reference render-diff evidence without importing runtime transports."
+          "status": "available_public",
+          "evidence": "Runtime authority bootstrap is proven by proof:runtime-bridge; this slice still loads reference render-diff evidence without importing raw transports."
         },
         {
           "surface": "@asha/renderer-three",
@@ -4930,7 +4826,7 @@
       "knownLimitations": [
         "Demo asset loading uses public @asha/contracts DTOs and Studio-owned reference render-diff evidence; it does not import renderer internals or claim native runtime placement.",
         "The browser-safe loader constructs the package in memory; the committed on-disk package files under packagePath (catalog.json, asset-lock.json, scene.json, models/*.mesh.json, materials/*.material.json) are the canonical source and are verified to match (and hashed) by proof:asset-load.",
-        "Asset placement renders as browser/reference projection; Rust/WASM authority bootstrap of the scene document remains deferred until @asha/runtime-bridge compatibility is approved here.",
+        "Asset placement renders as browser/reference projection; Rust/native authority correlation is proven separately by the runtime bridge proof until this specific scene document path is fully runtime-backed.",
         "Negative smokes classify failures with public catalog/lock/scene validation codes; they are reference fail-closed evidence, not runtime authority rejections."
       ]
     },
@@ -5824,108 +5720,11 @@
       "summary": "After visual snapshot: 2 occupied voxel(s) after apply."
     }
   ],
-  "diagnostics": [
-    {
-      "severity": "warning",
-      "code": "asha.compatibility.runtime_bridge_deferred",
-      "message": "@asha/runtime-bridge is not present in this Studio build; command execution must remain unavailable or mock/reference only.",
-      "owningLane": "rust-bridge",
-      "source": "ts/packages/runtime-bridge/compatibility.json; deferred until a public studio runtime task enables it",
-      "remediation": "Track the runtime bridge integration task before enabling command execution."
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    },
-    {
-      "severity": "warning",
-      "code": "asha-studio.session.compatibility_degraded",
-      "message": "Compatibility diagnostics are present on the session; command result records degraded evidence.",
-      "owningLane": "asha-studio",
-      "source": "src/session-workspace.ts",
-      "remediation": null
-    }
-  ],
+  "diagnostics": [],
   "knownLimitations": [
     "Mock/reference session model with typed public VoxelCommand proposal/apply evidence.",
-    "Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.",
-    "Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred."
+    "Native runtime bridge authority is proven by the separate proof:runtime-bridge artifact; visual evidence remains classified software_snapshot proof content.",
+    "Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority correlation is linked through task 3220 proof readback."
   ],
   "reviewSummary": "15 command(s) recorded in the shared GUI/agent timeline for Basic Voxel Scenario."
 }
