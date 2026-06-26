@@ -29,6 +29,8 @@ test('studio workspace starts with a loaded scenario and visible shared timeline
     'scene.load_asset',
     'selection.set_active_entity',
     'entity.set_name',
+    'transform.translate_entity',
+    'transform.translate_entity',
     'render.capture_before_after',
     'export.agent_readout',
   ]);
@@ -115,6 +117,7 @@ test('readout helper preserves result ordering and final state evidence', () => 
     demoAssetLoad: workspace.demoAssetLoad,
     entityBrowser: workspace.entityBrowser,
     selectedEntityInspector: workspace.selectedEntityInspector,
+    transformGizmo: workspace.transformGizmo,
     generatedAtIso: '1970-01-01T00:02:00.000Z',
     knownLimitations: ['test limitation'],
   });
@@ -148,6 +151,8 @@ test('sample agent readout fixture includes exported timeline and command result
     'scene.load_asset',
     'selection.set_active_entity',
     'entity.set_name',
+    'transform.translate_entity',
+    'transform.translate_entity',
     'render.capture_before_after',
     'export.agent_readout',
   ]);

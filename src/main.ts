@@ -175,7 +175,7 @@ function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3d
     meta.append(el('span', 'viewport-meta-chip', label));
   }
   canvas.append(meta);
-  canvas.append(renderStudioViewport3dHost(model.workspace.sceneView, { renderPhase }));
+  canvas.append(renderStudioViewport3dHost(model.workspace.sceneView, { renderPhase, gizmo: model.workspace.transformGizmo }));
 
   const overlay = el('div', 'viewport-state-overlay');
   overlay.append(el('p', 'viewport-selected-target-readout', `Selected target: ${viewportModel.selectedTarget.selectedVoxel} · face ${viewportModel.selectedTarget.selectedFace} · edit anchor ${viewportModel.selectedTarget.editAnchor}`));
@@ -185,6 +185,12 @@ function renderViewportReadout(model: StudioShell, renderPhase: StudioViewport3d
   overlay.append(el('p', 'viewport-render-hash-readout', `Render hashes: ${viewportModel.previewState.renderHash} → ${viewportModel.appliedState.renderHash}`));
   overlay.append(el('p', 'viewport-camera-tool-readout', `Camera/tool proof: ${model.workspace.sceneView.interactionProof.readiness}; active ${model.workspace.sceneView.interactionProof.toolState.activeTool}; camera ${model.workspace.sceneView.interactionProof.toolState.cameraBeforeHash} → ${model.workspace.sceneView.interactionProof.toolState.cameraAfterHash}`));
   overlay.append(el('p', 'viewport-scripted-actions-readout', `Scripted actions: ${model.workspace.sceneView.interactionProof.scriptedActions.map((action) => `${action.actor}:${action.actionId}:${action.sequenceId}`).join(' | ')}`));
+  const gizmo = model.workspace.transformGizmo;
+  const gizmoReadout = markVisual(el('div', 'viewport-transform-gizmo-readout'), 'transform_gizmo', 'transform_gizmo');
+  gizmoReadout.append(el('p', 'transform-gizmo-title', `Transform Gizmo (${gizmo.edit.commandId}) — ${gizmo.readiness}`));
+  gizmoReadout.append(el('p', 'transform-gizmo-translate', `translate ${gizmo.activeAxis} by ${gizmo.transform.delta}: [${gizmo.transform.before.join(', ')}] → [${gizmo.transform.after.join(', ')}] · handles ${gizmo.handles.map((handle) => handle.axis).join('/')}`));
+  gizmoReadout.append(el('p', 'transform-gizmo-smokes', `negative smokes (fail closed): ${gizmo.negativeSmokes.map((smoke) => `${smoke.code}=${smoke.actualOutcome}`).join(' | ')}`));
+  overlay.append(gizmoReadout);
   const demoAsset = model.workspace.demoAssetLoad.artifact;
   const demoAssetReadout = markVisual(el('div', 'viewport-demo-asset-load-readout'), 'demo_asset_load', 'demo_asset_load');
   demoAssetReadout.append(el('p', 'demo-asset-load-title', `Demo Asset Load (scene.load_asset) — ${demoAsset.readiness}`));
@@ -281,6 +287,40 @@ function renderSelectedEntityInspector(model: StudioShell): HTMLElement {
     : `Diagnostics (fail closed): ${inspectorModel.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join(' | ')}`;
   inspector.append(diagnostics);
   return inspector;
+}
+
+function renderTransformGizmo(model: StudioShell): HTMLElement {
+  const gizmo = model.workspace.transformGizmo;
+  const panel = markVisual(el('section', `transform-gizmo-dock transform-gizmo-dock--${gizmo.readiness}`), 'transform_gizmo', 'transform_gizmo');
+  panel.setAttribute('aria-label', gizmo.automationLabel);
+  panel.append(el('h2', undefined, gizmo.title));
+  panel.append(el('p', 'panel-summary', `${gizmo.projectionMode}; entity ${gizmo.selectedEntityId}; ${gizmo.operation} · active axis ${gizmo.activeAxis}; readiness ${gizmo.readiness}.`));
+
+  const selection = el('p', 'transform-gizmo-selection-readout');
+  selection.textContent = `Selection: ${gizmo.selection.selectedEntityId} ↔ viewport ${gizmo.selection.viewportRenderableId} · inSync ${gizmo.selection.inSync} · gizmoHash ${gizmo.gizmoHash}`;
+  panel.append(selection);
+
+  const handles = el('div', 'transform-gizmo-handle-readout');
+  for (const handle of gizmo.handles) {
+    const chip = el('span', `transform-gizmo-handle transform-gizmo-handle--${handle.active ? 'active' : 'idle'}`, `${handle.axis.toUpperCase()}${handle.active ? ' ✎' : ''}`);
+    chip.dataset.gizmoHandle = handle.axis;
+    chip.style.color = handle.color;
+    handles.append(chip);
+  }
+  panel.append(handles);
+
+  const transform = el('p', 'transform-gizmo-transform-readout');
+  transform.dataset.applied = String(gizmo.edit.applied);
+  transform.dataset.inSync = String(gizmo.edit.inSync);
+  transform.textContent = `Translate ${gizmo.activeAxis} by ${gizmo.transform.delta}: [${gizmo.transform.before.join(', ')}] → [${gizmo.transform.after.join(', ')}] · ${gizmo.edit.commandId} · preview ${gizmo.edit.previewSequenceId ?? 'none'} + apply ${gizmo.edit.applySequenceId ?? 'none'} · source ${gizmo.edit.mutationSource} · applied ${gizmo.edit.applied}`;
+  panel.append(transform);
+
+  const diagnostics = el('p', 'transform-gizmo-diagnostics-readout');
+  diagnostics.textContent = gizmo.diagnostics.length === 0
+    ? `Diagnostics: none · negative smokes fail closed: ${gizmo.negativeSmokes.map((smoke) => `${smoke.code}=${smoke.actualOutcome}`).join(' | ')}`
+    : `Diagnostics (fail closed): ${gizmo.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join(' | ')}`;
+  panel.append(diagnostics);
+  return panel;
 }
 
 function renderSelectedTargetInspector(model: StudioShell): HTMLElement {
@@ -489,6 +529,7 @@ function renderDockFrame(model: StudioShell, renderPhase: StudioViewport3dRender
   const rightDock = el('aside', 'studio-editor-dock studio-editor-right-dock');
   rightDock.setAttribute('aria-label', 'studio-editor-right-inspector-dock');
   rightDock.append(renderSelectedEntityInspector(model));
+  rightDock.append(renderTransformGizmo(model));
   rightDock.append(renderSelectedTargetInspector(model));
   rightDock.append(renderPanel(findPanel(model, 'inspector')));
   rightDock.append(renderModelMaterialPreview(model));

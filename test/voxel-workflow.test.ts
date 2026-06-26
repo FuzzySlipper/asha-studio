@@ -61,6 +61,8 @@ test('workspace timeline includes inspect select preview apply after load/status
     'scene.load_asset',
     'selection.set_active_entity',
     'entity.set_name',
+    'transform.translate_entity',
+    'transform.translate_entity',
     'render.capture_before_after',
     'export.agent_readout',
   ]);

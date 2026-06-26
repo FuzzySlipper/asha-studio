@@ -8,6 +8,7 @@ import type {
   StudioSceneViewVec3,
 } from './scene-view-model';
 import { calculateStudioSceneViewCameraHash, calculateStudioSceneViewPickRayHash, calculateStudioSceneViewViewportHash } from './scene-view-model';
+import type { StudioTransformAxis, StudioTransformGizmoModel, StudioVec3 } from './transform-gizmo';
 
 export interface StudioViewport3dRenderableReadback {
   readonly renderableId: string;
@@ -40,9 +41,26 @@ export interface StudioViewport3dReadback {
   readonly appliedRenderableId: string | null;
   readonly interactionProof: StudioSceneViewInteractionProof;
   readonly pickEvidence: StudioSceneViewPickEvidence;
+  readonly transformGizmo: StudioViewport3dGizmoReadback | null;
   readonly renderables: readonly StudioViewport3dRenderableReadback[];
   readonly semanticMarkers: readonly string[];
   readonly limitations: readonly string[];
+}
+
+export interface StudioViewport3dGizmoReadback {
+  readonly selectedEntityId: string;
+  readonly readiness: 'ready' | 'failed_closed';
+  readonly operation: 'translate';
+  readonly activeAxis: StudioTransformAxis;
+  readonly applied: boolean;
+  readonly handleAxes: readonly StudioTransformAxis[];
+  readonly handleVisibleAxes: readonly StudioTransformAxis[];
+  readonly previewRenderableId: string;
+  readonly appliedRenderableId: string;
+  readonly translationBefore: StudioVec3;
+  readonly translationAfter: StudioVec3;
+  readonly previewSequenceId: string | null;
+  readonly applySequenceId: string | null;
 }
 
 const SELECTED_RENDERABLE_ID = 'selected-voxel:0,0,0';
@@ -299,7 +317,46 @@ function editAnchorForFace(voxelId: string, face: string): string | null {
   return `voxel:${voxel.x + offset.x},${voxel.y + offset.y},${voxel.z + offset.z}`;
 }
 
-export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): StudioViewport3dReadback {
+function gizmoPreviewRenderableId(gizmo: StudioTransformGizmoModel): string {
+  return `gizmo-preview:${gizmo.selectedEntityId}`;
+}
+
+function gizmoAppliedRenderableId(gizmo: StudioTransformGizmoModel): string {
+  return `gizmo-applied:${gizmo.selectedEntityId}`;
+}
+
+function buildGizmoReadback(gizmo: StudioTransformGizmoModel): StudioViewport3dGizmoReadback {
+  return {
+    selectedEntityId: gizmo.selectedEntityId,
+    readiness: gizmo.readiness,
+    operation: 'translate',
+    activeAxis: gizmo.activeAxis,
+    applied: gizmo.edit.applied,
+    handleAxes: gizmo.handles.map((handle) => handle.axis),
+    handleVisibleAxes: gizmo.handles.filter((handle) => handle.visible).map((handle) => handle.axis),
+    previewRenderableId: gizmoPreviewRenderableId(gizmo),
+    appliedRenderableId: gizmoAppliedRenderableId(gizmo),
+    translationBefore: gizmo.transform.before,
+    translationAfter: gizmo.transform.after,
+    previewSequenceId: gizmo.edit.previewSequenceId,
+    applySequenceId: gizmo.edit.applySequenceId,
+  };
+}
+
+function gizmoSemanticMarkers(gizmo: StudioTransformGizmoModel): readonly string[] {
+  return [
+    'studio-transform-gizmo',
+    'transform_gizmo_readback',
+    'gizmo-selection-outline',
+    ...gizmo.handles.map((handle) => `gizmo-handle-${handle.axis}`),
+    gizmoPreviewRenderableId(gizmo),
+    gizmoAppliedRenderableId(gizmo),
+    `gizmo-translate:${gizmo.activeAxis}:${gizmo.transform.delta}`,
+    `gizmo-translate-after:[${gizmo.transform.after.join(',')}]`,
+  ];
+}
+
+export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel, gizmo: StudioTransformGizmoModel | null = null): StudioViewport3dReadback {
   const renderables = sceneView.renderables.map((renderable) => ({
     renderableId: renderable.renderableId,
     kind: renderable.kind,
@@ -382,6 +439,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
     appliedRenderableId,
     interactionProof: sceneView.interactionProof,
     pickEvidence: actualPickEvidence,
+    transformGizmo: gizmo === null ? null : buildGizmoReadback(gizmo),
     renderables,
     semanticMarkers: [
       'studio-3d-webgl-canvas',
@@ -402,6 +460,7 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
       'demo-asset-loaded-renderable',
       ...renderables.filter((renderable) => renderable.renderableId.startsWith('scene-asset:')).map((renderable) => renderable.renderableId),
       ...(selectedRenderableId !== null && sceneView.selectedEntityDisplayName !== null ? [`selected-entity-name:${sceneView.selectedEntityDisplayName}`] : []),
+      ...(gizmo === null ? [] : gizmoSemanticMarkers(gizmo)),
     ],
     limitations: [
       'Three.js is used only as a local browser projection dependency for ASHA Studio.',
@@ -411,7 +470,61 @@ export function buildStudioViewport3dReadback(sceneView: StudioSceneViewModel): 
   };
 }
 
-export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, options: { readonly renderPhase?: StudioViewport3dRenderPhase } = {}): HTMLElement {
+function vec3FromTuple(value: StudioVec3): THREE.Vector3 {
+  return new THREE.Vector3(value[0], value[1], value[2]);
+}
+
+const GIZMO_HANDLE_COLORS: Record<StudioTransformAxis, number> = { x: 0xf87171, y: 0x4ade80, z: 0x60a5fa };
+
+function addGizmoGeometryToScene(scene: THREE.Scene, gizmo: StudioTransformGizmoModel): void {
+  const before = vec3FromTuple(gizmo.transform.before);
+  const after = vec3FromTuple(gizmo.transform.after);
+  const preview = vec3FromTuple(gizmo.transform.preview);
+
+  // Axis handles emanating from the selected entity centre; the active axis is highlighted.
+  for (const handle of gizmo.handles) {
+    if (!handle.visible) continue;
+    const direction = new THREE.Vector3(handle.axis === 'x' ? 1 : 0, handle.axis === 'y' ? 1 : 0, handle.axis === 'z' ? 1 : 0);
+    const tip = before.clone().add(direction.clone().multiplyScalar(handle.active ? 1.6 : 1));
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([before, tip]),
+      new THREE.LineBasicMaterial({ color: GIZMO_HANDLE_COLORS[handle.axis], linewidth: handle.active ? 3 : 1, transparent: !handle.active, opacity: handle.active ? 1 : 0.5 }),
+    );
+    line.name = `gizmo-handle-${handle.axis}`;
+    scene.add(line);
+  }
+
+  // Editor-local preview ghost at the dragged-to position (not committed).
+  const previewBox = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0x3d2604, roughness: 0.7, transparent: true, opacity: 0.3 }),
+  );
+  previewBox.name = `gizmo-preview:${gizmo.selectedEntityId}`;
+  previewBox.position.copy(preview);
+  scene.add(previewBox);
+
+  // Committed applied transform at the after position.
+  const appliedBox = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x0e3b47, roughness: 0.72 }),
+  );
+  appliedBox.name = `gizmo-applied:${gizmo.selectedEntityId}`;
+  appliedBox.position.copy(after);
+  scene.add(appliedBox);
+
+  // Delta line from the original centre to the applied centre, marking the translate.
+  const deltaLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([before, after]),
+    new THREE.LineDashedMaterial({ color: 0xe2e8f0, dashSize: 0.18, gapSize: 0.12 }),
+  );
+  deltaLine.computeLineDistances();
+  deltaLine.name = 'gizmo-translate-delta';
+  scene.add(deltaLine);
+
+  scene.updateMatrixWorld(true);
+}
+
+export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, options: { readonly renderPhase?: StudioViewport3dRenderPhase; readonly gizmo?: StudioTransformGizmoModel | null } = {}): HTMLElement {
   const renderPhase = options.renderPhase ?? 'combined';
   const host = document.createElement('div');
   host.className = 'studio-viewport-3d-host';
@@ -444,11 +557,13 @@ export function renderStudioViewport3dHost(sceneView: StudioSceneViewModel, opti
   }
   host.append(axisMarker);
 
+  const gizmo = options.gizmo ?? null;
   const { scene, camera } = createProjectedScene(sceneView, renderPhase);
+  if (gizmo !== null) addGizmoGeometryToScene(scene, gizmo);
 
   renderer.render(scene, camera);
 
-  const readback = buildStudioViewport3dReadback(sceneView);
+  const readback = buildStudioViewport3dReadback(sceneView, gizmo);
   const readbackNode = document.createElement('script');
   readbackNode.type = 'application/json';
   readbackNode.id = 'studio-viewport3d-readback-json';

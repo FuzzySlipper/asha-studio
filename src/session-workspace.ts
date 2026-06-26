@@ -21,6 +21,8 @@ import { createStudioSelectedEntityInspectorModel } from './selected-entity-insp
 import type { StudioSelectedEntityInspectorModel } from './selected-entity-inspector';
 import { createStudioSelectedTargetInspectorModel } from './selected-target-inspector';
 import type { StudioSelectedTargetInspectorModel } from './selected-target-inspector';
+import { createStudioTransformGizmoModel } from './transform-gizmo';
+import type { StudioTransformGizmoModel } from './transform-gizmo';
 import { createStudioViewportEditorPanelModel } from './viewport-editor-panel';
 import type { StudioViewportEditorPanelModel } from './viewport-editor-panel';
 import { createVoxelWorkflowModel } from './voxel-workflow';
@@ -118,6 +120,7 @@ export type StudioCommandInput =
   | { readonly sessionId: string; readonly includeVisualEvidence: boolean }
   | { readonly sessionId: string; readonly entityId: string }
   | { readonly sessionId: string; readonly entityId: string; readonly name: string }
+  | { readonly sessionId: string; readonly entityId: string; readonly axis: 'x' | 'y' | 'z'; readonly delta: number; readonly mode: 'preview' | 'apply' }
   | {
       readonly sessionId: string;
       readonly assetId: string;
@@ -130,7 +133,8 @@ export type StudioCommandOutput =
   | { readonly sessionId: string; readonly status: StudioWorkspaceStatus }
   | { readonly artifactId: string; readonly commandCount: number }
   | { readonly entityId: string; readonly renderableId: string; readonly selectionHash: string; readonly selected: boolean }
-  | { readonly entityId: string; readonly renderableId: string; readonly name: string; readonly nameHash: string; readonly applied: boolean };
+  | { readonly entityId: string; readonly renderableId: string; readonly name: string; readonly nameHash: string; readonly applied: boolean }
+  | { readonly entityId: string; readonly renderableId: string; readonly axis: 'x' | 'y' | 'z'; readonly delta: number; readonly mode: 'preview' | 'apply'; readonly translationBefore: readonly [number, number, number]; readonly translationAfter: readonly [number, number, number]; readonly transformHash: string; readonly applied: boolean };
 
 export interface StudioCommandInvocation {
   readonly schemaVersion: 1;
@@ -208,6 +212,7 @@ export interface StudioAgentReadoutArtifact {
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly entityBrowser: StudioEntityBrowserModel;
   readonly selectedEntityInspector: StudioSelectedEntityInspectorModel;
+  readonly transformGizmo: StudioTransformGizmoModel;
   readonly visualEvidence: readonly StudioVisualEvidenceRef[];
   readonly exportedArtifacts: readonly StudioArtifactRef[];
   readonly diagnostics: readonly StudioDiagnostic[];
@@ -228,6 +233,7 @@ export interface StudioWorkspaceModel {
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly entityBrowser: StudioEntityBrowserModel;
   readonly selectedEntityInspector: StudioSelectedEntityInspectorModel;
+  readonly transformGizmo: StudioTransformGizmoModel;
   readonly sceneHierarchy: StudioSceneHierarchyModel;
   readonly selectedTargetInspector: StudioSelectedTargetInspectorModel;
   readonly commandEvidenceDock: StudioCommandEvidenceDockModel;
@@ -252,6 +258,11 @@ export interface StudioCommandRequest {
 const SELECTED_RENDERABLE_ID = 'selected-voxel:0,0,0';
 // The deterministic display name applied to the selected entity by the inspector rename edit.
 const SELECTED_ENTITY_DISPLAY_NAME = 'Primary terrain voxel';
+// The selected entity's base world translation (matches the selected-voxel:0,0,0 renderable centre).
+const SELECTED_ENTITY_TRANSLATION: readonly [number, number, number] = [0.5, 0.5, 0.5];
+// The deterministic single-axis translate the viewport transform gizmo previews and applies.
+const GIZMO_TRANSLATE_AXIS = 'x' as const;
+const GIZMO_TRANSLATE_DELTA = 2;
 
 function fnv1a(prefix: string, text: string): string {
   let hash = 0x811c9dc5;
@@ -268,6 +279,15 @@ function selectionHashFor(sessionId: string, entityId: string): string {
 
 function entityNameHashFor(sessionId: string, entityId: string, name: string): string {
   return fnv1a('entity-name', `${sessionId}:${entityId}:${name}`);
+}
+
+function entityTransformHashFor(sessionId: string, entityId: string, axis: string, delta: number, mode: string): string {
+  return fnv1a('entity-transform', `${sessionId}:${entityId}:${axis}:${delta}:${mode}`);
+}
+
+function translateAlongAxis(base: readonly [number, number, number], axis: 'x' | 'y' | 'z', delta: number): readonly [number, number, number] {
+  const index = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+  return [base[0] + (index === 0 ? delta : 0), base[1] + (index === 1 ? delta : 0), base[2] + (index === 2 ? delta : 0)];
 }
 
 function selectionEvidenceFor(commandId: StudioCommandId, input: StudioCommandInput, selectionHash: string | null): StudioSelectionEvidence {
@@ -291,6 +311,17 @@ function selectionEvidenceFor(commandId: StudioCommandId, input: StudioCommandIn
       materialId: null,
       evidenceHash: entityNameHashFor(input.sessionId, input.entityId, input.name),
       summary: `Selected entity ${input.entityId} renamed to "${input.name}" through the editor-local inspector edit.`,
+    };
+  }
+  if (commandId === 'transform.translate_entity' && 'axis' in input) {
+    return {
+      kind: 'object',
+      voxelSelection: null,
+      objectId: input.entityId,
+      modelId: null,
+      materialId: null,
+      evidenceHash: entityTransformHashFor(input.sessionId, input.entityId, input.axis, input.delta, input.mode),
+      summary: `Selected entity ${input.entityId} translated along ${input.axis} by ${input.delta} (${input.mode}) through the editor-local transform gizmo.`,
     };
   }
   return NONE_SELECTION;
@@ -317,6 +348,7 @@ function sequenceId(index: number): string {
 
 function summarizeInput(input: StudioCommandInput): string {
   if ('assetId' in input) return `sessionId=${input.sessionId}; assetId=${input.assetId}; materialId=${input.materialId}; placement.translation=[${input.placement.translation.join(',')}]; placement.rotation=[${input.placement.rotation.join(',')}]; placement.scale=[${input.placement.scale.join(',')}]`;
+  if ('axis' in input) return `sessionId=${input.sessionId}; entityId=${input.entityId}; axis=${input.axis}; delta=${input.delta}; mode=${input.mode}`;
   if ('name' in input) return `sessionId=${input.sessionId}; entityId=${input.entityId}; name=${input.name}`;
   if ('entityId' in input) return `sessionId=${input.sessionId}; entityId=${input.entityId}`;
   if ('includeVisualEvidence' in input) return `sessionId=${input.sessionId}; includeVisualEvidence=${input.includeVisualEvidence}`;
@@ -327,6 +359,7 @@ function summarizeInput(input: StudioCommandInput): string {
 
 function summarizeOutput(output: StudioCommandOutput | null): string {
   if (output === null) return 'No output.';
+  if ('axis' in output) return `Translated entity ${output.entityId} along ${output.axis} by ${output.delta} (${output.mode}) to [${output.translationAfter.join(', ')}] on renderable ${output.renderableId} (applied=${output.applied}).`;
   if ('name' in output) return `Renamed entity ${output.entityId} to "${output.name}" on renderable ${output.renderableId} (applied=${output.applied}).`;
   if ('entityId' in output) return `Selected entity ${output.entityId} synced to renderable ${output.renderableId} (selected=${output.selected}).`;
   if ('artifactId' in output) return `Exported ${output.artifactId} with ${output.commandCount} command(s).`;
@@ -387,6 +420,14 @@ function outputFor(commandId: StudioCommandId, sessionId: string, status: Studio
       const entityId = 'entityId' in input ? input.entityId : '';
       const name = 'name' in input ? input.name : '';
       return { entityId, renderableId: entityId, name, nameHash: entityNameHashFor(sessionId, entityId, name), applied: name.trim().length > 0 };
+    }
+    case 'transform.translate_entity': {
+      const entityId = 'entityId' in input ? input.entityId : '';
+      const axis = 'axis' in input ? input.axis : 'x';
+      const delta = 'axis' in input ? input.delta : 0;
+      const mode = 'axis' in input ? input.mode : 'apply';
+      const translationAfter = translateAlongAxis(SELECTED_ENTITY_TRANSLATION, axis, delta);
+      return { entityId, renderableId: entityId, axis, delta, mode, translationBefore: SELECTED_ENTITY_TRANSLATION, translationAfter, transformHash: entityTransformHashFor(sessionId, entityId, axis, delta, mode), applied: mode === 'apply' };
     }
     case 'render.capture_before_after':
       return { artifactId: 'artifact-visual-before-after-0001', commandCount };
@@ -526,6 +567,7 @@ export function createAgentReadoutArtifact(options: {
   readonly demoAssetLoad: StudioDemoAssetLoadModel;
   readonly entityBrowser: StudioEntityBrowserModel;
   readonly selectedEntityInspector: StudioSelectedEntityInspectorModel;
+  readonly transformGizmo: StudioTransformGizmoModel;
   readonly visualEvidence?: readonly StudioVisualEvidenceRef[];
 }): StudioAgentReadoutArtifact {
   const finalState = options.results.at(-1)?.state ?? stateEvidence(options.session.compatibility, 'editor.v0.0');
@@ -550,6 +592,7 @@ export function createAgentReadoutArtifact(options: {
     demoAssetLoad: options.demoAssetLoad,
     entityBrowser: options.entityBrowser,
     selectedEntityInspector: options.selectedEntityInspector,
+    transformGizmo: options.transformGizmo,
     visualEvidence,
     exportedArtifacts,
     diagnostics: [...options.session.diagnostics, ...options.results.flatMap((result) => result.diagnostics)],
@@ -640,6 +683,21 @@ export function createStudioWorkspaceModel(options: {
   results.push(renameEntityExecuted.result);
   const renameOutput = renameEntityExecuted.result.output;
   const selectedEntityDisplayName = renameOutput !== null && 'name' in renameOutput ? renameOutput.name : null;
+  // Transform gizmo: an editor-local preview drag followed by the committed apply, both routed
+  // through the public transform.translate_entity command on the shared GUI/agent timeline.
+  for (const mode of ['preview', 'apply'] as const) {
+    const translateRequest: StudioCommandRequest = {
+      commandId: 'transform.translate_entity',
+      requestedBy: 'gui',
+      sourceLabel: `Viewport transform gizmo — translate ${GIZMO_TRANSLATE_AXIS} (${mode})`,
+      input: { sessionId: session.sessionId, entityId: SELECTED_RENDERABLE_ID, axis: GIZMO_TRANSLATE_AXIS, delta: GIZMO_TRANSLATE_DELTA, mode },
+      requestedAtIso: mode === 'preview' ? '1970-01-01T00:00:06.900Z' : '1970-01-01T00:00:06.950Z',
+      completedAtIso: mode === 'preview' ? '1970-01-01T00:00:06.900Z' : '1970-01-01T00:00:06.950Z',
+    };
+    const translateExecuted = invokeStudioCommand({ catalog, session, request: translateRequest, sequenceIndex: timeline.length, status, previousResults: results });
+    timeline.push(translateExecuted.timelineEntry);
+    results.push(translateExecuted.result);
+  }
   const visualEvidence = createVisualEvidenceForVoxelWorkflow(voxelWorkflow);
   for (const request of [
     { commandId: 'render.capture_before_after' as const, requestedBy: 'gui' as const, sourceLabel: 'Evidence panel', input: { sessionId: session.sessionId, includeVisualEvidence: true }, requestedAtIso: '1970-01-01T00:00:07.000Z', completedAtIso: '1970-01-01T00:00:07.000Z' },
@@ -668,6 +726,7 @@ export function createStudioWorkspaceModel(options: {
   });
   const entityBrowser = createStudioEntityBrowserModel({ sceneView, timeline, commandResults: results });
   const selectedEntityInspector = createStudioSelectedEntityInspectorModel({ sceneView, entityBrowser, timeline, commandResults: results });
+  const transformGizmo = createStudioTransformGizmoModel({ sceneView, timeline, commandResults: results });
   const sceneHierarchy = createStudioSceneHierarchyModel({
     session,
     scenario: { scenarioId: activeScenarioId, label: session.scenarioLabel, status: status === 'ready' ? 'loaded' : 'available' },
@@ -708,6 +767,7 @@ export function createStudioWorkspaceModel(options: {
     demoAssetLoad,
     entityBrowser,
     selectedEntityInspector,
+    transformGizmo,
     visualEvidence,
     generatedAtIso: '1970-01-01T00:00:08.000Z',
     knownLimitations: ['Mock/reference session model with typed public VoxelCommand proposal/apply evidence.', 'Native runtime bridge is deferred; visual evidence is classified software_snapshot proof content.', 'Demo asset loading places a public catalog asset through scene.load_asset as reference render-diff/placement evidence; runtime authority bootstrap remains deferred.'],
@@ -725,6 +785,7 @@ export function createStudioWorkspaceModel(options: {
     demoAssetLoad,
     entityBrowser,
     selectedEntityInspector,
+    transformGizmo,
     sceneHierarchy,
     selectedTargetInspector,
     commandEvidenceDock,
