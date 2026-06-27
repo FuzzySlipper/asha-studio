@@ -282,22 +282,43 @@ body { margin: 0; min-width: 320px; background: #11141a; }
   list-style: none;
   overflow: auto;
 }
+.scene-hierarchy-region-node-item {
+  margin: 1px 0;
+}
 .scene-hierarchy-region-node {
   display: grid;
   grid-template-columns: 14px 22px minmax(0, 1fr);
   align-items: start;
   gap: 6px;
+  width: 100%;
   min-height: 34px;
-  margin: 1px 0;
   padding: 4px 7px 5px;
   border: 1px solid transparent;
   border-radius: 6px;
+  background: transparent;
   color: #c6ced9;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
 }
 .scene-hierarchy-region-node--selected {
-  border-color: rgba(70, 218, 211, 0.38);
-  background: rgba(31, 100, 103, 0.34);
+  border-color: rgba(70, 218, 211, 0.62);
+  background: rgba(22, 116, 120, 0.58);
+  box-shadow: inset 3px 0 0 #63ebe5;
   color: #effefe;
+}
+.scene-hierarchy-region-node:hover {
+  border-color: rgba(134, 148, 166, 0.28);
+  background: rgba(42, 49, 59, 0.42);
+}
+.scene-hierarchy-region-node--selected:hover {
+  border-color: rgba(99, 235, 229, 0.74);
+  background: rgba(24, 126, 130, 0.64);
+}
+.scene-hierarchy-region-node:focus-visible {
+  outline: 2px solid rgba(99, 235, 229, 0.86);
+  outline-offset: 1px;
 }
 .scene-hierarchy-node--depth-1 { padding-left: 20px; }
 .scene-hierarchy-node--depth-2 { padding-left: 38px; }

@@ -681,11 +681,11 @@
     },
     {
       "id": "scene_hierarchy_node_session",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": "vSSession session-preview-0001mock workspace; scenario voxel-basic; compatibility contracts.v0.projected",
+      "text": "Select scene hierarchy row: Session session-preview-0001",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -716,11 +716,11 @@
     },
     {
       "id": "scene_hierarchy_node_scenario",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": "vCBasic Voxel ScenarioScenario loaded; command timeline projected from shared workspace evidence.projectedauthority-back",
+      "text": "Select scene hierarchy row: Basic Voxel Scenario",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -751,11 +751,11 @@
     },
     {
       "id": "scene_hierarchy_node_grid",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": "vGVoxel grid voxel-basic2 occupied after apply; authority grid-fnv1a-8eb9594b.projectedauthority-backed",
+      "text": "Select scene hierarchy row: Voxel grid voxel-basic",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -786,11 +786,11 @@
     },
     {
       "id": "scene_hierarchy_node_entity",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": "vEReference model preview entitycontract_render_diff_reference; ready.projected",
+      "text": "Select scene hierarchy row: Reference model preview entity",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -821,11 +821,11 @@
     },
     {
       "id": "scene_hierarchy_node_selected_voxel",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": "vVSelected voxel (0, 0, 0)Face posX; 1 authority-backed changed voxel(s).selectedauthority-backed",
+      "text": "Selected scene hierarchy row: Selected voxel (0, 0, 0)",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -856,11 +856,11 @@
     },
     {
       "id": "scene_hierarchy_node_preview_ghost",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": ">VPreview ghost (1, 0, 0)1 preview target(s); authority remains grid-fnv1a-cc815eb0.preview-only",
+      "text": "Select scene hierarchy row: Preview ghost (1, 0, 0)",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -891,11 +891,11 @@
     },
     {
       "id": "scene_hierarchy_node_material",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": ">Mmaterial/studio-brushed-copperMaterial context selected through public-contract reference preview evidence.projectedse",
+      "text": "Selected scene hierarchy row: material/studio-brushed-copper",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,
@@ -926,11 +926,11 @@
     },
     {
       "id": "scene_hierarchy_node_model",
-      "kind": "element",
+      "kind": "button",
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": ">Omesh/studio-preview-crateModel context is a reference projection; runtime bridge authority is linked through proof:run",
+      "text": "Select scene hierarchy row: mesh/studio-preview-crate",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,

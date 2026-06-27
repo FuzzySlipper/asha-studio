@@ -174,15 +174,21 @@ function renderSceneHierarchyTree(model: StudioShell): HTMLElement {
 
   for (const node of hierarchyModel.nodes) {
     const selected = node.badges.includes('selected') || node.id === `entity:${selectedEntityId}`;
+    const item = el('li', `scene-hierarchy-region-node-item scene-hierarchy-node-item--depth-${node.depth}`);
     const row = markVisual(
-      el('li', `scene-hierarchy-region-node scene-hierarchy-node scene-hierarchy-node--depth-${node.depth} scene-hierarchy-node-${node.kind}${selected ? ' scene-hierarchy-region-node--selected' : ''}`),
+      el('button', `scene-hierarchy-region-node scene-hierarchy-node scene-hierarchy-node--depth-${node.depth} scene-hierarchy-node-${node.kind}${selected ? ' scene-hierarchy-region-node--selected' : ''}`),
       nodeAutomationId(node),
       'scene_hierarchy_node',
     );
+    row.type = 'button';
+    row.setAttribute('aria-label', `${selected ? 'Selected ' : 'Select '}scene hierarchy row: ${node.label}`);
+    row.setAttribute('aria-pressed', String(selected));
+    if (selected) row.setAttribute('aria-current', 'true');
     row.dataset.nodeId = node.id;
     row.dataset.nodeKind = node.kind;
     row.dataset.depth = String(node.depth);
     row.dataset.selected = String(selected);
+    row.dataset.selectionStatus = selected ? 'selected' : 'available';
     if (node.kind === 'voxel' && node.badges.includes('selected')) row.dataset.selectedVoxel = selectedVoxel;
     if (node.kind === 'entity') row.dataset.entityId = selectedEntityId;
 
@@ -202,7 +208,8 @@ function renderSceneHierarchyTree(model: StudioShell): HTMLElement {
     const badges = el('span', 'scene-hierarchy-badges');
     for (const badge of node.badges) badges.append(el('span', badgeClassName(badge), badge));
     row.append(badges);
-    tree.append(row);
+    item.append(row);
+    tree.append(item);
   }
   return tree;
 }

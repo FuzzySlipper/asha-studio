@@ -50,6 +50,10 @@ test('Region 1 renders projected scene hierarchy affordances instead of placehol
   assert.match(source, /scene-hierarchy-filter-readout/);
   assert.match(source, /scene_hierarchy_create_affordance/);
   assert.match(source, /scene_hierarchy_focus_affordance/);
+  assert.match(source, /el\('button', `scene-hierarchy-region-node/);
+  assert.match(source, /row\.type = 'button'/);
+  assert.match(source, /row\.setAttribute\('aria-pressed', String\(selected\)\)/);
+  assert.match(source, /row\.dataset\.selectionStatus = selected \? 'selected' : 'available'/);
   assert.match(source, /row\.dataset\.selectedVoxel = selectedVoxel/);
   assert.match(source, /row\.dataset\.entityId = selectedEntityId/);
   assert.match(source, /scene-hierarchy-node-selected-voxel/);
@@ -57,6 +61,9 @@ test('Region 1 renders projected scene hierarchy affordances instead of placehol
 
   assert.match(styles, /\.scene-hierarchy-region-tree[\s\S]*overflow: auto/);
   assert.match(styles, /\.scene-hierarchy-region-node--selected/);
+  assert.match(styles, /\.scene-hierarchy-region-node[\s\S]*cursor: pointer/);
+  assert.match(styles, /\.scene-hierarchy-region-node[\s\S]*user-select: none/);
+  assert.match(styles, /\.scene-hierarchy-region-node:focus-visible/);
   assert.match(styles, /\.scene-hierarchy-region-legend/);
   assert.match(styles, /\.scene-hierarchy-badge--authority-backed/);
 });
