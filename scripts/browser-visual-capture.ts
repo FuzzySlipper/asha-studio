@@ -205,7 +205,7 @@ const editorShellMarkerGroups = [
   {
     groupId: 'left_scene_hierarchy_panel',
     label: 'Region 1 left scene/hierarchy panel',
-    markers: ['studio-left-scene-hierarchy-panel', 'Scene / Hierarchy', 'scene_hierarchy', 'authority-backed / projected / preview-only'],
+    markers: ['studio-left-scene-hierarchy-panel', 'SCENE / HIERARCHY', 'scene_hierarchy', 'scene-hierarchy-filter-readout', 'selection synced', 'Selected voxel (0, 0, 0)', 'scene-hierarchy-node-selected-voxel', 'authority-backed', 'preview-only', 'STATE LEGEND'],
   },
   {
     groupId: 'viewport_top_bar',

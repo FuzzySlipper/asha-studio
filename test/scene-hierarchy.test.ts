@@ -18,6 +18,9 @@ test('scene hierarchy projects workspace evidence in deterministic tree order', 
   assert.equal(hierarchy.nodes[0]?.label, 'Session session-preview-0001');
   assert.equal(hierarchy.nodes[1]?.label, 'Basic Voxel Scenario');
   assert.equal(hierarchy.nodes[4]?.label, 'Selected voxel (0, 0, 0)');
+  assert.equal(hierarchy.filter.mode, 'all_projected_nodes');
+  assert.deepEqual(hierarchy.filter.matchedNodeIds, hierarchy.nodes.map((node) => node.id));
+  assert.match(hierarchy.filter.summary, /Static all-nodes filter/);
 });
 
 test('scene hierarchy maps selected, authority-backed, projected, and preview-only badges', () => {
@@ -37,6 +40,8 @@ test('scene hierarchy is exported through the agent readout with stable automati
   const workspace = createStudioWorkspaceModel();
   assert.equal(workspace.exportedReadout.sceneHierarchy.title, 'Scene / Hierarchy');
   assert.deepEqual(workspace.exportedReadout.sceneHierarchy.nodes.map((node) => node.id), workspace.sceneHierarchy.nodes.map((node) => node.id));
+  assert.deepEqual(workspace.exportedReadout.sceneHierarchy.filter.matchedNodeIds, workspace.sceneHierarchy.nodes.map((node) => node.id));
+  assert.ok(workspace.exportedReadout.sceneHierarchy.automationMarkers.includes('scene-hierarchy-filter-readout'));
   assert.ok(workspace.exportedReadout.sceneHierarchy.automationMarkers.includes('scene-hierarchy-node-selected-voxel'));
   assert.ok(workspace.exportedReadout.sceneHierarchy.automationMarkers.includes('scene-hierarchy-legend'));
 });

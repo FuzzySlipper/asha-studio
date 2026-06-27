@@ -22,7 +22,7 @@ test('default Studio route declares the numbered six-region shell markers', () =
   ]) {
     assert.ok(source.includes(marker), `missing shell marker ${marker}`);
   }
-  assert.ok(source.includes("renderRegionTitle('1', 'Scene / Hierarchy'"));
+  assert.ok(source.includes("'SCENE / HIERARCHY'"));
   assert.ok(source.includes("renderRegionTitle('4', 'Viewport / Scene View'"));
   assert.ok(source.includes("renderRegionTitle('5', 'Assets / Bottom Panel'"));
   assert.ok(source.includes("renderRegionTitle('6', 'Inspector'"));
@@ -39,4 +39,24 @@ test('default Studio route uses fixed viewport layout and gates debug readout', 
   assert.match(styles, /\.studio-shell--six-region[\s\S]*overflow: hidden/);
   assert.match(styles, /grid-template-areas:\s*"menu menu menu"\s*"left viewport right"\s*"bottom bottom bottom"/);
   assert.match(styles, /grid-template-rows: 64px minmax\(0, 1fr\) 210px/);
+});
+
+test('Region 1 renders projected scene hierarchy affordances instead of placeholder list', () => {
+  const source = readSource('src/main.ts');
+  const styles = readSource('src/styles.css');
+
+  assert.match(source, /model\.workspace\.sceneHierarchy/);
+  assert.match(source, /model\.workspace\.entityBrowser/);
+  assert.match(source, /scene-hierarchy-filter-readout/);
+  assert.match(source, /scene_hierarchy_create_affordance/);
+  assert.match(source, /scene_hierarchy_focus_affordance/);
+  assert.match(source, /row\.dataset\.selectedVoxel = selectedVoxel/);
+  assert.match(source, /row\.dataset\.entityId = selectedEntityId/);
+  assert.match(source, /scene-hierarchy-node-selected-voxel/);
+  assert.doesNotMatch(source, /studio-placeholder-tree/);
+
+  assert.match(styles, /\.scene-hierarchy-region-tree[\s\S]*overflow: auto/);
+  assert.match(styles, /\.scene-hierarchy-region-node--selected/);
+  assert.match(styles, /\.scene-hierarchy-region-legend/);
+  assert.match(styles, /\.scene-hierarchy-badge--authority-backed/);
 });

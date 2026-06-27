@@ -1,4 +1,5 @@
 import './styles.css';
+import type { StudioSceneHierarchyBadge, StudioSceneHierarchyNode } from './scene-hierarchy';
 import { createStudioShellModel } from './studio-model';
 import { renderStudioViewport3dHost } from './viewport3d-host';
 import type { StudioViewport3dRenderPhase } from './viewport3d-host';
@@ -86,6 +87,141 @@ function renderRegionTitle(number: string, title: string, summary: string): HTML
   return header;
 }
 
+function hierarchyTypeIcon(kind: StudioSceneHierarchyNode['kind']): string {
+  switch (kind) {
+    case 'session':
+      return 'S';
+    case 'scenario':
+      return 'C';
+    case 'grid':
+      return 'G';
+    case 'entity':
+      return 'E';
+    case 'voxel':
+      return 'V';
+    case 'material':
+      return 'M';
+    case 'model':
+      return 'O';
+  }
+}
+
+function badgeClassName(badge: StudioSceneHierarchyBadge): string {
+  return `scene-hierarchy-badge scene-hierarchy-badge--${badge}`;
+}
+
+function nodeAutomationId(node: StudioSceneHierarchyNode): string {
+  if (node.kind === 'voxel' && node.badges.includes('selected')) return 'scene-hierarchy-node-selected-voxel';
+  if (node.id.startsWith('preview:')) return 'scene-hierarchy-node-preview-ghost';
+  return `scene-hierarchy-node-${node.kind}`;
+}
+
+function renderHierarchyTool(label: string, visualId: string, text: string): HTMLElement {
+  const tool = markVisual(el('button', 'scene-hierarchy-tool-button', text), visualId, 'scene_hierarchy_tool');
+  tool.setAttribute('type', 'button');
+  tool.setAttribute('aria-label', label);
+  tool.setAttribute('disabled', 'true');
+  tool.title = `${label} (read-only until public hierarchy commands exist)`;
+  return tool;
+}
+
+function renderSceneHierarchyRegionHeader(model: StudioShell): HTMLElement {
+  const hierarchyModel = model.workspace.sceneHierarchy;
+  const header = el('div', 'scene-hierarchy-region-header');
+  const title = el('div', 'scene-hierarchy-region-title');
+  title.append(renderRegionNumber('1'));
+  const copy = el('div');
+  copy.append(el('h2', undefined, 'SCENE / HIERARCHY'));
+  copy.append(el('p', undefined, `${hierarchyModel.projectionMode}; ${hierarchyModel.nodes.length} projected node(s)`));
+  title.append(copy);
+  header.append(title);
+
+  const tools = el('div', 'scene-hierarchy-tools');
+  tools.append(renderHierarchyTool('Create projected hierarchy object', 'scene_hierarchy_create_affordance', '+'));
+  tools.append(renderHierarchyTool('Focus or pop out hierarchy panel', 'scene_hierarchy_focus_affordance', '^'));
+  header.append(tools);
+  return header;
+}
+
+function renderSceneHierarchyFilter(model: StudioShell): HTMLElement {
+  const hierarchyModel = model.workspace.sceneHierarchy;
+  const browser = model.workspace.entityBrowser;
+  const filter = markVisual(el('label', 'scene-hierarchy-filter-readout'), 'scene_hierarchy_filter', 'scene_hierarchy_filter');
+  filter.append(el('span', undefined, 'Filter'));
+  const input = el('input', 'scene-hierarchy-filter-input');
+  input.type = 'search';
+  input.readOnly = true;
+  input.value = hierarchyModel.filter.query;
+  input.placeholder = `All projected nodes (${hierarchyModel.filter.matchedNodeIds.length})`;
+  input.setAttribute('aria-label', 'Scene hierarchy filter');
+  input.dataset.filterMode = hierarchyModel.filter.mode;
+  input.dataset.matchedNodeCount = String(hierarchyModel.filter.matchedNodeIds.length);
+  filter.append(input);
+  filter.append(el('span', 'scene-hierarchy-filter-token', browser.selection.inSync ? 'selection synced' : 'selection drift'));
+  filter.append(el('span', 'studio-sr-marker', hierarchyModel.filter.summary));
+  return filter;
+}
+
+function renderSceneHierarchyTree(model: StudioShell): HTMLElement {
+  const hierarchyModel = model.workspace.sceneHierarchy;
+  const browser = model.workspace.entityBrowser;
+  const selectedVoxel = model.workspace.viewportEditor.selectedTarget.selectedVoxel;
+  const selectedEntityId = browser.selection.selectedEntityId;
+  const tree = el('ol', 'scene-hierarchy-tree-readout scene-hierarchy-region-tree');
+  tree.setAttribute('aria-label', 'Projected scene hierarchy tree');
+  tree.dataset.selectionEntityId = selectedEntityId;
+  tree.dataset.selectedVoxel = selectedVoxel;
+
+  for (const node of hierarchyModel.nodes) {
+    const selected = node.badges.includes('selected') || node.id === `entity:${selectedEntityId}`;
+    const row = markVisual(
+      el('li', `scene-hierarchy-region-node scene-hierarchy-node scene-hierarchy-node--depth-${node.depth} scene-hierarchy-node-${node.kind}${selected ? ' scene-hierarchy-region-node--selected' : ''}`),
+      nodeAutomationId(node),
+      'scene_hierarchy_node',
+    );
+    row.dataset.nodeId = node.id;
+    row.dataset.nodeKind = node.kind;
+    row.dataset.depth = String(node.depth);
+    row.dataset.selected = String(selected);
+    if (node.kind === 'voxel' && node.badges.includes('selected')) row.dataset.selectedVoxel = selectedVoxel;
+    if (node.kind === 'entity') row.dataset.entityId = selectedEntityId;
+
+    const disclosure = el('span', `scene-hierarchy-disclosure scene-hierarchy-disclosure--${node.depth < 3 ? 'open' : 'leaf'}`, node.depth < 3 ? 'v' : '>');
+    disclosure.setAttribute('aria-label', node.depth < 3 ? `Expanded ${node.label}` : `Leaf ${node.label}`);
+    row.append(disclosure);
+
+    const icon = el('span', `scene-hierarchy-type-icon scene-hierarchy-type-icon--${node.kind}`, hierarchyTypeIcon(node.kind));
+    icon.setAttribute('aria-label', `${node.kind} node`);
+    row.append(icon);
+
+    const main = el('span', 'scene-hierarchy-node-main');
+    main.append(el('span', 'scene-hierarchy-node-label', node.label));
+    main.append(el('span', 'scene-hierarchy-node-summary', node.summary));
+    row.append(main);
+
+    const badges = el('span', 'scene-hierarchy-badges');
+    for (const badge of node.badges) badges.append(el('span', badgeClassName(badge), badge));
+    row.append(badges);
+    tree.append(row);
+  }
+  return tree;
+}
+
+function renderSceneHierarchyLegend(model: StudioShell): HTMLElement {
+  const legend = el('div', 'scene-hierarchy-legend scene-hierarchy-region-legend');
+  legend.append(el('h3', undefined, 'STATE LEGEND'));
+  const entries = el('div', 'scene-hierarchy-legend-grid');
+  for (const item of model.workspace.sceneHierarchy.legend) {
+    const entry = el('span', 'scene-hierarchy-legend-entry');
+    entry.append(el('span', `scene-hierarchy-legend-swatch scene-hierarchy-legend-swatch--${item.badge}`));
+    entry.append(el('span', undefined, item.label));
+    entry.append(el('span', 'studio-sr-marker', item.meaning));
+    entries.append(entry);
+  }
+  legend.append(entries);
+  return legend;
+}
+
 function renderSixRegionMenuBar(model: StudioShell): HTMLElement {
   const topBar = markVisual(el('header', 'studio-menu-top-bar'), 'studio-menu-top-bar', 'studio_menu_top_bar');
   topBar.setAttribute('aria-label', 'studio-editor-app-status-bar');
@@ -123,17 +259,11 @@ function renderSixRegionLeftPanel(model: StudioShell): HTMLElement {
   const panel = markVisual(el('aside', 'studio-region studio-left-scene-hierarchy-panel'), 'studio-left-scene-hierarchy-panel', 'studio_left_scene_hierarchy_panel');
   panel.setAttribute('aria-label', 'studio-left-scene-hierarchy-panel');
   const legacy = appendRegionMarker(panel, 'scene_hierarchy', 'scene_hierarchy');
-  legacy.append(renderRegionTitle('1', 'Scene / Hierarchy', 'Placeholder tree region. Real hierarchy migration follows this shell pass.'));
-  const list = el('ol', 'studio-placeholder-tree');
-  for (const item of [
-    model.workspace.scenario.label,
-    model.workspace.sceneView.renderables[0]?.renderableId ?? 'Selected renderable',
-    model.workspace.demoAssetLoad.artifact.loadedAssetId,
-  ]) {
-    list.append(el('li', undefined, item));
-  }
-  legacy.append(list);
-  legacy.append(el('p', 'studio-region-footnote', 'authority-backed / projected / preview-only'));
+  legacy.classList.add('scene-hierarchy-region-content');
+  legacy.append(renderSceneHierarchyRegionHeader(model));
+  legacy.append(renderSceneHierarchyFilter(model));
+  legacy.append(renderSceneHierarchyTree(model));
+  legacy.append(renderSceneHierarchyLegend(model));
   return panel;
 }
 

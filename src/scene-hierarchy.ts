@@ -22,12 +22,21 @@ export interface StudioSceneHierarchyLegendItem {
   readonly meaning: string;
 }
 
+export interface StudioSceneHierarchyFilterModel {
+  readonly query: string;
+  readonly mode: 'all_projected_nodes';
+  readonly matchedNodeIds: readonly string[];
+  readonly evidenceSource: 'StudioSceneHierarchyModel.nodes';
+  readonly summary: string;
+}
+
 export interface StudioSceneHierarchyModel {
   readonly schemaVersion: 1;
   readonly artifactKind: 'scene_hierarchy_projection';
   readonly automationLabel: 'studio-scene-hierarchy-dock';
   readonly title: 'Scene / Hierarchy';
   readonly projectionMode: 'studio_state_projection';
+  readonly filter: StudioSceneHierarchyFilterModel;
   readonly nodes: readonly StudioSceneHierarchyNode[];
   readonly legend: readonly StudioSceneHierarchyLegendItem[];
   readonly automationMarkers: readonly string[];
@@ -132,10 +141,18 @@ export function createStudioSceneHierarchyModel(options: {
     automationLabel: 'studio-scene-hierarchy-dock',
     title: 'Scene / Hierarchy',
     projectionMode: 'studio_state_projection',
+    filter: {
+      query: '',
+      mode: 'all_projected_nodes',
+      matchedNodeIds: nodes.map((node) => node.id),
+      evidenceSource: 'StudioSceneHierarchyModel.nodes',
+      summary: 'Static all-nodes filter for the first Region 1 pass; interactive filtering waits for a public UI state path.',
+    },
     nodes,
     legend: LEGEND,
     automationMarkers: [
       'studio-scene-hierarchy-dock',
+      'scene-hierarchy-filter-readout',
       'scene-hierarchy-tree-readout',
       'scene-hierarchy-node-session',
       'scene-hierarchy-node-grid',
