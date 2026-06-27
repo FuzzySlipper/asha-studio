@@ -1,0 +1,30 @@
+{
+  "name": "studio-interactions",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/studio-interactions/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:interactions"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/studio-interactions",
+        "main": "libs/studio-interactions/src/index.ts",
+        "tsConfig": "libs/studio-interactions/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "tsc --noEmit -p {projectRoot}/tsconfig.lib.json"
+      }
+    }
+  }
+}

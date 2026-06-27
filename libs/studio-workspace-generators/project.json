@@ -1,0 +1,30 @@
+{
+  "name": "studio-workspace-generators",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/studio-workspace-generators/src",
+  "projectType": "library",
+  "tags": ["type:generator", "scope:workspace-generators"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/studio-workspace-generators",
+        "main": "libs/studio-workspace-generators/src/index.ts",
+        "tsConfig": "libs/studio-workspace-generators/tsconfig.lib.json",
+        "assets": ["libs/studio-workspace-generators/generators.json"]
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "tsc --noEmit -p {projectRoot}/tsconfig.lib.json"
+      }
+    }
+  }
+}

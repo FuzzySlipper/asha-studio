@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/apps/studio-app",
+    "rootDir": "../..",
+    "module": "preserve",
+    "noEmit": false,
+    "types": ["vitest/globals"]
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "../../libs/asha-contracts/src/**/*.ts",
+    "../../libs/studio-command-dispatch/src/**/*.ts",
+    "../../libs/studio-components/src/**/*.ts",
+    "../../libs/studio-domain/src/**/*.ts",
+    "../../libs/studio-interactions/src/**/*.ts",
+    "../../libs/studio-panels/src/**/*.ts",
+    "../../libs/studio-shell/src/**/*.ts",
+    "../../libs/studio-store/src/**/*.ts",
+    "../../libs/studio-theme/src/**/*.ts",
+    "../../libs/studio-viewport/src/**/*.ts"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "studio-command-dispatch",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/studio-command-dispatch/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:command-dispatch"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/studio-command-dispatch",
+        "main": "libs/studio-command-dispatch/src/index.ts",
+        "tsConfig": "libs/studio-command-dispatch/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "tsc --noEmit -p {projectRoot}/tsconfig.lib.json"
+      }
+    }
+  }
+}

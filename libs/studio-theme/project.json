@@ -1,0 +1,12 @@
+{
+  "name": "studio-theme",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/studio-theme/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:theme"],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

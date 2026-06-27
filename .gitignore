@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.angular/
+.nx/
 .vite/
 coverage/
 artifacts/

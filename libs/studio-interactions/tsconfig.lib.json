@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/libs/studio-interactions",
+    "types": []
+  },
+  "include": ["src/**/*.ts"]
+}

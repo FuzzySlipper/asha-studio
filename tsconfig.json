@@ -14,7 +14,25 @@
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@asha-studio/contracts": ["libs/asha-contracts/src/index.ts"],
+      "@asha-studio/domain": ["libs/studio-domain/src/index.ts"],
+      "@asha-studio/command-dispatch": [
+        "libs/studio-command-dispatch/src/index.ts"
+      ],
+      "@asha-studio/store": ["libs/studio-store/src/index.ts"],
+      "@asha-studio/interactions": ["libs/studio-interactions/src/index.ts"],
+      "@asha-studio/viewport": ["libs/studio-viewport/src/index.ts"],
+      "@asha-studio/panels": ["libs/studio-panels/src/index.ts"],
+      "@asha-studio/components": ["libs/studio-components/src/index.ts"],
+      "@asha-studio/shell": ["libs/studio-shell/src/index.ts"],
+      "@asha-studio/theme": ["libs/studio-theme/src/index.ts"],
+      "@asha-studio/testing-fixtures": [
+        "libs/studio-testing-fixtures/src/index.ts"
+      ]
+    }
   },
-  "include": ["src", "test", "scripts/**/*.mjs", "scripts/**/*.ts"]
+  "include": ["apps", "libs", "test", "scripts/**/*.mjs", "scripts/**/*.ts"]
 }

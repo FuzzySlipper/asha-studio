@@ -1,0 +1,13 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+
+@Component({
+  selector: 'asha-__fileName__-panel',
+  standalone: true,
+  template: `
+    <section class="asha-panel" data-visual-id="__visualId__">
+      <header>__className__</header>
+    </section>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class __className__PanelComponent {}

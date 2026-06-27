@@ -1,9 +1,6 @@
 # Rusty View Local Bootstrap
 
-Project-specific live guidance and task management live in Den project
-`rusty-crew` under the `rusty-view` tag.
-
-Use project ID `rusty-crew` with tag filter `rusty-view` for Den tasks,
+Use project ID `asha` with tag filter `asha-studio` for Den tasks,
 messages, documents, librarian queries, and guidance lookups related to
 this frontend.
 
@@ -14,19 +11,12 @@ not the current planning queue.
 
 - **Den** owns current task state, implementation queues, durable planning
   docs, and known limitations.
-- **Repo docs** (`/home/dev/rusty-view/docs/`) describe architecture and
-  committed implementation surfaces.
 - **The code/tests** are the implementation truth when they conflict with old
   planning prose.
 
 ## Architecture Soul
 
-> A boring industrial chat console and reusable chat client kit. Roleplay-
-> agnostic by design. `rusty-roleplay` consumes this; `rusty-view` never knows
-> about roleplay.
-
-- **Backend protocol truth** lives in `rusty-crew` (Rust). TypeScript protocol
-  files are generated or schema-derived, never hand-written.
+- **Backend protocol truth** lives in `asha`.
 - **Library boundaries are load-bearing.** Each library has a strict
   responsibility and may not import across boundaries.
 - **The transcript renderer is the hard part.** Virtualization, streaming,
@@ -36,87 +26,6 @@ not the current planning queue.
   No NgRx global store unless explicitly approved.
 - **Frontend code is deliberately hostile to improvisation.** Agents must use
   workspace generators, obey boundary rules, and prefer boring explicitness.
-
-See `docs/rusty-view.md` for the full system design and the docs directory for
-the broader roleplay system design documents.
-
-## Repository Structure
-
-```text
-/rusty-view
-  /apps
-    /rusty-view              # durable operator chat client (reference implementation)
-  /libs
-    /protocol               # generated TypeScript types (no Angular, no app logic)
-    /transport              # HTTP/SSE client for rusty-crew (no components)
-    /chat-domain            # pure TypeScript domain logic (no Angular)
-    /chat-store             # Angular Signals store (no roleplay state)
-    /chat-theme             # appearance settings + live token application
-    /transcript-renderer    # virtualized transcript rendering (roleplay-agnostic)
-    /chat-components        # dumb presentational components (no service injection)
-    /chat-shell             # app layout (session list, transcript, inspectors)
-    /design-tokens          # colors, spacing, typography (no app assumptions)
-    /testing-fixtures        # fake sessions, giant transcripts, streaming fixtures
-    /workspace-generators   # Nx generators for approved scaffolding
-  /docs                     # design docs (rusty-view.md + system design 00-06)
-```
-
-## Dependency Direction
-
-```text
-rusty-crew (Rust backend, owns protocol truth)
-  ↓ generated/shared protocol types
-rusty-view (this repo — boring chat client kit)
-  ↓ versioned package dependency
-rusty-roleplay (separate future repo — RP presentation layer)
-```
-
-`rusty-view` must know nothing about roleplay concepts. `rusty-roleplay` may
-know about characters, personas, lorebooks, scene state, and presets, but it
-must not own or fork core transcript mechanics.
-
-## Library Boundary Rules
-
-| Library | Owns | May not |
-|---------|------|---------|
-| protocol | Generated TS types from Rust | Angular, app logic, hand-written types |
-| transport | HTTP/SSE/WS interaction with rusty-crew | Component imports, roleplay concepts |
-| chat-domain | Conversation projection, event reduction, branch modeling | Angular components, network calls |
-| chat-store | Current session state, message projection, stream status | Roleplay-specific state, direct network calls |
-| chat-theme | Appearance settings + live `--rv-*` token application, settings persistence | Roleplay concepts, session/transcript state, direct `localStorage` |
-| transcript-renderer | Virtualized rendering, scroll behavior, streaming deltas | Roleplay concepts, hardcoded message decoration |
-| chat-components | Dumb presentational components (inputs/outputs only) | Service injection, store access, domain logic |
-| chat-shell | Debug app layout, session list, inspector panels | Roleplay UI |
-| design-tokens | Colors, spacing, typography | App-specific theme assumptions |
-| testing-fixtures | Fake sessions, giant transcripts, streaming fixtures | Production code imports |
-
-## Local Commands
-
-```bash
-# Install dependencies
-npm install
-
-# Development server (rusty-view app)
-npm start
-
-# Full CI gate
-npm run ci
-
-# Individual checks
-npm run format:check
-npm run lint
-npm run typecheck
-npm run test
-npm run test:affected
-npm run build
-npm run e2e
-
-# Nx-specific
-npx nx run rusty-view:serve
-npx nx run rusty-view:build
-npx nx run-many --target=test --all
-npx nx graph
-```
 
 ## Design Principles
 

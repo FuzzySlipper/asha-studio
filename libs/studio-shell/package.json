@@ -1,0 +1,16 @@
+{
+  "name": "@asha-studio/shell",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@angular/common": "~21.2.0",
+    "@angular/core": "~21.2.0",
+    "@asha-studio/panels": "workspace:*",
+    "@asha-studio/store": "workspace:*",
+    "@asha-studio/viewport": "workspace:*",
+    "tslib": "^2.3.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@asha-studio/command-dispatch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@asha-studio/contracts": "workspace:*",
+    "@asha-studio/domain": "workspace:*",
+    "@asha/command-registry": "link:../../../asha/ts/packages/command-registry",
+    "tslib": "^2.3.0"
+  }
+}
