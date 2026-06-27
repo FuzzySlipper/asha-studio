@@ -18,6 +18,7 @@ export type StudioEntityProjectionDiagnosticCode =
   | 'selection_sync_mismatch'
   | 'stale_entity_list'
   | 'unsupported_private_entity_source';
+export type StudioViewportToolMode = 'select' | 'orbit' | 'pan' | 'frame';
 
 export interface StudioDiagnostic {
   readonly severity: StudioDiagnosticSeverity;
@@ -106,6 +107,53 @@ export interface StudioSceneReadModel {
   readonly selectedRenderableId: string | null;
   readonly renderables: readonly StudioSceneRenderableReadModel[];
   readonly sceneHash: string;
+}
+
+export interface StudioViewportCameraReadModel {
+  readonly position: StudioVec3;
+  readonly target: StudioVec3;
+  readonly up: StudioVec3;
+  readonly fovDegrees: number;
+  readonly near: number;
+  readonly far: number;
+  readonly cameraHash: string;
+}
+
+export interface StudioViewportToolReadModel {
+  readonly activeTool: StudioViewportToolMode;
+  readonly interactionMode: 'idle' | 'dragging';
+  readonly toolHash: string;
+}
+
+export interface StudioViewportCameraControlDelta {
+  readonly deltaX: number;
+  readonly deltaY: number;
+}
+
+export interface StudioViewportRenderableAdapter {
+  readonly renderableId: string;
+  readonly label: string;
+  readonly kind: StudioRenderableKind;
+  readonly sourceState: StudioEntitySourceState;
+  readonly selected: boolean;
+  readonly bounds: StudioBounds;
+  readonly meshRef: string | null;
+  readonly materialRef: string | null;
+  readonly renderHash: string;
+  readonly visible: boolean;
+  readonly pickable: boolean;
+}
+
+export interface StudioViewportAdapterReadModel {
+  readonly adapterVersion: 'studio-viewport-adapter.v0';
+  readonly sceneId: string;
+  readonly sceneHash: string;
+  readonly selectedRenderableId: string | null;
+  readonly camera: StudioViewportCameraReadModel;
+  readonly tool: StudioViewportToolReadModel;
+  readonly renderables: readonly StudioViewportRenderableAdapter[];
+  readonly readbackHash: string;
+  readonly nonClaims: readonly string[];
 }
 
 export interface StudioEntityReadModel {
@@ -413,6 +461,232 @@ function buildSceneHash(renderables: readonly StudioSceneRenderableReadModel[]):
     renderHash: renderable.renderHash,
   }));
   return fnv1aHash('scene-view', hashPayload);
+}
+
+export function buildStudioViewportCameraReadModel(options: {
+  readonly position?: StudioVec3;
+  readonly target?: StudioVec3;
+  readonly up?: StudioVec3;
+  readonly fovDegrees?: number;
+  readonly near?: number;
+  readonly far?: number;
+} = {}): StudioViewportCameraReadModel {
+  const camera = {
+    position: options.position ?? { x: 4.6, y: 5.2, z: 4.1 },
+    target: options.target ?? { x: 1.25, y: 1.1, z: 0.55 },
+    up: options.up ?? { x: 0, y: 0, z: 1 },
+    fovDegrees: options.fovDegrees ?? 42,
+    near: options.near ?? 0.05,
+    far: options.far ?? 100,
+  };
+  return {
+    ...camera,
+    cameraHash: fnv1aHash('viewport-camera', camera),
+  };
+}
+
+export function buildStudioViewportToolReadModel(
+  activeTool: StudioViewportToolMode = 'select',
+  interactionMode: StudioViewportToolReadModel['interactionMode'] = 'idle',
+): StudioViewportToolReadModel {
+  const tool = { activeTool, interactionMode };
+  return {
+    ...tool,
+    toolHash: fnv1aHash('viewport-tool', tool),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function addVec3(left: StudioVec3, right: StudioVec3): StudioVec3 {
+  return { x: left.x + right.x, y: left.y + right.y, z: left.z + right.z };
+}
+
+function subVec3(left: StudioVec3, right: StudioVec3): StudioVec3 {
+  return { x: left.x - right.x, y: left.y - right.y, z: left.z - right.z };
+}
+
+function scaleVec3(vector: StudioVec3, scalar: number): StudioVec3 {
+  return { x: vector.x * scalar, y: vector.y * scalar, z: vector.z * scalar };
+}
+
+function lengthVec3(vector: StudioVec3): number {
+  return Math.hypot(vector.x, vector.y, vector.z);
+}
+
+function normalizeVec3(vector: StudioVec3): StudioVec3 {
+  const length = lengthVec3(vector);
+  if (length <= 0.0001) {
+    return { x: 0, y: 0, z: 0 };
+  }
+  return scaleVec3(vector, 1 / length);
+}
+
+function crossVec3(left: StudioVec3, right: StudioVec3): StudioVec3 {
+  return {
+    x: left.y * right.z - left.z * right.y,
+    y: left.z * right.x - left.x * right.z,
+    z: left.x * right.y - left.y * right.x,
+  };
+}
+
+export function orbitStudioViewportCamera(
+  camera: StudioViewportCameraReadModel,
+  delta: StudioViewportCameraControlDelta,
+): StudioViewportCameraReadModel {
+  const offset = subVec3(camera.position, camera.target);
+  const radius = clamp(lengthVec3(offset), 0.6, 40);
+  const yaw = Math.atan2(offset.y, offset.x) - delta.deltaX * 0.008;
+  const horizontal = Math.hypot(offset.x, offset.y);
+  const pitch = clamp(Math.atan2(offset.z, horizontal) + delta.deltaY * 0.008, -1.15, 1.15);
+  const nextOffset = {
+    x: Math.cos(pitch) * Math.cos(yaw) * radius,
+    y: Math.cos(pitch) * Math.sin(yaw) * radius,
+    z: Math.sin(pitch) * radius,
+  };
+
+  return buildStudioViewportCameraReadModel({
+    ...camera,
+    position: addVec3(camera.target, nextOffset),
+  });
+}
+
+export function panStudioViewportCamera(
+  camera: StudioViewportCameraReadModel,
+  delta: StudioViewportCameraControlDelta,
+): StudioViewportCameraReadModel {
+  const forward = normalizeVec3(subVec3(camera.target, camera.position));
+  const right = normalizeVec3(crossVec3(forward, camera.up));
+  const up = normalizeVec3(camera.up);
+  const distance = lengthVec3(subVec3(camera.position, camera.target));
+  const scale = clamp(distance * 0.0018, 0.002, 0.05);
+  const pan = addVec3(
+    scaleVec3(right, -delta.deltaX * scale),
+    scaleVec3(up, delta.deltaY * scale),
+  );
+
+  return buildStudioViewportCameraReadModel({
+    ...camera,
+    position: addVec3(camera.position, pan),
+    target: addVec3(camera.target, pan),
+  });
+}
+
+export function zoomStudioViewportCamera(
+  camera: StudioViewportCameraReadModel,
+  wheelDeltaY: number,
+): StudioViewportCameraReadModel {
+  const offset = subVec3(camera.position, camera.target);
+  const distance = lengthVec3(offset);
+  const nextDistance = clamp(distance * (1 + wheelDeltaY * 0.001), 0.75, 28);
+  const nextOffset = scaleVec3(normalizeVec3(offset), nextDistance);
+
+  return buildStudioViewportCameraReadModel({
+    ...camera,
+    position: addVec3(camera.target, nextOffset),
+  });
+}
+
+export function frameStudioViewportCamera(
+  scene: StudioSceneReadModel,
+): StudioViewportCameraReadModel {
+  const visibleRenderables = scene.renderables.filter(renderable => renderable.visible);
+  if (visibleRenderables.length === 0) {
+    return buildStudioViewportCameraReadModel();
+  }
+
+  const bounds = visibleRenderables.reduce(
+    (current, renderable) => ({
+      min: {
+        x: Math.min(current.min.x, renderable.bounds.min.x),
+        y: Math.min(current.min.y, renderable.bounds.min.y),
+        z: Math.min(current.min.z, renderable.bounds.min.z),
+      },
+      max: {
+        x: Math.max(current.max.x, renderable.bounds.max.x),
+        y: Math.max(current.max.y, renderable.bounds.max.y),
+        z: Math.max(current.max.z, renderable.bounds.max.z),
+      },
+    }),
+    visibleRenderables[0]?.bounds ?? {
+      min: { x: 0, y: 0, z: 0 },
+      max: { x: 1, y: 1, z: 1 },
+    },
+  );
+  const target = {
+    x: (bounds.min.x + bounds.max.x) / 2,
+    y: (bounds.min.y + bounds.max.y) / 2,
+    z: (bounds.min.z + bounds.max.z) / 2,
+  };
+  const extent = Math.max(
+    bounds.max.x - bounds.min.x,
+    bounds.max.y - bounds.min.y,
+    bounds.max.z - bounds.min.z,
+    1,
+  );
+
+  return buildStudioViewportCameraReadModel({
+    position: {
+      x: target.x + extent * 1.75,
+      y: target.y + extent * 2.15,
+      z: target.z + extent * 1.45,
+    },
+    target,
+  });
+}
+
+export function buildStudioViewportAdapterReadModel(options: {
+  readonly scene: StudioSceneReadModel;
+  readonly camera?: StudioViewportCameraReadModel;
+  readonly tool?: StudioViewportToolReadModel;
+}): StudioViewportAdapterReadModel {
+  const camera = options.camera ?? buildStudioViewportCameraReadModel();
+  const tool = options.tool ?? buildStudioViewportToolReadModel();
+  const renderables = options.scene.renderables.map(renderable => ({
+    renderableId: renderable.renderableId,
+    label: renderable.label,
+    kind: renderable.kind,
+    sourceState: renderable.sourceState,
+    selected: renderable.renderableId === options.scene.selectedRenderableId,
+    bounds: renderable.bounds,
+    meshRef: renderable.meshRef,
+    materialRef: renderable.materialRef,
+    renderHash: renderable.renderHash,
+    visible: renderable.visible,
+    pickable: renderable.pickable,
+  }));
+  const readbackPayload = {
+    sceneId: options.scene.sceneId,
+    sceneHash: options.scene.sceneHash,
+    selectedRenderableId: options.scene.selectedRenderableId,
+    cameraHash: camera.cameraHash,
+    toolHash: tool.toolHash,
+    renderables: renderables.map(renderable => ({
+      renderableId: renderable.renderableId,
+      selected: renderable.selected,
+      visible: renderable.visible,
+      renderHash: renderable.renderHash,
+    })),
+  };
+
+  return {
+    adapterVersion: 'studio-viewport-adapter.v0',
+    sceneId: options.scene.sceneId,
+    sceneHash: options.scene.sceneHash,
+    selectedRenderableId: options.scene.selectedRenderableId,
+    camera,
+    tool,
+    renderables,
+    readbackHash: fnv1aHash('viewport-readback', readbackPayload),
+    nonClaims: [
+      'browser_reference_projection',
+      'not_native_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+  };
 }
 
 function sequenceId(index: number): string {

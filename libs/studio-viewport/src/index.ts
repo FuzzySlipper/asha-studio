@@ -1,60 +1,101 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ViewChild,
+  effect,
+  inject,
+} from '@angular/core';
+import type { AfterViewInit, ElementRef, OnDestroy } from '@angular/core';
 import type {
-  StudioSceneReadModel,
-  StudioSceneRenderableReadModel,
+  StudioBounds,
+  StudioEntitySourceState,
+  StudioRenderableKind,
+  StudioVec3,
+  StudioViewportAdapterReadModel,
+  StudioViewportRenderableAdapter,
+  StudioViewportToolMode,
 } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
+import * as THREE from 'three';
 
-export interface StudioViewportRenderableProjection {
-  readonly renderable: StudioSceneRenderableReadModel;
-  readonly selected: boolean;
-  readonly leftPercent: number;
-  readonly topPercent: number;
-  readonly widthPercent: number;
-  readonly heightPercent: number;
-  readonly elevationPixels: number;
-  readonly zIndex: number;
-}
-
-function clampPercent(value: number): number {
-  return Math.min(96, Math.max(4, value));
-}
-
-function zIndexForRenderable(renderable: StudioSceneRenderableReadModel, selected: boolean): number {
-  const baseByKind: Record<StudioSceneRenderableReadModel['kind'], number> = {
-    voxel_grid: 0,
-    preview_ghost: 40,
-    voxel_cell: 70,
-    static_mesh: 80,
+function center(bounds: StudioBounds): StudioVec3 {
+  return {
+    x: (bounds.min.x + bounds.max.x) / 2,
+    y: (bounds.min.y + bounds.max.y) / 2,
+    z: (bounds.min.z + bounds.max.z) / 2,
   };
-  const centerY = (renderable.bounds.min.y + renderable.bounds.max.y) / 2;
-  const centerZ = (renderable.bounds.min.z + renderable.bounds.max.z) / 2;
-  const selectedOffset = selected ? 100 : 0;
-
-  return baseByKind[renderable.kind] + selectedOffset + Math.round(centerY * 10 + centerZ * 20);
 }
 
-export function projectViewportRenderables(
-  scene: StudioSceneReadModel,
-): readonly StudioViewportRenderableProjection[] {
-  return scene.renderables.map(renderable => {
-    const width = Math.max(5, ((renderable.bounds.max.x - renderable.bounds.min.x) / 3) * 70);
-    const height = Math.max(5, ((renderable.bounds.max.y - renderable.bounds.min.y) / 3) * 62);
-    const centerX = (renderable.bounds.min.x + renderable.bounds.max.x) / 2;
-    const centerY = (renderable.bounds.min.y + renderable.bounds.max.y) / 2;
-    const centerZ = (renderable.bounds.min.z + renderable.bounds.max.z) / 2;
-    const selected = renderable.renderableId === scene.selectedRenderableId;
+function size(bounds: StudioBounds): StudioVec3 {
+  return {
+    x: Math.max(0.04, bounds.max.x - bounds.min.x),
+    y: Math.max(0.04, bounds.max.y - bounds.min.y),
+    z: Math.max(0.04, bounds.max.z - bounds.min.z),
+  };
+}
 
-    return {
-      renderable,
-      selected,
-      leftPercent: clampPercent(15 + (centerX / 3) * 70),
-      topPercent: clampPercent(18 + (centerY / 3) * 62 - centerZ * 5),
-      widthPercent: width,
-      heightPercent: height,
-      elevationPixels: Math.round(centerZ * 22),
-      zIndex: zIndexForRenderable(renderable, selected),
-    };
+function toThreePosition(vector: StudioVec3): THREE.Vector3 {
+  return new THREE.Vector3(vector.x, vector.z, vector.y);
+}
+
+function materialColor(
+  kind: StudioRenderableKind,
+  sourceState: StudioEntitySourceState,
+  selected: boolean,
+): THREE.ColorRepresentation {
+  if (selected) {
+    return '#d4953f';
+  }
+  if (kind === 'preview_ghost' || sourceState === 'pending') {
+    return '#54c7bd';
+  }
+  if (kind === 'static_mesh') {
+    return '#c98e4d';
+  }
+  if (kind === 'voxel_grid') {
+    return '#29475a';
+  }
+  return '#b57a34';
+}
+
+function materialOpacity(renderable: StudioViewportRenderableAdapter): number {
+  if (renderable.kind === 'voxel_grid') {
+    return 0.18;
+  }
+  if (renderable.kind === 'preview_ghost') {
+    return 0.36;
+  }
+  return 0.9;
+}
+
+function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string {
+  if (dragging) {
+    return 'grabbing';
+  }
+  if (tool === 'orbit' || tool === 'pan') {
+    return 'grab';
+  }
+  if (tool === 'select') {
+    return 'crosshair';
+  }
+  return 'default';
+}
+
+function disposeObject(object: THREE.Object3D): void {
+  object.traverse(child => {
+    const maybeMesh = child as THREE.Mesh;
+    const geometry = maybeMesh.geometry;
+    if (geometry instanceof THREE.BufferGeometry) {
+      geometry.dispose();
+    }
+    const material = maybeMesh.material;
+    if (Array.isArray(material)) {
+      for (const entry of material) {
+        entry.dispose();
+      }
+    } else if (material instanceof THREE.Material) {
+      material.dispose();
+    }
   });
 }
 
@@ -64,38 +105,19 @@ export function projectViewportRenderables(
   template: `
     <section class="viewport-scene" data-visual-id="studio-viewport">
       <div class="viewport-scene__header">
-        <span>4 · Viewport / Scene View</span>
-        <strong>{{ store.workspace().scene.sceneId }}</strong>
+        <span>4 · 3D Viewport / Scene View</span>
+        <strong>{{ store.viewportAdapter().sceneId }}</strong>
       </div>
 
-      <div class="viewport-scene__surface" aria-label="Scene viewport">
-        <div class="viewport-scene__grid" aria-hidden="true"></div>
-
-        @for (projection of projections(); track projection.renderable.renderableId) {
-          <button
-            class="renderable"
-            type="button"
-            [class.renderable--grid]="projection.renderable.kind === 'voxel_grid'"
-            [class.renderable--voxel]="projection.renderable.kind === 'voxel_cell'"
-            [class.renderable--mesh]="projection.renderable.kind === 'static_mesh'"
-            [class.renderable--preview]="projection.renderable.kind === 'preview_ghost'"
-            [class.renderable--selected]="projection.selected"
-            [style.left.%]="projection.leftPercent"
-            [style.top.%]="projection.topPercent"
-            [style.width.%]="projection.widthPercent"
-            [style.height.%]="projection.heightPercent"
-            [style.--viewport-elevation.px]="projection.elevationPixels"
-            [style.z-index]="projection.zIndex"
-            (click)="store.selectEntity(projection.renderable.renderableId)"
-          >
-            <span class="renderable__label">{{ projection.renderable.label }}</span>
-            <span class="renderable__hash">{{ projection.renderable.renderHash }}</span>
-          </button>
-        }
-
-        <div class="selection-readout">
+      <div
+        #host
+        class="viewport-scene__host"
+        aria-label="Three dimensional scene viewport"
+      >
+        <div class="viewport-readback">
           <span>selected target</span>
-          <strong>{{ store.workspace().scene.selectedRenderableId ?? 'none' }}</strong>
+          <strong>{{ store.viewportAdapter().selectedRenderableId ?? 'none' }}</strong>
+          <small>{{ store.viewportAdapter().readbackHash }}</small>
         </div>
 
         <div class="axis-gizmo" aria-hidden="true">
@@ -106,8 +128,9 @@ export function projectViewportRenderables(
       </div>
 
       <footer class="viewport-scene__footer">
-        <span>{{ store.workspace().scene.sceneHash }}</span>
-        <span>{{ store.readbackMarker() }}</span>
+        <span>{{ store.viewportAdapter().camera.cameraHash }}</span>
+        <span>{{ store.viewportAdapter().tool.activeTool }}</span>
+        <span>{{ store.viewportAdapter().sceneHash }}</span>
       </footer>
     </section>
   `,
@@ -152,138 +175,44 @@ export function projectViewportRenderables(
         text-align: right;
       }
 
-      .viewport-scene__surface {
-        background:
-          linear-gradient(rgba(84, 199, 189, 0.06) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(84, 199, 189, 0.06) 1px, transparent 1px),
-          radial-gradient(circle at 50% 44%, rgba(84, 199, 189, 0.1), transparent 36%),
-          #101820;
-        background-size: 2rem 2rem, 2rem 2rem, auto, auto;
+      .viewport-scene__host {
+        background: #101820;
         border: 1px solid #24313b;
         box-sizing: border-box;
+        contain: layout paint;
+        isolation: isolate;
         min-height: 0;
         min-width: 0;
         overflow: hidden;
         position: relative;
       }
 
-      .viewport-scene__grid {
-        border: 1px solid rgba(84, 199, 189, 0.18);
-        bottom: 12%;
-        left: 12%;
-        position: absolute;
-        right: 12%;
-        top: 14%;
-      }
-
-      .renderable {
-        --viewport-elevation: 0px;
-        align-items: start;
-        background: rgba(55, 123, 155, 0.62);
-        border: 1px solid rgba(109, 184, 202, 0.88);
-        box-shadow:
-          0 var(--viewport-elevation) 0 rgba(23, 31, 38, 0.72),
-          0 0 0 1px rgba(0, 0, 0, 0.22) inset;
-        box-sizing: border-box;
-        color: var(--asha-color-ink);
-        cursor: pointer;
-        display: grid;
-        align-content: start;
-        font: inherit;
-        gap: 0.15rem;
-        justify-items: start;
-        min-height: 2rem;
-        min-width: 2rem;
-        overflow: hidden;
-        padding: 0.35rem;
-        position: absolute;
-        text-align: left;
-        transform: translate(-50%, calc(-50% - var(--viewport-elevation)));
-      }
-
-      .renderable:hover {
-        filter: brightness(1.12);
-      }
-
-      .renderable--grid {
-        background: rgba(46, 99, 129, 0.28);
-        border-style: dashed;
-      }
-
-      .renderable--grid .renderable__label,
-      .renderable--grid .renderable__hash {
-        justify-self: end;
-        opacity: 0.68;
-      }
-
-      .renderable--voxel {
-        background: rgba(211, 148, 65, 0.86);
-        border-color: #e9b15e;
-        color: #111820;
-      }
-
-      .renderable--mesh {
-        background: rgba(201, 142, 77, 0.78);
-        border-color: #f1bf80;
-        color: #111820;
-      }
-
-      .renderable--preview {
-        background: rgba(84, 199, 189, 0.22);
-        border-color: #54c7bd;
-        border-style: dashed;
-        color: #d5fbf8;
-      }
-
-      .renderable--preview .renderable__label,
-      .renderable--preview .renderable__hash {
-        justify-self: end;
-      }
-
-      .renderable--selected {
-        outline: 2px solid #54c7bd;
-        outline-offset: 0.2rem;
-      }
-
-      .renderable__label,
-      .renderable__hash {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .renderable__label {
-        font-size: 0.72rem;
-        font-weight: 800;
-      }
-
-      .renderable__hash {
-        font-size: 0.58rem;
-        opacity: 0.76;
-      }
-
-      .selection-readout {
+      .viewport-readback {
         background: rgba(11, 17, 23, 0.9);
         border: 1px solid rgba(84, 199, 189, 0.45);
         bottom: 1rem;
         color: var(--asha-color-muted);
         display: grid;
         font-size: 0.68rem;
-        gap: 0.2rem;
+        gap: 0.18rem;
         left: 50%;
-        max-width: min(34rem, calc(100% - 2rem));
-        min-width: 16rem;
+        max-width: min(36rem, calc(100% - 2rem));
+        min-width: 17rem;
         padding: 0.4rem 0.55rem;
         position: absolute;
         transform: translateX(-50%);
       }
 
-      .selection-readout strong {
+      .viewport-readback strong,
+      .viewport-readback small {
         color: var(--asha-color-ink);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .viewport-readback small {
+        color: var(--asha-color-muted);
       }
 
       .axis-gizmo {
@@ -297,6 +226,7 @@ export function projectViewportRenderables(
 
       .axis-gizmo span {
         align-items: center;
+        background: rgba(11, 17, 23, 0.82);
         border: 1px solid var(--asha-color-border);
         display: inline-flex;
         font-size: 0.65rem;
@@ -318,11 +248,7 @@ export function projectViewportRenderables(
       }
 
       @media (max-width: 900px) {
-        .renderable__hash {
-          display: none;
-        }
-
-        .selection-readout {
+        .viewport-readback {
           left: auto;
           min-width: 0;
           right: 1rem;
@@ -334,10 +260,294 @@ export function projectViewportRenderables(
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StudioViewportComponent {
+export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   readonly store = inject(StudioWorkspaceStore);
 
-  readonly projections = computed(() =>
-    projectViewportRenderables(this.store.workspace().scene),
-  );
+  @ViewChild('host', { static: true }) private hostRef?: ElementRef<HTMLDivElement>;
+
+  private readonly scene = new THREE.Scene();
+  private readonly renderableGroup = new THREE.Group();
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly pointer = new THREE.Vector2();
+  private camera: THREE.PerspectiveCamera | null = null;
+  private renderer: THREE.WebGLRenderer | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private hostElement: HTMLDivElement | null = null;
+  private animationFrameId: number | null = null;
+  private renderedWidth = 0;
+  private renderedHeight = 0;
+  private renderedSceneKey: string | null = null;
+  private dragState: {
+    readonly pointerId: number;
+    readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan'>;
+    readonly x: number;
+    readonly y: number;
+  } | null = null;
+
+  private readonly adapterEffect = effect(() => {
+    const adapter = this.store.viewportAdapter();
+    this.syncViewport(adapter);
+  });
+
+  ngAfterViewInit(): void {
+    const hostElement = this.hostRef?.nativeElement;
+    if (hostElement === undefined) {
+      return;
+    }
+
+    this.hostElement = hostElement;
+    this.initializeThree(hostElement);
+    this.syncViewport(this.store.viewportAdapter());
+    this.startRenderLoop();
+  }
+
+  ngOnDestroy(): void {
+    this.adapterEffect.destroy();
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+    if (this.resizeObserver !== null) {
+      this.resizeObserver.disconnect();
+    }
+    if (this.renderer !== null) {
+      this.renderer.domElement.removeEventListener('pointerdown', this.handlePointerDown);
+      this.renderer.domElement.removeEventListener('pointermove', this.handlePointerMove);
+      this.renderer.domElement.removeEventListener('pointerup', this.handlePointerUp);
+      this.renderer.domElement.removeEventListener('pointercancel', this.handlePointerUp);
+      this.renderer.domElement.removeEventListener('wheel', this.handleWheel);
+      this.renderer.dispose();
+      this.renderer.domElement.remove();
+    }
+    disposeObject(this.renderableGroup);
+  }
+
+  private initializeThree(hostElement: HTMLDivElement): void {
+    this.scene.background = new THREE.Color('#101820');
+    this.scene.add(this.renderableGroup);
+    this.scene.add(new THREE.AmbientLight('#f1f5f4', 0.68));
+
+    const keyLight = new THREE.DirectionalLight('#ffffff', 1.4);
+    keyLight.position.set(4, 6, 5);
+    this.scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight('#54c7bd', 0.65);
+    fillLight.position.set(-4, 3, -3);
+    this.scene.add(fillLight);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    Object.assign(renderer.domElement.style, {
+      display: 'block',
+      height: '100%',
+      inset: '0',
+      position: 'absolute',
+      touchAction: 'none',
+      width: '100%',
+    });
+    renderer.domElement.addEventListener('pointerdown', this.handlePointerDown);
+    renderer.domElement.addEventListener('pointermove', this.handlePointerMove);
+    renderer.domElement.addEventListener('pointerup', this.handlePointerUp);
+    renderer.domElement.addEventListener('pointercancel', this.handlePointerUp);
+    renderer.domElement.addEventListener('wheel', this.handleWheel, { passive: false });
+    hostElement.append(renderer.domElement);
+    this.renderer = renderer;
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
+    camera.up.set(0, 1, 0);
+    this.camera = camera;
+
+    this.resizeObserver = new ResizeObserver(() => this.resizeRenderer());
+    this.resizeObserver.observe(hostElement);
+    this.resizeRenderer();
+  }
+
+  private syncViewport(adapter: StudioViewportAdapterReadModel): void {
+    if (this.camera === null || this.renderer === null) {
+      return;
+    }
+
+    this.camera.position.copy(toThreePosition(adapter.camera.position));
+    this.camera.up.copy(toThreePosition(adapter.camera.up));
+    this.camera.fov = adapter.camera.fovDegrees;
+    this.camera.near = adapter.camera.near;
+    this.camera.far = adapter.camera.far;
+    this.camera.lookAt(toThreePosition(adapter.camera.target));
+    this.camera.updateProjectionMatrix();
+    this.renderer.domElement.style.cursor = cursorForTool(
+      adapter.tool.activeTool,
+      this.dragState !== null,
+    );
+
+    const sceneKey = `${adapter.sceneHash}:${adapter.selectedRenderableId ?? 'none'}`;
+    if (sceneKey !== this.renderedSceneKey) {
+      this.rebuildRenderables(adapter);
+      this.renderedSceneKey = sceneKey;
+    }
+    this.renderFrame();
+  }
+
+  private rebuildRenderables(adapter: StudioViewportAdapterReadModel): void {
+    for (const child of this.renderableGroup.children) {
+      disposeObject(child);
+    }
+    this.renderableGroup.clear();
+
+    for (const renderable of adapter.renderables) {
+      if (!renderable.visible) {
+        continue;
+      }
+      const object = this.createRenderableObject(renderable);
+      this.renderableGroup.add(object);
+    }
+
+    const grid = new THREE.GridHelper(4, 16, '#365866', '#223846');
+    grid.position.set(1.5, -0.04, 1.5);
+    this.renderableGroup.add(grid);
+  }
+
+  private createRenderableObject(renderable: StudioViewportRenderableAdapter): THREE.Object3D {
+    const renderableCenter = center(renderable.bounds);
+    const renderableSize = size(renderable.bounds);
+    const geometry = new THREE.BoxGeometry(
+      renderableSize.x,
+      renderable.kind === 'voxel_grid' ? 0.04 : renderableSize.z,
+      renderableSize.y,
+    );
+    const material = new THREE.MeshStandardMaterial({
+      color: materialColor(renderable.kind, renderable.sourceState, renderable.selected),
+      opacity: materialOpacity(renderable),
+      roughness: 0.72,
+      transparent: materialOpacity(renderable) < 1,
+      wireframe: renderable.kind === 'preview_ghost',
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(toThreePosition(renderableCenter));
+    mesh.userData = { renderableId: renderable.renderableId };
+
+    if (renderable.selected) {
+      const outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geometry),
+        new THREE.LineBasicMaterial({ color: '#54c7bd' }),
+      );
+      outline.position.copy(mesh.position);
+      outline.scale.setScalar(1.035);
+      outline.userData = { renderableId: renderable.renderableId };
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.add(outline);
+      group.userData = { renderableId: renderable.renderableId };
+      return group;
+    }
+
+    return mesh;
+  }
+
+  private resizeRenderer(): void {
+    if (this.hostElement === null || this.renderer === null || this.camera === null) {
+      return;
+    }
+    const rect = this.hostElement.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+
+    if (width === this.renderedWidth && height === this.renderedHeight) {
+      return;
+    }
+    this.renderedWidth = width;
+    this.renderedHeight = height;
+    this.renderer.setSize(width, height, false);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderFrame();
+  }
+
+  private startRenderLoop(): void {
+    const tick = () => {
+      this.renderFrame();
+      this.animationFrameId = requestAnimationFrame(tick);
+    };
+    this.animationFrameId = requestAnimationFrame(tick);
+  }
+
+  private renderFrame(): void {
+    if (this.renderer === null || this.camera === null) {
+      return;
+    }
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (this.renderer === null || this.camera === null) {
+      return;
+    }
+    const activeTool = this.store.viewportTool().activeTool;
+    if (activeTool === 'orbit' || activeTool === 'pan') {
+      event.preventDefault();
+      this.dragState = {
+        pointerId: event.pointerId,
+        tool: activeTool,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      this.renderer.domElement.style.cursor = cursorForTool(activeTool, true);
+      this.renderer.domElement.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    const intersections = this.raycaster.intersectObjects(this.renderableGroup.children, true);
+    const hit = intersections.find(intersection =>
+      typeof intersection.object.userData['renderableId'] === 'string',
+    );
+    const renderableId = hit?.object.userData['renderableId'];
+    if (typeof renderableId === 'string') {
+      this.store.selectEntity(renderableId);
+    }
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    const dragState = this.dragState;
+    if (dragState === null || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    const delta = {
+      deltaX: event.clientX - dragState.x,
+      deltaY: event.clientY - dragState.y,
+    };
+
+    if (dragState.tool === 'orbit') {
+      this.store.orbitViewportCamera(delta);
+    } else {
+      this.store.panViewportCamera(delta);
+    }
+    this.dragState = {
+      ...dragState,
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+
+  private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.dragState?.pointerId !== event.pointerId || this.renderer === null) {
+      return;
+    }
+    if (this.renderer.domElement.hasPointerCapture(event.pointerId)) {
+      this.renderer.domElement.releasePointerCapture(event.pointerId);
+    }
+    this.dragState = null;
+    this.renderer.domElement.style.cursor = cursorForTool(
+      this.store.viewportTool().activeTool,
+      false,
+    );
+  };
+
+  private readonly handleWheel = (event: WheelEvent): void => {
+    event.preventDefault();
+    this.store.zoomViewportCamera(event.deltaY);
+  };
 }

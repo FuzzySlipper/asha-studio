@@ -8,15 +8,21 @@ import {
   applySelectedEntityReadModel,
   buildInitialWorkspaceReadModel,
   buildStudioCompatibilityEvidence,
+  buildStudioViewportAdapterReadModel,
+  buildStudioViewportCameraReadModel,
+  buildStudioViewportToolReadModel,
   computeEntityListHash,
   createStudioAgentReadout,
   createSelectEntityIntent,
+  frameStudioViewportCamera,
+  orbitStudioViewportCamera,
+  panStudioViewportCamera,
   validateEntityProjection,
   validateSelectionCommandSync,
+  zoomStudioViewportCamera,
   type StudioAgentReadoutArtifact,
   type StudioPackageJsonLike,
 } from '@asha-studio/domain';
-import { projectViewportRenderables } from '@asha-studio/viewport';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -42,16 +48,38 @@ test('selection intent maps through the public command identity before read mode
   assert.equal(updatedReadModel.timeline.at(-1)?.commandId, 'selection.set_active_entity');
 });
 
-test('viewport projection marks the shared selected renderable without owning state', () => {
+test('viewport adapter marks the shared selected renderable without owning state', () => {
   const readModel = buildInitialWorkspaceReadModel();
-  const projections = projectViewportRenderables(readModel.scene);
-  const selectedProjection = projections.find(projection => projection.selected);
+  const adapter = buildStudioViewportAdapterReadModel({
+    scene: readModel.scene,
+    camera: buildStudioViewportCameraReadModel(),
+    tool: buildStudioViewportToolReadModel(),
+  });
+  const selectedRenderable = adapter.renderables.find(renderable => renderable.selected);
 
-  assert.equal(projections.length, readModel.scene.renderables.length);
-  assert.equal(selectedProjection?.renderable.renderableId, 'selected-voxel:0,0,0');
-  assert.equal(selectedProjection?.leftPercent, 26.666666666666664);
-  assert.ok(projections.every(projection => projection.leftPercent >= 4));
-  assert.ok(projections.every(projection => projection.topPercent <= 96));
+  assert.equal(adapter.adapterVersion, 'studio-viewport-adapter.v0');
+  assert.equal(adapter.renderables.length, readModel.scene.renderables.length);
+  assert.equal(selectedRenderable?.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(adapter.tool.activeTool, 'select');
+  assert.match(adapter.camera.cameraHash, /^viewport-camera-/);
+  assert.match(adapter.readbackHash, /^viewport-readback-/);
+  assert.ok(adapter.nonClaims.includes('not_native_runtime_authority'));
+});
+
+test('viewport camera controls produce deterministic camera read-model updates', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const initialCamera = buildStudioViewportCameraReadModel();
+  const orbited = orbitStudioViewportCamera(initialCamera, { deltaX: 24, deltaY: -12 });
+  const panned = panStudioViewportCamera(orbited, { deltaX: 16, deltaY: 8 });
+  const zoomed = zoomStudioViewportCamera(panned, -120);
+  const framed = frameStudioViewportCamera(readModel.scene);
+
+  assert.notEqual(orbited.cameraHash, initialCamera.cameraHash);
+  assert.notEqual(panned.cameraHash, orbited.cameraHash);
+  assert.notEqual(zoomed.cameraHash, panned.cameraHash);
+  assert.match(framed.cameraHash, /^viewport-camera-/);
+  assert.equal(framed.target.x, 1.5);
+  assert.equal(framed.target.y, 1.5);
 });
 
 test('compatibility evidence records approved public ASHA package roots', () => {

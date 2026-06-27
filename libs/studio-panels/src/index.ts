@@ -4,6 +4,7 @@ import type {
   StudioCommandTimelineEntry,
   StudioEntityKind,
   StudioSceneRenderableReadModel,
+  StudioViewportToolMode,
 } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
 
@@ -86,9 +87,20 @@ export class StudioSessionTopPanelComponent {
   template: `
     <section class="viewport-toolbar-panel" data-visual-id="studio-viewport-top-panel">
       <span class="panel-kicker">3 · Viewport Top Panel</span>
-      <span>tool: select</span>
-      <span>renderables: {{ store.workspace().scene.renderables.length }}</span>
-      <span>selected: {{ store.workspace().scene.selectedRenderableId ?? 'none' }}</span>
+      <div class="tool-buttons" aria-label="Viewport tools">
+        @for (tool of tools; track tool) {
+          <button
+            type="button"
+            [class.active]="store.viewportTool().activeTool === tool"
+            (click)="activateTool(tool)"
+          >
+            {{ toolLabel(tool) }}
+          </button>
+        }
+      </div>
+      <span>renderables: {{ store.viewportAdapter().renderables.length }}</span>
+      <span>selected: {{ store.viewportAdapter().selectedRenderableId ?? 'none' }}</span>
+      <span>{{ store.viewportAdapter().readbackHash }}</span>
     </section>
   `,
   styles: [
@@ -113,6 +125,29 @@ export class StudioSessionTopPanelComponent {
         white-space: nowrap;
       }
 
+      .tool-buttons {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 0.25rem;
+      }
+
+      .tool-buttons button {
+        background: transparent;
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        font: inherit;
+        height: 1.8rem;
+        line-height: 1;
+        min-width: 2rem;
+        padding: 0 0.45rem;
+      }
+
+      .tool-buttons button.active {
+        background: var(--asha-color-control);
+        border-color: #54c7bd;
+      }
+
       .panel-kicker {
         color: var(--asha-color-muted);
         flex: 0 0 auto;
@@ -120,12 +155,37 @@ export class StudioSessionTopPanelComponent {
         font-weight: 700;
         text-transform: uppercase;
       }
+
+      @media (max-width: 900px) {
+        .viewport-toolbar-panel > span:not(.panel-kicker) {
+          display: none;
+        }
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StudioViewportToolbarPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly tools: readonly StudioViewportToolMode[] = ['select', 'orbit', 'pan', 'frame'];
+
+  activateTool(tool: StudioViewportToolMode): void {
+    this.store.setViewportTool(tool);
+    if (tool === 'frame') {
+      this.store.frameViewportCamera();
+      this.store.setViewportTool('select');
+    }
+  }
+
+  toolLabel(tool: StudioViewportToolMode): string {
+    const labels: Record<StudioViewportToolMode, string> = {
+      select: 'S',
+      orbit: 'O',
+      pan: 'P',
+      frame: 'F',
+    };
+    return labels[tool];
+  }
 }
 
 @Component({
