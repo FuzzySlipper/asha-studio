@@ -2,6 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   addReferenceRenderableReadModel,
+  applySceneObjectCommandReadModel,
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
@@ -11,6 +12,9 @@ import {
   buildStudioViewportToolReadModel,
   clearStudioWorkspaceReadModel,
   createSelectEntityIntent,
+  createRenameSceneObjectRequest,
+  createReparentSceneObjectRequest,
+  createSceneObjectCommandIntent,
   createStudioCompactAgentReadout,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
@@ -33,6 +37,7 @@ import {
   type StudioViewportToolReadModel,
   type StudioWorkspaceReadModel,
 } from '@asha-studio/domain';
+import type { SceneObjectId } from '@asha/editor-tools';
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
 
@@ -161,9 +166,48 @@ export class StudioWorkspaceStore {
     if (!dispatchResult.accepted || dispatchResult.proposal === null) {
       return;
     }
+    if (dispatchResult.proposal.commandId !== 'selection.set_active_entity' || dispatchResult.proposal.entityId === undefined) {
+      return;
+    }
 
     this.workspaceState.set(
       applySelectedEntityReadModel(workspace, dispatchResult.proposal.entityId),
+    );
+  }
+
+  renameSceneObject(objectId: SceneObjectId, label: string): void {
+    const workspace = this.workspaceState();
+    const request = createRenameSceneObjectRequest(workspace, objectId, label);
+    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
+    if (
+      !dispatchResult.accepted
+      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
+      || dispatchResult.proposal.request === undefined
+    ) {
+      return;
+    }
+    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
+    this.workspaceState.set(applyResult.workspace);
+    this.menuMessageState.set(
+      applyResult.ok ? `Renamed ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Rename rejected.',
+    );
+  }
+
+  reparentSceneObject(objectId: SceneObjectId, parentObjectId: SceneObjectId | null, childOrder = 0): void {
+    const workspace = this.workspaceState();
+    const request = createReparentSceneObjectRequest(workspace, objectId, parentObjectId, childOrder);
+    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
+    if (
+      !dispatchResult.accepted
+      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
+      || dispatchResult.proposal.request === undefined
+    ) {
+      return;
+    }
+    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
+    this.workspaceState.set(applyResult.workspace);
+    this.menuMessageState.set(
+      applyResult.ok ? `Reparented ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Reparent rejected.',
     );
   }
 

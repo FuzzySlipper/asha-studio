@@ -277,6 +277,22 @@ export class StudioViewportToolbarPanelComponent {
           <button type="button" title="Add reference placeholder" (click)="store.addReferenceRenderable()">
             +
           </button>
+          <button
+            type="button"
+            title="Rename selected scene object"
+            [disabled]="selectedSceneObjectId() === null"
+            (click)="renameSelectedSceneObject()"
+          >
+            R
+          </button>
+          <button
+            type="button"
+            title="Move selected scene object to root"
+            [disabled]="selectedSceneObjectId() === null"
+            (click)="moveSelectedSceneObjectToRoot()"
+          >
+            ^
+          </button>
           <button type="button" title="Collapse hierarchy" (click)="store.setHierarchyExpanded(false)">
             -
           </button>
@@ -485,6 +501,28 @@ export class StudioViewportToolbarPanelComponent {
 export class StudioHierarchyPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
   readonly visibleEntities = computed(() => visibleHierarchyEntities(this.store.workspace().entities));
+  readonly selectedSceneObjectId = computed(() => this.store.selectedEntity()?.sceneObjectId ?? null);
+
+  renameSelectedSceneObject(): void {
+    const objectId = this.selectedSceneObjectId();
+    if (objectId === null) {
+      return;
+    }
+    const currentLabel = this.store.selectedEntity()?.label ?? '';
+    const label = globalThis.prompt?.('Scene object name', currentLabel) ?? null;
+    if (label === null) {
+      return;
+    }
+    this.store.renameSceneObject(objectId, label);
+  }
+
+  moveSelectedSceneObjectToRoot(): void {
+    const objectId = this.selectedSceneObjectId();
+    if (objectId === null) {
+      return;
+    }
+    this.store.reparentSceneObject(objectId, null, 0);
+  }
 
   iconForKind(kind: StudioEntityKind): string {
     const labels: Record<StudioEntityKind, string> = {

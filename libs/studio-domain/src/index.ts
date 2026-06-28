@@ -1,8 +1,17 @@
-import { sceneId, sceneNodeId, type FlatSceneDocument } from '@asha/contracts';
+import {
+  sceneId,
+  sceneNodeId,
+  type FlatSceneDocument,
+  type SceneNodeId,
+  type SceneObjectCommandRejection,
+  type SceneObjectCommandRequest,
+  type SceneObjectCommandResult,
+  type SceneObjectSnapshot as ContractSceneObjectSnapshot,
+} from '@asha/contracts';
 import {
   buildSceneObjectSnapshot,
   type SceneObjectId,
-  type SceneObjectSnapshot,
+  type SceneObjectSnapshot as EditorSceneObjectSnapshot,
 } from '@asha/editor-tools';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
@@ -253,7 +262,7 @@ export interface StudioWorkspaceReadModel {
   readonly scenarios: readonly StudioScenarioSummary[];
   readonly scene: StudioSceneReadModel;
   readonly flatSceneDocument: FlatSceneDocument;
-  readonly sceneObjectSnapshot: SceneObjectSnapshot;
+  readonly sceneObjectSnapshot: EditorSceneObjectSnapshot;
   readonly entities: readonly StudioEntityReadModel[];
   readonly selectedEntityId: string | null;
   readonly timeline: readonly StudioCommandTimelineEntry[];
@@ -366,12 +375,25 @@ export interface SelectEntityIntent {
   readonly expectedTimelineSequence: number;
 }
 
+export interface SceneObjectCommandIntent {
+  readonly kind: 'scene_object_command';
+  readonly request: SceneObjectCommandRequest;
+  readonly expectedTimelineSequence: number;
+}
+
 export interface NoopIntent {
   readonly kind: 'noop';
   readonly reason: string;
 }
 
-export type StudioIntent = SelectEntityIntent | NoopIntent;
+export type StudioIntent = SelectEntityIntent | SceneObjectCommandIntent | NoopIntent;
+
+export interface StudioSceneObjectCommandApplyResult {
+  readonly ok: boolean;
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly result: SceneObjectCommandResult;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}
 
 const ASHA_PACKAGE_LINK_ROOT = ['link:..', 'asha', 'ts', 'packages'].join('/');
 
@@ -976,6 +998,7 @@ function createTimelineEntry(options: {
   readonly commandId: string;
   readonly label: string;
   readonly requestedBy: StudioActorKind;
+  readonly status?: StudioCommandStatus;
   readonly inputSummary: string;
   readonly outputSummary: string;
   readonly changedScene: boolean;
@@ -985,7 +1008,7 @@ function createTimelineEntry(options: {
   readonly commandResult: StudioCommandResultReadModel;
 } {
   const sequence = sequenceId(options.index);
-  const status: StudioCommandStatus = 'ok';
+  const status: StudioCommandStatus = options.status ?? 'ok';
 
   return {
     timelineEntry: {
@@ -1135,7 +1158,7 @@ function badgeForRenderable(
 }
 
 function sourceStateForSceneObject(
-  object: SceneObjectSnapshot['objects'][number],
+  object: EditorSceneObjectSnapshot['objects'][number],
   renderable: StudioSceneRenderableReadModel | null,
 ): StudioEntitySourceState {
   if (renderable !== null) {
@@ -1145,7 +1168,7 @@ function sourceStateForSceneObject(
 }
 
 function kindForSceneObject(
-  object: SceneObjectSnapshot['objects'][number],
+  object: EditorSceneObjectSnapshot['objects'][number],
   renderable: StudioSceneRenderableReadModel | null,
 ): StudioEntityKind {
   if (renderable !== null) {
@@ -1161,7 +1184,7 @@ function kindForSceneObject(
 }
 
 function badgeForSceneObject(
-  object: SceneObjectSnapshot['objects'][number],
+  object: EditorSceneObjectSnapshot['objects'][number],
   renderable: StudioSceneRenderableReadModel | null,
   selected: boolean,
 ): StudioEntityBadge {
@@ -1175,8 +1198,8 @@ function badgeForSceneObject(
 }
 
 function depthForSceneObject(
-  object: SceneObjectSnapshot['objects'][number],
-  snapshot: SceneObjectSnapshot,
+  object: EditorSceneObjectSnapshot['objects'][number],
+  snapshot: EditorSceneObjectSnapshot,
 ): number {
   const parentByObjectId = new Map(snapshot.objects.map(item => [item.objectId, item.parentObjectId]));
   let depth = 2;
@@ -1192,7 +1215,7 @@ function depthForSceneObject(
 }
 
 function selectedObjectIdForRenderable(
-  snapshot: SceneObjectSnapshot,
+  snapshot: EditorSceneObjectSnapshot,
   selectedRenderableId: string | null,
 ): SceneObjectId | null {
   if (selectedRenderableId === null) {
@@ -1208,7 +1231,7 @@ function selectedObjectIdForRenderable(
 function projectEntitiesFromScene(
   session: StudioSessionReadModel,
   scene: StudioSceneReadModel,
-  sceneObjectSnapshot: SceneObjectSnapshot,
+  sceneObjectSnapshot: EditorSceneObjectSnapshot,
   previousEntities: readonly StudioEntityReadModel[] = [],
 ): readonly StudioEntityReadModel[] {
   const expandedById = new Map(previousEntities.map(entity => [entity.id, entity.expanded]));
@@ -1750,17 +1773,283 @@ function renderableLinksForScene(scene: StudioSceneReadModel) {
 function buildStudioSceneObjectSnapshot(
   scene: StudioSceneReadModel,
   flatSceneDocument: FlatSceneDocument,
-): SceneObjectSnapshot {
+): EditorSceneObjectSnapshot {
   return buildSceneObjectSnapshot({
     document: flatSceneDocument,
     renderableLinks: renderableLinksForScene(scene),
   });
 }
 
+function sceneNodeIdFromObjectId(objectId: SceneObjectId): SceneNodeId {
+  return sceneNodeId(Number(objectId.replace('scene-node:', '')));
+}
+
+function documentHashForSceneObjectCommand(document: FlatSceneDocument): number {
+  const hash = fnv1aHash('scene-object-document', document);
+  return Number.parseInt(hash.replace('scene-object-document-', ''), 16);
+}
+
+function contractSceneObjectSnapshot(
+  snapshot: EditorSceneObjectSnapshot,
+): ContractSceneObjectSnapshot {
+  return {
+    documentHash: Number.parseInt(snapshot.sceneHash.replace('scene-object-', ''), 16),
+    objects: snapshot.objects.map(object => ({
+      id: object.sceneNodeId,
+      parent: object.parentObjectId === null ? null : sceneNodeIdFromObjectId(object.parentObjectId),
+      childOrder: object.childOrder,
+      label: object.displayName,
+      kind: object.kind,
+      hasRenderableAsset: object.asset !== null,
+    })),
+  };
+}
+
+function sceneObjectRejection(
+  code: SceneObjectCommandRejection['code'],
+  options: {
+    readonly id?: SceneNodeId | null;
+    readonly parent?: SceneNodeId | null;
+    readonly expectedHash?: number | null;
+    readonly actualHash?: number | null;
+  } = {},
+): SceneObjectCommandResult {
+  return {
+    accepted: false,
+    outcome: null,
+    rejection: {
+      code,
+      id: options.id ?? null,
+      parent: options.parent ?? null,
+      expectedHash: options.expectedHash ?? null,
+      actualHash: options.actualHash ?? null,
+      validationErrors: [],
+    },
+  };
+}
+
+function hasSceneObjectCycle(
+  document: FlatSceneDocument,
+  id: SceneNodeId,
+  parent: SceneNodeId | null,
+): boolean {
+  let current = parent;
+  const seen = new Set<number>();
+  while (current !== null && !seen.has(current as number)) {
+    if (current === id) {
+      return true;
+    }
+    seen.add(current as number);
+    current = document.nodes.find(node => node.id === current)?.parent ?? null;
+  }
+  return false;
+}
+
+function relabelRenderableForSceneNode(
+  scene: StudioSceneReadModel,
+  sceneNode: SceneNodeId,
+  label: string | null,
+): StudioSceneReadModel {
+  const renderableIndex = (sceneNode as number) - 2;
+  const renderable = scene.renderables[renderableIndex];
+  if (renderable === undefined || label === null) {
+    return scene;
+  }
+  return {
+    ...scene,
+    renderables: scene.renderables.map((item, index) =>
+      index === renderableIndex ? { ...item, label } : item,
+    ),
+  };
+}
+
 export function createStudioFlatSceneDocument(
   scene: StudioSceneReadModel,
 ): FlatSceneDocument {
   return flatSceneDocumentForScene(scene);
+}
+
+export function createSceneObjectCommandIntent(
+  readModel: StudioWorkspaceReadModel,
+  request: SceneObjectCommandRequest,
+): StudioIntent {
+  return {
+    kind: 'scene_object_command',
+    request,
+    expectedTimelineSequence: readModel.timelineSequence,
+  };
+}
+
+export function createRenameSceneObjectRequest(
+  readModel: StudioWorkspaceReadModel,
+  objectId: SceneObjectId,
+  label: string | null,
+): SceneObjectCommandRequest {
+  return {
+    expectedDocumentHash: documentHashForSceneObjectCommand(readModel.flatSceneDocument),
+    command: {
+      kind: 'rename',
+      id: sceneNodeIdFromObjectId(objectId),
+      label,
+    },
+  };
+}
+
+export function createReparentSceneObjectRequest(
+  readModel: StudioWorkspaceReadModel,
+  objectId: SceneObjectId,
+  parentObjectId: SceneObjectId | null,
+  childOrder: number,
+): SceneObjectCommandRequest {
+  return {
+    expectedDocumentHash: documentHashForSceneObjectCommand(readModel.flatSceneDocument),
+    command: {
+      kind: 'reparent',
+      id: sceneNodeIdFromObjectId(objectId),
+      parent: parentObjectId === null ? null : sceneNodeIdFromObjectId(parentObjectId),
+      childOrder,
+    },
+  };
+}
+
+export function applySceneObjectCommandReadModel(
+  readModel: StudioWorkspaceReadModel,
+  request: SceneObjectCommandRequest,
+): StudioSceneObjectCommandApplyResult {
+  const actualHash = documentHashForSceneObjectCommand(readModel.flatSceneDocument);
+  let result: SceneObjectCommandResult | null = null;
+  let flatSceneDocument = readModel.flatSceneDocument;
+  let scene = readModel.scene;
+  let selectedSceneNode: SceneNodeId | null = null;
+
+  if (request.expectedDocumentHash !== actualHash) {
+    result = sceneObjectRejection('stale-scene-object-snapshot', {
+      expectedHash: request.expectedDocumentHash,
+      actualHash,
+    });
+  } else if (request.command.kind === 'rename') {
+    const id = request.command.id;
+    const label = request.command.label;
+    if (label !== null && label.trim().length === 0) {
+      result = sceneObjectRejection('blank-scene-object-label', { id });
+    } else if (!flatSceneDocument.nodes.some(node => node.id === id)) {
+      result = sceneObjectRejection('missing-scene-object', { id });
+    } else {
+      flatSceneDocument = {
+        ...flatSceneDocument,
+        nodes: flatSceneDocument.nodes.map(node =>
+          node.id === id ? { ...node, label } : node,
+        ),
+      };
+      scene = relabelRenderableForSceneNode(scene, id, label);
+      selectedSceneNode = id;
+    }
+  } else if (request.command.kind === 'reparent') {
+    const id = request.command.id;
+    const parent = request.command.parent;
+    const childOrder = request.command.childOrder;
+    if (!flatSceneDocument.nodes.some(node => node.id === id)) {
+      result = sceneObjectRejection('missing-scene-object', { id });
+    } else if (
+      parent !== null
+      && !flatSceneDocument.nodes.some(node => node.id === parent)
+    ) {
+      result = sceneObjectRejection('missing-scene-object-parent', {
+        id,
+        parent,
+      });
+    } else if (parent === id) {
+      result = sceneObjectRejection('scene-object-self-parent', { id });
+    } else if (hasSceneObjectCycle(flatSceneDocument, id, parent)) {
+      result = sceneObjectRejection('invalid-scene-after-command', {
+        id,
+        parent,
+      });
+    } else {
+      flatSceneDocument = {
+        ...flatSceneDocument,
+        nodes: flatSceneDocument.nodes.map(node =>
+          node.id === id
+            ? { ...node, parent, childOrder }
+            : node,
+        ),
+      };
+      selectedSceneNode = id;
+    }
+  } else {
+    const id = request.command.kind === 'create' ? request.command.record.id : request.command.id;
+    result = sceneObjectRejection('invalid-scene-before-command', { id });
+  }
+
+  const accepted = result === null;
+  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
+  if (accepted) {
+    result = {
+      accepted: true,
+      outcome: {
+        document: flatSceneDocument,
+        snapshot: contractSceneObjectSnapshot(sceneObjectSnapshot),
+        selected: selectedSceneNode,
+      },
+      rejection: null,
+    };
+  }
+  if (result === null) {
+    result = sceneObjectRejection('invalid-scene-before-command');
+  }
+  const finalResult = result;
+
+  const entities = projectEntitiesFromScene(
+    readModel.session,
+    scene,
+    sceneObjectSnapshot,
+    readModel.entities,
+  );
+  const selectedEntityId =
+    selectedSceneNode === null
+      ? readModel.selectedEntityId
+      : (`scene-node:${selectedSceneNode as number}` as SceneObjectId);
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: 'scene.apply_object_command',
+    label: 'Apply Scene Object Command',
+    requestedBy: 'gui',
+    status: accepted ? 'ok' : 'rejected',
+    inputSummary: `${request.command.kind}; expectedDocumentHash=${request.expectedDocumentHash}`,
+    outputSummary: accepted
+      ? `Applied ${request.command.kind} scene-object command.`
+      : `Rejected ${finalResult.rejection?.code ?? 'scene-object-command'}.`,
+    changedScene: accepted,
+    changedSelection: accepted && selectedSceneNode !== null,
+  });
+  const workspace: StudioWorkspaceReadModel = {
+    ...readModel,
+    scene,
+    flatSceneDocument,
+    sceneObjectSnapshot,
+    entities,
+    selectedEntityId,
+    timeline: [...readModel.timeline, command.timelineEntry],
+    commandResults: [...readModel.commandResults, command.commandResult],
+    timelineSequence: readModel.timelineSequence + 1,
+  };
+
+  return {
+    ok: accepted,
+    workspace,
+    result: finalResult,
+    diagnostics: accepted
+      ? []
+      : [
+          diagnostic(
+            'error',
+            finalResult.rejection?.code ?? 'scene_object_command_rejected',
+            `Scene object command was rejected: ${finalResult.rejection?.code ?? 'unknown'}.`,
+            'scene.apply_object_command',
+            'Refresh the scene-object snapshot and retry through the public command path.',
+          ),
+        ],
+  };
 }
 
 export function serializeStudioWorkspaceArtifact(options: {

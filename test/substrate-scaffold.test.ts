@@ -20,6 +20,10 @@ import {
   computeEntityListHash,
   createStudioAgentReadout,
   createStudioCompactAgentReadout,
+  applySceneObjectCommandReadModel,
+  createRenameSceneObjectRequest,
+  createReparentSceneObjectRequest,
+  createSceneObjectCommandIntent,
   createSelectEntityIntent,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
@@ -271,6 +275,50 @@ test('scene hierarchy root selection clears viewport renderable without private 
   assert.equal(updated.selectedEntityId, 'scene-node:1');
   assert.equal(updated.scene.selectedRenderableId, null);
   assert.equal(updated.timeline.at(-1)?.commandId, 'selection.set_active_entity');
+});
+
+test('scene object rename flows through public apply command and updates canonical hierarchy', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const selectedObjectId = readModel.selectedEntityId;
+
+  assert.ok(selectedObjectId?.startsWith('scene-node:'));
+  const request = createRenameSceneObjectRequest(readModel, selectedObjectId, 'Renamed voxel');
+  const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(readModel, request));
+
+  assert.equal(dispatchResult.accepted, true);
+  assert.equal(dispatchResult.proposal?.commandId, 'scene.apply_object_command');
+  const applied = applySceneObjectCommandReadModel(readModel, dispatchResult.proposal?.request ?? request);
+
+  assert.equal(applied.ok, true);
+  assert.equal(applied.result.accepted, true);
+  assert.equal(applied.workspace.timeline.at(-1)?.commandId, 'scene.apply_object_command');
+  assert.equal(applied.workspace.commandResults.at(-1)?.changedScene, true);
+  assert.equal(
+    applied.workspace.sceneObjectSnapshot.objects.find(object => object.objectId === selectedObjectId)?.displayName,
+    'Renamed voxel',
+  );
+  assert.equal(
+    applied.workspace.flatSceneDocument.nodes.find(node => `scene-node:${node.id as number}` === selectedObjectId)?.label,
+    'Renamed voxel',
+  );
+});
+
+test('scene object command rejects stale expected document hashes without private mutation', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const selectedObjectId = readModel.selectedEntityId;
+
+  assert.ok(selectedObjectId?.startsWith('scene-node:'));
+  const request = {
+    ...createReparentSceneObjectRequest(readModel, selectedObjectId, null, 0),
+    expectedDocumentHash: -1,
+  };
+  const rejected = applySceneObjectCommandReadModel(readModel, request);
+
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.result.rejection?.code, 'stale-scene-object-snapshot');
+  assert.equal(rejected.workspace.flatSceneDocument, readModel.flatSceneDocument);
+  assert.equal(rejected.workspace.timeline.at(-1)?.commandId, 'scene.apply_object_command');
+  assert.equal(rejected.workspace.commandResults.at(-1)?.status, 'rejected');
 });
 
 test('asset browser categories filter scene renderables deterministically', () => {
