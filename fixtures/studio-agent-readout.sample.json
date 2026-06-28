@@ -153,7 +153,8 @@
       "expanded": true,
       "selectable": false,
       "selected": false,
-      "renderableId": null
+      "renderableId": null,
+      "sceneObjectId": null
     },
     {
       "id": "scene-view:voxel-basic:v1",
@@ -165,71 +166,77 @@
       "expanded": true,
       "selectable": false,
       "selected": false,
-      "renderableId": null
+      "renderableId": null,
+      "sceneObjectId": null
     },
     {
-      "id": "terrain-test-grid",
+      "id": "scene-node:1",
+      "label": "Scene Root",
+      "kind": "empty_group",
+      "sourceState": "reference",
+      "badge": "reference",
+      "depth": 2,
+      "expanded": true,
+      "selectable": true,
+      "selected": false,
+      "renderableId": null,
+      "sceneObjectId": "scene-node:1"
+    },
+    {
+      "id": "scene-node:2",
       "label": "Terrain Grid",
       "kind": "voxel_grid",
       "sourceState": "authoritative",
       "badge": "authority-backed",
-      "depth": 2,
+      "depth": 3,
       "expanded": false,
       "selectable": true,
       "selected": false,
-      "renderableId": "terrain-test-grid"
+      "renderableId": "terrain-test-grid",
+      "sceneObjectId": "scene-node:2"
     },
     {
-      "id": "selected-voxel:0,0,0",
+      "id": "scene-node:3",
       "label": "Voxel (0, 0, 0)",
       "kind": "voxel_cell",
       "sourceState": "authoritative",
       "badge": "selected",
-      "depth": 2,
+      "depth": 3,
       "expanded": false,
       "selectable": true,
       "selected": true,
-      "renderableId": "selected-voxel:0,0,0"
+      "renderableId": "selected-voxel:0,0,0",
+      "sceneObjectId": "scene-node:3"
     },
     {
-      "id": "preview-ghost:1,0,0",
+      "id": "scene-node:4",
       "label": "Preview Ghost (1, 0, 0)",
       "kind": "preview_ghost",
       "sourceState": "pending",
       "badge": "preview-only",
-      "depth": 2,
+      "depth": 3,
       "expanded": false,
       "selectable": true,
       "selected": false,
-      "renderableId": "preview-ghost:1,0,0"
+      "renderableId": "preview-ghost:1,0,0",
+      "sceneObjectId": "scene-node:4"
     },
     {
-      "id": "collection:referenced-assets",
-      "label": "Referenced Assets",
-      "kind": "collection",
-      "sourceState": "reference",
-      "badge": "projected",
-      "depth": 1,
-      "expanded": true,
-      "selectable": false,
-      "selected": false,
-      "renderableId": null
-    },
-    {
-      "id": "model-preview-crate",
+      "id": "scene-node:5",
       "label": "Demo Crate Preview",
       "kind": "static_mesh",
       "sourceState": "reference",
       "badge": "projected",
-      "depth": 2,
+      "depth": 3,
       "expanded": false,
       "selectable": true,
       "selected": false,
-      "renderableId": "model-preview-crate"
+      "renderableId": "model-preview-crate",
+      "sceneObjectId": "scene-node:5"
     }
   ],
-  "selectedEntityId": "selected-voxel:0,0,0",
-  "entityListHash": "entity-list-8f6648a8",
+  "selectedEntityId": "scene-node:3",
+  "entityListHash": "entity-list-15b7463d",
   "commandTimeline": [
     {
       "sequenceId": "seq-0001",

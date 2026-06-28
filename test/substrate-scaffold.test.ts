@@ -48,7 +48,12 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test('selection intent maps through the public command identity before read model update', () => {
   const initialReadModel = buildInitialWorkspaceReadModel();
-  const intent = createSelectEntityIntent(initialReadModel, 'model-preview-crate');
+  const modelEntity = initialReadModel.entities.find(
+    entity => entity.renderableId === 'model-preview-crate',
+  );
+
+  assert.ok(modelEntity);
+  const intent = createSelectEntityIntent(initialReadModel, modelEntity.id);
   const dispatchResult = mapStudioIntentToCommand(intent);
 
   assert.equal(dispatchResult.accepted, true);
@@ -62,7 +67,7 @@ test('selection intent maps through the public command identity before read mode
     dispatchResult.proposal?.entityId ?? '',
   );
 
-  assert.equal(updatedReadModel.selectedEntityId, 'model-preview-crate');
+  assert.equal(updatedReadModel.selectedEntityId, modelEntity.id);
   assert.equal(updatedReadModel.scene.selectedRenderableId, 'model-preview-crate');
   assert.equal(updatedReadModel.timelineSequence, 5);
   assert.equal(updatedReadModel.timeline.at(-1)?.commandId, 'selection.set_active_entity');
@@ -220,10 +225,13 @@ test('hierarchy add action projects a reference renderable through scene.load_as
 
   assert.equal(updated.scene.renderables.length, readModel.scene.renderables.length + 1);
   assert.equal(updated.scene.selectedRenderableId, 'reference-placeholder-1');
-  assert.equal(updated.selectedEntityId, 'reference-placeholder-1');
+  assert.equal(
+    updated.entities.find(entity => entity.id === updated.selectedEntityId)?.renderableId,
+    'reference-placeholder-1',
+  );
   assert.equal(updated.timeline.at(-1)?.commandId, 'scene.load_asset');
   assert.equal(updated.commandResults.at(-1)?.changedScene, true);
-  assert.equal(updated.entities.some(entity => entity.id === 'reference-placeholder-1'), true);
+  assert.equal(updated.entities.some(entity => entity.renderableId === 'reference-placeholder-1'), true);
 });
 
 test('hierarchy expansion can be updated without changing scene state', () => {
@@ -233,6 +241,36 @@ test('hierarchy expansion can be updated without changing scene state', () => {
   assert.equal(collapsed.scene.sceneHash, readModel.scene.sceneHash);
   assert.equal(collapsed.timelineSequence, readModel.timelineSequence);
   assert.equal(collapsed.entities.every(entity => !entity.expanded), true);
+});
+
+test('scene hierarchy projects canonical scene objects distinct from renderables', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const selectedEntity = readModel.entities.find(entity => entity.id === readModel.selectedEntityId);
+
+  assert.equal(readModel.flatSceneDocument.nodes.at(0)?.label, 'Scene Root');
+  assert.equal(readModel.sceneObjectSnapshot.snapshotVersion, 'scene-object-snapshot.v0');
+  assert.equal(readModel.sceneObjectSnapshot.objects.length, readModel.scene.renderables.length + 1);
+  assert.equal(selectedEntity?.id.startsWith('scene-node:'), true);
+  assert.equal(selectedEntity?.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(
+    readModel.sceneObjectSnapshot.objects.some(
+      object => object.objectId === selectedEntity?.sceneObjectId,
+    ),
+    true,
+  );
+  assert.ok(readModel.sceneObjectSnapshot.nonClaims.includes('not_authority_validation'));
+});
+
+test('scene hierarchy root selection clears viewport renderable without private UI mutation', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const root = readModel.entities.find(entity => entity.sceneObjectId === 'scene-node:1');
+
+  assert.ok(root);
+  const updated = applySelectedEntityReadModel(readModel, root.id);
+
+  assert.equal(updated.selectedEntityId, 'scene-node:1');
+  assert.equal(updated.scene.selectedRenderableId, null);
+  assert.equal(updated.timeline.at(-1)?.commandId, 'selection.set_active_entity');
 });
 
 test('asset browser categories filter scene renderables deterministically', () => {
@@ -283,7 +321,7 @@ test('workspace artifact serializes and restores Studio read models', () => {
   assert.equal(restored.artifact?.workspace.scene.renderables.length, 0);
   assert.equal(restored.artifact?.viewportTool.activeTool, 'pan');
   assert.equal(restored.artifact?.preferences.render.showGrid, false);
-  assert.equal(restored.artifact?.flatSceneDocument.nodes.length, 0);
+  assert.equal(restored.artifact?.flatSceneDocument.nodes.length, 1);
   assert.equal(restored.artifact?.serializationNotes.some(note => note.includes('runtime')), true);
 });
 
@@ -338,14 +376,20 @@ test('selection sync validation keeps hierarchy and viewport on the shared comma
   const selectableIds = readModel.entities
     .filter(entity => entity.selectable)
     .map(entity => entity.id);
+  const selectedEntityId = readModel.selectedEntityId;
+  const entityRenderableLinks = Object.fromEntries(
+    readModel.entities.map(entity => [entity.id, entity.renderableId]),
+  );
 
+  assert.ok(selectedEntityId);
   assert.deepEqual(
     validateSelectionCommandSync({
       commandPresent: true,
-      commandEntityId: 'selected-voxel:0,0,0',
+      commandEntityId: selectedEntityId,
       commandSelected: true,
       viewportSelectedRenderableId: readModel.scene.selectedRenderableId,
       selectableEntityIds: selectableIds,
+      entityRenderableLinks,
     }),
     [],
   );
@@ -372,7 +416,7 @@ test('agent readout fixture reflects the current Angular substrate model', () =>
   assert.equal(fixture.compatibilityMarker, readModel.compatibilityMarker);
   assert.equal(fixture.commandTimeline.length, readModel.timeline.length);
   assert.equal(fixture.commandResults.length, readModel.commandResults.length);
-  assert.equal(fixture.entities.some(entity => entity.id === 'selected-voxel:0,0,0'), true);
+  assert.equal(fixture.entities.some(entity => entity.renderableId === 'selected-voxel:0,0,0'), true);
   assert.equal(fixture.entityListHash, computeEntityListHash(readModel.entities));
 });
 

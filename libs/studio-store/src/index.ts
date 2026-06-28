@@ -169,7 +169,9 @@ export class StudioWorkspaceStore {
 
   selectViewportHit(hit: StudioViewportHitReadModel): void {
     this.viewportHitState.set(hit);
-    this.selectEntity(hit.renderableId);
+    const workspace = this.workspaceState();
+    const linkedEntity = workspace.entities.find(entity => entity.renderableId === hit.renderableId);
+    this.selectEntity(linkedEntity?.id ?? hit.renderableId);
     const voxelLabel =
       hit.voxelCoord === null
         ? 'no voxel'

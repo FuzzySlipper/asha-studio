@@ -1,11 +1,22 @@
 import { sceneId, sceneNodeId, type FlatSceneDocument } from '@asha/contracts';
+import {
+  buildSceneObjectSnapshot,
+  type SceneObjectId,
+  type SceneObjectSnapshot,
+} from '@asha/editor-tools';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
 export type StudioCommandStatus = 'ok' | 'rejected' | 'failed';
 export type StudioEntitySourceState = 'authoritative' | 'reference' | 'pending';
 export type StudioRenderableKind = 'voxel_grid' | 'voxel_cell' | 'static_mesh' | 'preview_ghost';
-export type StudioEntityKind = StudioRenderableKind | 'session' | 'scene' | 'collection';
+export type StudioEntityKind =
+  | StudioRenderableKind
+  | 'empty_group'
+  | 'sprite'
+  | 'session'
+  | 'scene'
+  | 'collection';
 export type StudioDiagnosticSeverity = 'info' | 'warning' | 'error';
 export type StudioViewportHitFace = 'x_min' | 'x_max' | 'y_min' | 'y_max' | 'z_min' | 'z_max';
 export type StudioEntityBadge =
@@ -212,6 +223,7 @@ export interface StudioEntityReadModel {
   readonly selectable: boolean;
   readonly selected: boolean;
   readonly renderableId: string | null;
+  readonly sceneObjectId: SceneObjectId | null;
 }
 
 export interface StudioCommandTimelineEntry {
@@ -240,6 +252,8 @@ export interface StudioWorkspaceReadModel {
   readonly session: StudioSessionReadModel;
   readonly scenarios: readonly StudioScenarioSummary[];
   readonly scene: StudioSceneReadModel;
+  readonly flatSceneDocument: FlatSceneDocument;
+  readonly sceneObjectSnapshot: SceneObjectSnapshot;
   readonly entities: readonly StudioEntityReadModel[];
   readonly selectedEntityId: string | null;
   readonly timeline: readonly StudioCommandTimelineEntry[];
@@ -1120,22 +1134,107 @@ function badgeForRenderable(
   return renderable.kind === 'static_mesh' ? 'projected' : 'reference';
 }
 
+function sourceStateForSceneObject(
+  object: SceneObjectSnapshot['objects'][number],
+  renderable: StudioSceneRenderableReadModel | null,
+): StudioEntitySourceState {
+  if (renderable !== null) {
+    return renderable.sourceState;
+  }
+  return object.runtimeEntityId === null ? 'reference' : 'authoritative';
+}
+
+function kindForSceneObject(
+  object: SceneObjectSnapshot['objects'][number],
+  renderable: StudioSceneRenderableReadModel | null,
+): StudioEntityKind {
+  if (renderable !== null) {
+    return renderable.kind;
+  }
+  if (object.kind === 'emptyGroup') {
+    return 'empty_group';
+  }
+  if (object.kind === 'sprite') {
+    return 'sprite';
+  }
+  return 'scene';
+}
+
+function badgeForSceneObject(
+  object: SceneObjectSnapshot['objects'][number],
+  renderable: StudioSceneRenderableReadModel | null,
+  selected: boolean,
+): StudioEntityBadge {
+  if (selected) {
+    return 'selected';
+  }
+  if (renderable !== null) {
+    return badgeForRenderable(renderable, false);
+  }
+  return object.runtimeEntityId === null ? 'reference' : 'authority-backed';
+}
+
+function depthForSceneObject(
+  object: SceneObjectSnapshot['objects'][number],
+  snapshot: SceneObjectSnapshot,
+): number {
+  const parentByObjectId = new Map(snapshot.objects.map(item => [item.objectId, item.parentObjectId]));
+  let depth = 2;
+  let current = object.parentObjectId;
+  const seen = new Set<SceneObjectId>();
+
+  while (current !== null && !seen.has(current)) {
+    seen.add(current);
+    depth += 1;
+    current = parentByObjectId.get(current) ?? null;
+  }
+  return depth;
+}
+
+function selectedObjectIdForRenderable(
+  snapshot: SceneObjectSnapshot,
+  selectedRenderableId: string | null,
+): SceneObjectId | null {
+  if (selectedRenderableId === null) {
+    return null;
+  }
+  return (
+    snapshot.objects.find(
+      object => object.provenance.renderableId === selectedRenderableId,
+    )?.objectId ?? null
+  );
+}
+
 function projectEntitiesFromScene(
   session: StudioSessionReadModel,
   scene: StudioSceneReadModel,
+  sceneObjectSnapshot: SceneObjectSnapshot,
+  previousEntities: readonly StudioEntityReadModel[] = [],
 ): readonly StudioEntityReadModel[] {
-  const renderableRows = scene.renderables.map(renderable => ({
-    id: renderable.renderableId,
-    label: renderable.label,
-    kind: renderable.kind,
-    sourceState: renderable.sourceState,
-    badge: badgeForRenderable(renderable, renderable.renderableId === scene.selectedRenderableId),
-    depth: 2,
-    expanded: false,
-    selectable: true,
-    selected: renderable.renderableId === scene.selectedRenderableId,
-    renderableId: renderable.renderableId,
-  }));
+  const expandedById = new Map(previousEntities.map(entity => [entity.id, entity.expanded]));
+  const selectedObjectId = selectedObjectIdForRenderable(sceneObjectSnapshot, scene.selectedRenderableId);
+  const renderableById = new Map(scene.renderables.map(renderable => [renderable.renderableId, renderable]));
+  const objectRows = sceneObjectSnapshot.objects.map(object => {
+    const renderable =
+      object.provenance.renderableId === null
+        ? null
+        : renderableById.get(object.provenance.renderableId) ?? null;
+    const selected = object.objectId === selectedObjectId;
+    const hasChildren = sceneObjectSnapshot.objects.some(item => item.parentObjectId === object.objectId);
+    return {
+      id: object.objectId,
+      label: object.displayName,
+      kind: kindForSceneObject(object, renderable),
+      sourceState: sourceStateForSceneObject(object, renderable),
+      badge: badgeForSceneObject(object, renderable, selected),
+      depth: depthForSceneObject(object, sceneObjectSnapshot),
+      expanded: expandedById.get(object.objectId) ?? hasChildren,
+      selectable: object.editability.selectable,
+      selected,
+      renderableId: object.provenance.renderableId,
+      sceneObjectId: object.objectId,
+    } satisfies StudioEntityReadModel;
+  });
 
   return [
     {
@@ -1149,6 +1248,7 @@ function projectEntitiesFromScene(
       selectable: false,
       selected: false,
       renderableId: null,
+      sceneObjectId: null,
     },
     {
       id: scene.sceneId,
@@ -1161,21 +1261,9 @@ function projectEntitiesFromScene(
       selectable: false,
       selected: false,
       renderableId: null,
+      sceneObjectId: null,
     },
-    ...renderableRows.filter(entity => entity.kind !== 'static_mesh'),
-    {
-      id: 'collection:referenced-assets',
-      label: 'Referenced Assets',
-      kind: 'collection',
-      sourceState: 'reference',
-      badge: 'projected',
-      depth: 1,
-      expanded: true,
-      selectable: false,
-      selected: false,
-      renderableId: null,
-    },
-    ...renderableRows.filter(entity => entity.kind === 'static_mesh'),
+    ...objectRows,
   ];
 }
 
@@ -1255,6 +1343,7 @@ export function validateSelectionCommandSync(input: {
   readonly commandSelected: boolean;
   readonly viewportSelectedRenderableId: string | null;
   readonly selectableEntityIds: readonly string[];
+  readonly entityRenderableLinks?: Readonly<Record<string, string | null>>;
 }): readonly StudioEntityProjectionDiagnostic[] {
   if (!input.commandPresent) {
     return [{
@@ -1263,12 +1352,16 @@ export function validateSelectionCommandSync(input: {
       message: 'No selection.set_active_entity command result is recorded in the shared timeline.',
     }];
   }
+  const expectedRenderableId =
+    input.commandEntityId === null
+      ? null
+      : input.entityRenderableLinks?.[input.commandEntityId] ?? input.commandEntityId;
   if (
     input.commandEntityId === null
     || input.viewportSelectedRenderableId === null
-    || input.commandEntityId !== input.viewportSelectedRenderableId
+    || expectedRenderableId !== input.viewportSelectedRenderableId
     || !input.commandSelected
-    || !input.selectableEntityIds.includes(input.viewportSelectedRenderableId)
+    || !input.selectableEntityIds.includes(input.commandEntityId)
   ) {
     return [{
       code: 'selection_sync_mismatch',
@@ -1350,6 +1443,8 @@ export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
     renderables,
     sceneHash: buildSceneHash(renderables),
   };
+  const flatSceneDocument = createStudioFlatSceneDocument(scene);
+  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
   const timelineState = buildInitialTimeline();
 
   return {
@@ -1362,8 +1457,10 @@ export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
       { scenarioId: 'scenario-placeholder', label: 'Placeholder Scenario', status: 'available' },
     ],
     scene,
-    entities: projectEntitiesFromScene(session, scene),
-    selectedEntityId: selectedRenderableId,
+    flatSceneDocument,
+    sceneObjectSnapshot,
+    entities: projectEntitiesFromScene(session, scene, sceneObjectSnapshot),
+    selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, selectedRenderableId),
     timeline: timelineState.timeline,
     commandResults: timelineState.commandResults,
     timelineSequence: timelineState.timeline.length,
@@ -1379,6 +1476,8 @@ export function clearStudioWorkspaceReadModel(
     renderables: [],
     sceneHash: buildSceneHash([]),
   };
+  const flatSceneDocument = createStudioFlatSceneDocument(scene);
+  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
   const session: StudioSessionReadModel = {
     ...readModel.session,
     scenarioLabel: 'Empty Scene',
@@ -1403,7 +1502,9 @@ export function clearStudioWorkspaceReadModel(
         ? { ...scenario, status: 'loaded' }
         : { ...scenario, status: scenario.status === 'loaded' ? 'available' : scenario.status },
     ),
-    entities: projectEntitiesFromScene(session, scene),
+    flatSceneDocument,
+    sceneObjectSnapshot,
+    entities: projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities),
     selectedEntityId: null,
     timeline: [...readModel.timeline, command.timelineEntry],
     commandResults: [...readModel.commandResults, command.commandResult],
@@ -1444,7 +1545,14 @@ export function addReferenceRenderableReadModel(
     renderables,
     sceneHash: buildSceneHash(renderables),
   };
-  const entities = projectEntitiesFromScene(readModel.session, scene);
+  const flatSceneDocument = createStudioFlatSceneDocument(scene);
+  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
+  const entities = projectEntitiesFromScene(
+    readModel.session,
+    scene,
+    sceneObjectSnapshot,
+    readModel.entities,
+  );
   const command = createTimelineEntry({
     index: readModel.timeline.length,
     commandId: 'scene.load_asset',
@@ -1459,8 +1567,10 @@ export function addReferenceRenderableReadModel(
   return {
     ...readModel,
     scene,
+    flatSceneDocument,
+    sceneObjectSnapshot,
     entities,
-    selectedEntityId: renderableId,
+    selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, renderableId),
     timeline: [...readModel.timeline, command.timelineEntry],
     commandResults: [...readModel.commandResults, command.commandResult],
     timelineSequence: readModel.timelineSequence + 1,
@@ -1502,7 +1612,9 @@ export function loadScenarioReadModel(
     renderables,
     sceneHash: buildSceneHash(renderables),
   };
-  const entities = projectEntitiesFromScene(session, scene);
+  const flatSceneDocument = createStudioFlatSceneDocument(scene);
+  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
+  const entities = projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities);
   const command = createTimelineEntry({
     index: readModel.timeline.length,
     commandId: 'session.load_scenario',
@@ -1524,8 +1636,10 @@ export function loadScenarioReadModel(
         ...item,
         status: item.scenarioId === scenarioId ? 'loaded' : 'available',
       })),
+      flatSceneDocument,
+      sceneObjectSnapshot,
       entities,
-      selectedEntityId: selectedRenderableId,
+      selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, selectedRenderableId),
       timeline: [...readModel.timeline, command.timelineEntry],
       commandResults: [...readModel.commandResults, command.commandResult],
       timelineSequence: readModel.timelineSequence + 1,
@@ -1570,9 +1684,23 @@ function flatSceneNodeKindForRenderable(
   };
 }
 
-export function createStudioFlatSceneDocument(
+function flatSceneDocumentForScene(
   scene: StudioSceneReadModel,
 ): FlatSceneDocument {
+  const rootNode = {
+    id: sceneNodeId(1),
+    parent: null,
+    childOrder: 0,
+    label: 'Scene Root',
+    tags: ['studio-root'],
+    transform: {
+      translation: [0, 0, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    },
+    kind: { kind: 'emptyGroup' },
+  } satisfies FlatSceneDocument['nodes'][number];
+
   return {
     schemaVersion: 1,
     id: sceneId(1),
@@ -1585,28 +1713,54 @@ export function createStudioFlatSceneDocument(
       version: { req: 'any' },
       hash: renderable.renderHash,
     })),
-    nodes: scene.renderables.map((renderable, index) => ({
-      id: sceneNodeId(index + 1),
-      parent: null,
-      childOrder: index,
-      label: renderable.label,
-      tags: [renderable.kind, renderable.sourceState],
-      transform: {
-        translation: [
-          (renderable.bounds.min.x + renderable.bounds.max.x) / 2,
-          (renderable.bounds.min.y + renderable.bounds.max.y) / 2,
-          (renderable.bounds.min.z + renderable.bounds.max.z) / 2,
-        ],
-        rotation: [0, 0, 0, 1],
-        scale: [
-          Math.max(0.04, renderable.bounds.max.x - renderable.bounds.min.x),
-          Math.max(0.04, renderable.bounds.max.y - renderable.bounds.min.y),
-          Math.max(0.04, renderable.bounds.max.z - renderable.bounds.min.z),
-        ],
-      },
-      kind: flatSceneNodeKindForRenderable(renderable),
-    })),
+    nodes: [
+      rootNode,
+      ...scene.renderables.map((renderable, index) => ({
+        id: sceneNodeId(index + 2),
+        parent: rootNode.id,
+        childOrder: index,
+        label: renderable.label,
+        tags: [renderable.kind, renderable.sourceState],
+        transform: {
+          translation: [
+            (renderable.bounds.min.x + renderable.bounds.max.x) / 2,
+            (renderable.bounds.min.y + renderable.bounds.max.y) / 2,
+            (renderable.bounds.min.z + renderable.bounds.max.z) / 2,
+          ],
+          rotation: [0, 0, 0, 1],
+          scale: [
+            Math.max(0.04, renderable.bounds.max.x - renderable.bounds.min.x),
+            Math.max(0.04, renderable.bounds.max.y - renderable.bounds.min.y),
+            Math.max(0.04, renderable.bounds.max.z - renderable.bounds.min.z),
+          ],
+        },
+        kind: flatSceneNodeKindForRenderable(renderable),
+      }) satisfies FlatSceneDocument['nodes'][number]),
+    ],
   };
+}
+
+function renderableLinksForScene(scene: StudioSceneReadModel) {
+  return scene.renderables.map((renderable, index) => ({
+    sceneNodeId: sceneNodeId(index + 2),
+    renderableId: renderable.renderableId,
+  }));
+}
+
+function buildStudioSceneObjectSnapshot(
+  scene: StudioSceneReadModel,
+  flatSceneDocument: FlatSceneDocument,
+): SceneObjectSnapshot {
+  return buildSceneObjectSnapshot({
+    document: flatSceneDocument,
+    renderableLinks: renderableLinksForScene(scene),
+  });
+}
+
+export function createStudioFlatSceneDocument(
+  scene: StudioSceneReadModel,
+): FlatSceneDocument {
+  return flatSceneDocumentForScene(scene);
 }
 
 export function serializeStudioWorkspaceArtifact(options: {
@@ -1626,7 +1780,7 @@ export function serializeStudioWorkspaceArtifact(options: {
     viewportCamera: options.viewportCamera,
     viewportTool: options.viewportTool,
     preferences: options.preferences,
-    flatSceneDocument: createStudioFlatSceneDocument(options.workspace.scene),
+    flatSceneDocument: options.workspace.flatSceneDocument,
     serializationNotes: [
       'Studio workspace artifact preserves browser read models and ASHA flat-scene-shaped export data.',
       'Runtime-authority serialization remains gated behind the approved public runtime bridge.',
@@ -1638,6 +1792,32 @@ export function serializeStudioWorkspaceArtifact(options: {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hydrateStudioWorkspaceReadModel(
+  workspace: StudioWorkspaceReadModel,
+): StudioWorkspaceReadModel {
+  const flatSceneDocument = workspace.flatSceneDocument ?? createStudioFlatSceneDocument(workspace.scene);
+  const sceneObjectSnapshot =
+    workspace.sceneObjectSnapshot ?? buildStudioSceneObjectSnapshot(workspace.scene, flatSceneDocument);
+  const selectedEntityId =
+    workspace.selectedEntityId === null
+      ? null
+      : sceneObjectSnapshot.objects.some(object => object.objectId === workspace.selectedEntityId)
+        ? workspace.selectedEntityId
+        : selectedObjectIdForRenderable(sceneObjectSnapshot, workspace.scene.selectedRenderableId);
+  return {
+    ...workspace,
+    flatSceneDocument,
+    sceneObjectSnapshot,
+    entities: projectEntitiesFromScene(
+      workspace.session,
+      workspace.scene,
+      sceneObjectSnapshot,
+      workspace.entities,
+    ),
+    selectedEntityId,
+  };
 }
 
 export function restoreStudioWorkspaceArtifact(text: string): StudioWorkspaceRestoreResult {
@@ -1685,9 +1865,14 @@ export function restoreStudioWorkspaceArtifact(text: string): StudioWorkspaceRes
     };
   }
 
+  const artifact = parsed as unknown as StudioWorkspaceArtifact;
   return {
     ok: true,
-    artifact: parsed as unknown as StudioWorkspaceArtifact,
+    artifact: {
+      ...artifact,
+      workspace: hydrateStudioWorkspaceReadModel(artifact.workspace),
+      flatSceneDocument: artifact.flatSceneDocument ?? createStudioFlatSceneDocument(artifact.workspace.scene),
+    },
     diagnostics: [],
   };
 }
@@ -1806,19 +1991,24 @@ export function applySelectedEntityReadModel(
   readModel: StudioWorkspaceReadModel,
   entityId: string,
 ): StudioWorkspaceReadModel {
-  const selectedEntityExists = readModel.entities.some(
+  const selectableEntity = readModel.entities.find(
     entity => entity.id === entityId && entity.selectable,
   );
 
-  if (!selectedEntityExists) {
+  if (selectableEntity === undefined) {
     return readModel;
   }
 
   const scene: StudioSceneReadModel = {
     ...readModel.scene,
-    selectedRenderableId: entityId,
+    selectedRenderableId: selectableEntity.renderableId,
   };
-  const entities = projectEntitiesFromScene(readModel.session, scene);
+  const entities = projectEntitiesFromScene(
+    readModel.session,
+    scene,
+    readModel.sceneObjectSnapshot,
+    readModel.entities,
+  );
   const sequenceIndex = readModel.timeline.length;
   const selectedEntity = entities.find(entity => entity.id === entityId);
   const selectedLabel = selectedEntity?.label ?? entityId;

@@ -491,6 +491,8 @@ export class StudioHierarchyPanelComponent {
       session: 'S',
       scene: '#',
       collection: 'A',
+      empty_group: 'O',
+      sprite: 'I',
       voxel_grid: 'G',
       voxel_cell: 'V',
       static_mesh: 'M',
