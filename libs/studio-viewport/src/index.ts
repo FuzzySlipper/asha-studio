@@ -12,9 +12,11 @@ import type {
   StudioRenderableKind,
   StudioVec3,
   StudioViewportAdapterReadModel,
+  StudioViewportHitFace,
   StudioViewportRenderableAdapter,
   StudioViewportToolMode,
 } from '@asha-studio/domain';
+import { buildStudioViewportHitReadModel } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
 import * as THREE from 'three';
 
@@ -36,6 +38,26 @@ function size(bounds: StudioBounds): StudioVec3 {
 
 function toThreePosition(vector: StudioVec3): THREE.Vector3 {
   return new THREE.Vector3(vector.x, vector.z, vector.y);
+}
+
+function fromThreePosition(vector: THREE.Vector3): StudioVec3 {
+  return { x: vector.x, y: vector.z, z: vector.y };
+}
+
+function faceFromThreeNormal(normal: THREE.Vector3 | null): StudioViewportHitFace {
+  if (normal === null) {
+    return 'z_max';
+  }
+  const absX = Math.abs(normal.x);
+  const absY = Math.abs(normal.y);
+  const absZ = Math.abs(normal.z);
+  if (absX >= absY && absX >= absZ) {
+    return normal.x < 0 ? 'x_min' : 'x_max';
+  }
+  if (absZ >= absX && absZ >= absY) {
+    return normal.z < 0 ? 'y_min' : 'y_max';
+  }
+  return normal.y < 0 ? 'z_min' : 'z_max';
 }
 
 function materialColor(
@@ -114,11 +136,23 @@ function disposeObject(object: THREE.Object3D): void {
         class="viewport-scene__host"
         aria-label="Three dimensional scene viewport"
       >
-        <div class="viewport-readback">
-          <span>selected target</span>
-          <strong>{{ store.viewportAdapter().selectedRenderableId ?? 'none' }}</strong>
-          <small>{{ store.viewportAdapter().readbackHash }}</small>
-        </div>
+        @if (store.viewportAdapter().renderSettings.showReadbackOverlay) {
+          <div class="viewport-readback">
+            <span>selected target</span>
+            <strong>{{ store.viewportAdapter().selectedRenderableId ?? 'none' }}</strong>
+            @if (store.viewportHit(); as hit) {
+              <span class="viewport-readback__hit">
+                face {{ hit.face }} ·
+                @if (hit.voxelCoord) {
+                  voxel {{ hit.voxelCoord.x }},{{ hit.voxelCoord.y }},{{ hit.voxelCoord.z }}
+                } @else {
+                  no voxel
+                }
+              </span>
+            }
+            <small>{{ store.viewportAdapter().readbackHash }}</small>
+          </div>
+        }
 
         <div class="axis-gizmo" aria-hidden="true">
           <span class="axis-gizmo__x">X</span>
@@ -176,7 +210,7 @@ function disposeObject(object: THREE.Object3D): void {
       }
 
       .viewport-scene__host {
-        background: #101820;
+        background: var(--asha-color-viewport-deep);
         border: 1px solid #24313b;
         box-sizing: border-box;
         contain: layout paint;
@@ -213,6 +247,13 @@ function disposeObject(object: THREE.Object3D): void {
 
       .viewport-readback small {
         color: var(--asha-color-muted);
+      }
+
+      .viewport-readback__hit {
+        color: var(--asha-color-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .axis-gizmo {
@@ -314,6 +355,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.renderer.domElement.removeEventListener('pointermove', this.handlePointerMove);
       this.renderer.domElement.removeEventListener('pointerup', this.handlePointerUp);
       this.renderer.domElement.removeEventListener('pointercancel', this.handlePointerUp);
+      this.renderer.domElement.removeEventListener('contextmenu', this.handleContextMenu);
       this.renderer.domElement.removeEventListener('wheel', this.handleWheel);
       this.renderer.dispose();
       this.renderer.domElement.remove();
@@ -348,6 +390,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     renderer.domElement.addEventListener('pointermove', this.handlePointerMove);
     renderer.domElement.addEventListener('pointerup', this.handlePointerUp);
     renderer.domElement.addEventListener('pointercancel', this.handlePointerUp);
+    renderer.domElement.addEventListener('contextmenu', this.handleContextMenu);
     renderer.domElement.addEventListener('wheel', this.handleWheel, { passive: false });
     hostElement.append(renderer.domElement);
     this.renderer = renderer;
@@ -378,7 +421,11 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.dragState !== null,
     );
 
-    const sceneKey = `${adapter.sceneHash}:${adapter.selectedRenderableId ?? 'none'}`;
+    const sceneKey = [
+      adapter.sceneHash,
+      adapter.selectedRenderableId ?? 'none',
+      adapter.renderSettings.renderSettingsHash,
+    ].join(':');
     if (sceneKey !== this.renderedSceneKey) {
       this.rebuildRenderables(adapter);
       this.renderedSceneKey = sceneKey;
@@ -396,16 +443,24 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       if (!renderable.visible) {
         continue;
       }
-      const object = this.createRenderableObject(renderable);
+      if (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost') {
+        continue;
+      }
+      const object = this.createRenderableObject(renderable, adapter.renderSettings.wireframeEnabled);
       this.renderableGroup.add(object);
     }
 
-    const grid = new THREE.GridHelper(4, 16, '#365866', '#223846');
-    grid.position.set(1.5, -0.04, 1.5);
-    this.renderableGroup.add(grid);
+    if (adapter.renderSettings.showGrid) {
+      const grid = new THREE.GridHelper(4, 16, '#365866', '#223846');
+      grid.position.set(1.5, -0.04, 1.5);
+      this.renderableGroup.add(grid);
+    }
   }
 
-  private createRenderableObject(renderable: StudioViewportRenderableAdapter): THREE.Object3D {
+  private createRenderableObject(
+    renderable: StudioViewportRenderableAdapter,
+    wireframeEnabled: boolean,
+  ): THREE.Object3D {
     const renderableCenter = center(renderable.bounds);
     const renderableSize = size(renderable.bounds);
     const geometry = new THREE.BoxGeometry(
@@ -418,7 +473,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       opacity: materialOpacity(renderable),
       roughness: 0.72,
       transparent: materialOpacity(renderable) < 1,
-      wireframe: renderable.kind === 'preview_ghost',
+      wireframe: wireframeEnabled || renderable.kind === 'preview_ghost',
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(toThreePosition(renderableCenter));
@@ -481,16 +536,21 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const activeTool = this.store.viewportTool().activeTool;
-    if (activeTool === 'orbit' || activeTool === 'pan') {
+    const dragTool =
+      event.button === 2 ? 'orbit' : activeTool === 'orbit' || activeTool === 'pan' ? activeTool : null;
+    if (dragTool !== null) {
       event.preventDefault();
       this.dragState = {
         pointerId: event.pointerId,
-        tool: activeTool,
+        tool: dragTool,
         x: event.clientX,
         y: event.clientY,
       };
-      this.renderer.domElement.style.cursor = cursorForTool(activeTool, true);
+      this.renderer.domElement.style.cursor = cursorForTool(dragTool, true);
       this.renderer.domElement.setPointerCapture(event.pointerId);
+      return;
+    }
+    if (event.button !== 0) {
       return;
     }
 
@@ -503,9 +563,20 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const hit = intersections.find(intersection =>
       typeof intersection.object.userData['renderableId'] === 'string',
     );
-    const renderableId = hit?.object.userData['renderableId'];
-    if (typeof renderableId === 'string') {
-      this.store.selectEntity(renderableId);
+    if (hit !== undefined && typeof hit.object.userData['renderableId'] === 'string') {
+      const renderableId = hit.object.userData['renderableId'];
+      const renderable = this.store
+        .workspace()
+        .scene.renderables.find(item => item.renderableId === renderableId);
+      if (renderable !== undefined && renderable.pickable) {
+        this.store.selectViewportHit(
+          buildStudioViewportHitReadModel({
+            renderable,
+            face: faceFromThreeNormal(hit.face?.normal ?? null),
+            worldPosition: fromThreePosition(hit.point),
+          }),
+        );
+      }
     }
   };
 
@@ -549,5 +620,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private readonly handleWheel = (event: WheelEvent): void => {
     event.preventDefault();
     this.store.zoomViewportCamera(event.deltaY);
+  };
+
+  private readonly handleContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
   };
 }

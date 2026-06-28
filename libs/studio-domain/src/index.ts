@@ -1,3 +1,5 @@
+import { sceneId, sceneNodeId, type FlatSceneDocument } from '@asha/contracts';
+
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
 export type StudioCommandStatus = 'ok' | 'rejected' | 'failed';
@@ -5,6 +7,7 @@ export type StudioEntitySourceState = 'authoritative' | 'reference' | 'pending';
 export type StudioRenderableKind = 'voxel_grid' | 'voxel_cell' | 'static_mesh' | 'preview_ghost';
 export type StudioEntityKind = StudioRenderableKind | 'session' | 'scene' | 'collection';
 export type StudioDiagnosticSeverity = 'info' | 'warning' | 'error';
+export type StudioViewportHitFace = 'x_min' | 'x_max' | 'y_min' | 'y_max' | 'z_min' | 'z_max';
 export type StudioEntityBadge =
   | 'authority-backed'
   | 'preview-only'
@@ -19,6 +22,17 @@ export type StudioEntityProjectionDiagnosticCode =
   | 'stale_entity_list'
   | 'unsupported_private_entity_source';
 export type StudioViewportToolMode = 'select' | 'orbit' | 'pan' | 'frame';
+export type StudioAssetBrowserCategory =
+  | 'all'
+  | 'static_meshes'
+  | 'materials'
+  | 'generated'
+  | 'preview';
+export type StudioRenderSettingKey =
+  | 'wireframeEnabled'
+  | 'showGrid'
+  | 'showPreviewGhosts'
+  | 'showReadbackOverlay';
 
 export interface StudioDiagnostic {
   readonly severity: StudioDiagnosticSeverity;
@@ -125,6 +139,36 @@ export interface StudioViewportToolReadModel {
   readonly toolHash: string;
 }
 
+export interface StudioVoxelCoord {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+export interface StudioViewportHitReadModel {
+  readonly renderableId: string;
+  readonly face: StudioViewportHitFace;
+  readonly worldPosition: StudioVec3;
+  readonly voxelCoord: StudioVoxelCoord | null;
+  readonly hitHash: string;
+}
+
+export interface StudioRenderSettingsReadModel {
+  readonly wireframeEnabled: boolean;
+  readonly showGrid: boolean;
+  readonly showPreviewGhosts: boolean;
+  readonly showReadbackOverlay: boolean;
+  readonly renderSettingsHash: string;
+}
+
+export interface StudioPreferencesReadModel {
+  readonly schemaVersion: 1;
+  readonly artifactKind: 'studio_preferences';
+  readonly preferencesVersion: 'studio-preferences.v0';
+  readonly render: StudioRenderSettingsReadModel;
+  readonly preferencesHash: string;
+}
+
 export interface StudioViewportCameraControlDelta {
   readonly deltaX: number;
   readonly deltaY: number;
@@ -151,6 +195,7 @@ export interface StudioViewportAdapterReadModel {
   readonly selectedRenderableId: string | null;
   readonly camera: StudioViewportCameraReadModel;
   readonly tool: StudioViewportToolReadModel;
+  readonly renderSettings: StudioRenderSettingsReadModel;
   readonly renderables: readonly StudioViewportRenderableAdapter[];
   readonly readbackHash: string;
   readonly nonClaims: readonly string[];
@@ -220,6 +265,38 @@ export interface StudioAgentReadoutArtifact {
   readonly readbackMarker: string;
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly knownLimitations: readonly string[];
+}
+
+export interface StudioWorkspaceArtifact {
+  readonly schemaVersion: 1;
+  readonly artifactKind: 'studio_workspace';
+  readonly artifactId: string;
+  readonly workspaceVersion: 'studio-workspace.v0';
+  readonly savedAtIso: string;
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly viewportCamera: StudioViewportCameraReadModel;
+  readonly viewportTool: StudioViewportToolReadModel;
+  readonly preferences: StudioPreferencesReadModel;
+  readonly flatSceneDocument: FlatSceneDocument;
+  readonly serializationNotes: readonly string[];
+}
+
+export interface StudioWorkspaceRestoreResult {
+  readonly ok: boolean;
+  readonly artifact: StudioWorkspaceArtifact | null;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}
+
+export interface StudioScenarioLoadResult {
+  readonly ok: boolean;
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}
+
+export interface StudioAssetBrowserCategoryReadModel {
+  readonly category: StudioAssetBrowserCategory;
+  readonly label: string;
+  readonly count: number;
 }
 
 export interface StudioPackageJsonLike {
@@ -463,6 +540,108 @@ function buildSceneHash(renderables: readonly StudioSceneRenderableReadModel[]):
   return fnv1aHash('scene-view', hashPayload);
 }
 
+export function buildStudioRenderSettingsReadModel(options: {
+  readonly wireframeEnabled?: boolean;
+  readonly showGrid?: boolean;
+  readonly showPreviewGhosts?: boolean;
+  readonly showReadbackOverlay?: boolean;
+} = {}): StudioRenderSettingsReadModel {
+  const render = {
+    wireframeEnabled: options.wireframeEnabled ?? false,
+    showGrid: options.showGrid ?? true,
+    showPreviewGhosts: options.showPreviewGhosts ?? true,
+    showReadbackOverlay: options.showReadbackOverlay ?? true,
+  };
+  return {
+    ...render,
+    renderSettingsHash: fnv1aHash('render-settings', render),
+  };
+}
+
+export function buildStudioPreferencesReadModel(options: {
+  readonly render?: Partial<Omit<StudioRenderSettingsReadModel, 'renderSettingsHash'>>;
+} = {}): StudioPreferencesReadModel {
+  const render = buildStudioRenderSettingsReadModel(options.render ?? {});
+  const payload = {
+    preferencesVersion: 'studio-preferences.v0',
+    render,
+  };
+  return {
+    schemaVersion: 1,
+    artifactKind: 'studio_preferences',
+    preferencesVersion: 'studio-preferences.v0',
+    render,
+    preferencesHash: fnv1aHash('studio-preferences', payload),
+  };
+}
+
+export function updateStudioRenderSetting(
+  preferences: StudioPreferencesReadModel,
+  key: StudioRenderSettingKey,
+  value: boolean,
+): StudioPreferencesReadModel {
+  return buildStudioPreferencesReadModel({
+    render: {
+      wireframeEnabled: preferences.render.wireframeEnabled,
+      showGrid: preferences.render.showGrid,
+      showPreviewGhosts: preferences.render.showPreviewGhosts,
+      showReadbackOverlay: preferences.render.showReadbackOverlay,
+      [key]: value,
+    },
+  });
+}
+
+export function assetMatchesBrowserCategory(
+  renderable: StudioSceneRenderableReadModel,
+  category: StudioAssetBrowserCategory,
+): boolean {
+  if (category === 'all') {
+    return true;
+  }
+  if (category === 'static_meshes') {
+    return renderable.kind === 'static_mesh';
+  }
+  if (category === 'materials') {
+    return renderable.materialRef !== null;
+  }
+  if (category === 'generated') {
+    return (
+      renderable.meshRef?.startsWith('generated:') === true
+      || renderable.renderableId.startsWith('generated:')
+      || renderable.kind === 'voxel_grid'
+      || renderable.kind === 'voxel_cell'
+    );
+  }
+  return renderable.kind === 'preview_ghost' || renderable.sourceState === 'pending';
+}
+
+export function filterAssetBrowserRenderables(
+  renderables: readonly StudioSceneRenderableReadModel[],
+  category: StudioAssetBrowserCategory,
+): readonly StudioSceneRenderableReadModel[] {
+  return renderables.filter(renderable => assetMatchesBrowserCategory(renderable, category));
+}
+
+export function buildAssetBrowserCategories(
+  renderables: readonly StudioSceneRenderableReadModel[],
+): readonly StudioAssetBrowserCategoryReadModel[] {
+  const categories: readonly {
+    readonly category: StudioAssetBrowserCategory;
+    readonly label: string;
+  }[] = [
+    { category: 'all', label: 'All Assets' },
+    { category: 'static_meshes', label: 'Static Meshes' },
+    { category: 'materials', label: 'Materials' },
+    { category: 'generated', label: 'Generated' },
+    { category: 'preview', label: 'Preview' },
+  ];
+
+  return categories.map(category => ({
+    ...category,
+    count: filterAssetBrowserRenderables(renderables, category.category).length,
+  }));
+}
+
 export function buildStudioViewportCameraReadModel(options: {
   readonly position?: StudioVec3;
   readonly target?: StudioVec3;
@@ -493,6 +672,32 @@ export function buildStudioViewportToolReadModel(
   return {
     ...tool,
     toolHash: fnv1aHash('viewport-tool', tool),
+  };
+}
+
+export function buildStudioViewportHitReadModel(options: {
+  readonly renderable: StudioSceneRenderableReadModel;
+  readonly face: StudioViewportHitFace;
+  readonly worldPosition: StudioVec3;
+}): StudioViewportHitReadModel {
+  const voxelCoord =
+    options.renderable.kind === 'voxel_grid' || options.renderable.kind === 'voxel_cell'
+      ? {
+          x: Math.floor(options.worldPosition.x),
+          y: Math.floor(options.worldPosition.y),
+          z: Math.floor(options.worldPosition.z),
+        }
+      : null;
+  const hit = {
+    renderableId: options.renderable.renderableId,
+    face: options.face,
+    worldPosition: options.worldPosition,
+    voxelCoord,
+  };
+
+  return {
+    ...hit,
+    hitHash: fnv1aHash('viewport-hit', hit),
   };
 }
 
@@ -592,7 +797,28 @@ export function zoomStudioViewportCamera(
 export function frameStudioViewportCamera(
   scene: StudioSceneReadModel,
 ): StudioViewportCameraReadModel {
-  const visibleRenderables = scene.renderables.filter(renderable => renderable.visible);
+  return frameStudioViewportCameraForRenderables(
+    scene.renderables.filter(renderable => renderable.visible),
+  );
+}
+
+export function frameStudioViewportCameraOnRenderable(
+  scene: StudioSceneReadModel,
+  renderableId: string | null,
+): StudioViewportCameraReadModel {
+  const renderable =
+    renderableId === null
+      ? undefined
+      : scene.renderables.find(item => item.renderableId === renderableId && item.visible);
+  if (renderable === undefined) {
+    return frameStudioViewportCamera(scene);
+  }
+  return frameStudioViewportCameraForRenderables([renderable]);
+}
+
+function frameStudioViewportCameraForRenderables(
+  visibleRenderables: readonly StudioSceneRenderableReadModel[],
+): StudioViewportCameraReadModel {
   if (visibleRenderables.length === 0) {
     return buildStudioViewportCameraReadModel();
   }
@@ -641,9 +867,11 @@ export function buildStudioViewportAdapterReadModel(options: {
   readonly scene: StudioSceneReadModel;
   readonly camera?: StudioViewportCameraReadModel;
   readonly tool?: StudioViewportToolReadModel;
+  readonly renderSettings?: StudioRenderSettingsReadModel;
 }): StudioViewportAdapterReadModel {
   const camera = options.camera ?? buildStudioViewportCameraReadModel();
   const tool = options.tool ?? buildStudioViewportToolReadModel();
+  const renderSettings = options.renderSettings ?? buildStudioRenderSettingsReadModel();
   const renderables = options.scene.renderables.map(renderable => ({
     renderableId: renderable.renderableId,
     label: renderable.label,
@@ -663,6 +891,7 @@ export function buildStudioViewportAdapterReadModel(options: {
     selectedRenderableId: options.scene.selectedRenderableId,
     cameraHash: camera.cameraHash,
     toolHash: tool.toolHash,
+    renderSettingsHash: renderSettings.renderSettingsHash,
     renderables: renderables.map(renderable => ({
       renderableId: renderable.renderableId,
       selected: renderable.selected,
@@ -678,6 +907,7 @@ export function buildStudioViewportAdapterReadModel(options: {
     selectedRenderableId: options.scene.selectedRenderableId,
     camera,
     tool,
+    renderSettings,
     renderables,
     readbackHash: fnv1aHash('viewport-readback', readbackPayload),
     nonClaims: [
@@ -781,6 +1011,63 @@ function buildInitialRenderables(): readonly StudioSceneRenderableReadModel[] {
       pickable: false,
     },
   ];
+}
+
+function buildPlaceholderScenarioRenderables(): readonly StudioSceneRenderableReadModel[] {
+  return [
+    {
+      renderableId: 'placeholder-ground-grid',
+      label: 'Placeholder Ground Grid',
+      kind: 'voxel_grid',
+      sourceState: 'reference',
+      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 4, y: 2, z: 0.35 } },
+      meshRef: 'generated:placeholder-grid',
+      materialRef: 'material:grid-reference',
+      renderHash: 'render-placeholder-grid',
+      visible: true,
+      pickable: true,
+    },
+    {
+      renderableId: 'placeholder-static-block',
+      label: 'Placeholder Static Block',
+      kind: 'static_mesh',
+      sourceState: 'reference',
+      bounds: { min: { x: 1.35, y: 0.55, z: 0.15 }, max: { x: 2.35, y: 1.55, z: 1.15 } },
+      meshRef: 'static-mesh:placeholder-block',
+      materialRef: 'material:placeholder-reference',
+      renderHash: 'render-placeholder-static-block',
+      visible: true,
+      pickable: true,
+    },
+    {
+      renderableId: 'placeholder-preview-anchor',
+      label: 'Placeholder Preview Anchor',
+      kind: 'preview_ghost',
+      sourceState: 'pending',
+      bounds: { min: { x: 2.5, y: 0.55, z: 0.15 }, max: { x: 3.1, y: 1.15, z: 0.75 } },
+      meshRef: 'generated:preview-anchor',
+      materialRef: 'material:preview-ghost',
+      renderHash: 'render-placeholder-preview-anchor',
+      visible: true,
+      pickable: false,
+    },
+  ];
+}
+
+function buildScenarioRenderables(scenarioId: string): readonly StudioSceneRenderableReadModel[] {
+  if (scenarioId === 'voxel-basic') {
+    return buildInitialRenderables();
+  }
+  if (scenarioId === 'scenario-placeholder') {
+    return buildPlaceholderScenarioRenderables();
+  }
+  return [];
+}
+
+function firstSelectableRenderableId(
+  renderables: readonly StudioSceneRenderableReadModel[],
+): string | null {
+  return renderables.find(renderable => renderable.pickable)?.renderableId ?? null;
 }
 
 function badgeForRenderable(
@@ -1046,6 +1333,328 @@ export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
     timeline: timelineState.timeline,
     commandResults: timelineState.commandResults,
     timelineSequence: timelineState.timeline.length,
+  };
+}
+
+export function clearStudioWorkspaceReadModel(
+  readModel: StudioWorkspaceReadModel,
+): StudioWorkspaceReadModel {
+  const scene: StudioSceneReadModel = {
+    sceneId: readModel.scene.sceneId,
+    selectedRenderableId: null,
+    renderables: [],
+    sceneHash: buildSceneHash([]),
+  };
+  const session: StudioSessionReadModel = {
+    ...readModel.session,
+    scenarioLabel: 'Empty Scene',
+  };
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: 'workspace.new',
+    label: 'New Scene',
+    requestedBy: 'gui',
+    inputSummary: `previousSceneHash=${readModel.scene.sceneHash}`,
+    outputSummary: 'Cleared scene renderables and selection.',
+    changedScene: true,
+    changedSelection: readModel.selectedEntityId !== null,
+  });
+
+  return {
+    ...readModel,
+    session,
+    scene,
+    scenarios: readModel.scenarios.map(scenario =>
+      scenario.scenarioId === readModel.session.scenarioId
+        ? { ...scenario, status: 'loaded' }
+        : { ...scenario, status: scenario.status === 'loaded' ? 'available' : scenario.status },
+    ),
+    entities: projectEntitiesFromScene(session, scene),
+    selectedEntityId: null,
+    timeline: [...readModel.timeline, command.timelineEntry],
+    commandResults: [...readModel.commandResults, command.commandResult],
+    timelineSequence: readModel.timelineSequence + 1,
+  };
+}
+
+export function addReferenceRenderableReadModel(
+  readModel: StudioWorkspaceReadModel,
+): StudioWorkspaceReadModel {
+  const referenceIndex = readModel.scene.renderables.filter(renderable =>
+    renderable.renderableId.startsWith('reference-placeholder-'),
+  ).length + 1;
+  const offset = 0.55 * referenceIndex;
+  const renderableId = `reference-placeholder-${referenceIndex}`;
+  const renderable: StudioSceneRenderableReadModel = {
+    renderableId,
+    label: `Reference Placeholder ${referenceIndex}`,
+    kind: 'static_mesh',
+    sourceState: 'reference',
+    bounds: {
+      min: { x: 2.1 + offset, y: 1.1, z: 0.25 },
+      max: { x: 2.75 + offset, y: 1.75, z: 0.9 },
+    },
+    meshRef: 'static-mesh:reference-placeholder',
+    materialRef: 'material:reference-placeholder',
+    renderHash: fnv1aHash('render-reference-placeholder', {
+      referenceIndex,
+      previousSceneHash: readModel.scene.sceneHash,
+    }),
+    visible: true,
+    pickable: true,
+  };
+  const renderables = [...readModel.scene.renderables, renderable];
+  const scene: StudioSceneReadModel = {
+    ...readModel.scene,
+    selectedRenderableId: renderableId,
+    renderables,
+    sceneHash: buildSceneHash(renderables),
+  };
+  const entities = projectEntitiesFromScene(readModel.session, scene);
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: 'scene.load_asset',
+    label: 'Load Reference Placeholder',
+    requestedBy: 'gui',
+    inputSummary: 'assetId=static-mesh:reference-placeholder',
+    outputSummary: `Added ${renderable.label}.`,
+    changedScene: true,
+    changedSelection: true,
+  });
+
+  return {
+    ...readModel,
+    scene,
+    entities,
+    selectedEntityId: renderableId,
+    timeline: [...readModel.timeline, command.timelineEntry],
+    commandResults: [...readModel.commandResults, command.commandResult],
+    timelineSequence: readModel.timelineSequence + 1,
+  };
+}
+
+export function loadScenarioReadModel(
+  readModel: StudioWorkspaceReadModel,
+  scenarioId: string,
+): StudioScenarioLoadResult {
+  const scenario = readModel.scenarios.find(item => item.scenarioId === scenarioId);
+  if (scenario === undefined) {
+    return {
+      ok: false,
+      workspace: readModel,
+      diagnostics: [
+        diagnostic(
+          'error',
+          'scenario_load_unknown',
+          `Scenario ${scenarioId} is not available in the Studio workspace.`,
+          'session.load_scenario',
+          'Select one of the scenarios advertised by the workspace read model.',
+        ),
+      ],
+    };
+  }
+
+  const renderables = buildScenarioRenderables(scenarioId);
+  const selectedRenderableId = firstSelectableRenderableId(renderables);
+  const session: StudioSessionReadModel = {
+    ...readModel.session,
+    scenarioId,
+    scenarioLabel: scenario.label,
+    status: 'ready',
+  };
+  const scene: StudioSceneReadModel = {
+    sceneId: `scene-view:${scenarioId}:v1`,
+    selectedRenderableId,
+    renderables,
+    sceneHash: buildSceneHash(renderables),
+  };
+  const entities = projectEntitiesFromScene(session, scene);
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: 'session.load_scenario',
+    label: 'Load Scenario',
+    requestedBy: 'gui',
+    inputSummary: `scenarioId=${scenarioId}`,
+    outputSummary: `Loaded ${scenario.label}.`,
+    changedScene: true,
+    changedSelection: readModel.selectedEntityId !== selectedRenderableId,
+  });
+
+  return {
+    ok: true,
+    workspace: {
+      ...readModel,
+      session,
+      scene,
+      scenarios: readModel.scenarios.map(item => ({
+        ...item,
+        status: item.scenarioId === scenarioId ? 'loaded' : 'available',
+      })),
+      entities,
+      selectedEntityId: selectedRenderableId,
+      timeline: [...readModel.timeline, command.timelineEntry],
+      commandResults: [...readModel.commandResults, command.commandResult],
+      timelineSequence: readModel.timelineSequence + 1,
+    },
+    diagnostics: [],
+  };
+}
+
+export function setHierarchyExpansionReadModel(
+  readModel: StudioWorkspaceReadModel,
+  expanded: boolean,
+): StudioWorkspaceReadModel {
+  return {
+    ...readModel,
+    entities: readModel.entities.map(entity => ({
+      ...entity,
+      expanded,
+    })),
+  };
+}
+
+function flatSceneNodeKindForRenderable(
+  renderable: StudioSceneRenderableReadModel,
+): FlatSceneDocument['nodes'][number]['kind'] {
+  if (renderable.kind === 'static_mesh') {
+    return {
+      kind: 'staticMesh',
+      asset: {
+        id: renderable.meshRef ?? renderable.renderableId,
+        version: { req: 'any' },
+        hash: renderable.renderHash,
+      },
+    };
+  }
+  return {
+    kind: 'voxelVolume',
+    asset: {
+      id: renderable.meshRef ?? `generated:${renderable.kind}`,
+      version: { req: 'any' },
+      hash: renderable.renderHash,
+    },
+  };
+}
+
+export function createStudioFlatSceneDocument(
+  scene: StudioSceneReadModel,
+): FlatSceneDocument {
+  return {
+    schemaVersion: 1,
+    id: sceneId(1),
+    metadata: {
+      name: scene.sceneId,
+      authoringFormatVersion: 1,
+    },
+    dependencies: scene.renderables.map(renderable => ({
+      id: renderable.meshRef ?? renderable.renderableId,
+      version: { req: 'any' },
+      hash: renderable.renderHash,
+    })),
+    nodes: scene.renderables.map((renderable, index) => ({
+      id: sceneNodeId(index + 1),
+      parent: null,
+      childOrder: index,
+      label: renderable.label,
+      tags: [renderable.kind, renderable.sourceState],
+      transform: {
+        translation: [
+          (renderable.bounds.min.x + renderable.bounds.max.x) / 2,
+          (renderable.bounds.min.y + renderable.bounds.max.y) / 2,
+          (renderable.bounds.min.z + renderable.bounds.max.z) / 2,
+        ],
+        rotation: [0, 0, 0, 1],
+        scale: [
+          Math.max(0.04, renderable.bounds.max.x - renderable.bounds.min.x),
+          Math.max(0.04, renderable.bounds.max.y - renderable.bounds.min.y),
+          Math.max(0.04, renderable.bounds.max.z - renderable.bounds.min.z),
+        ],
+      },
+      kind: flatSceneNodeKindForRenderable(renderable),
+    })),
+  };
+}
+
+export function serializeStudioWorkspaceArtifact(options: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly viewportCamera: StudioViewportCameraReadModel;
+  readonly viewportTool: StudioViewportToolReadModel;
+  readonly preferences: StudioPreferencesReadModel;
+  readonly savedAtIso?: string;
+}): string {
+  const artifact: StudioWorkspaceArtifact = {
+    schemaVersion: 1,
+    artifactKind: 'studio_workspace',
+    artifactId: `studio-workspace:${options.workspace.workspaceId}`,
+    workspaceVersion: 'studio-workspace.v0',
+    savedAtIso: options.savedAtIso ?? '1970-01-01T00:00:00.000Z',
+    workspace: options.workspace,
+    viewportCamera: options.viewportCamera,
+    viewportTool: options.viewportTool,
+    preferences: options.preferences,
+    flatSceneDocument: createStudioFlatSceneDocument(options.workspace.scene),
+    serializationNotes: [
+      'Studio workspace artifact preserves browser read models and ASHA flat-scene-shaped export data.',
+      'Runtime-authority serialization remains gated behind the approved public runtime bridge.',
+    ],
+  };
+
+  return `${stableJson(artifact)}\n`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function restoreStudioWorkspaceArtifact(text: string): StudioWorkspaceRestoreResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {
+      ok: false,
+      artifact: null,
+      diagnostics: [
+        diagnostic(
+          'error',
+          'workspace_artifact_invalid_json',
+          'Saved Studio workspace artifact is not valid JSON.',
+          'studio_workspace',
+          'Save the workspace again before loading.',
+        ),
+      ],
+    };
+  }
+
+  if (
+    !isRecord(parsed)
+    || parsed['schemaVersion'] !== 1
+    || parsed['artifactKind'] !== 'studio_workspace'
+    || parsed['workspaceVersion'] !== 'studio-workspace.v0'
+    || !isRecord(parsed['workspace'])
+    || !isRecord(parsed['viewportCamera'])
+    || !isRecord(parsed['viewportTool'])
+    || !isRecord(parsed['preferences'])
+  ) {
+    return {
+      ok: false,
+      artifact: null,
+      diagnostics: [
+        diagnostic(
+          'error',
+          'workspace_artifact_shape_mismatch',
+          'Saved Studio workspace artifact does not match studio-workspace.v0.',
+          'studio_workspace',
+          'Load a matching Studio workspace artifact.',
+        ),
+      ],
+    };
+  }
+
+  return {
+    ok: true,
+    artifact: parsed as unknown as StudioWorkspaceArtifact,
+    diagnostics: [],
   };
 }
 

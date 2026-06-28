@@ -1,12 +1,34 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type {
+  StudioAssetBrowserCategory,
   StudioBounds,
   StudioCommandTimelineEntry,
+  StudioEntityReadModel,
   StudioEntityKind,
   StudioSceneRenderableReadModel,
   StudioViewportToolMode,
 } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
+
+function visibleHierarchyEntities(
+  entities: readonly StudioEntityReadModel[],
+): readonly StudioEntityReadModel[] {
+  const ancestorExpandedByDepth: boolean[] = [];
+  const visible: StudioEntityReadModel[] = [];
+
+  for (const entity of entities) {
+    const ancestorsExpanded = ancestorExpandedByDepth
+      .slice(0, entity.depth)
+      .every(expanded => expanded);
+
+    if (entity.depth === 0 || ancestorsExpanded) {
+      visible.push(entity);
+    }
+    ancestorExpandedByDepth[entity.depth] = entity.expanded;
+  }
+
+  return visible;
+}
 
 @Component({
   selector: 'asha-session-top-panel',
@@ -21,6 +43,19 @@ import { StudioWorkspaceStore } from '@asha-studio/store';
         <span>{{ store.workspace().session.runtimeMode }}</span>
         <span>{{ store.workspace().session.status }}</span>
       </div>
+      <div class="scenario-load" aria-label="Scenario load">
+        <select
+          [value]="selectedScenarioId()"
+          (change)="selectedScenarioId.set($any($event.target).value)"
+        >
+          @for (scenario of store.workspace().scenarios; track scenario.scenarioId) {
+            <option [value]="scenario.scenarioId">
+              {{ scenario.label }} · {{ scenario.status }}
+            </option>
+          }
+        </select>
+        <button type="button" (click)="loadSelectedScenario()">Load</button>
+      </div>
     </section>
   `,
   styles: [
@@ -33,7 +68,7 @@ import { StudioWorkspaceStore } from '@asha-studio/store';
         display: grid;
         gap: 0.2rem 0.75rem;
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: auto auto;
+        grid-template-rows: auto auto auto;
         height: 100%;
         min-width: 0;
         padding: 0.5rem 0.75rem;
@@ -66,6 +101,30 @@ import { StudioWorkspaceStore } from '@asha-studio/store';
         min-width: 0;
       }
 
+      .scenario-load {
+        align-items: center;
+        display: grid;
+        gap: 0.4rem;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(10rem, 18rem) auto;
+        min-width: 0;
+      }
+
+      .scenario-load select,
+      .scenario-load button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        font: inherit;
+        height: 1.65rem;
+        min-width: 0;
+      }
+
+      .scenario-load button {
+        cursor: pointer;
+        padding: 0 0.65rem;
+      }
+
       .session-line strong,
       .session-line span {
         min-width: 0;
@@ -79,6 +138,11 @@ import { StudioWorkspaceStore } from '@asha-studio/store';
 })
 export class StudioSessionTopPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly selectedScenarioId = signal(this.store.workspace().session.scenarioId);
+
+  loadSelectedScenario(): void {
+    this.store.loadScenario(this.selectedScenarioId());
+  }
 }
 
 @Component({
@@ -92,6 +156,7 @@ export class StudioSessionTopPanelComponent {
           <button
             type="button"
             [class.active]="store.viewportTool().activeTool === tool"
+            [title]="toolTitle(tool)"
             (click)="activateTool(tool)"
           >
             {{ toolLabel(tool) }}
@@ -145,7 +210,7 @@ export class StudioSessionTopPanelComponent {
 
       .tool-buttons button.active {
         background: var(--asha-color-control);
-        border-color: #54c7bd;
+        border-color: var(--asha-color-accent);
       }
 
       .panel-kicker {
@@ -172,7 +237,7 @@ export class StudioViewportToolbarPanelComponent {
   activateTool(tool: StudioViewportToolMode): void {
     this.store.setViewportTool(tool);
     if (tool === 'frame') {
-      this.store.frameViewportCamera();
+      this.store.frameSelectedRenderable();
       this.store.setViewportTool('select');
     }
   }
@@ -183,6 +248,16 @@ export class StudioViewportToolbarPanelComponent {
       orbit: 'O',
       pan: 'P',
       frame: 'F',
+    };
+    return labels[tool];
+  }
+
+  toolTitle(tool: StudioViewportToolMode): string {
+    const labels: Record<StudioViewportToolMode, string> = {
+      select: 'Select',
+      orbit: 'Orbit camera',
+      pan: 'Pan camera',
+      frame: 'Frame selected renderable',
     };
     return labels[tool];
   }
@@ -199,13 +274,28 @@ export class StudioViewportToolbarPanelComponent {
           <strong>{{ store.workspace().session.scenarioLabel }}</strong>
         </div>
         <div class="header-actions" aria-label="Hierarchy actions">
-          <button type="button" title="Add">+</button>
-          <button type="button" title="Focus selected">F</button>
+          <button type="button" title="Add reference placeholder" (click)="store.addReferenceRenderable()">
+            +
+          </button>
+          <button type="button" title="Collapse hierarchy" (click)="store.setHierarchyExpanded(false)">
+            -
+          </button>
+          <button type="button" title="Expand hierarchy" (click)="store.setHierarchyExpanded(true)">
+            *
+          </button>
+          <button
+            type="button"
+            title="Focus selected"
+            [disabled]="store.selectedRenderable() === null"
+            (click)="store.frameSelectedRenderable()"
+          >
+            F
+          </button>
         </div>
       </header>
 
       <div class="tree-list">
-        @for (entity of store.workspace().entities; track entity.id) {
+        @for (entity of visibleEntities(); track entity.id) {
           <button
             class="tree-row"
             type="button"
@@ -300,6 +390,11 @@ export class StudioViewportToolbarPanelComponent {
         padding: 0;
       }
 
+      .header-actions button:disabled {
+        color: #5b666c;
+        cursor: not-allowed;
+      }
+
       .tree-list {
         align-content: start;
         display: grid;
@@ -331,7 +426,7 @@ export class StudioViewportToolbarPanelComponent {
       }
 
       .tree-row--selected {
-        border-color: #54c7bd;
+        border-color: var(--asha-color-accent);
       }
 
       .tree-row:disabled {
@@ -362,13 +457,13 @@ export class StudioViewportToolbarPanelComponent {
 
       .tree-badge--authority-backed,
       .tree-badge--selected {
-        border-color: #54c7bd;
-        color: #8de0d8;
+        border-color: var(--asha-color-accent);
+        color: var(--asha-color-accent-text);
       }
 
       .tree-badge--preview-only {
-        border-color: #d3a644;
-        color: #e8c46d;
+        border-color: var(--asha-color-warning);
+        color: var(--asha-color-warning-text);
       }
 
       .state-legend {
@@ -389,6 +484,7 @@ export class StudioViewportToolbarPanelComponent {
 })
 export class StudioHierarchyPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly visibleEntities = computed(() => visibleHierarchyEntities(this.store.workspace().entities));
 
   iconForKind(kind: StudioEntityKind): string {
     const labels: Record<StudioEntityKind, string> = {
@@ -402,71 +498,6 @@ export class StudioHierarchyPanelComponent {
     };
     return labels[kind];
   }
-}
-
-@Component({
-  selector: 'asha-viewport-scene-panel',
-  standalone: true,
-  template: `
-    <section class="viewport-scene-panel" data-visual-id="studio-viewport">
-      <span class="panel-number">4</span>
-      <span class="panel-title">Viewport / Scene View</span>
-      <div class="scene-readout">
-        <span>{{ store.workspace().scene.sceneId }}</span>
-        <span>{{ store.workspace().scene.sceneHash }}</span>
-      </div>
-    </section>
-  `,
-  styles: [
-    `
-      .viewport-scene-panel {
-        background: var(--asha-color-viewport);
-        border: 1px solid var(--asha-color-border);
-        box-sizing: border-box;
-        display: grid;
-        height: 100%;
-        min-width: 0;
-        overflow: hidden;
-        padding: 0.75rem;
-      }
-
-      .panel-number {
-        font-size: clamp(4rem, 10vw, 8rem);
-        font-weight: 800;
-        line-height: 0.9;
-      }
-
-      .panel-title,
-      .scene-readout {
-        align-self: end;
-        color: var(--asha-color-muted);
-      }
-
-      .panel-title {
-        font-size: 0.875rem;
-        font-weight: 700;
-        text-transform: uppercase;
-      }
-
-      .scene-readout {
-        display: grid;
-        font-size: 0.75rem;
-        gap: 0.25rem;
-        min-width: 0;
-      }
-
-      .scene-readout span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    `,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-})
-export class StudioViewportScenePanelComponent {
-  readonly store = inject(StudioWorkspaceStore);
 }
 
 @Component({
@@ -799,13 +830,19 @@ export class StudioInspectorPanelComponent {
       } @else {
         <div class="asset-browser">
           <aside class="asset-tree" aria-label="Asset categories">
-            <button type="button" class="active">All Assets</button>
-            <button type="button">Static Meshes</button>
-            <button type="button">Materials</button>
-            <button type="button">Generated</button>
+            @for (category of store.assetBrowserCategories(); track category.category) {
+              <button
+                type="button"
+                [class.active]="store.assetBrowserCategory() === category.category"
+                (click)="selectAssetCategory(category.category)"
+              >
+                <span>{{ category.label }}</span>
+                <small>{{ category.count }}</small>
+              </button>
+            }
           </aside>
           <div class="asset-grid">
-            @for (asset of store.workspace().scene.renderables; track asset.renderableId) {
+            @for (asset of store.assetRenderables(); track asset.renderableId) {
               <article class="asset-entry">
                 <span class="asset-thumb">{{ assetIcon(asset) }}</span>
                 <div>
@@ -814,6 +851,8 @@ export class StudioInspectorPanelComponent {
                   <small>{{ asset.sourceState }} · {{ asset.materialRef ?? 'no material' }}</small>
                 </div>
               </article>
+            } @empty {
+              <p class="empty-assets">No assets match {{ store.assetBrowserSummary() }}.</p>
             }
           </div>
         </div>
@@ -867,7 +906,7 @@ export class StudioInspectorPanelComponent {
 
       .tabs button.active {
         background: var(--asha-color-control);
-        border-color: #54c7bd;
+        border-color: var(--asha-color-accent);
       }
 
       .timeline-table-wrap,
@@ -937,14 +976,29 @@ export class StudioInspectorPanelComponent {
       }
 
       .asset-tree button {
+        align-items: center;
         background: transparent;
         border: 1px solid transparent;
         color: var(--asha-color-ink);
         cursor: pointer;
+        display: flex;
         font: inherit;
+        justify-content: space-between;
         min-height: 1.7rem;
         padding: 0 0.45rem;
         text-align: left;
+      }
+
+      .asset-tree button span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .asset-tree button small {
+        flex: 0 0 auto;
+        padding-left: 0.5rem;
       }
 
       .asset-tree button.active,
@@ -972,11 +1026,18 @@ export class StudioInspectorPanelComponent {
         padding: 0.5rem;
       }
 
+      .empty-assets {
+        color: var(--asha-color-muted);
+        font-size: 0.8rem;
+        margin: 0;
+        padding: 0.75rem;
+      }
+
       .asset-thumb {
         align-items: center;
-        background: #22303b;
+        background: var(--asha-color-thumb);
         border: 1px solid var(--asha-color-border);
-        color: #8de0d8;
+        color: var(--asha-color-accent-text);
         display: inline-flex;
         font-weight: 800;
         height: 2.25rem;
@@ -1010,6 +1071,10 @@ export class StudioInspectorPanelComponent {
 export class StudioAssetsBottomPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
   readonly activeTab = signal<'timeline' | 'assets'>('timeline');
+
+  selectAssetCategory(category: StudioAssetBrowserCategory): void {
+    this.store.setAssetBrowserCategory(category);
+  }
 
   evidenceLabel(entry: StudioCommandTimelineEntry): string {
     return entry.outputSummary;

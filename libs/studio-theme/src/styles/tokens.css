@@ -3,8 +3,23 @@
   --asha-color-chrome: #181d1f;
   --asha-color-panel: #202628;
   --asha-color-viewport: #141819;
+  --asha-color-viewport-deep: #101820;
   --asha-color-control: #2b3336;
+  --asha-color-control-active: #22313b;
   --asha-color-border: #3c474b;
   --asha-color-ink: #f1f5f4;
   --asha-color-muted: #a7b2b0;
+  --asha-color-accent: #54c7bd;
+  --asha-color-accent-text: #8de0d8;
+  --asha-color-warning: #d3a644;
+  --asha-color-warning-text: #e8c46d;
+  --asha-color-selected: #d4953f;
+  --asha-color-thumb: #22303b;
+  --asha-space-2xs: 0.2rem;
+  --asha-space-xs: 0.35rem;
+  --asha-space-sm: 0.5rem;
+  --asha-space-md: 0.75rem;
+  --asha-space-lg: 1rem;
+  --asha-radius-control: 0;
+  --asha-font-ui: Inter, Arial, sans-serif;
 }
