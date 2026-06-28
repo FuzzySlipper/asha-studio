@@ -121,6 +121,31 @@ function disposeObject(object: THREE.Object3D): void {
   });
 }
 
+function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
+  const group = new THREE.Group();
+  group.position.copy(point);
+
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.055, 12, 8),
+    new THREE.MeshBasicMaterial({ color: '#ff3b30' }),
+  );
+  group.add(sphere);
+
+  const lineMaterial = new THREE.LineBasicMaterial({ color: '#ff3b30' });
+  const lineLength = 0.18;
+  const axes: readonly [THREE.Vector3, THREE.Vector3][] = [
+    [new THREE.Vector3(-lineLength, 0, 0), new THREE.Vector3(lineLength, 0, 0)],
+    [new THREE.Vector3(0, -lineLength, 0), new THREE.Vector3(0, lineLength, 0)],
+    [new THREE.Vector3(0, 0, -lineLength), new THREE.Vector3(0, 0, lineLength)],
+  ];
+  for (const [start, end] of axes) {
+    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+    group.add(new THREE.Line(geometry, lineMaterial.clone()));
+  }
+
+  return group;
+}
+
 @Component({
   selector: 'asha-studio-viewport',
   standalone: true,
@@ -308,6 +333,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private readonly scene = new THREE.Scene();
   private readonly renderableGroup = new THREE.Group();
+  private readonly raycastDebugGroup = new THREE.Group();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private camera: THREE.PerspectiveCamera | null = null;
@@ -318,6 +344,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private renderedWidth = 0;
   private renderedHeight = 0;
   private renderedSceneKey: string | null = null;
+  private readonly raycastDebugTimers = new Set<ReturnType<typeof setTimeout>>();
   private dragState: {
     readonly pointerId: number;
     readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan'>;
@@ -360,12 +387,17 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.renderer.dispose();
       this.renderer.domElement.remove();
     }
+    for (const timer of this.raycastDebugTimers) {
+      clearTimeout(timer);
+    }
     disposeObject(this.renderableGroup);
+    disposeObject(this.raycastDebugGroup);
   }
 
   private initializeThree(hostElement: HTMLDivElement): void {
     this.scene.background = new THREE.Color('#101820');
     this.scene.add(this.renderableGroup);
+    this.scene.add(this.raycastDebugGroup);
     this.scene.add(new THREE.AmbientLight('#f1f5f4', 0.68));
 
     const keyLight = new THREE.DirectionalLight('#ffffff', 1.4);
@@ -564,6 +596,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       typeof intersection.object.userData['renderableId'] === 'string',
     );
     if (hit !== undefined && typeof hit.object.userData['renderableId'] === 'string') {
+      if (this.store.renderSettings().showRaycastHitDebug) {
+        this.addRaycastDebugMarker(hit.point);
+      }
       const renderableId = hit.object.userData['renderableId'];
       const renderable = this.store
         .workspace()
@@ -579,6 +614,19 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       }
     }
   };
+
+  private addRaycastDebugMarker(point: THREE.Vector3): void {
+    const marker = createRaycastDebugMarker(point);
+    this.raycastDebugGroup.add(marker);
+    this.renderFrame();
+    const timer = setTimeout(() => {
+      this.raycastDebugGroup.remove(marker);
+      disposeObject(marker);
+      this.raycastDebugTimers.delete(timer);
+      this.renderFrame();
+    }, 10_000);
+    this.raycastDebugTimers.add(timer);
+  }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
     const dragState = this.dragState;

@@ -273,7 +273,8 @@
     "showGrid": true,
     "showPreviewGhosts": true,
     "showReadbackOverlay": true,
-    "renderSettingsHash": "render-settings-15efc3f5"
+    "showRaycastHitDebug": false,
+    "renderSettingsHash": "render-settings-60324d5a"
   },
   "uiState": {
     "schemaVersion": 1,
@@ -287,9 +288,10 @@
       "totalCount": 7
     },
     "selectedScenarioDraftId": "voxel-basic",
+    "hierarchyFilter": "",
     "menuMessage": "Workspace ready.",
     "savedWorkspaceAvailable": false,
-    "uiStateHash": "studio-ui-state-394b2b59",
+    "uiStateHash": "studio-ui-state-eec74f8a",
     "nonClaims": [
       "ui_affordance_state_only",
       "not_scene_authority",

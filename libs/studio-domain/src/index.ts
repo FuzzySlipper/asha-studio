@@ -54,7 +54,8 @@ export type StudioRenderSettingKey =
   | 'wireframeEnabled'
   | 'showGrid'
   | 'showPreviewGhosts'
-  | 'showReadbackOverlay';
+  | 'showReadbackOverlay'
+  | 'showRaycastHitDebug';
 export type StudioUiEventCommandId =
   | 'workspace.save_browser_slot'
   | 'workspace.load_browser_slot'
@@ -184,6 +185,7 @@ export interface StudioRenderSettingsReadModel {
   readonly showGrid: boolean;
   readonly showPreviewGhosts: boolean;
   readonly showReadbackOverlay: boolean;
+  readonly showRaycastHitDebug: boolean;
   readonly renderSettingsHash: string;
 }
 
@@ -355,6 +357,7 @@ export interface StudioUiStateReadModel {
     readonly totalCount: number;
   };
   readonly selectedScenarioDraftId: string;
+  readonly hierarchyFilter: string;
   readonly menuMessage: string;
   readonly savedWorkspaceAvailable: boolean;
   readonly uiStateHash: string;
@@ -674,12 +677,14 @@ export function buildStudioRenderSettingsReadModel(options: {
   readonly showGrid?: boolean;
   readonly showPreviewGhosts?: boolean;
   readonly showReadbackOverlay?: boolean;
+  readonly showRaycastHitDebug?: boolean;
 } = {}): StudioRenderSettingsReadModel {
   const render = {
     wireframeEnabled: options.wireframeEnabled ?? false,
     showGrid: options.showGrid ?? true,
     showPreviewGhosts: options.showPreviewGhosts ?? true,
     showReadbackOverlay: options.showReadbackOverlay ?? true,
+    showRaycastHitDebug: options.showRaycastHitDebug ?? false,
   };
   return {
     ...render,
@@ -715,6 +720,7 @@ export function updateStudioRenderSetting(
       showGrid: preferences.render.showGrid,
       showPreviewGhosts: preferences.render.showPreviewGhosts,
       showReadbackOverlay: preferences.render.showReadbackOverlay,
+      showRaycastHitDebug: preferences.render.showRaycastHitDebug,
       [key]: value,
     },
   });
@@ -825,6 +831,7 @@ export function buildStudioUiStateReadModel(options: {
   readonly assetBrowserCategory?: StudioAssetBrowserCategory;
   readonly entities?: readonly StudioEntityReadModel[];
   readonly selectedScenarioDraftId?: string;
+  readonly hierarchyFilter?: string;
   readonly menuMessage?: string;
   readonly savedWorkspaceAvailable?: boolean;
 } = {}): StudioUiStateReadModel {
@@ -839,6 +846,7 @@ export function buildStudioUiStateReadModel(options: {
     assetBrowserCategory: options.assetBrowserCategory ?? 'all',
     hierarchy,
     selectedScenarioDraftId: options.selectedScenarioDraftId ?? 'voxel-basic',
+    hierarchyFilter: options.hierarchyFilter ?? '',
     menuMessage: options.menuMessage ?? 'Workspace ready.',
     savedWorkspaceAvailable: options.savedWorkspaceAvailable ?? false,
   };

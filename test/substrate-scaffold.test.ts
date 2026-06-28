@@ -113,8 +113,20 @@ test('viewport adapter includes render settings in deterministic readback', () =
   });
 
   assert.equal(adapter.renderSettings.wireframeEnabled, true);
+  assert.equal(adapter.renderSettings.showRaycastHitDebug, false);
   assert.match(adapter.renderSettings.renderSettingsHash, /^render-settings-/);
   assert.match(adapter.readbackHash, /^viewport-readback-/);
+});
+
+test('raycast hit debug is a hashed render setting for viewport diagnostics', () => {
+  const preferences = updateStudioRenderSetting(
+    buildStudioPreferencesReadModel(),
+    'showRaycastHitDebug',
+    true,
+  );
+
+  assert.equal(preferences.render.showRaycastHitDebug, true);
+  assert.match(preferences.render.renderSettingsHash, /^render-settings-/);
 });
 
 test('viewport camera controls produce deterministic camera read-model updates', () => {
@@ -426,6 +438,7 @@ test('studio UI state readout classifies non-authoritative affordance state', ()
     assetBrowserCategory: 'materials',
     entities: readModel.entities,
     selectedScenarioDraftId: 'scenario-placeholder',
+    hierarchyFilter: 'scenario-placeholder',
     menuMessage: 'Assets filter selected.',
     savedWorkspaceAvailable: true,
   });
@@ -433,6 +446,7 @@ test('studio UI state readout classifies non-authoritative affordance state', ()
   assert.equal(uiState.artifactKind, 'studio_ui_state');
   assert.equal(uiState.activeMenu, 'view');
   assert.equal(uiState.bottomPanelTab, 'assets');
+  assert.equal(uiState.hierarchyFilter, 'scenario-placeholder');
   assert.equal(uiState.hierarchy.totalCount, readModel.entities.length);
   assert.match(uiState.uiStateHash, /^studio-ui-state-/);
   assert.ok(uiState.nonClaims.includes('does_not_change_scene_hash'));
@@ -613,6 +627,66 @@ test('secondary evidence surface is present without occupying the primary viewpo
   assert.equal(panelSource.includes('data-visual-id="studio-secondary-evidence"'), true);
   assert.equal(panelSource.includes('compactAgentReadout()'), true);
   assert.equal(viewportSource.includes('studio-secondary-evidence'), false);
+});
+
+test('hierarchy panel exposes compact drag and filter affordances over scene objects', () => {
+  const panelSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
+    'utf8',
+  );
+
+  assert.equal(panelSource.includes('store.setHierarchyFilter'), true);
+  assert.equal(panelSource.includes('draggable="true"'), true);
+  assert.equal(panelSource.includes('data-scene-object-id'), true);
+  assert.equal(panelSource.includes('dropOnEntity'), true);
+  assert.equal(panelSource.includes('store.reparentSceneObject'), true);
+});
+
+test('viewport toolbar exposes compact backed camera tools and disabled object transform affordances', () => {
+  const panelSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
+    'utf8',
+  );
+
+  assert.equal(panelSource.includes('data-visual-id="studio-viewport-top-panel"'), true);
+  assert.equal(panelSource.includes('data-tool-id'), true);
+  assert.equal(panelSource.includes("id: 'pan'"), true);
+  assert.equal(panelSource.includes("id: 'orbit'"), true);
+  assert.equal(panelSource.includes("id: 'move_object'"), true);
+  assert.equal(panelSource.includes("id: 'rotate_object'"), true);
+  assert.equal(panelSource.includes('transform command not available'), true);
+  assert.equal(panelSource.includes('data-toolbar-readout="grid"'), true);
+  assert.equal(panelSource.includes('data-toolbar-readout="shading"'), true);
+});
+
+test('asset browser entries select renderables for inspector asset details', () => {
+  const panelSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
+    'utf8',
+  );
+
+  assert.equal(panelSource.includes('data-asset-renderable-id'), true);
+  assert.equal(panelSource.includes('store.selectAssetRenderable(asset.renderableId)'), true);
+  assert.equal(panelSource.includes('asset-entry--selected'), true);
+  assert.equal(panelSource.includes('data-inspector-section="asset-details"'), true);
+  assert.equal(panelSource.includes('assetTypeLabel(renderable)'), true);
+});
+
+test('viewport raycast debug draws temporary hit markers from view render setting', () => {
+  const viewportSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-viewport', 'src', 'index.ts'),
+    'utf8',
+  );
+  const shellSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-shell', 'src', 'index.ts'),
+    'utf8',
+  );
+
+  assert.equal(shellSource.includes('showRaycastHitDebug'), true);
+  assert.equal(viewportSource.includes('createRaycastDebugMarker'), true);
+  assert.equal(viewportSource.includes('showRaycastHitDebug'), true);
+  assert.equal(viewportSource.includes('10_000'), true);
+  assert.equal(viewportSource.includes('raycastDebugGroup'), true);
 });
 
 test('verification tiers document keeps proof escalation secondary', () => {

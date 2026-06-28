@@ -93,6 +93,7 @@ export class StudioWorkspaceStore {
   private readonly activeMenuState = signal<StudioApplicationMenu | null>(null);
   private readonly bottomPanelTabState = signal<StudioBottomPanelTab>('timeline');
   private readonly selectedScenarioDraftIdState = signal(this.workspaceState().session.scenarioId);
+  private readonly hierarchyFilterState = signal('');
   private readonly viewportHitState = signal<StudioViewportHitReadModel | null>(null);
   private readonly menuMessageState = signal('Workspace ready.');
 
@@ -106,6 +107,7 @@ export class StudioWorkspaceStore {
   readonly activeMenu = this.activeMenuState.asReadonly();
   readonly bottomPanelTab = this.bottomPanelTabState.asReadonly();
   readonly selectedScenarioDraftId = this.selectedScenarioDraftIdState.asReadonly();
+  readonly hierarchyFilter = this.hierarchyFilterState.asReadonly();
   readonly viewportHit = this.viewportHitState.asReadonly();
   readonly menuMessage = this.menuMessageState.asReadonly();
 
@@ -188,6 +190,7 @@ export class StudioWorkspaceStore {
       assetBrowserCategory: this.assetBrowserCategoryState(),
       entities: this.workspaceState().entities,
       selectedScenarioDraftId: this.selectedScenarioDraftIdState(),
+      hierarchyFilter: this.hierarchyFilterState(),
       menuMessage: this.menuMessageState(),
       savedWorkspaceAvailable: this.savedWorkspaceState() !== null,
     }),
@@ -256,6 +259,17 @@ export class StudioWorkspaceStore {
         ? 'no voxel'
         : `voxel ${hit.voxelCoord.x},${hit.voxelCoord.y},${hit.voxelCoord.z}`;
     this.menuMessageState.set(`Selected ${hit.renderableId} · ${hit.face} · ${voxelLabel}.`);
+  }
+
+  selectAssetRenderable(renderableId: string): void {
+    const workspace = this.workspaceState();
+    const linkedEntity = workspace.entities.find(entity => entity.renderableId === renderableId);
+    if (linkedEntity === undefined) {
+      this.menuMessageState.set(`Asset ${renderableId} is not linked to a selectable scene entity.`);
+      return;
+    }
+    this.selectEntity(linkedEntity.id);
+    this.menuMessageState.set(`Asset ${renderableId} selected for inspection.`);
   }
 
   setViewportTool(activeTool: StudioViewportToolMode): void {
@@ -343,6 +357,10 @@ export class StudioWorkspaceStore {
 
   setSelectedScenarioDraft(scenarioId: string): void {
     this.selectedScenarioDraftIdState.set(scenarioId);
+  }
+
+  setHierarchyFilter(filter: string): void {
+    this.hierarchyFilterState.set(filter);
   }
 
   loadScenario(scenarioId: string): void {

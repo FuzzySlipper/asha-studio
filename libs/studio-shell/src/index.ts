@@ -94,6 +94,14 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
               />
               Readback Overlay
             </label>
+            <label>
+              <input
+                type="checkbox"
+                [checked]="store.renderSettings().showRaycastHitDebug"
+                (change)="setRenderSetting('showRaycastHitDebug', $any($event.target).checked)"
+              />
+              Raycast Hit Debug
+            </label>
           </section>
         }
 
@@ -135,6 +143,14 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                   (change)="setRenderSetting('showReadbackOverlay', $any($event.target).checked)"
                 />
                 Overlay
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  [checked]="store.renderSettings().showRaycastHitDebug"
+                  (change)="setRenderSetting('showRaycastHitDebug', $any($event.target).checked)"
+                />
+                Raycast Debug
               </label>
             </div>
           </section>
@@ -373,7 +389,7 @@ export class StudioShellComponent {
   }
 
   setRenderSetting(
-    key: 'wireframeEnabled' | 'showGrid' | 'showPreviewGhosts' | 'showReadbackOverlay',
+    key: 'wireframeEnabled' | 'showGrid' | 'showPreviewGhosts' | 'showReadbackOverlay' | 'showRaycastHitDebug',
     value: boolean,
   ): void {
     this.store.setRenderSetting(key, value);

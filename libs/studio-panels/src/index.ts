@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import type {
   StudioAssetBrowserCategory,
   StudioBounds,
@@ -9,6 +9,7 @@ import type {
   StudioViewportToolMode,
 } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
+import type { SceneObjectId } from '@asha/editor-tools';
 
 function visibleHierarchyEntities(
   entities: readonly StudioEntityReadModel[],
@@ -28,6 +29,27 @@ function visibleHierarchyEntities(
   }
 
   return visible;
+}
+
+function filteredHierarchyEntities(
+  entities: readonly StudioEntityReadModel[],
+  filter: string,
+): readonly StudioEntityReadModel[] {
+  const query = filter.trim().toLocaleLowerCase();
+  const visible = visibleHierarchyEntities(entities);
+  if (query.length === 0) {
+    return visible;
+  }
+  return visible.filter(entity =>
+    [
+      entity.label,
+      entity.kind,
+      entity.badge,
+      entity.sourceState,
+      entity.renderableId ?? '',
+      entity.sceneObjectId ?? '',
+    ].some(value => value.toLocaleLowerCase().includes(query)),
+  );
 }
 
 @Component({
@@ -144,27 +166,49 @@ export class StudioSessionTopPanelComponent {
   }
 }
 
+type ViewportToolbarTool = {
+  readonly id: StudioViewportToolMode | 'move_object' | 'rotate_object';
+  readonly icon: string;
+  readonly title: string;
+  readonly backedTool: StudioViewportToolMode | null;
+  readonly enabled: boolean;
+};
+
 @Component({
   selector: 'asha-viewport-toolbar-panel',
   standalone: true,
   template: `
     <section class="viewport-toolbar-panel" data-visual-id="studio-viewport-top-panel">
-      <span class="panel-kicker">3 · Viewport Top Panel</span>
       <div class="tool-buttons" aria-label="Viewport tools">
         @for (tool of tools; track tool) {
           <button
             type="button"
-            [class.active]="store.viewportTool().activeTool === tool"
-            [title]="toolTitle(tool)"
+            [attr.data-tool-id]="tool.id"
+            [class.active]="tool.backedTool === store.viewportTool().activeTool"
+            [disabled]="!tool.enabled"
+            [title]="tool.title"
+            [attr.aria-label]="tool.title"
             (click)="activateTool(tool)"
           >
-            {{ toolLabel(tool) }}
+            {{ tool.icon }}
           </button>
         }
       </div>
-      <span>renderables: {{ store.viewportAdapter().renderables.length }}</span>
-      <span>selected: {{ store.viewportAdapter().selectedRenderableId ?? 'none' }}</span>
-      <span>{{ store.viewportAdapter().readbackHash }}</span>
+      <span class="active-pill" data-toolbar-readout="active-tool">
+        {{ activeToolLabel() }}
+      </span>
+      <strong class="viewport-title">
+        Viewport - {{ store.viewportAdapter().selectedRenderableId ?? store.viewportAdapter().sceneId }}
+      </strong>
+      <div class="toolbar-state" aria-label="Viewport state">
+        <span data-toolbar-readout="camera-mode">persp</span>
+        <span data-toolbar-readout="lens">{{ store.viewportAdapter().camera.fovDegrees }}deg</span>
+        <span data-toolbar-readout="grid">grid {{ store.viewportAdapter().renderSettings.showGrid ? 'on' : 'off' }}</span>
+        <span data-toolbar-readout="gizmos">gizmos ref</span>
+        <span data-toolbar-readout="shading">
+          shading: {{ store.viewportAdapter().renderSettings.wireframeEnabled ? 'wire' : 'solid' }}
+        </span>
+      </div>
     </section>
   `,
   styles: [
@@ -174,15 +218,17 @@ export class StudioSessionTopPanelComponent {
         background: var(--asha-color-panel);
         border: 1px solid var(--asha-color-border);
         box-sizing: border-box;
-        display: flex;
-        gap: 0.75rem;
+        display: grid;
+        gap: 0.55rem;
+        grid-template-columns: auto auto minmax(9rem, 1fr) auto;
         height: 100%;
         min-width: 0;
         overflow: hidden;
-        padding: 0 0.75rem;
+        padding: 0 0.55rem;
       }
 
-      .viewport-toolbar-panel span {
+      .viewport-toolbar-panel span,
+      .viewport-title {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -192,7 +238,7 @@ export class StudioSessionTopPanelComponent {
       .tool-buttons {
         display: flex;
         flex: 0 0 auto;
-        gap: 0.25rem;
+        gap: 0.18rem;
       }
 
       .tool-buttons button {
@@ -200,11 +246,11 @@ export class StudioSessionTopPanelComponent {
         border: 1px solid var(--asha-color-border);
         color: var(--asha-color-ink);
         cursor: pointer;
-        font: inherit;
-        height: 1.8rem;
+        font: 700 0.68rem var(--asha-font-ui);
+        height: 1.45rem;
         line-height: 1;
-        min-width: 2rem;
-        padding: 0 0.45rem;
+        min-width: 1.45rem;
+        padding: 0 0.28rem;
       }
 
       .tool-buttons button.active {
@@ -212,16 +258,41 @@ export class StudioSessionTopPanelComponent {
         border-color: var(--asha-color-accent);
       }
 
-      .panel-kicker {
+      .tool-buttons button:disabled {
+        color: #5b666c;
+        cursor: not-allowed;
+      }
+
+      .active-pill {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-accent-text);
+        font-size: 0.68rem;
+        line-height: 1;
+        padding: 0.28rem 0.5rem;
+      }
+
+      .viewport-title {
         color: var(--asha-color-muted);
-        flex: 0 0 auto;
-        font-size: 0.75rem;
-        font-weight: 700;
-        text-transform: uppercase;
+        font: 700 0.76rem var(--asha-font-ui);
+        justify-self: center;
+        max-width: 100%;
+      }
+
+      .toolbar-state {
+        color: var(--asha-color-muted);
+        display: flex;
+        font-size: 0.68rem;
+        gap: 0.45rem;
+        min-width: 0;
+      }
+
+      .toolbar-state span {
+        flex: 0 1 auto;
       }
 
       @media (max-width: 900px) {
-        .viewport-toolbar-panel > span:not(.panel-kicker) {
+        .toolbar-state {
           display: none;
         }
       }
@@ -231,34 +302,70 @@ export class StudioSessionTopPanelComponent {
 })
 export class StudioViewportToolbarPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
-  readonly tools: readonly StudioViewportToolMode[] = ['select', 'orbit', 'pan', 'frame'];
+  readonly tools: readonly ViewportToolbarTool[] = [
+    {
+      id: 'select',
+      icon: 'S',
+      title: 'Select on tap',
+      backedTool: 'select',
+      enabled: true,
+    },
+    {
+      id: 'pan',
+      icon: 'P',
+      title: 'Pan view on drag',
+      backedTool: 'pan',
+      enabled: true,
+    },
+    {
+      id: 'orbit',
+      icon: 'O',
+      title: 'Rotate view on drag',
+      backedTool: 'orbit',
+      enabled: true,
+    },
+    {
+      id: 'move_object',
+      icon: 'M',
+      title: 'Move object on drag - transform command not available in this substrate',
+      backedTool: null,
+      enabled: false,
+    },
+    {
+      id: 'rotate_object',
+      icon: 'R',
+      title: 'Rotate object on drag - transform command not available in this substrate',
+      backedTool: null,
+      enabled: false,
+    },
+    {
+      id: 'frame',
+      icon: 'F',
+      title: 'Frame selected renderable',
+      backedTool: 'frame',
+      enabled: true,
+    },
+  ];
 
-  activateTool(tool: StudioViewportToolMode): void {
-    this.store.setViewportTool(tool);
-    if (tool === 'frame') {
+  activateTool(tool: ViewportToolbarTool): void {
+    if (!tool.enabled || tool.backedTool === null) {
+      return;
+    }
+    this.store.setViewportTool(tool.backedTool);
+    if (tool.backedTool === 'frame') {
       this.store.frameSelectedRenderable();
       this.store.setViewportTool('select');
     }
   }
 
-  toolLabel(tool: StudioViewportToolMode): string {
+  activeToolLabel(): string {
     const labels: Record<StudioViewportToolMode, string> = {
-      select: 'S',
-      orbit: 'O',
-      pan: 'P',
-      frame: 'F',
+      select: 'select',
+      orbit: 'rotate view',
+      pan: 'pan view',
+      frame: 'frame',
     };
-    return labels[tool];
-  }
-
-  toolTitle(tool: StudioViewportToolMode): string {
-    const labels: Record<StudioViewportToolMode, string> = {
-      select: 'Select',
-      orbit: 'Orbit camera',
-      pan: 'Pan camera',
-      frame: 'Frame selected renderable',
-    };
-    return labels[tool];
+    return labels[this.store.viewportTool().activeTool];
   }
 }
 
@@ -309,16 +416,36 @@ export class StudioViewportToolbarPanelComponent {
         </div>
       </header>
 
+      <div class="hierarchy-filter">
+        <span aria-hidden="true">?</span>
+        <input
+          aria-label="Filter hierarchy"
+          placeholder="Filter hierarchy"
+          [value]="store.hierarchyFilter()"
+          (input)="store.setHierarchyFilter($any($event.target).value)"
+        />
+      </div>
+
       <div class="tree-list">
         @for (entity of visibleEntities(); track entity.id) {
           <button
             class="tree-row"
             type="button"
+            draggable="true"
             [class.tree-row--selected]="entity.selected"
             [class.tree-row--static]="!entity.selectable"
+            [class.tree-row--drop-target]="dropTargetSceneObjectId() === entity.sceneObjectId"
             [disabled]="!entity.selectable"
-            [style.padding-left.px]="entity.depth * 14 + 8"
+            [attr.data-scene-object-id]="entity.sceneObjectId"
+            [attr.data-selected-entity]="entity.selected ? entity.id : null"
+            [attr.aria-label]="'Hierarchy row ' + entity.label"
+            [style.padding-left.px]="entity.depth * 10 + 6"
             (click)="store.selectEntity(entity.id)"
+            (dragstart)="startDrag($event, entity)"
+            (dragend)="endDrag()"
+            (dragover)="dragOver($event, entity)"
+            (dragleave)="dragLeave(entity)"
+            (drop)="dropOnEntity($event, entity)"
           >
             <span class="tree-toggle">{{ entity.expanded ? 'v' : '>' }}</span>
             <span class="tree-icon">{{ iconForKind(entity.kind) }}</span>
@@ -352,24 +479,24 @@ export class StudioViewportToolbarPanelComponent {
         border: 1px solid var(--asha-color-border);
         box-sizing: border-box;
         display: grid;
-        gap: 0.65rem;
-        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 0.45rem;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
         height: 100%;
         min-width: 0;
         overflow: hidden;
-        padding: 0.65rem;
+        padding: 0.5rem;
       }
 
       .panel-header {
         align-items: center;
         display: grid;
-        gap: 0.5rem;
+        gap: 0.35rem;
         grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .panel-header div:first-child {
         display: grid;
-        gap: 0.2rem;
+        gap: 0.08rem;
         min-width: 0;
       }
 
@@ -383,14 +510,14 @@ export class StudioViewportToolbarPanelComponent {
 
       .panel-kicker {
         color: var(--asha-color-muted);
-        font-size: 0.68rem;
+        font-size: 0.62rem;
         font-weight: 700;
         text-transform: uppercase;
       }
 
       .header-actions {
         display: flex;
-        gap: 0.25rem;
+        gap: 0.18rem;
       }
 
       .header-actions button {
@@ -399,10 +526,38 @@ export class StudioViewportToolbarPanelComponent {
         color: var(--asha-color-ink);
         cursor: pointer;
         font: inherit;
-        height: 1.65rem;
+        font-size: 0.72rem;
+        height: 1.35rem;
         line-height: 1;
-        min-width: 1.65rem;
+        min-width: 1.35rem;
         padding: 0;
+      }
+
+      .hierarchy-filter {
+        align-items: center;
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: auto minmax(0, 1fr);
+        min-width: 0;
+        padding: 0 0.35rem;
+      }
+
+      .hierarchy-filter span {
+        color: var(--asha-color-muted);
+        font-size: 0.65rem;
+      }
+
+      .hierarchy-filter input {
+        background: transparent;
+        border: 0;
+        color: var(--asha-color-ink);
+        font: inherit;
+        font-size: 0.72rem;
+        height: 1.45rem;
+        min-width: 0;
+        outline: none;
       }
 
       .header-actions button:disabled {
@@ -413,7 +568,7 @@ export class StudioViewportToolbarPanelComponent {
       .tree-list {
         align-content: start;
         display: grid;
-        gap: 0.1rem;
+        gap: 0.04rem;
         min-height: 0;
         overflow: auto;
       }
@@ -426,11 +581,12 @@ export class StudioViewportToolbarPanelComponent {
         cursor: pointer;
         display: flex;
         font: inherit;
-        gap: 0.35rem;
-        min-height: 1.75rem;
+        font-size: 0.76rem;
+        gap: 0.28rem;
+        min-height: 1.45rem;
         min-width: 0;
         padding-bottom: 0;
-        padding-right: 0.35rem;
+        padding-right: 0.25rem;
         padding-top: 0;
         text-align: left;
       }
@@ -444,6 +600,11 @@ export class StudioViewportToolbarPanelComponent {
         border-color: var(--asha-color-accent);
       }
 
+      .tree-row--drop-target {
+        background: rgba(84, 199, 189, 0.16);
+        border-color: var(--asha-color-accent);
+      }
+
       .tree-row:disabled {
         cursor: default;
       }
@@ -452,9 +613,9 @@ export class StudioViewportToolbarPanelComponent {
       .tree-icon {
         color: var(--asha-color-muted);
         flex: 0 0 auto;
-        font-size: 0.7rem;
+        font-size: 0.62rem;
         text-align: center;
-        width: 0.8rem;
+        width: 0.7rem;
       }
 
       .tree-label {
@@ -465,9 +626,9 @@ export class StudioViewportToolbarPanelComponent {
         border: 1px solid var(--asha-color-border);
         color: var(--asha-color-muted);
         flex: 0 0 auto;
-        font-size: 0.62rem;
+        font-size: 0.56rem;
         line-height: 1;
-        padding: 0.2rem 0.28rem;
+        padding: 0.14rem 0.22rem;
       }
 
       .tree-badge--authority-backed,
@@ -484,14 +645,14 @@ export class StudioViewportToolbarPanelComponent {
       .state-legend {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.35rem;
+        gap: 0.28rem;
       }
 
       .state-legend span {
         border: 1px solid var(--asha-color-border);
         color: var(--asha-color-muted);
-        font-size: 0.62rem;
-        padding: 0.18rem 0.28rem;
+        font-size: 0.56rem;
+        padding: 0.14rem 0.22rem;
       }
     `,
   ],
@@ -499,8 +660,12 @@ export class StudioViewportToolbarPanelComponent {
 })
 export class StudioHierarchyPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
-  readonly visibleEntities = computed(() => visibleHierarchyEntities(this.store.workspace().entities));
+  readonly visibleEntities = computed(() =>
+    filteredHierarchyEntities(this.store.workspace().entities, this.store.hierarchyFilter()),
+  );
   readonly selectedSceneObjectId = computed(() => this.store.selectedEntity()?.sceneObjectId ?? null);
+  readonly draggingSceneObjectId = signal<SceneObjectId | null>(null);
+  readonly dropTargetSceneObjectId = signal<SceneObjectId | null>(null);
 
   renameSelectedSceneObject(): void {
     const objectId = this.selectedSceneObjectId();
@@ -521,6 +686,65 @@ export class StudioHierarchyPanelComponent {
       return;
     }
     this.store.reparentSceneObject(objectId, null, 0);
+  }
+
+  startDrag(event: DragEvent, entity: StudioEntityReadModel): void {
+    if (entity.sceneObjectId === null) {
+      event.preventDefault();
+      return;
+    }
+    this.draggingSceneObjectId.set(entity.sceneObjectId);
+    event.dataTransfer?.setData('text/plain', entity.sceneObjectId);
+    if (event.dataTransfer !== null) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  endDrag(): void {
+    this.draggingSceneObjectId.set(null);
+    this.dropTargetSceneObjectId.set(null);
+  }
+
+  dragOver(event: DragEvent, entity: StudioEntityReadModel): void {
+    const draggedObjectId = this.draggingSceneObjectId();
+    if (
+      draggedObjectId === null
+      || entity.sceneObjectId === null
+      || entity.sceneObjectId === draggedObjectId
+    ) {
+      return;
+    }
+    event.preventDefault();
+    this.dropTargetSceneObjectId.set(entity.sceneObjectId);
+    if (event.dataTransfer !== null) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  dragLeave(entity: StudioEntityReadModel): void {
+    if (this.dropTargetSceneObjectId() === entity.sceneObjectId) {
+      this.dropTargetSceneObjectId.set(null);
+    }
+  }
+
+  dropOnEntity(event: DragEvent, entity: StudioEntityReadModel): void {
+    event.preventDefault();
+    const draggedObjectId = this.draggingSceneObjectId()
+      ?? event.dataTransfer?.getData('text/plain')
+      ?? null;
+    const targetObjectId = entity.sceneObjectId;
+    this.endDrag();
+    if (
+      draggedObjectId === null
+      || targetObjectId === null
+      || draggedObjectId === targetObjectId
+    ) {
+      return;
+    }
+    const childOrder = this.store
+      .workspace()
+      .sceneObjectSnapshot.objects.filter(object => object.parentObjectId === targetObjectId).length;
+    this.store.reparentSceneObject(draggedObjectId as SceneObjectId, targetObjectId, childOrder);
   }
 
   iconForKind(kind: StudioEntityKind): string {
@@ -591,6 +815,22 @@ export class StudioHierarchyPanelComponent {
               <dd>{{ renderable.meshRef ?? 'none' }}</dd>
               <dt>material</dt>
               <dd>{{ renderable.materialRef ?? 'none' }}</dd>
+            </dl>
+          </section>
+
+          <section class="field-section" data-inspector-section="asset-details">
+            <h2>Asset Details</h2>
+            <dl>
+              <dt>asset type</dt>
+              <dd>{{ assetTypeLabel(renderable) }}</dd>
+              <dt>renderable</dt>
+              <dd>{{ renderable.renderableId }}</dd>
+              <dt>mesh asset</dt>
+              <dd>{{ renderable.meshRef ?? 'none' }}</dd>
+              <dt>material asset</dt>
+              <dd>{{ renderable.materialRef ?? 'none' }}</dd>
+              <dt>selection source</dt>
+              <dd>{{ store.selectedEntity()?.sceneObjectId ?? 'asset projection' }}</dd>
             </dl>
           </section>
 
@@ -830,6 +1070,16 @@ export class StudioInspectorPanelComponent {
     return labels[renderable.kind];
   }
 
+  assetTypeLabel(renderable: StudioSceneRenderableReadModel): string {
+    if (renderable.kind === 'static_mesh') {
+      return 'static mesh';
+    }
+    if (renderable.kind === 'preview_ghost') {
+      return 'preview projection';
+    }
+    return 'generated voxel asset';
+  }
+
   renameSelectedSceneObject(label: string): void {
     const objectId = this.store.selectedEntity()?.sceneObjectId ?? null;
     if (objectId === null) {
@@ -923,7 +1173,16 @@ export class StudioInspectorPanelComponent {
           </aside>
           <div class="asset-grid">
             @for (asset of store.assetRenderables(); track asset.renderableId) {
-              <article class="asset-entry">
+              <article
+                class="asset-entry"
+                role="button"
+                tabindex="0"
+                [class.asset-entry--selected]="store.selectedRenderable()?.renderableId === asset.renderableId"
+                [attr.data-asset-renderable-id]="asset.renderableId"
+                (click)="store.selectAssetRenderable(asset.renderableId)"
+                (keydown.enter)="store.selectAssetRenderable(asset.renderableId)"
+                (keydown.space)="store.selectAssetRenderable(asset.renderableId)"
+              >
                 <span class="asset-thumb">{{ assetIcon(asset) }}</span>
                 <div>
                   <strong>{{ asset.label }}</strong>
