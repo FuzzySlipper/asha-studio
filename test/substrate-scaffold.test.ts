@@ -18,6 +18,7 @@ import {
   clearStudioWorkspaceReadModel,
   computeEntityListHash,
   createStudioAgentReadout,
+  createStudioCompactAgentReadout,
   createSelectEntityIntent,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
@@ -371,6 +372,66 @@ test('agent readout fixture reflects the current Angular substrate model', () =>
   assert.equal(fixture.commandResults.length, readModel.commandResults.length);
   assert.equal(fixture.entities.some(entity => entity.id === 'selected-voxel:0,0,0'), true);
   assert.equal(fixture.entityListHash, computeEntityListHash(readModel.entities));
+});
+
+test('compact agent readout summarizes shared Studio state without proof harness sprawl', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const renderSettings = buildStudioPreferencesReadModel().render;
+  const selectedRenderable = readModel.scene.renderables.find(
+    renderable => renderable.renderableId === 'selected-voxel:0,0,0',
+  );
+
+  assert.ok(selectedRenderable);
+  const latestViewportHit = buildStudioViewportHitReadModel({
+    renderable: selectedRenderable,
+    face: 'z_max',
+    worldPosition: { x: 0.2, y: 0.3, z: 0.9 },
+  });
+  const readout = createStudioCompactAgentReadout({
+    workspace: readModel,
+    renderSettings,
+    latestViewportHit,
+  });
+
+  assert.equal(readout.artifactKind, 'compact_agent_readout');
+  assert.equal(readout.readoutVersion, 'studio-compact-readout.v0');
+  assert.equal(readout.session.scenarioId, 'voxel-basic');
+  assert.equal(readout.scene.selectedRenderableId, 'selected-voxel:0,0,0');
+  assert.equal(readout.selectedEntity?.label, 'Voxel (0, 0, 0)');
+  assert.equal(readout.latestViewportHit?.face, 'z_max');
+  assert.equal(readout.latestCommand?.commandId, 'selection.set_active_entity');
+  assert.equal(readout.latestCommandResult?.commandId, 'selection.set_active_entity');
+  assert.ok(readout.nonClaims.includes('not_proof_harness'));
+});
+
+test('secondary evidence surface is present without occupying the primary viewport', () => {
+  const panelSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
+    'utf8',
+  );
+  const viewportSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-viewport', 'src', 'index.ts'),
+    'utf8',
+  );
+
+  assert.equal(panelSource.includes("'timeline' | 'assets' | 'evidence'"), true);
+  assert.equal(panelSource.includes('data-visual-id="studio-secondary-evidence"'), true);
+  assert.equal(panelSource.includes('compactAgentReadout()'), true);
+  assert.equal(viewportSource.includes('studio-secondary-evidence'), false);
+});
+
+test('verification tiers document keeps proof escalation secondary', () => {
+  const doc = readFileSync(
+    join(repoRoot, 'docs', 'studio-agent-observability-verification.md'),
+    'utf8',
+  );
+  const projectBootstrap = readFileSync(join(repoRoot, 'agents-project.md'), 'utf8');
+
+  assert.equal(doc.includes('Tier 1: domain/store tests'), true);
+  assert.equal(doc.includes('Tier 2: `pnpm run verify`'), true);
+  assert.equal(doc.includes('Tier 4: compositor/runtime proof'), true);
+  assert.equal(doc.includes('Do not add browser/compositor proof for a small domain helper'), true);
+  assert.equal(projectBootstrap.includes('studio-agent-observability-verification.md'), true);
 });
 
 test('unused placeholder viewport panel is retired from studio panels', () => {

@@ -794,6 +794,13 @@ export class StudioInspectorPanelComponent {
           >
             Assets
           </button>
+          <button
+            type="button"
+            [class.active]="activeTab() === 'evidence'"
+            (click)="activeTab.set('evidence')"
+          >
+            Evidence
+          </button>
         </div>
       </header>
 
@@ -827,7 +834,7 @@ export class StudioInspectorPanelComponent {
             </tbody>
           </table>
         </div>
-      } @else {
+      } @else if (activeTab() === 'assets') {
         <div class="asset-browser">
           <aside class="asset-tree" aria-label="Asset categories">
             @for (category of store.assetBrowserCategories(); track category.category) {
@@ -855,6 +862,87 @@ export class StudioInspectorPanelComponent {
               <p class="empty-assets">No assets match {{ store.assetBrowserSummary() }}.</p>
             }
           </div>
+        </div>
+      } @else {
+        <div class="evidence-panel" data-visual-id="studio-secondary-evidence">
+          <section class="evidence-summary" aria-label="Compact agent readout">
+            <article>
+              <span>Session</span>
+              <strong>{{ store.compactAgentReadout().session.scenarioLabel }}</strong>
+              <small>{{ store.compactAgentReadout().session.sessionId }}</small>
+            </article>
+            <article>
+              <span>Scene</span>
+              <strong>{{ store.compactAgentReadout().scene.sceneHash }}</strong>
+              <small>{{ store.compactAgentReadout().scene.renderableCount }} renderables</small>
+            </article>
+            <article>
+              <span>Selected</span>
+              <strong>{{ store.compactAgentReadout().scene.selectedRenderableId ?? 'none' }}</strong>
+              <small>{{ store.compactAgentReadout().selectedEntity?.label ?? 'no entity' }}</small>
+            </article>
+            <article>
+              <span>Viewport Hit</span>
+              @if (store.compactAgentReadout().latestViewportHit; as hit) {
+                <strong>{{ hit.face }}</strong>
+                <small>
+                  @if (hit.voxelCoord) {
+                    voxel {{ hit.voxelCoord.x }},{{ hit.voxelCoord.y }},{{ hit.voxelCoord.z }}
+                  } @else {
+                    no voxel
+                  }
+                </small>
+              } @else {
+                <strong>none</strong>
+                <small>no viewport hit</small>
+              }
+            </article>
+          </section>
+
+          <section class="evidence-detail" aria-label="Command and compatibility evidence">
+            <details open>
+              <summary>Latest Command</summary>
+              @if (store.compactAgentReadout().latestCommand; as command) {
+                <dl>
+                  <dt>sequence</dt>
+                  <dd>{{ command.sequenceId }}</dd>
+                  <dt>command</dt>
+                  <dd>{{ command.commandId }}</dd>
+                  <dt>source</dt>
+                  <dd>{{ command.requestedBy }}</dd>
+                  <dt>status</dt>
+                  <dd>{{ command.status }}</dd>
+                  <dt>input</dt>
+                  <dd>{{ command.inputSummary }}</dd>
+                  <dt>output</dt>
+                  <dd>{{ command.outputSummary }}</dd>
+                </dl>
+              }
+            </details>
+
+            <details>
+              <summary>Readout</summary>
+              <dl>
+                <dt>marker</dt>
+                <dd>{{ store.compactAgentReadout().readbackMarker }}</dd>
+                <dt>compatibility</dt>
+                <dd>{{ store.compactAgentReadout().compatibilityMarker }}</dd>
+                <dt>timeline</dt>
+                <dd>{{ store.compactAgentReadout().timelineSequence }}</dd>
+                <dt>render settings</dt>
+                <dd>{{ store.compactAgentReadout().renderSettings.renderSettingsHash }}</dd>
+              </dl>
+            </details>
+
+            <details>
+              <summary>Non-Claims</summary>
+              <ul>
+                @for (nonClaim of store.compactAgentReadout().nonClaims; track nonClaim) {
+                  <li>{{ nonClaim }}</li>
+                }
+              </ul>
+            </details>
+          </section>
         </div>
       }
     </section>
@@ -911,7 +999,8 @@ export class StudioInspectorPanelComponent {
 
       .timeline-table-wrap,
       .asset-browser,
-      .asset-grid {
+      .asset-grid,
+      .evidence-panel {
         min-height: 0;
         overflow: auto;
       }
@@ -1060,6 +1149,63 @@ export class StudioInspectorPanelComponent {
         white-space: nowrap;
       }
 
+      .evidence-panel {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: minmax(22rem, 1fr) minmax(26rem, 1.2fr);
+      }
+
+      .evidence-summary {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+      }
+
+      .evidence-summary article {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        min-width: 0;
+        padding: 0.5rem;
+      }
+
+      .evidence-summary span,
+      .evidence-detail summary {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+      }
+
+      .evidence-summary strong,
+      .evidence-detail dd {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .evidence-detail details {
+        border: 1px solid var(--asha-color-border);
+        background: var(--asha-color-control);
+        margin-bottom: 0.45rem;
+        padding: 0.45rem 0.55rem;
+      }
+
+      .evidence-detail dl {
+        display: grid;
+        column-gap: 0.6rem;
+        grid-template-columns: 6rem minmax(0, 1fr);
+        margin: 0.5rem 0 0;
+      }
+
+      .evidence-detail dt {
+        color: var(--asha-color-muted);
+      }
+
+      .evidence-detail dd {
+        margin: 0;
+      }
+
       small {
         color: var(--asha-color-muted);
         font-size: 0.75rem;
@@ -1070,7 +1216,7 @@ export class StudioInspectorPanelComponent {
 })
 export class StudioAssetsBottomPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
-  readonly activeTab = signal<'timeline' | 'assets'>('timeline');
+  readonly activeTab = signal<'timeline' | 'assets' | 'evidence'>('timeline');
 
   selectAssetCategory(category: StudioAssetBrowserCategory): void {
     this.store.setAssetBrowserCategory(category);

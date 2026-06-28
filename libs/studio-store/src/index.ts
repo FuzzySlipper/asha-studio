@@ -11,6 +11,7 @@ import {
   buildStudioViewportToolReadModel,
   clearStudioWorkspaceReadModel,
   createSelectEntityIntent,
+  createStudioCompactAgentReadout,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
@@ -141,6 +142,14 @@ export class StudioWorkspaceStore {
       camera: this.viewportCameraState(),
       tool: this.viewportToolState(),
       renderSettings: this.preferencesStore.renderSettings(),
+    }),
+  );
+
+  readonly compactAgentReadout = computed(() =>
+    createStudioCompactAgentReadout({
+      workspace: this.workspaceState(),
+      renderSettings: this.preferencesStore.renderSettings(),
+      latestViewportHit: this.viewportHitState(),
     }),
   );
 

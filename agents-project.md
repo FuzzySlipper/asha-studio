@@ -4,6 +4,18 @@ Use project ID `asha` with tag filter `asha-studio` for Den tasks,
 messages, documents, librarian queries, and guidance lookups related to
 this frontend.
 
+## ASHA Studio Agent Observability
+
+ASHA Studio is a human editor first. Agent-facing evidence must use the same
+domain/store read models as the UI, but proof/debug details should live in
+secondary surfaces such as the bottom-panel Evidence tab, disclosures, fixtures,
+or explicit proof commands.
+
+See `docs/studio-agent-observability-verification.md` for the verification
+tiers and escalation rules. Normal UI slices should use focused domain/store
+tests plus `pnpm run verify`; browser/compositor/runtime proof is only for
+tasks that materially change visual/runtime evidence claims.
+
 ## Source-of-truth posture
 
 This local file is bootstrap context for agents entering the repository. It is

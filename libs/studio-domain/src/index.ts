@@ -267,6 +267,40 @@ export interface StudioAgentReadoutArtifact {
   readonly knownLimitations: readonly string[];
 }
 
+export interface StudioCompactAgentReadout {
+  readonly schemaVersion: 1;
+  readonly artifactKind: 'compact_agent_readout';
+  readonly readoutVersion: 'studio-compact-readout.v0';
+  readonly workspaceId: string;
+  readonly compatibilityMarker: string;
+  readonly session: {
+    readonly sessionId: string;
+    readonly scenarioId: string;
+    readonly scenarioLabel: string;
+    readonly status: StudioWorkspaceStatus;
+  };
+  readonly scene: {
+    readonly sceneId: string;
+    readonly sceneHash: string;
+    readonly renderableCount: number;
+    readonly selectedRenderableId: string | null;
+  };
+  readonly selectedEntity: {
+    readonly entityId: string;
+    readonly label: string;
+    readonly kind: StudioEntityKind;
+    readonly sourceState: StudioEntitySourceState;
+  } | null;
+  readonly latestViewportHit: StudioViewportHitReadModel | null;
+  readonly renderSettings: StudioRenderSettingsReadModel;
+  readonly latestCommand: StudioCommandTimelineEntry | null;
+  readonly latestCommandResult: StudioCommandResultReadModel | null;
+  readonly timelineSequence: number;
+  readonly readbackMarker: string;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly string[];
+}
+
 export interface StudioWorkspaceArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'studio_workspace';
@@ -1687,6 +1721,63 @@ export function createStudioAgentReadout(
     diagnostics,
     knownLimitations: options.knownLimitations ?? [
       'Current Angular base is a browser reference projection; native runtime authority, hardware GPU evidence, and Agora compositor capture remain gated behind later proof slices.',
+    ],
+  };
+}
+
+export function createStudioCompactAgentReadout(options: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly renderSettings: StudioRenderSettingsReadModel;
+  readonly latestViewportHit?: StudioViewportHitReadModel | null;
+  readonly diagnostics?: readonly StudioDiagnostic[];
+  readonly nonClaims?: readonly string[];
+}): StudioCompactAgentReadout {
+  const workspace = options.workspace;
+  const selectedEntity =
+    workspace.selectedEntityId === null
+      ? null
+      : workspace.entities.find(entity => entity.id === workspace.selectedEntityId) ?? null;
+
+  return {
+    schemaVersion: 1,
+    artifactKind: 'compact_agent_readout',
+    readoutVersion: 'studio-compact-readout.v0',
+    workspaceId: workspace.workspaceId,
+    compatibilityMarker: workspace.compatibilityMarker,
+    session: {
+      sessionId: workspace.session.sessionId,
+      scenarioId: workspace.session.scenarioId,
+      scenarioLabel: workspace.session.scenarioLabel,
+      status: workspace.session.status,
+    },
+    scene: {
+      sceneId: workspace.scene.sceneId,
+      sceneHash: workspace.scene.sceneHash,
+      renderableCount: workspace.scene.renderables.length,
+      selectedRenderableId: workspace.scene.selectedRenderableId,
+    },
+    selectedEntity:
+      selectedEntity === null
+        ? null
+        : {
+            entityId: selectedEntity.id,
+            label: selectedEntity.label,
+            kind: selectedEntity.kind,
+            sourceState: selectedEntity.sourceState,
+          },
+    latestViewportHit: options.latestViewportHit ?? null,
+    renderSettings: options.renderSettings,
+    latestCommand: workspace.timeline.at(-1) ?? null,
+    latestCommandResult: workspace.commandResults.at(-1) ?? null,
+    timelineSequence: workspace.timelineSequence,
+    readbackMarker: `${workspace.session.sessionId}:${workspace.scene.sceneHash}:${workspace.timelineSequence}`,
+    diagnostics: options.diagnostics ?? workspace.compatibility.diagnostics,
+    nonClaims: options.nonClaims ?? [
+      'browser_reference_projection',
+      'not_native_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+      'not_proof_harness',
     ],
   };
 }
