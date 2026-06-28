@@ -48,11 +48,17 @@ export type StudioAssetBrowserCategory =
   | 'materials'
   | 'generated'
   | 'preview';
+export type StudioBottomPanelTab = 'timeline' | 'assets' | 'evidence';
+export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'preferences';
 export type StudioRenderSettingKey =
   | 'wireframeEnabled'
   | 'showGrid'
   | 'showPreviewGhosts'
   | 'showReadbackOverlay';
+export type StudioUiEventCommandId =
+  | 'workspace.save_browser_slot'
+  | 'workspace.load_browser_slot'
+  | 'preferences.set_render_setting';
 
 export interface StudioDiagnostic {
   readonly severity: StudioDiagnosticSeverity;
@@ -283,6 +289,9 @@ export interface StudioAgentReadoutArtifact {
   readonly entities: readonly StudioEntityReadModel[];
   readonly selectedEntityId: string | null;
   readonly entityListHash: string;
+  readonly viewport: StudioViewportReadout | undefined;
+  readonly renderSettings: StudioRenderSettingsReadModel | undefined;
+  readonly uiState: StudioUiStateReadModel | undefined;
   readonly commandTimeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResultReadModel[];
   readonly readbackMarker: string;
@@ -314,13 +323,41 @@ export interface StudioCompactAgentReadout {
     readonly kind: StudioEntityKind;
     readonly sourceState: StudioEntitySourceState;
   } | null;
+  readonly viewport: StudioViewportReadout;
   readonly latestViewportHit: StudioViewportHitReadModel | null;
   readonly renderSettings: StudioRenderSettingsReadModel;
+  readonly uiState: StudioUiStateReadModel | undefined;
   readonly latestCommand: StudioCommandTimelineEntry | null;
   readonly latestCommandResult: StudioCommandResultReadModel | null;
   readonly timelineSequence: number;
   readonly readbackMarker: string;
   readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly string[];
+}
+
+export interface StudioViewportReadout {
+  readonly readoutVersion: 'studio-viewport-readout.v0';
+  readonly camera: StudioViewportCameraReadModel;
+  readonly tool: StudioViewportToolReadModel;
+  readonly cameraHash: string;
+  readonly toolHash: string;
+}
+
+export interface StudioUiStateReadModel {
+  readonly schemaVersion: 1;
+  readonly artifactKind: 'studio_ui_state';
+  readonly uiStateVersion: 'studio-ui-state.v0';
+  readonly activeMenu: StudioApplicationMenu | null;
+  readonly bottomPanelTab: StudioBottomPanelTab;
+  readonly assetBrowserCategory: StudioAssetBrowserCategory;
+  readonly hierarchy: {
+    readonly expandedCount: number;
+    readonly totalCount: number;
+  };
+  readonly selectedScenarioDraftId: string;
+  readonly menuMessage: string;
+  readonly savedWorkspaceAvailable: boolean;
+  readonly uiStateHash: string;
   readonly nonClaims: readonly string[];
 }
 
@@ -336,6 +373,11 @@ export interface StudioWorkspaceArtifact {
   readonly preferences: StudioPreferencesReadModel;
   readonly flatSceneDocument: FlatSceneDocument;
   readonly serializationNotes: readonly string[];
+}
+
+export interface StudioWorkspaceUiCommandResult {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly timelineEntry: StudioCommandTimelineEntry;
 }
 
 export interface StudioWorkspaceRestoreResult {
@@ -381,12 +423,29 @@ export interface SceneObjectCommandIntent {
   readonly expectedTimelineSequence: number;
 }
 
+export interface LoadScenarioIntent {
+  readonly kind: 'load_scenario';
+  readonly scenarioId: string;
+  readonly expectedTimelineSequence: number;
+}
+
+export interface LoadReferenceAssetIntent {
+  readonly kind: 'load_reference_asset';
+  readonly assetId: 'static-mesh:reference-placeholder';
+  readonly expectedTimelineSequence: number;
+}
+
 export interface NoopIntent {
   readonly kind: 'noop';
   readonly reason: string;
 }
 
-export type StudioIntent = SelectEntityIntent | SceneObjectCommandIntent | NoopIntent;
+export type StudioIntent =
+  | SelectEntityIntent
+  | SceneObjectCommandIntent
+  | LoadScenarioIntent
+  | LoadReferenceAssetIntent
+  | NoopIntent;
 
 export interface StudioSceneObjectCommandApplyResult {
   readonly ok: boolean;
@@ -742,6 +801,60 @@ export function buildStudioViewportToolReadModel(
   return {
     ...tool,
     toolHash: fnv1aHash('viewport-tool', tool),
+  };
+}
+
+export function buildStudioViewportReadout(options: {
+  readonly camera?: StudioViewportCameraReadModel | undefined;
+  readonly tool?: StudioViewportToolReadModel | undefined;
+} = {}): StudioViewportReadout {
+  const camera = options.camera ?? buildStudioViewportCameraReadModel();
+  const tool = options.tool ?? buildStudioViewportToolReadModel();
+  return {
+    readoutVersion: 'studio-viewport-readout.v0',
+    camera,
+    tool,
+    cameraHash: camera.cameraHash,
+    toolHash: tool.toolHash,
+  };
+}
+
+export function buildStudioUiStateReadModel(options: {
+  readonly activeMenu?: StudioApplicationMenu | null;
+  readonly bottomPanelTab?: StudioBottomPanelTab;
+  readonly assetBrowserCategory?: StudioAssetBrowserCategory;
+  readonly entities?: readonly StudioEntityReadModel[];
+  readonly selectedScenarioDraftId?: string;
+  readonly menuMessage?: string;
+  readonly savedWorkspaceAvailable?: boolean;
+} = {}): StudioUiStateReadModel {
+  const entities = options.entities ?? [];
+  const hierarchy = {
+    expandedCount: entities.filter(entity => entity.expanded).length,
+    totalCount: entities.length,
+  };
+  const payload = {
+    activeMenu: options.activeMenu ?? null,
+    bottomPanelTab: options.bottomPanelTab ?? 'timeline',
+    assetBrowserCategory: options.assetBrowserCategory ?? 'all',
+    hierarchy,
+    selectedScenarioDraftId: options.selectedScenarioDraftId ?? 'voxel-basic',
+    menuMessage: options.menuMessage ?? 'Workspace ready.',
+    savedWorkspaceAvailable: options.savedWorkspaceAvailable ?? false,
+  };
+
+  return {
+    schemaVersion: 1,
+    artifactKind: 'studio_ui_state',
+    uiStateVersion: 'studio-ui-state.v0',
+    ...payload,
+    uiStateHash: fnv1aHash('studio-ui-state', payload),
+    nonClaims: [
+      'ui_affordance_state_only',
+      'not_scene_authority',
+      'not_runtime_authority',
+      'does_not_change_scene_hash',
+    ],
   };
 }
 
@@ -1535,6 +1648,38 @@ export function clearStudioWorkspaceReadModel(
   };
 }
 
+export function recordStudioWorkspaceUiCommand(
+  readModel: StudioWorkspaceReadModel,
+  options: {
+    readonly commandId: StudioUiEventCommandId;
+    readonly label: string;
+    readonly inputSummary: string;
+    readonly outputSummary: string;
+    readonly status?: StudioCommandStatus;
+  },
+): StudioWorkspaceUiCommandResult {
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: options.commandId,
+    label: options.label,
+    requestedBy: 'gui',
+    status: options.status ?? 'ok',
+    inputSummary: options.inputSummary,
+    outputSummary: options.outputSummary,
+    changedScene: false,
+    changedSelection: false,
+  });
+  return {
+    workspace: {
+      ...readModel,
+      timeline: [...readModel.timeline, command.timelineEntry],
+      commandResults: [...readModel.commandResults, command.commandResult],
+      timelineSequence: readModel.timelineSequence + 1,
+    },
+    timelineEntry: command.timelineEntry,
+  };
+}
+
 export function addReferenceRenderableReadModel(
   readModel: StudioWorkspaceReadModel,
 ): StudioWorkspaceReadModel {
@@ -1880,6 +2025,34 @@ export function createSceneObjectCommandIntent(
   };
 }
 
+export function createLoadScenarioIntent(
+  readModel: StudioWorkspaceReadModel,
+  scenarioId: string,
+): StudioIntent {
+  const scenario = readModel.scenarios.find(item => item.scenarioId === scenarioId);
+  if (scenario === undefined) {
+    return {
+      kind: 'noop',
+      reason: `unknown scenario: ${scenarioId}`,
+    };
+  }
+  return {
+    kind: 'load_scenario',
+    scenarioId,
+    expectedTimelineSequence: readModel.timelineSequence,
+  };
+}
+
+export function createLoadReferenceAssetIntent(
+  readModel: StudioWorkspaceReadModel,
+): StudioIntent {
+  return {
+    kind: 'load_reference_asset',
+    assetId: 'static-mesh:reference-placeholder',
+    expectedTimelineSequence: readModel.timelineSequence,
+  };
+}
+
 export function createRenameSceneObjectRequest(
   readModel: StudioWorkspaceReadModel,
   objectId: SceneObjectId,
@@ -2171,6 +2344,9 @@ export function createStudioAgentReadout(
   options: {
     readonly generatedAtIso?: string;
     readonly compatibility?: StudioCompatibilityEvidence;
+    readonly viewport?: StudioViewportReadout;
+    readonly renderSettings?: StudioRenderSettingsReadModel;
+    readonly uiState?: StudioUiStateReadModel;
     readonly knownLimitations?: readonly string[];
   } = {},
 ): StudioAgentReadoutArtifact {
@@ -2189,6 +2365,9 @@ export function createStudioAgentReadout(
     entities: readModel.entities,
     selectedEntityId: readModel.selectedEntityId,
     entityListHash: computeEntityListHash(readModel.entities),
+    viewport: options.viewport,
+    renderSettings: options.renderSettings,
+    uiState: options.uiState,
     commandTimeline: readModel.timeline,
     commandResults: readModel.commandResults,
     readbackMarker: `${readModel.session.sessionId}:${readModel.scene.sceneHash}:${readModel.timelineSequence}`,
@@ -2202,6 +2381,9 @@ export function createStudioAgentReadout(
 export function createStudioCompactAgentReadout(options: {
   readonly workspace: StudioWorkspaceReadModel;
   readonly renderSettings: StudioRenderSettingsReadModel;
+  readonly viewportCamera?: StudioViewportCameraReadModel;
+  readonly viewportTool?: StudioViewportToolReadModel;
+  readonly uiState?: StudioUiStateReadModel;
   readonly latestViewportHit?: StudioViewportHitReadModel | null;
   readonly diagnostics?: readonly StudioDiagnostic[];
   readonly nonClaims?: readonly string[];
@@ -2239,8 +2421,13 @@ export function createStudioCompactAgentReadout(options: {
             kind: selectedEntity.kind,
             sourceState: selectedEntity.sourceState,
           },
+    viewport: buildStudioViewportReadout({
+      camera: options.viewportCamera,
+      tool: options.viewportTool,
+    }),
     latestViewportHit: options.latestViewportHit ?? null,
     renderSettings: options.renderSettings,
+    uiState: options.uiState,
     latestCommand: workspace.timeline.at(-1) ?? null,
     latestCommandResult: workspace.commandResults.at(-1) ?? null,
     timelineSequence: workspace.timelineSequence,

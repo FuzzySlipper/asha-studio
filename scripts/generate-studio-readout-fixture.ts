@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import {
   buildInitialWorkspaceReadModel,
   buildStudioCompatibilityEvidence,
+  buildStudioPreferencesReadModel,
+  buildStudioUiStateReadModel,
+  buildStudioViewportReadout,
   createStudioAgentReadout,
   type StudioPackageJsonLike,
 } from '../libs/studio-domain/src/index';
@@ -18,6 +21,12 @@ const workspace = buildInitialWorkspaceReadModel();
 const readout = createStudioAgentReadout(workspace, {
   compatibility: buildStudioCompatibilityEvidence({ packageJson }),
   generatedAtIso: '1970-01-01T00:00:00.000Z',
+  viewport: buildStudioViewportReadout(),
+  renderSettings: buildStudioPreferencesReadModel().render,
+  uiState: buildStudioUiStateReadModel({
+    entities: workspace.entities,
+    selectedScenarioDraftId: workspace.session.scenarioId,
+  }),
 });
 const fixtureDir = join(repoRoot, 'fixtures');
 

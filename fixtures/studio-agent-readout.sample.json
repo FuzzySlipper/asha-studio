@@ -237,6 +237,66 @@
   ],
   "selectedEntityId": "scene-node:3",
   "entityListHash": "entity-list-15b7463d",
+  "viewport": {
+    "readoutVersion": "studio-viewport-readout.v0",
+    "camera": {
+      "position": {
+        "x": 4.6,
+        "y": 5.2,
+        "z": 4.1
+      },
+      "target": {
+        "x": 1.25,
+        "y": 1.1,
+        "z": 0.55
+      },
+      "up": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "fovDegrees": 42,
+      "near": 0.05,
+      "far": 100,
+      "cameraHash": "viewport-camera-a80f3b5b"
+    },
+    "tool": {
+      "activeTool": "select",
+      "interactionMode": "idle",
+      "toolHash": "viewport-tool-3ec86f8a"
+    },
+    "cameraHash": "viewport-camera-a80f3b5b",
+    "toolHash": "viewport-tool-3ec86f8a"
+  },
+  "renderSettings": {
+    "wireframeEnabled": false,
+    "showGrid": true,
+    "showPreviewGhosts": true,
+    "showReadbackOverlay": true,
+    "renderSettingsHash": "render-settings-15efc3f5"
+  },
+  "uiState": {
+    "schemaVersion": 1,
+    "artifactKind": "studio_ui_state",
+    "uiStateVersion": "studio-ui-state.v0",
+    "activeMenu": null,
+    "bottomPanelTab": "timeline",
+    "assetBrowserCategory": "all",
+    "hierarchy": {
+      "expandedCount": 3,
+      "totalCount": 7
+    },
+    "selectedScenarioDraftId": "voxel-basic",
+    "menuMessage": "Workspace ready.",
+    "savedWorkspaceAvailable": false,
+    "uiStateHash": "studio-ui-state-394b2b59",
+    "nonClaims": [
+      "ui_affordance_state_only",
+      "not_scene_authority",
+      "not_runtime_authority",
+      "does_not_change_scene_hash"
+    ]
+  },
   "commandTimeline": [
     {
       "sequenceId": "seq-0001",

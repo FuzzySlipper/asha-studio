@@ -1,8 +1,14 @@
 import type { StudioIntent } from '@asha-studio/domain';
 
 export interface StudioCommandProposal {
-  readonly commandId: 'selection.set_active_entity' | 'scene.apply_object_command';
+  readonly commandId:
+    | 'selection.set_active_entity'
+    | 'scene.apply_object_command'
+    | 'session.load_scenario'
+    | 'scene.load_asset';
   readonly entityId?: string;
+  readonly scenarioId?: string;
+  readonly assetId?: string;
   readonly request?: Extract<StudioIntent, { readonly kind: 'scene_object_command' }>['request'];
   readonly expectedTimelineSequence: number;
 }
@@ -34,6 +40,26 @@ export function mapStudioIntentToCommand(
         proposal: {
           commandId: 'scene.apply_object_command',
           request: intent.request,
+          expectedTimelineSequence: intent.expectedTimelineSequence,
+        },
+      };
+    case 'load_scenario':
+      return {
+        accepted: true,
+        diagnostic: null,
+        proposal: {
+          commandId: 'session.load_scenario',
+          scenarioId: intent.scenarioId,
+          expectedTimelineSequence: intent.expectedTimelineSequence,
+        },
+      };
+    case 'load_reference_asset':
+      return {
+        accepted: true,
+        diagnostic: null,
+        proposal: {
+          commandId: 'scene.load_asset',
+          assetId: intent.assetId,
           expectedTimelineSequence: intent.expectedTimelineSequence,
         },
       };

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import {
   StudioAssetsBottomPanelComponent,
   StudioHierarchyPanelComponent,
@@ -24,18 +24,18 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
     <main class="studio-layout" data-visual-id="studio-shell">
       <nav class="studio-menu" aria-label="Application menu">
         <div class="studio-menu__group">
-          <button type="button" [class.is-active]="activeMenu() === 'file'" (click)="toggleMenu('file')">
+          <button type="button" [class.is-active]="store.activeMenu() === 'file'" (click)="toggleMenu('file')">
             File
           </button>
-          <button type="button" [class.is-active]="activeMenu() === 'edit'" (click)="toggleMenu('edit')">
+          <button type="button" [class.is-active]="store.activeMenu() === 'edit'" (click)="toggleMenu('edit')">
             Edit
           </button>
-          <button type="button" [class.is-active]="activeMenu() === 'view'" (click)="toggleMenu('view')">
+          <button type="button" [class.is-active]="store.activeMenu() === 'view'" (click)="toggleMenu('view')">
             View
           </button>
           <button
             type="button"
-            [class.is-active]="activeMenu() === 'preferences'"
+            [class.is-active]="store.activeMenu() === 'preferences'"
             (click)="toggleMenu('preferences')"
           >
             Preferences
@@ -43,7 +43,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         </div>
         <span class="studio-menu__status">{{ store.menuMessage() }}</span>
 
-        @if (activeMenu() === 'file') {
+        @if (store.activeMenu() === 'file') {
           <section class="menu-popover menu-popover--file" aria-label="File menu">
             <button type="button" (click)="newWorkspace()">New</button>
             <button type="button" (click)="saveWorkspace()">Save</button>
@@ -53,14 +53,14 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
           </section>
         }
 
-        @if (activeMenu() === 'edit') {
+        @if (store.activeMenu() === 'edit') {
           <section class="menu-popover menu-popover--edit" aria-label="Edit menu">
             <button type="button" disabled>Undo</button>
             <button type="button" disabled>Redo</button>
           </section>
         }
 
-        @if (activeMenu() === 'view') {
+        @if (store.activeMenu() === 'view') {
           <section class="menu-popover menu-popover--view" aria-label="View menu">
             <label>
               <input
@@ -97,7 +97,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
           </section>
         }
 
-        @if (activeMenu() === 'preferences') {
+        @if (store.activeMenu() === 'preferences') {
           <section class="menu-popover menu-popover--preferences" aria-label="Preferences">
             <div class="preferences-section">
               <strong>Viewport</strong>
@@ -352,25 +352,24 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 })
 export class StudioShellComponent {
   readonly store = inject(StudioWorkspaceStore);
-  readonly activeMenu = signal<'file' | 'edit' | 'view' | 'preferences' | null>(null);
 
   toggleMenu(menu: 'file' | 'edit' | 'view' | 'preferences'): void {
-    this.activeMenu.set(this.activeMenu() === menu ? null : menu);
+    this.store.toggleActiveMenu(menu);
   }
 
   newWorkspace(): void {
     this.store.newWorkspace();
-    this.activeMenu.set(null);
+    this.store.setActiveMenu(null);
   }
 
   saveWorkspace(): void {
     this.store.saveWorkspaceToSlot();
-    this.activeMenu.set(null);
+    this.store.setActiveMenu(null);
   }
 
   loadWorkspace(): void {
     this.store.loadWorkspaceFromSlot();
-    this.activeMenu.set(null);
+    this.store.setActiveMenu(null);
   }
 
   setRenderSetting(

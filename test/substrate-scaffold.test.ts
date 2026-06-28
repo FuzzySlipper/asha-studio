@@ -13,13 +13,17 @@ import {
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
   buildStudioCompatibilityEvidence,
+  buildStudioUiStateReadModel,
   buildStudioViewportAdapterReadModel,
   buildStudioViewportCameraReadModel,
+  buildStudioViewportReadout,
   buildStudioViewportToolReadModel,
   clearStudioWorkspaceReadModel,
   computeEntityListHash,
   createStudioAgentReadout,
   createStudioCompactAgentReadout,
+  createLoadReferenceAssetIntent,
+  createLoadScenarioIntent,
   applySceneObjectCommandReadModel,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
@@ -31,6 +35,7 @@ import {
   loadScenarioReadModel,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
+  recordStudioWorkspaceUiCommand,
   restoreStudioWorkspaceArtifact,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
@@ -199,7 +204,13 @@ test('workspace new clears scene through a recorded read-model command', () => {
 
 test('scenario load projects selected scenario scene through the timeline', () => {
   const readModel = buildInitialWorkspaceReadModel();
-  const loaded = loadScenarioReadModel(readModel, 'scenario-placeholder');
+  const dispatchResult = mapStudioIntentToCommand(
+    createLoadScenarioIntent(readModel, 'scenario-placeholder'),
+  );
+
+  assert.equal(dispatchResult.accepted, true);
+  assert.equal(dispatchResult.proposal?.commandId, 'session.load_scenario');
+  const loaded = loadScenarioReadModel(readModel, dispatchResult.proposal?.scenarioId ?? '');
 
   assert.equal(loaded.ok, true);
   assert.equal(loaded.workspace.session.scenarioId, 'scenario-placeholder');
@@ -225,6 +236,11 @@ test('scenario load fails closed for unknown scenario ids', () => {
 
 test('hierarchy add action projects a reference renderable through scene.load_asset', () => {
   const readModel = buildInitialWorkspaceReadModel();
+  const dispatchResult = mapStudioIntentToCommand(createLoadReferenceAssetIntent(readModel));
+
+  assert.equal(dispatchResult.accepted, true);
+  assert.equal(dispatchResult.proposal?.commandId, 'scene.load_asset');
+  assert.equal(dispatchResult.proposal?.assetId, 'static-mesh:reference-placeholder');
   const updated = addReferenceRenderableReadModel(readModel);
 
   assert.equal(updated.scene.renderables.length, readModel.scene.renderables.length + 1);
@@ -373,6 +389,55 @@ test('workspace artifact serializes and restores Studio read models', () => {
   assert.equal(restored.artifact?.serializationNotes.some(note => note.includes('runtime')), true);
 });
 
+test('workspace persistence and render preferences are timeline-observable UI commands', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const saved = recordStudioWorkspaceUiCommand(readModel, {
+    commandId: 'workspace.save_browser_slot',
+    label: 'Save Workspace Slot',
+    inputSummary: `sceneHash=${readModel.scene.sceneHash}`,
+    outputSummary: 'Workspace artifact saved to browser slot.',
+  }).workspace;
+  const preference = recordStudioWorkspaceUiCommand(saved, {
+    commandId: 'preferences.set_render_setting',
+    label: 'Set Render Preference',
+    inputSummary: 'showGrid=false',
+    outputSummary: 'Render setting showGrid updated.',
+  }).workspace;
+  const rejectedLoad = recordStudioWorkspaceUiCommand(preference, {
+    commandId: 'workspace.load_browser_slot',
+    label: 'Load Workspace Slot',
+    inputSummary: 'source=browser-slot',
+    outputSummary: 'Saved Studio workspace artifact is not valid JSON.',
+    status: 'rejected',
+  }).workspace;
+
+  assert.equal(saved.timeline.at(-1)?.commandId, 'workspace.save_browser_slot');
+  assert.equal(preference.timeline.at(-1)?.commandId, 'preferences.set_render_setting');
+  assert.equal(rejectedLoad.timeline.at(-1)?.status, 'rejected');
+  assert.equal(rejectedLoad.scene.sceneHash, readModel.scene.sceneHash);
+  assert.equal(rejectedLoad.timelineSequence, readModel.timelineSequence + 3);
+});
+
+test('studio UI state readout classifies non-authoritative affordance state', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const uiState = buildStudioUiStateReadModel({
+    activeMenu: 'view',
+    bottomPanelTab: 'assets',
+    assetBrowserCategory: 'materials',
+    entities: readModel.entities,
+    selectedScenarioDraftId: 'scenario-placeholder',
+    menuMessage: 'Assets filter selected.',
+    savedWorkspaceAvailable: true,
+  });
+
+  assert.equal(uiState.artifactKind, 'studio_ui_state');
+  assert.equal(uiState.activeMenu, 'view');
+  assert.equal(uiState.bottomPanelTab, 'assets');
+  assert.equal(uiState.hierarchy.totalCount, readModel.entities.length);
+  assert.match(uiState.uiStateHash, /^studio-ui-state-/);
+  assert.ok(uiState.nonClaims.includes('does_not_change_scene_hash'));
+});
+
 test('compatibility evidence records approved public ASHA package roots', () => {
   const packageJson = JSON.parse(
     readFileSync(join(repoRoot, 'package.json'), 'utf8'),
@@ -466,6 +531,9 @@ test('agent readout fixture reflects the current Angular substrate model', () =>
   assert.equal(fixture.commandResults.length, readModel.commandResults.length);
   assert.equal(fixture.entities.some(entity => entity.renderableId === 'selected-voxel:0,0,0'), true);
   assert.equal(fixture.entityListHash, computeEntityListHash(readModel.entities));
+  assert.equal(fixture.viewport?.readoutVersion, 'studio-viewport-readout.v0');
+  assert.equal(fixture.renderSettings?.renderSettingsHash.startsWith('render-settings-'), true);
+  assert.equal(fixture.uiState?.artifactKind, 'studio_ui_state');
 });
 
 test('compact agent readout summarizes shared Studio state without proof harness sprawl', () => {
@@ -484,6 +552,9 @@ test('compact agent readout summarizes shared Studio state without proof harness
   const readout = createStudioCompactAgentReadout({
     workspace: readModel,
     renderSettings,
+    viewportCamera: buildStudioViewportCameraReadModel({ position: { x: 6, y: 4, z: 3 } }),
+    viewportTool: buildStudioViewportToolReadModel('orbit'),
+    uiState: buildStudioUiStateReadModel({ entities: readModel.entities }),
     latestViewportHit,
   });
 
@@ -493,9 +564,39 @@ test('compact agent readout summarizes shared Studio state without proof harness
   assert.equal(readout.scene.selectedRenderableId, 'selected-voxel:0,0,0');
   assert.equal(readout.selectedEntity?.label, 'Voxel (0, 0, 0)');
   assert.equal(readout.latestViewportHit?.face, 'z_max');
+  assert.equal(readout.viewport.tool.activeTool, 'orbit');
+  assert.match(readout.viewport.cameraHash, /^viewport-camera-/);
+  assert.equal(readout.uiState?.artifactKind, 'studio_ui_state');
   assert.equal(readout.latestCommand?.commandId, 'selection.set_active_entity');
   assert.equal(readout.latestCommandResult?.commandId, 'selection.set_active_entity');
   assert.ok(readout.nonClaims.includes('not_proof_harness'));
+});
+
+test('full agent readout can carry viewport preferences and UI state without proof sprawl', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const viewport = buildStudioViewportReadout({
+    camera: buildStudioViewportCameraReadModel({ target: { x: 1, y: 2, z: 3 } }),
+    tool: buildStudioViewportToolReadModel('pan'),
+  });
+  const renderSettings = updateStudioRenderSetting(
+    buildStudioPreferencesReadModel(),
+    'wireframeEnabled',
+    true,
+  ).render;
+  const uiState = buildStudioUiStateReadModel({
+    bottomPanelTab: 'evidence',
+    entities: readModel.entities,
+  });
+  const readout = createStudioAgentReadout(readModel, {
+    viewport,
+    renderSettings,
+    uiState,
+  });
+
+  assert.equal(readout.viewport?.tool.activeTool, 'pan');
+  assert.equal(readout.renderSettings?.wireframeEnabled, true);
+  assert.equal(readout.uiState?.bottomPanelTab, 'evidence');
+  assert.equal(readout.commandTimeline.length, readModel.timeline.length);
 });
 
 test('secondary evidence surface is present without occupying the primary viewport', () => {
@@ -508,7 +609,7 @@ test('secondary evidence surface is present without occupying the primary viewpo
     'utf8',
   );
 
-  assert.equal(panelSource.includes("'timeline' | 'assets' | 'evidence'"), true);
+  assert.equal(panelSource.includes('store.setBottomPanelTab(\'evidence\')'), true);
   assert.equal(panelSource.includes('data-visual-id="studio-secondary-evidence"'), true);
   assert.equal(panelSource.includes('compactAgentReadout()'), true);
   assert.equal(viewportSource.includes('studio-secondary-evidence'), false);

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import type {
   StudioAssetBrowserCategory,
   StudioBounds,
@@ -45,8 +45,8 @@ function visibleHierarchyEntities(
       </div>
       <div class="scenario-load" aria-label="Scenario load">
         <select
-          [value]="selectedScenarioId()"
-          (change)="selectedScenarioId.set($any($event.target).value)"
+          [value]="store.selectedScenarioDraftId()"
+          (change)="store.setSelectedScenarioDraft($any($event.target).value)"
         >
           @for (scenario of store.workspace().scenarios; track scenario.scenarioId) {
             <option [value]="scenario.scenarioId">
@@ -138,10 +138,9 @@ function visibleHierarchyEntities(
 })
 export class StudioSessionTopPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
-  readonly selectedScenarioId = signal(this.store.workspace().session.scenarioId);
 
   loadSelectedScenario(): void {
-    this.store.loadScenario(this.selectedScenarioId());
+    this.store.loadScenario(this.store.selectedScenarioDraftId());
   }
 }
 
@@ -576,6 +575,16 @@ export class StudioHierarchyPanelComponent {
           <section class="field-section">
             <h2>Identity</h2>
             <dl>
+              <dt>name</dt>
+              <dd>
+                <div class="editable-field">
+                  <input
+                    aria-label="Selected scene object name"
+                    [value]="store.selectedEntity()?.label ?? renderable.label"
+                    (change)="renameSelectedSceneObject($any($event.target).value)"
+                  />
+                </div>
+              </dd>
               <dt>kind</dt>
               <dd>{{ renderable.kind }}</dd>
               <dt>mesh</dt>
@@ -763,6 +772,22 @@ export class StudioHierarchyPanelComponent {
         white-space: nowrap;
       }
 
+      .editable-field {
+        min-width: 0;
+      }
+
+      .editable-field input {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        color: var(--asha-color-ink);
+        font: inherit;
+        height: 1.65rem;
+        min-width: 0;
+        padding: 0 0.4rem;
+        width: 100%;
+      }
+
       .empty-state {
         color: var(--asha-color-muted);
         margin: 0;
@@ -805,6 +830,14 @@ export class StudioInspectorPanelComponent {
     return labels[renderable.kind];
   }
 
+  renameSelectedSceneObject(label: string): void {
+    const objectId = this.store.selectedEntity()?.sceneObjectId ?? null;
+    if (objectId === null) {
+      return;
+    }
+    this.store.renameSceneObject(objectId, label);
+  }
+
   private formatBounds(bounds: StudioBounds): string {
     const min = `${bounds.min.x},${bounds.min.y},${bounds.min.z}`;
     const max = `${bounds.max.x},${bounds.max.y},${bounds.max.z}`;
@@ -822,29 +855,29 @@ export class StudioInspectorPanelComponent {
         <div class="tabs" role="tablist" aria-label="Bottom panel views">
           <button
             type="button"
-            [class.active]="activeTab() === 'timeline'"
-            (click)="activeTab.set('timeline')"
+            [class.active]="store.bottomPanelTab() === 'timeline'"
+            (click)="store.setBottomPanelTab('timeline')"
           >
             Timeline
           </button>
           <button
             type="button"
-            [class.active]="activeTab() === 'assets'"
-            (click)="activeTab.set('assets')"
+            [class.active]="store.bottomPanelTab() === 'assets'"
+            (click)="store.setBottomPanelTab('assets')"
           >
             Assets
           </button>
           <button
             type="button"
-            [class.active]="activeTab() === 'evidence'"
-            (click)="activeTab.set('evidence')"
+            [class.active]="store.bottomPanelTab() === 'evidence'"
+            (click)="store.setBottomPanelTab('evidence')"
           >
             Evidence
           </button>
         </div>
       </header>
 
-      @if (activeTab() === 'timeline') {
+      @if (store.bottomPanelTab() === 'timeline') {
         <div class="timeline-table-wrap">
           <table class="timeline-table">
             <thead>
@@ -874,7 +907,7 @@ export class StudioInspectorPanelComponent {
             </tbody>
           </table>
         </div>
-      } @else if (activeTab() === 'assets') {
+      } @else if (store.bottomPanelTab() === 'assets') {
         <div class="asset-browser">
           <aside class="asset-tree" aria-label="Asset categories">
             @for (category of store.assetBrowserCategories(); track category.category) {
@@ -971,6 +1004,10 @@ export class StudioInspectorPanelComponent {
                 <dd>{{ store.compactAgentReadout().timelineSequence }}</dd>
                 <dt>render settings</dt>
                 <dd>{{ store.compactAgentReadout().renderSettings.renderSettingsHash }}</dd>
+                <dt>viewport</dt>
+                <dd>{{ store.compactAgentReadout().viewport.cameraHash }}</dd>
+                <dt>ui state</dt>
+                <dd>{{ store.compactAgentReadout().uiState?.uiStateHash ?? 'none' }}</dd>
               </dl>
             </details>
 
@@ -1256,7 +1293,6 @@ export class StudioInspectorPanelComponent {
 })
 export class StudioAssetsBottomPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
-  readonly activeTab = signal<'timeline' | 'assets' | 'evidence'>('timeline');
 
   selectAssetCategory(category: StudioAssetBrowserCategory): void {
     this.store.setAssetBrowserCategory(category);

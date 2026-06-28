@@ -2,15 +2,19 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   addReferenceRenderableReadModel,
+  buildStudioUiStateReadModel,
   applySceneObjectCommandReadModel,
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
+  buildStudioViewportReadout,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
   buildStudioViewportCameraReadModel,
   buildStudioViewportToolReadModel,
   clearStudioWorkspaceReadModel,
+  createLoadReferenceAssetIntent,
+  createLoadScenarioIntent,
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
@@ -22,12 +26,15 @@ import {
   loadScenarioReadModel,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
+  recordStudioWorkspaceUiCommand,
   restoreStudioWorkspaceArtifact,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
   updateStudioRenderSetting,
   zoomStudioViewportCamera,
   type StudioAssetBrowserCategory,
+  type StudioApplicationMenu,
+  type StudioBottomPanelTab,
   type StudioPreferencesReadModel,
   type StudioRenderSettingKey,
   type StudioViewportCameraControlDelta,
@@ -83,6 +90,9 @@ export class StudioWorkspaceStore {
     browserStorage()?.getItem(WORKSPACE_STORAGE_KEY) ?? null,
   );
   private readonly assetBrowserCategoryState = signal<StudioAssetBrowserCategory>('all');
+  private readonly activeMenuState = signal<StudioApplicationMenu | null>(null);
+  private readonly bottomPanelTabState = signal<StudioBottomPanelTab>('timeline');
+  private readonly selectedScenarioDraftIdState = signal(this.workspaceState().session.scenarioId);
   private readonly viewportHitState = signal<StudioViewportHitReadModel | null>(null);
   private readonly menuMessageState = signal('Workspace ready.');
 
@@ -93,6 +103,9 @@ export class StudioWorkspaceStore {
   readonly renderSettings = this.preferencesStore.renderSettings;
   readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
   readonly assetBrowserCategory = this.assetBrowserCategoryState.asReadonly();
+  readonly activeMenu = this.activeMenuState.asReadonly();
+  readonly bottomPanelTab = this.bottomPanelTabState.asReadonly();
+  readonly selectedScenarioDraftId = this.selectedScenarioDraftIdState.asReadonly();
   readonly viewportHit = this.viewportHitState.asReadonly();
   readonly menuMessage = this.menuMessageState.asReadonly();
 
@@ -154,7 +167,29 @@ export class StudioWorkspaceStore {
     createStudioCompactAgentReadout({
       workspace: this.workspaceState(),
       renderSettings: this.preferencesStore.renderSettings(),
+      viewportCamera: this.viewportCameraState(),
+      viewportTool: this.viewportToolState(),
+      uiState: this.uiState(),
       latestViewportHit: this.viewportHitState(),
+    }),
+  );
+
+  readonly viewportReadout = computed(() =>
+    buildStudioViewportReadout({
+      camera: this.viewportCameraState(),
+      tool: this.viewportToolState(),
+    }),
+  );
+
+  readonly uiState = computed(() =>
+    buildStudioUiStateReadModel({
+      activeMenu: this.activeMenuState(),
+      bottomPanelTab: this.bottomPanelTabState(),
+      assetBrowserCategory: this.assetBrowserCategoryState(),
+      entities: this.workspaceState().entities,
+      selectedScenarioDraftId: this.selectedScenarioDraftIdState(),
+      menuMessage: this.menuMessageState(),
+      savedWorkspaceAvailable: this.savedWorkspaceState() !== null,
     }),
   );
 
@@ -265,6 +300,16 @@ export class StudioWorkspaceStore {
   }
 
   addReferenceRenderable(): void {
+    const intent = createLoadReferenceAssetIntent(this.workspaceState());
+    const dispatchResult = mapStudioIntentToCommand(intent);
+    if (
+      !dispatchResult.accepted
+      || dispatchResult.proposal?.commandId !== 'scene.load_asset'
+      || dispatchResult.proposal.assetId !== 'static-mesh:reference-placeholder'
+    ) {
+      this.menuMessageState.set(dispatchResult.diagnostic ?? 'Reference asset load rejected.');
+      return;
+    }
     const workspace = addReferenceRenderableReadModel(this.workspaceState());
     this.workspaceState.set(workspace);
     this.viewportCameraState.set(
@@ -284,7 +329,33 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(`${matchingCategory?.label ?? 'Assets'} filter selected.`);
   }
 
+  setActiveMenu(menu: StudioApplicationMenu | null): void {
+    this.activeMenuState.set(menu);
+  }
+
+  toggleActiveMenu(menu: StudioApplicationMenu): void {
+    this.activeMenuState.set(this.activeMenuState() === menu ? null : menu);
+  }
+
+  setBottomPanelTab(tab: StudioBottomPanelTab): void {
+    this.bottomPanelTabState.set(tab);
+  }
+
+  setSelectedScenarioDraft(scenarioId: string): void {
+    this.selectedScenarioDraftIdState.set(scenarioId);
+  }
+
   loadScenario(scenarioId: string): void {
+    const intent = createLoadScenarioIntent(this.workspaceState(), scenarioId);
+    const dispatchResult = mapStudioIntentToCommand(intent);
+    if (
+      !dispatchResult.accepted
+      || dispatchResult.proposal?.commandId !== 'session.load_scenario'
+      || dispatchResult.proposal.scenarioId === undefined
+    ) {
+      this.menuMessageState.set(dispatchResult.diagnostic ?? 'Scenario load rejected.');
+      return;
+    }
     const loadResult = loadScenarioReadModel(this.workspaceState(), scenarioId);
     if (!loadResult.ok) {
       this.menuMessageState.set(loadResult.diagnostics.at(0)?.message ?? 'Scenario load failed.');
@@ -296,6 +367,7 @@ export class StudioWorkspaceStore {
     this.viewportCameraState.set(frameStudioViewportCamera(loadResult.workspace.scene));
     this.viewportToolState.set(buildStudioViewportToolReadModel());
     this.assetBrowserCategoryState.set('all');
+    this.selectedScenarioDraftIdState.set(scenarioId);
     this.menuMessageState.set(`Loaded ${loadResult.workspace.session.scenarioLabel}.`);
   }
 
@@ -308,8 +380,15 @@ export class StudioWorkspaceStore {
   }
 
   saveWorkspaceToSlot(): void {
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId: 'workspace.save_browser_slot',
+      label: 'Save Workspace Slot',
+      inputSummary: `sceneHash=${this.workspaceState().scene.sceneHash}`,
+      outputSummary: 'Workspace artifact saved to browser slot.',
+    });
+    this.workspaceState.set(recorded.workspace);
     const artifactText = serializeStudioWorkspaceArtifact({
-      workspace: this.workspaceState(),
+      workspace: recorded.workspace,
       viewportCamera: this.viewportCameraState(),
       viewportTool: this.viewportToolState(),
       preferences: this.preferencesStore.preferences(),
@@ -330,19 +409,41 @@ export class StudioWorkspaceStore {
 
     const restoreResult = restoreStudioWorkspaceArtifact(artifactText);
     if (!restoreResult.ok || restoreResult.artifact === null) {
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'workspace.load_browser_slot',
+        label: 'Load Workspace Slot',
+        inputSummary: 'source=browser-slot',
+        outputSummary: restoreResult.diagnostics.at(0)?.message ?? 'Workspace load failed.',
+        status: 'rejected',
+      });
+      this.workspaceState.set(recorded.workspace);
       this.menuMessageState.set(restoreResult.diagnostics.at(0)?.message ?? 'Workspace load failed.');
       return;
     }
 
-    this.workspaceState.set(restoreResult.artifact.workspace);
+    const recorded = recordStudioWorkspaceUiCommand(restoreResult.artifact.workspace, {
+      commandId: 'workspace.load_browser_slot',
+      label: 'Load Workspace Slot',
+      inputSummary: 'source=browser-slot',
+      outputSummary: 'Workspace artifact restored from browser slot.',
+    });
+    this.workspaceState.set(recorded.workspace);
     this.viewportCameraState.set(restoreResult.artifact.viewportCamera);
     this.viewportToolState.set(restoreResult.artifact.viewportTool);
     this.preferencesStore.setPreferences(restoreResult.artifact.preferences);
+    this.selectedScenarioDraftIdState.set(restoreResult.artifact.workspace.session.scenarioId);
     this.menuMessageState.set('Workspace loaded from browser slot.');
   }
 
   setRenderSetting(key: StudioRenderSettingKey, value: boolean): void {
     this.preferencesStore.setRenderSetting(key, value);
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId: 'preferences.set_render_setting',
+      label: 'Set Render Preference',
+      inputSummary: `${key}=${value}`,
+      outputSummary: `Render setting ${key} updated.`,
+    });
+    this.workspaceState.set(recorded.workspace);
     this.menuMessageState.set('View preference updated.');
   }
 }
