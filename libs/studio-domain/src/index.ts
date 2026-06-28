@@ -122,7 +122,9 @@ export interface StudioGameWorkspaceReadModel {
   readonly policyPackages: readonly string[];
   readonly attachEndpoint: string;
   readonly devCommand: string;
+  readonly runtimeEntry: string;
   readonly publishCommand: string;
+  readonly publishVerifyCommand: string;
   readonly allowedSourceWrites: readonly string[];
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly workspaceHash: string;
@@ -169,7 +171,11 @@ export interface StudioGameWorkspaceReadout {
   readonly policyPackages: readonly string[];
   readonly attachEndpoint: string;
   readonly devCommand: string;
+  readonly runtimeEntry: string;
   readonly publishCommand: string;
+  readonly publishVerifyCommand: string;
+  readonly devResourceProfile: AshaGameManifest['devResourceProfile'];
+  readonly publishResourceProfile: AshaGameManifest['publishResourceProfile'];
   readonly workspaceHash: string;
   readonly diagnostics: readonly StudioDiagnostic[];
 }
@@ -966,7 +972,9 @@ export function loadStudioGameWorkspaceManifest(
     policyPackages: parsed.manifest.workspace.policyPackages,
     attachEndpoint: parsed.manifest.runtime.devtoolsEndpoint,
     devCommand: parsed.manifest.runtime.devCommand,
+    runtimeEntry: parsed.manifest.runtime.wasmOrNativeEntry,
     publishCommand: parsed.manifest.publish.command,
+    publishVerifyCommand: parsed.manifest.publish.verifyCommand,
     allowedSourceWrites: parsed.manifest.studio.allowedSourceWrites,
     diagnostics: [],
     workspaceHash: fnv1aHash('studio-game-workspace', {
@@ -1004,7 +1012,11 @@ export function buildStudioGameWorkspaceReadout(
     policyPackages: workspace.policyPackages,
     attachEndpoint: workspace.attachEndpoint,
     devCommand: workspace.devCommand,
+    runtimeEntry: workspace.runtimeEntry,
     publishCommand: workspace.publishCommand,
+    publishVerifyCommand: workspace.publishVerifyCommand,
+    devResourceProfile: workspace.manifest.devResourceProfile,
+    publishResourceProfile: workspace.manifest.publishResourceProfile,
     workspaceHash: workspace.workspaceHash,
     diagnostics: workspace.diagnostics,
   };

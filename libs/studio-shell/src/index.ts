@@ -176,7 +176,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         color: var(--asha-color-ink);
         display: grid;
         grid-template-columns: 18rem minmax(32rem, 1fr) 21rem;
-        grid-template-rows: 2rem 6.25rem minmax(0, 1fr) 14rem;
+        grid-template-rows: 2rem 9rem minmax(0, 1fr) 14rem;
         grid-template-areas:
           "menu menu menu"
           "top top top"

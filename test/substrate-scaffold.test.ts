@@ -281,7 +281,9 @@ test('game workspace loader opens the asha-demo manifest without path guessing',
   assert.equal(result.workspace.manifestPath, 'asha.game.toml');
   assert.equal(result.workspace.attachEndpoint, 'ws://127.0.0.1:7391');
   assert.equal(result.workspace.devCommand, 'npm run dev');
+  assert.equal(result.workspace.runtimeEntry, 'harness/conformance/fixtures/minimal-world.json');
   assert.equal(result.workspace.publishCommand, 'npm run publish:artifact');
+  assert.equal(result.workspace.publishVerifyCommand, 'npm run conformance');
   assert.deepEqual(result.workspace.sceneRoots, ['scenes']);
   assert.deepEqual(result.workspace.assetRoots, ['assets']);
   assert.deepEqual(result.workspace.catalogPackages, ['packages/game-catalogs']);
@@ -302,7 +304,19 @@ test('game workspace loader opens the asha-demo manifest without path guessing',
   assert.equal(readout.compatibility.devtoolsProtocolVersion, 'devtools-protocol.v0');
   assert.equal(readout.attachEndpoint, 'ws://127.0.0.1:7391');
   assert.equal(readout.devCommand, 'npm run dev');
+  assert.equal(readout.runtimeEntry, 'harness/conformance/fixtures/minimal-world.json');
   assert.equal(readout.publishCommand, 'npm run publish:artifact');
+  assert.equal(readout.publishVerifyCommand, 'npm run conformance');
+  assert.deepEqual(readout.devResourceProfile, {
+    localRoots: ['assets', 'packages/game-catalogs'],
+    cacheDir: 'harness/out/dev-cache',
+    resolutionPolicy: 'prefer-source',
+  });
+  assert.deepEqual(readout.publishResourceProfile, {
+    outputDir: 'harness/out/publish/resources',
+    archiveDir: 'harness/out/publish/archive',
+    resolutionPolicy: 'locked',
+  });
   assert.deepEqual(readout.sceneRoots, ['scenes']);
   assert.deepEqual(readout.assetRoots, ['assets']);
   assert.deepEqual(readout.catalogPackages, ['packages/game-catalogs']);

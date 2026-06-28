@@ -78,6 +78,63 @@ function filteredHierarchyEntities(
         </select>
         <button type="button" (click)="loadSelectedScenario()">Load</button>
       </div>
+
+      <section class="workspace-overview" data-visual-id="studio-game-workspace-overview">
+        @if (store.gameWorkspace(); as workspace) {
+          <div class="workspace-overview__identity">
+            <span class="overview-label">Workspace</span>
+            <strong data-workspace-overview="game-id">{{ workspace.gameId }}</strong>
+            <span data-workspace-overview="workspace-root">{{ workspace.workspaceRoot }}</span>
+          </div>
+          <div class="overview-cell">
+            <span>ASHA</span>
+            <strong data-workspace-overview="engine-version">
+              {{ workspace.manifest.asha.engineVersion }}
+            </strong>
+          </div>
+          <div class="overview-cell">
+            <span>Runtime</span>
+            <strong data-workspace-overview="runtime-bridge-version">
+              {{ workspace.manifest.asha.runtimeBridgeVersion }}
+            </strong>
+            <small data-workspace-overview="runtime-entry">{{ workspace.runtimeEntry }}</small>
+          </div>
+          <div class="overview-cell">
+            <span>Attach</span>
+            <strong data-workspace-overview="attach-endpoint">{{ workspace.attachEndpoint }}</strong>
+          </div>
+          <div class="overview-cell">
+            <span>Dev resources</span>
+            <strong data-workspace-overview="dev-resolution">
+              {{ workspace.manifest.devResourceProfile.resolutionPolicy }}
+            </strong>
+            <small>{{ workspace.manifest.devResourceProfile.cacheDir }}</small>
+          </div>
+          <div class="overview-cell">
+            <span>Publish resources</span>
+            <strong data-workspace-overview="publish-resolution">
+              {{ workspace.manifest.publishResourceProfile.resolutionPolicy }}
+            </strong>
+            <small>{{ workspace.manifest.publishResourceProfile.outputDir }}</small>
+          </div>
+          <div class="overview-cell overview-cell--wide">
+            <span>Commands</span>
+            <strong data-workspace-overview="dev-command">{{ workspace.devCommand }}</strong>
+            <small data-workspace-overview="publish-command">{{ workspace.publishCommand }}</small>
+          </div>
+          <div class="overview-cell overview-cell--hash">
+            <span>Readout</span>
+            <strong data-workspace-overview="workspace-hash">{{ workspace.workspaceHash }}</strong>
+          </div>
+        } @else {
+          <div class="workspace-overview__invalid" data-workspace-overview="diagnostics">
+            <strong>Workspace manifest rejected</strong>
+            @for (diagnostic of store.gameWorkspaceOverview().diagnostics; track diagnostic.code + diagnostic.source) {
+              <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
+            }
+          </div>
+        }
+      </section>
     </section>
   `,
   styles: [
@@ -90,7 +147,7 @@ function filteredHierarchyEntities(
         display: grid;
         gap: 0.2rem 0.75rem;
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto auto auto minmax(0, 1fr);
         height: 100%;
         min-width: 0;
         padding: 0.5rem 0.75rem;
@@ -153,6 +210,77 @@ function filteredHierarchyEntities(
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .workspace-overview {
+        align-items: stretch;
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(9rem, 1.2fr) repeat(5, minmax(6rem, 1fr)) minmax(8rem, 1.15fr) minmax(8rem, 1fr);
+        min-height: 0;
+        min-width: 0;
+      }
+
+      .workspace-overview__identity,
+      .overview-cell,
+      .workspace-overview__invalid {
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.1rem;
+        min-width: 0;
+        overflow: hidden;
+        padding: 0.28rem 0.38rem;
+      }
+
+      .workspace-overview__identity span,
+      .overview-cell span,
+      .overview-cell small,
+      .workspace-overview__invalid span {
+        color: var(--asha-color-muted);
+        font-size: 0.62rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .workspace-overview__identity strong,
+      .overview-cell strong,
+      .workspace-overview__invalid strong {
+        font-size: 0.68rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .overview-label,
+      .overview-cell span {
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .overview-cell--wide {
+        min-width: 0;
+      }
+
+      .overview-cell--hash strong {
+        color: var(--asha-color-accent-text);
+        font-size: 0.62rem;
+      }
+
+      .workspace-overview__invalid {
+        border-color: var(--asha-color-warning);
+        grid-column: 1 / -1;
+      }
+
+      @media (max-width: 1100px) {
+        .workspace-overview {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
       }
     `,
   ],

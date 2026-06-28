@@ -7,6 +7,7 @@ import {
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
+  buildStudioGameWorkspaceReadout,
   buildStudioViewportReadout,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
@@ -24,6 +25,7 @@ import {
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
   loadScenarioReadModel,
+  loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
   recordStudioWorkspaceUiCommand,
@@ -35,6 +37,8 @@ import {
   type StudioAssetBrowserCategory,
   type StudioApplicationMenu,
   type StudioBottomPanelTab,
+  type StudioGameWorkspaceLoadResult,
+  type StudioGameWorkspaceReadout,
   type StudioPreferencesReadModel,
   type StudioRenderSettingKey,
   type StudioViewportCameraControlDelta,
@@ -47,6 +51,71 @@ import {
 import type { SceneObjectId } from '@asha/editor-tools';
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
+const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
+engine_version = "0.1.0"
+contracts_version = "0.1.0"
+runtime_bridge_version = "0.1.0"
+devtools_protocol_version = "devtools-protocol.v0"
+publish_artifact_format_version = "publish-artifact.v0"
+engine_source = "../asha"
+
+[workspace]
+scene_roots = ["scenes"]
+asset_roots = ["assets"]
+replay_roots = ["replays"]
+catalog_packages = ["packages/game-catalogs"]
+policy_packages = ["packages/game-policy"]
+
+[runtime]
+dev_command = "npm run dev"
+devtools_endpoint = "ws://127.0.0.1:7391"
+wasm_or_native_entry = "harness/conformance/fixtures/minimal-world.json"
+
+[studio]
+workspace_mode = true
+attach_enabled = true
+allowed_source_writes = ["scenes", "assets", "packages/game-catalogs", "packages/game-policy"]
+
+[publish]
+command = "npm run publish:artifact"
+artifact_dir = "harness/out"
+verify_command = "npm run conformance"
+
+[dev_resource_profile]
+local_roots = ["assets", "packages/game-catalogs"]
+cache_dir = "harness/out/dev-cache"
+resolution_policy = "prefer-source"
+
+[publish_resource_profile]
+output_dir = "harness/out/publish/resources"
+archive_dir = "harness/out/publish/archive"
+resolution_policy = "locked"
+`;
+
+const DEMO_GAME_WORKSPACE_SCRIPTS: Readonly<Record<string, string>> = {
+  dev: 'node scripts/dev-runtime.mjs',
+  'publish:artifact': 'node scripts/build-publish-artifact.mjs',
+  conformance: 'node scripts/run-conformance.mjs',
+};
+
+const DEMO_GAME_WORKSPACE_PATHS = new Set([
+  'scenes',
+  'assets',
+  'replays',
+  'packages/game-catalogs',
+  'packages/game-policy',
+]);
+
+function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
+  return loadStudioGameWorkspaceManifest({
+    workspaceRoot: '../asha-demo',
+    manifestPath: 'asha.game.toml',
+    gameId: 'asha-demo',
+    manifestText: DEMO_GAME_WORKSPACE_MANIFEST,
+    packageScripts: DEMO_GAME_WORKSPACE_SCRIPTS,
+    pathExists: relativePath => DEMO_GAME_WORKSPACE_PATHS.has(relativePath),
+  });
+}
 
 function browserStorage(): Storage | null {
   try {
@@ -96,6 +165,9 @@ export class StudioWorkspaceStore {
   private readonly hierarchyFilterState = signal('');
   private readonly viewportHitState = signal<StudioViewportHitReadModel | null>(null);
   private readonly menuMessageState = signal('Workspace ready.');
+  private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>(
+    loadDemoGameWorkspace(),
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
@@ -110,6 +182,11 @@ export class StudioWorkspaceStore {
   readonly hierarchyFilter = this.hierarchyFilterState.asReadonly();
   readonly viewportHit = this.viewportHitState.asReadonly();
   readonly menuMessage = this.menuMessageState.asReadonly();
+  readonly gameWorkspaceOverview = this.gameWorkspaceState.asReadonly();
+  readonly gameWorkspace = computed(() => {
+    const overview = this.gameWorkspaceState();
+    return overview.ok ? overview.workspace : null;
+  });
 
   readonly selectedEntity = computed(() => {
     const workspace = this.workspaceState();
@@ -182,6 +259,11 @@ export class StudioWorkspaceStore {
       tool: this.viewportToolState(),
     }),
   );
+
+  readonly gameWorkspaceReadout = computed<StudioGameWorkspaceReadout | null>(() => {
+    const workspace = this.gameWorkspace();
+    return workspace === null ? null : buildStudioGameWorkspaceReadout(workspace);
+  });
 
   readonly uiState = computed(() =>
     buildStudioUiStateReadModel({
