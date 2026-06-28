@@ -1,0 +1,26 @@
+import { computed, type Signal } from '@angular/core';
+import type {
+  StudioCompactAgentReadout,
+  StudioWorkspaceReadModel,
+} from '@asha-studio/domain';
+import {
+  build<%= className %>ReadModel,
+  build<%= className %>ReadoutContribution,
+} from '@asha-studio/domain';
+
+export interface <%= className %>StoreHookInputs {
+  readonly workspace: Signal<StudioWorkspaceReadModel>;
+  readonly compactReadout: Signal<StudioCompactAgentReadout>;
+}
+
+export function create<%= className %>StoreHook(inputs: <%= className %>StoreHookInputs) {
+  const readModel = computed(() => build<%= className %>ReadModel(inputs.workspace()));
+  const readoutContribution = computed(() =>
+    build<%= className %>ReadoutContribution(readModel(), inputs.compactReadout()),
+  );
+
+  return {
+    readModel,
+    readoutContribution,
+  } as const;
+}

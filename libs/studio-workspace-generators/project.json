@@ -12,7 +12,11 @@
         "outputPath": "dist/libs/studio-workspace-generators",
         "main": "libs/studio-workspace-generators/src/index.ts",
         "tsConfig": "libs/studio-workspace-generators/tsconfig.lib.json",
-        "assets": ["libs/studio-workspace-generators/generators.json"]
+        "assets": [
+          "libs/studio-workspace-generators/generators.json",
+          "libs/studio-workspace-generators/src/generators/**/*.json",
+          "libs/studio-workspace-generators/src/generators/**/*.template"
+        ]
       }
     },
     "lint": {

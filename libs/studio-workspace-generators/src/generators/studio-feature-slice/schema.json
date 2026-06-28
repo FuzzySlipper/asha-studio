@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "title": "ASHA Studio Feature Slice",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Feature name in file-name form, for example selected-entity-inspector."
+    },
+    "visualId": {
+      "type": "string",
+      "description": "Stable data-visual-id marker for the optional secondary panel shell."
+    },
+    "includePanel": {
+      "type": "boolean",
+      "description": "Generate an optional secondary panel shell. Defaults to true."
+    }
+  },
+  "required": ["name"]
+}

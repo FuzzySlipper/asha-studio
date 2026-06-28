@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   addReferenceRenderableReadModel,
@@ -41,6 +42,7 @@ import {
   ashaStudioThemeMarker,
   themeTokenCssVariables,
 } from '@asha-studio/theme';
+import generateStudioFeatureSlice from '../libs/studio-workspace-generators/src/generators/studio-feature-slice/generator';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -459,4 +461,88 @@ test('theme package exports the CSS token catalog used by the app', () => {
   for (const cssVariable of cssVariables) {
     assert.equal(tokenCss.includes(cssVariable), true);
   }
+});
+
+test('studio feature-slice generator creates domain store panel and test paths', async () => {
+  const tree = createTreeWithEmptyWorkspace();
+  tree.write('libs/studio-domain/src/index.ts', 'export const domainRoot = true;\n');
+  tree.write('libs/studio-store/src/index.ts', 'export const storeRoot = true;\n');
+  tree.write('libs/studio-panels/src/index.ts', 'export const panelsRoot = true;\n');
+
+  await generateStudioFeatureSlice(tree, {
+    name: 'agent-proof-marker',
+    visualId: 'studio-agent-proof-marker',
+  });
+
+  const domainPath =
+    'libs/studio-domain/src/scaffolded/agent-proof-marker/agent-proof-marker.read-model.ts';
+  const storePath =
+    'libs/studio-store/src/scaffolded/agent-proof-marker/agent-proof-marker.store-hook.ts';
+  const panelPath =
+    'libs/studio-panels/src/scaffolded/agent-proof-marker/agent-proof-marker.component.ts';
+  const testPath = 'test/scaffolded/agent-proof-marker/agent-proof-marker.test.ts';
+
+  assert.equal(tree.exists(domainPath), true);
+  assert.equal(tree.exists(storePath), true);
+  assert.equal(tree.exists(panelPath), true);
+  assert.equal(tree.exists(testPath), true);
+  assert.match(tree.read(domainPath, 'utf8') ?? '', /buildAgentProofMarkerReadModel/);
+  assert.match(tree.read(storePath, 'utf8') ?? '', /createAgentProofMarkerStoreHook/);
+  assert.match(tree.read(panelPath, 'utf8') ?? '', /studio-agent-proof-marker/);
+  assert.match(
+    tree.read('libs/studio-domain/src/index.ts', 'utf8') ?? '',
+    /scaffolded\/agent-proof-marker\/agent-proof-marker\.read-model/,
+  );
+  assert.match(
+    tree.read('libs/studio-store/src/index.ts', 'utf8') ?? '',
+    /scaffolded\/agent-proof-marker\/agent-proof-marker\.store-hook/,
+  );
+});
+
+test('studio feature-slice generator readout template keeps agent proof secondary', async () => {
+  const tree = createTreeWithEmptyWorkspace();
+  tree.write('libs/studio-domain/src/index.ts', '');
+  tree.write('libs/studio-store/src/index.ts', '');
+
+  await generateStudioFeatureSlice(tree, {
+    name: 'compact-readout-check',
+    includePanel: false,
+  });
+
+  const domain = tree.read(
+    'libs/studio-domain/src/scaffolded/compact-readout-check/compact-readout-check.read-model.ts',
+    'utf8',
+  );
+  const store = tree.read(
+    'libs/studio-store/src/scaffolded/compact-readout-check/compact-readout-check.store-hook.ts',
+    'utf8',
+  );
+
+  assert.equal(
+    tree.exists(
+      'libs/studio-panels/src/scaffolded/compact-readout-check/compact-readout-check.component.ts',
+    ),
+    false,
+  );
+  assert.match(domain ?? '', /StudioCompactAgentReadout/);
+  assert.match(domain ?? '', /not_proof_harness/);
+  assert.match(domain ?? '', /compactReadoutVersion/);
+  assert.match(store ?? '', /compactReadout: Signal<StudioCompactAgentReadout>/);
+  assert.match(store ?? '', /readoutContribution/);
+});
+
+test('studio workspace generator package ships schemas and template assets', () => {
+  const projectJson = readFileSync(
+    join(repoRoot, 'libs', 'studio-workspace-generators', 'project.json'),
+    'utf8',
+  );
+  const generatorsJson = readFileSync(
+    join(repoRoot, 'libs', 'studio-workspace-generators', 'generators.json'),
+    'utf8',
+  );
+
+  assert.equal(generatorsJson.includes('studio-feature-slice'), true);
+  assert.equal(generatorsJson.includes('studio-panel'), true);
+  assert.equal(projectJson.includes('src/generators/**/*.json'), true);
+  assert.equal(projectJson.includes('src/generators/**/*.template'), true);
 });

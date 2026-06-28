@@ -5,6 +5,11 @@
       "factory": "./src/generators/studio-panel/generator",
       "schema": "./src/generators/studio-panel/schema.json",
       "description": "Create an ASHA Studio panel scaffold with typed intent/readback markers."
+    },
+    "studio-feature-slice": {
+      "factory": "./src/generators/studio-feature-slice/generator",
+      "schema": "./src/generators/studio-feature-slice/schema.json",
+      "description": "Create an ASHA Studio feature slice scaffold with domain, store, readout, panel, and test paths."
     }
   }
 }
