@@ -4,19 +4,25 @@
   "allowedSourceImports": [
     "@asha/command-registry",
     "@asha/contracts",
+    "@asha/devtools",
     "@asha/editor-tools",
+    "@asha/game-workspace",
     "@asha/runtime-bridge"
   ],
   "allowedLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
+    "@asha/devtools": "link:../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
+    "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
     "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
   },
   "requiredLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
+    "@asha/devtools": "link:../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
+    "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
     "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
   },
   "forbiddenPackages": [

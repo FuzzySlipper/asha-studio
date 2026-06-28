@@ -35,9 +35,15 @@ importers:
       '@asha/contracts':
         specifier: link:../asha/ts/packages/contracts
         version: link:../asha/ts/packages/contracts
+      '@asha/devtools':
+        specifier: link:../asha/ts/packages/devtools
+        version: link:../asha/ts/packages/devtools
       '@asha/editor-tools':
         specifier: link:../asha/ts/packages/editor-tools
         version: link:../asha/ts/packages/editor-tools
+      '@asha/game-workspace':
+        specifier: link:../asha/ts/packages/game-workspace
+        version: link:../asha/ts/packages/game-workspace
       '@asha/runtime-bridge':
         specifier: link:../asha/ts/packages/runtime-bridge
         version: link:../asha/ts/packages/runtime-bridge
@@ -204,6 +210,9 @@ importers:
       '@asha/contracts':
         specifier: link:../../../asha/ts/packages/contracts
         version: link:../../../asha/ts/packages/contracts
+      '@asha/devtools':
+        specifier: link:../../../asha/ts/packages/devtools
+        version: link:../../../asha/ts/packages/devtools
       '@asha/editor-tools':
         specifier: link:../../../asha/ts/packages/editor-tools
         version: link:../../../asha/ts/packages/editor-tools

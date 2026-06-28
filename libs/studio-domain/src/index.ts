@@ -1,7 +1,10 @@
 import {
   sceneId,
   sceneNodeId,
+  type CommandBatch,
+  type CommandResult,
   type FlatSceneDocument,
+  type RenderFrameDiff,
   type SceneNodeId,
   type SceneObjectCommandRejection,
   type SceneObjectCommandRequest,
@@ -9,10 +12,25 @@ import {
   type SceneObjectSnapshot as ContractSceneObjectSnapshot,
 } from '@asha/contracts';
 import {
+  ASHA_DEVTOOLS_PROTOCOL_VERSION,
+  type DevtoolsAttachClientMessage,
+  type DevtoolsAttachServerMessage,
+  type DevtoolsCompatibilityMetadata,
+  type DevtoolsProjectedStateSummary,
+  type DevtoolsRuntimeIdentity,
+  type DevtoolsTelemetrySample,
+} from '@asha/devtools';
+import {
   buildSceneObjectSnapshot,
   type SceneObjectId,
   type SceneObjectSnapshot as EditorSceneObjectSnapshot,
 } from '@asha/editor-tools';
+import {
+  ASHA_GAME_WORKSPACE_COMPATIBILITY,
+  parseAshaGameManifestToml,
+  validateAshaConsumerCompatibility,
+  type AshaGameManifest,
+} from '@asha/game-workspace';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
@@ -67,6 +85,197 @@ export interface StudioDiagnostic {
   readonly message: string;
   readonly source: string | null;
   readonly remediation: string | null;
+}
+
+export type StudioGameWorkspaceDiagnosticCode =
+  | 'manifest_invalid'
+  | 'compatibility_invalid'
+  | 'missing_workspace_root'
+  | 'missing_command'
+  | 'invalid_attach_endpoint';
+export type StudioGameWorkspaceAttachDiagnosticCode =
+  | 'attach_protocol_mismatch'
+  | 'attach_rejected'
+  | 'attach_unexpected_response'
+  | 'attach_runtime_identity_mismatch'
+  | 'attach_compatibility_mismatch';
+export type StudioGameWorkspaceLiveDiagnosticCode =
+  | 'live_attach_workspace_mismatch'
+  | 'live_projection_unavailable'
+  | 'live_render_diff_unavailable'
+  | 'live_telemetry_unavailable';
+export type StudioGameWorkspaceCommandDiagnosticCode =
+  | 'command_attach_workspace_mismatch'
+  | 'command_unexpected_response'
+  | 'command_sequence_mismatch'
+  | 'command_runtime_rejected';
+
+export interface StudioGameWorkspaceReadModel {
+  readonly workspaceVersion: 'studio-game-workspace.v0';
+  readonly workspaceRoot: string;
+  readonly manifestPath: string;
+  readonly gameId: string;
+  readonly manifest: AshaGameManifest;
+  readonly sceneRoots: readonly string[];
+  readonly assetRoots: readonly string[];
+  readonly catalogPackages: readonly string[];
+  readonly policyPackages: readonly string[];
+  readonly attachEndpoint: string;
+  readonly devCommand: string;
+  readonly publishCommand: string;
+  readonly allowedSourceWrites: readonly string[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly workspaceHash: string;
+}
+
+export type StudioGameWorkspaceLoadResult =
+  | {
+      readonly ok: true;
+      readonly workspace: StudioGameWorkspaceReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioGameWorkspaceLoadInput {
+  readonly workspaceRoot: string;
+  readonly manifestPath: string;
+  readonly gameId: string;
+  readonly manifestText: string;
+  readonly packageScripts: Readonly<Record<string, string>>;
+  readonly pathExists: (relativePath: string) => boolean;
+}
+
+export interface StudioGameWorkspaceReadout {
+  readonly readoutVersion: 'studio-game-workspace-readout.v0';
+  readonly commandIds: {
+    readonly openWorkspace: 'workspace.open_game_manifest';
+    readonly validateManifest: 'workspace.validate_game_manifest';
+  };
+  readonly gameId: string;
+  readonly workspaceRoot: string;
+  readonly manifestPath: string;
+  readonly compatibility: {
+    readonly engineVersion: string;
+    readonly contractsVersion: string;
+    readonly runtimeBridgeVersion: string;
+    readonly devtoolsProtocolVersion: string;
+  };
+  readonly sceneRoots: readonly string[];
+  readonly assetRoots: readonly string[];
+  readonly catalogPackages: readonly string[];
+  readonly policyPackages: readonly string[];
+  readonly attachEndpoint: string;
+  readonly devCommand: string;
+  readonly publishCommand: string;
+  readonly workspaceHash: string;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}
+
+export interface StudioDevtoolsAttachTransport {
+  readonly exchange: (
+    message: DevtoolsAttachClientMessage,
+  ) => DevtoolsAttachServerMessage | Promise<DevtoolsAttachServerMessage>;
+}
+
+export interface StudioGameWorkspaceAttachReadModel {
+  readonly attachVersion: 'studio-game-workspace-attach.v0';
+  readonly status: 'attached';
+  readonly endpoint: string;
+  readonly workspaceHash: string;
+  readonly handshakeRequest: Extract<DevtoolsAttachClientMessage, { readonly type: 'handshake.request' }>;
+  readonly compatibility: DevtoolsCompatibilityMetadata;
+  readonly runtime: DevtoolsRuntimeIdentity;
+  readonly attachHash: string;
+  readonly diagnostics: readonly [];
+}
+
+export type StudioGameWorkspaceAttachResult =
+  | {
+      readonly ok: true;
+      readonly attach: StudioGameWorkspaceAttachReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioGameWorkspaceLiveReadModel {
+  readonly liveVersion: 'studio-game-workspace-live.v0';
+  readonly endpoint: string;
+  readonly workspaceHash: string;
+  readonly attachHash: string;
+  readonly projection: DevtoolsProjectedStateSummary;
+  readonly projectionDiagnostics: readonly string[];
+  readonly renderDiff: RenderFrameDiff;
+  readonly renderDiffHash: string;
+  readonly telemetry: readonly DevtoolsTelemetrySample[];
+  readonly liveHash: string;
+  readonly diagnostics: readonly [];
+}
+
+export type StudioGameWorkspaceLiveResult =
+  | {
+      readonly ok: true;
+      readonly live: StudioGameWorkspaceLiveReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioGameWorkspaceCommandProposalReadModel {
+  readonly proposalVersion: 'studio-game-workspace-command.v0';
+  readonly endpoint: string;
+  readonly workspaceHash: string;
+  readonly attachHash: string;
+  readonly sequenceId: string;
+  readonly batch: CommandBatch;
+  readonly status: 'accepted' | 'rejected';
+  readonly result: CommandResult;
+  readonly authorityHashAfter: string | null;
+  readonly rejectionReason: 'authority_rejected' | 'compatibility_mismatch' | 'runtime_unavailable' | null;
+  readonly proposalHash: string;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}
+
+export type StudioGameWorkspaceCommandProposalResult =
+  | {
+      readonly ok: true;
+      readonly proposal: StudioGameWorkspaceCommandProposalReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioGameWorkspaceAttachEvidenceArtifact {
+  readonly artifactKind: 'studio_game_workspace_attach_evidence';
+  readonly artifactVersion: 'studio-game-workspace-attach-evidence.v0';
+  readonly artifactId: string;
+  readonly generatedFrom: {
+    readonly workspaceHash: string;
+    readonly attachHash: string;
+    readonly liveHash: string | null;
+    readonly commandProposalHashes: readonly string[];
+  };
+  readonly workspace: StudioGameWorkspaceReadout;
+  readonly attach: StudioGameWorkspaceAttachReadModel;
+  readonly live: StudioGameWorkspaceLiveReadModel | null;
+  readonly commandProposals: readonly StudioGameWorkspaceCommandProposalReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_native_runtime_authority',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+    'not_publish_artifact',
+  ];
+  readonly artifactHash: string;
 }
 
 export interface StudioCompatibilityRequirement {
@@ -660,6 +869,540 @@ function fnv1aHash(prefix: string, value: unknown): string {
   }
 
   return `${prefix}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+export function loadStudioGameWorkspaceManifest(
+  input: StudioGameWorkspaceLoadInput,
+): StudioGameWorkspaceLoadResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const parsed = parseAshaGameManifestToml(input.manifestText);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      diagnostics: parsed.diagnostics.map(diagnostic =>
+        studioGameWorkspaceDiagnostic(
+          'manifest_invalid',
+          diagnostic.message,
+          diagnostic.path,
+          diagnostic.code,
+        ),
+      ),
+    };
+  }
+
+  const compatibility = validateAshaConsumerCompatibility(
+    parsed.manifest,
+    ASHA_GAME_WORKSPACE_COMPATIBILITY,
+  );
+  if (!compatibility.ok) {
+    diagnostics.push(...compatibility.diagnostics.map(diagnostic =>
+      studioGameWorkspaceDiagnostic(
+        'compatibility_invalid',
+        diagnostic.message,
+        diagnostic.path,
+        diagnostic.code,
+      ),
+    ));
+  }
+
+  for (const [kind, roots] of [
+    ['scene_roots', parsed.manifest.workspace.sceneRoots],
+    ['asset_roots', parsed.manifest.workspace.assetRoots],
+    ['replay_roots', parsed.manifest.workspace.replayRoots],
+    ['catalog_packages', parsed.manifest.workspace.catalogPackages],
+    ['policy_packages', parsed.manifest.workspace.policyPackages],
+  ] as const) {
+    for (const root of roots) {
+      if (!input.pathExists(root)) {
+        diagnostics.push(studioGameWorkspaceDiagnostic(
+          'missing_workspace_root',
+          `Manifest ${kind} entry does not exist: ${root}`,
+          root,
+          kind,
+        ));
+      }
+    }
+  }
+
+  for (const [kind, command] of [
+    ['runtime.dev_command', parsed.manifest.runtime.devCommand],
+    ['publish.command', parsed.manifest.publish.command],
+    ['publish.verify_command', parsed.manifest.publish.verifyCommand],
+  ] as const) {
+    const scriptName = npmRunScriptName(command);
+    if (scriptName === null || input.packageScripts[scriptName] === undefined) {
+      diagnostics.push(studioGameWorkspaceDiagnostic(
+        'missing_command',
+        `Manifest ${kind} does not reference an available npm script: ${command}`,
+        kind,
+        command,
+      ));
+    }
+  }
+
+  if (!parsed.manifest.runtime.devtoolsEndpoint.startsWith('ws://127.0.0.1:')
+    && !parsed.manifest.runtime.devtoolsEndpoint.startsWith('ws://localhost:')) {
+    diagnostics.push(studioGameWorkspaceDiagnostic(
+      'invalid_attach_endpoint',
+      `Attach endpoint must be local websocket: ${parsed.manifest.runtime.devtoolsEndpoint}`,
+      'runtime.devtools_endpoint',
+      parsed.manifest.runtime.devtoolsEndpoint,
+    ));
+  }
+
+  if (diagnostics.length > 0) {
+    return { ok: false, diagnostics };
+  }
+
+  const workspace: StudioGameWorkspaceReadModel = {
+    workspaceVersion: 'studio-game-workspace.v0',
+    workspaceRoot: input.workspaceRoot,
+    manifestPath: input.manifestPath,
+    gameId: input.gameId,
+    manifest: parsed.manifest,
+    sceneRoots: parsed.manifest.workspace.sceneRoots,
+    assetRoots: parsed.manifest.workspace.assetRoots,
+    catalogPackages: parsed.manifest.workspace.catalogPackages,
+    policyPackages: parsed.manifest.workspace.policyPackages,
+    attachEndpoint: parsed.manifest.runtime.devtoolsEndpoint,
+    devCommand: parsed.manifest.runtime.devCommand,
+    publishCommand: parsed.manifest.publish.command,
+    allowedSourceWrites: parsed.manifest.studio.allowedSourceWrites,
+    diagnostics: [],
+    workspaceHash: fnv1aHash('studio-game-workspace', {
+      workspaceRoot: input.workspaceRoot,
+      manifestPath: input.manifestPath,
+      gameId: input.gameId,
+      manifest: parsed.manifest,
+    }),
+  };
+
+  return { ok: true, workspace, diagnostics: [] };
+}
+
+export function buildStudioGameWorkspaceReadout(
+  workspace: StudioGameWorkspaceReadModel,
+): StudioGameWorkspaceReadout {
+  return {
+    readoutVersion: 'studio-game-workspace-readout.v0',
+    commandIds: {
+      openWorkspace: 'workspace.open_game_manifest',
+      validateManifest: 'workspace.validate_game_manifest',
+    },
+    gameId: workspace.gameId,
+    workspaceRoot: workspace.workspaceRoot,
+    manifestPath: workspace.manifestPath,
+    compatibility: {
+      engineVersion: workspace.manifest.asha.engineVersion,
+      contractsVersion: workspace.manifest.asha.contractsVersion,
+      runtimeBridgeVersion: workspace.manifest.asha.runtimeBridgeVersion,
+      devtoolsProtocolVersion: workspace.manifest.asha.devtoolsProtocolVersion,
+    },
+    sceneRoots: workspace.sceneRoots,
+    assetRoots: workspace.assetRoots,
+    catalogPackages: workspace.catalogPackages,
+    policyPackages: workspace.policyPackages,
+    attachEndpoint: workspace.attachEndpoint,
+    devCommand: workspace.devCommand,
+    publishCommand: workspace.publishCommand,
+    workspaceHash: workspace.workspaceHash,
+    diagnostics: workspace.diagnostics,
+  };
+}
+
+export function buildStudioGameWorkspaceHandshakeRequest(
+  workspace: StudioGameWorkspaceReadModel,
+): Extract<DevtoolsAttachClientMessage, { readonly type: 'handshake.request' }> {
+  return {
+    type: 'handshake.request',
+    protocolVersion: ASHA_DEVTOOLS_PROTOCOL_VERSION,
+    clientName: 'asha-studio',
+    requestedWorkspaceId: workspace.gameId,
+  };
+}
+
+export async function attachStudioGameWorkspaceDevtools(
+  workspace: StudioGameWorkspaceReadModel,
+  transport: StudioDevtoolsAttachTransport,
+): Promise<StudioGameWorkspaceAttachResult> {
+  const handshakeRequest = buildStudioGameWorkspaceHandshakeRequest(workspace);
+  const response = await transport.exchange(handshakeRequest);
+  if (response.type !== 'handshake.response') {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceAttachDiagnostic(
+          'attach_unexpected_response',
+          `Attach handshake expected handshake.response and received ${response.type}.`,
+          workspace.attachEndpoint,
+          response.type,
+        ),
+      ],
+    };
+  }
+
+  if (!response.accepted) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceAttachDiagnostic(
+          response.reason === 'unsupported_protocol' ? 'attach_protocol_mismatch' : 'attach_rejected',
+          `Attach handshake rejected: ${response.reason}.`,
+          workspace.attachEndpoint,
+          response.reason,
+        ),
+      ],
+    };
+  }
+
+  const diagnostics: StudioDiagnostic[] = [];
+  if (response.protocolVersion !== ASHA_DEVTOOLS_PROTOCOL_VERSION
+    || response.compatibility.protocolVersion !== ASHA_DEVTOOLS_PROTOCOL_VERSION
+    || response.compatibility.protocolVersion !== workspace.manifest.asha.devtoolsProtocolVersion) {
+    diagnostics.push(studioGameWorkspaceAttachDiagnostic(
+      'attach_protocol_mismatch',
+      'Attach protocol version does not match Studio and manifest compatibility.',
+      workspace.attachEndpoint,
+      response.compatibility.protocolVersion,
+    ));
+  }
+
+  if (response.compatibility.contractsCompatibility !== ASHA_GAME_WORKSPACE_COMPATIBILITY.contracts.compatibilityVersion
+    || response.compatibility.runtimeBridgeCompatibility !== ASHA_GAME_WORKSPACE_COMPATIBILITY.runtimeBridge.compatibilityVersion
+    || response.compatibility.publishArtifactFormat !== ASHA_GAME_WORKSPACE_COMPATIBILITY.publishArtifact.compatibilityVersion) {
+    diagnostics.push(studioGameWorkspaceAttachDiagnostic(
+      'attach_compatibility_mismatch',
+      'Attach compatibility metadata does not match the opened game workspace manifest.',
+      workspace.attachEndpoint,
+      response.compatibility.protocolVersion,
+    ));
+  }
+
+  if (response.runtime.gameId !== workspace.gameId
+    || response.runtime.workspaceId !== workspace.gameId
+    || response.runtime.engineVersion !== workspace.manifest.asha.engineVersion) {
+    diagnostics.push(studioGameWorkspaceAttachDiagnostic(
+      'attach_runtime_identity_mismatch',
+      'Attached runtime identity does not match the opened game workspace.',
+      workspace.attachEndpoint,
+      response.runtime.gameId,
+    ));
+  }
+
+  if (diagnostics.length > 0) {
+    return { ok: false, diagnostics };
+  }
+
+  const attach: StudioGameWorkspaceAttachReadModel = {
+    attachVersion: 'studio-game-workspace-attach.v0',
+    status: 'attached',
+    endpoint: workspace.attachEndpoint,
+    workspaceHash: workspace.workspaceHash,
+    handshakeRequest,
+    compatibility: response.compatibility,
+    runtime: response.runtime,
+    attachHash: fnv1aHash('studio-game-workspace-attach', {
+      endpoint: workspace.attachEndpoint,
+      workspaceHash: workspace.workspaceHash,
+      compatibility: response.compatibility,
+      runtime: response.runtime,
+    }),
+    diagnostics: [],
+  };
+
+  return { ok: true, attach, diagnostics: [] };
+}
+
+export async function refreshStudioGameWorkspaceLiveReadModel(
+  workspace: StudioGameWorkspaceReadModel,
+  attach: StudioGameWorkspaceAttachReadModel,
+  transport: StudioDevtoolsAttachTransport,
+): Promise<StudioGameWorkspaceLiveResult> {
+  if (attach.workspaceHash !== workspace.workspaceHash || attach.endpoint !== workspace.attachEndpoint) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceLiveDiagnostic(
+          'live_attach_workspace_mismatch',
+          'Live readout attach state does not match the opened game workspace.',
+          workspace.attachEndpoint,
+          attach.attachHash,
+        ),
+      ],
+    };
+  }
+
+  const projection = await transport.exchange({ type: 'projection.pull', sinceTick: null });
+  if (projection.type !== 'projection.snapshot' || projection.summary.worldHash.length === 0) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceLiveDiagnostic(
+          'live_projection_unavailable',
+          'Projection pull did not return a valid projection.snapshot.',
+          workspace.attachEndpoint,
+          projection.type,
+        ),
+      ],
+    };
+  }
+
+  const renderDiff = await transport.exchange({
+    type: 'render_diff.snapshot',
+    sinceHash: projection.summary.renderDiffHash,
+  });
+  if (renderDiff.type !== 'render_diff.snapshot' || renderDiff.renderDiffHash.length === 0) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceLiveDiagnostic(
+          'live_render_diff_unavailable',
+          'Render-diff pull did not return a valid render_diff.snapshot.',
+          workspace.attachEndpoint,
+          renderDiff.type,
+        ),
+      ],
+    };
+  }
+
+  const telemetry = await transport.exchange({ type: 'telemetry.pull', maxSamples: 8 });
+  if (telemetry.type !== 'telemetry.snapshot' || telemetry.samples.length === 0) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceLiveDiagnostic(
+          'live_telemetry_unavailable',
+          'Telemetry pull did not return samples.',
+          workspace.attachEndpoint,
+          telemetry.type,
+        ),
+      ],
+    };
+  }
+
+  const live: StudioGameWorkspaceLiveReadModel = {
+    liveVersion: 'studio-game-workspace-live.v0',
+    endpoint: workspace.attachEndpoint,
+    workspaceHash: workspace.workspaceHash,
+    attachHash: attach.attachHash,
+    projection: projection.summary,
+    projectionDiagnostics: projection.diagnostics,
+    renderDiff: renderDiff.frame,
+    renderDiffHash: renderDiff.renderDiffHash,
+    telemetry: telemetry.samples,
+    liveHash: fnv1aHash('studio-game-workspace-live', {
+      workspaceHash: workspace.workspaceHash,
+      attachHash: attach.attachHash,
+      projection: projection.summary,
+      renderDiffHash: renderDiff.renderDiffHash,
+      telemetry: telemetry.samples,
+    }),
+    diagnostics: [],
+  };
+
+  return { ok: true, live, diagnostics: [] };
+}
+
+export async function proposeStudioGameWorkspaceCommand(
+  workspace: StudioGameWorkspaceReadModel,
+  attach: StudioGameWorkspaceAttachReadModel,
+  transport: StudioDevtoolsAttachTransport,
+  input: {
+    readonly sequenceId: string;
+    readonly batch: CommandBatch;
+  },
+): Promise<StudioGameWorkspaceCommandProposalResult> {
+  if (attach.workspaceHash !== workspace.workspaceHash || attach.endpoint !== workspace.attachEndpoint) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceCommandDiagnostic(
+          'command_attach_workspace_mismatch',
+          'Command proposal attach state does not match the opened game workspace.',
+          workspace.attachEndpoint,
+          attach.attachHash,
+        ),
+      ],
+    };
+  }
+
+  const response = await transport.exchange({
+    type: 'command.propose',
+    sequenceId: input.sequenceId,
+    batch: input.batch,
+  });
+  if (response.type !== 'command.result') {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceCommandDiagnostic(
+          'command_unexpected_response',
+          `Command proposal expected command.result and received ${response.type}.`,
+          workspace.attachEndpoint,
+          response.type,
+        ),
+      ],
+    };
+  }
+
+  if (response.proposal.sequenceId !== input.sequenceId) {
+    return {
+      ok: false,
+      diagnostics: [
+        studioGameWorkspaceCommandDiagnostic(
+          'command_sequence_mismatch',
+          'Command proposal response sequence id does not match the submitted command.',
+          workspace.attachEndpoint,
+          response.proposal.sequenceId,
+        ),
+      ],
+    };
+  }
+
+  const diagnostics = response.proposal.status === 'rejected'
+    ? [
+        studioGameWorkspaceCommandDiagnostic(
+          'command_runtime_rejected',
+          `Runtime rejected command proposal: ${response.proposal.reason}.`,
+          workspace.attachEndpoint,
+          response.proposal.reason,
+        ),
+      ]
+    : [];
+
+  const proposal: StudioGameWorkspaceCommandProposalReadModel = {
+    proposalVersion: 'studio-game-workspace-command.v0',
+    endpoint: workspace.attachEndpoint,
+    workspaceHash: workspace.workspaceHash,
+    attachHash: attach.attachHash,
+    sequenceId: input.sequenceId,
+    batch: input.batch,
+    status: response.proposal.status,
+    result: response.proposal.result,
+    authorityHashAfter: response.proposal.authorityHashAfter,
+    rejectionReason: response.proposal.status === 'rejected' ? response.proposal.reason : null,
+    proposalHash: fnv1aHash('studio-game-workspace-command', {
+      workspaceHash: workspace.workspaceHash,
+      attachHash: attach.attachHash,
+      sequenceId: input.sequenceId,
+      batch: input.batch,
+      proposal: response.proposal,
+    }),
+    diagnostics,
+  };
+
+  return { ok: true, proposal, diagnostics: [] };
+}
+
+export function exportStudioGameWorkspaceAttachEvidence(
+  input: {
+    readonly workspace: StudioGameWorkspaceReadModel;
+    readonly attach: StudioGameWorkspaceAttachReadModel;
+    readonly live?: StudioGameWorkspaceLiveReadModel | null;
+    readonly commandProposals?: readonly StudioGameWorkspaceCommandProposalReadModel[];
+    readonly diagnostics?: readonly StudioDiagnostic[];
+  },
+): StudioGameWorkspaceAttachEvidenceArtifact {
+  const live = input.live ?? null;
+  const commandProposals = input.commandProposals ?? [];
+  const generatedFrom = {
+    workspaceHash: input.workspace.workspaceHash,
+    attachHash: input.attach.attachHash,
+    liveHash: live?.liveHash ?? null,
+    commandProposalHashes: commandProposals.map(proposal => proposal.proposalHash),
+  };
+  const artifactHash = fnv1aHash('studio-game-workspace-attach-evidence', {
+    generatedFrom,
+    workspaceReadout: buildStudioGameWorkspaceReadout(input.workspace),
+    attach: input.attach,
+    live,
+    commandProposals,
+    diagnostics: input.diagnostics ?? [],
+  });
+
+  return {
+    artifactKind: 'studio_game_workspace_attach_evidence',
+    artifactVersion: 'studio-game-workspace-attach-evidence.v0',
+    artifactId: `studio-game-workspace-attach:${artifactHash}`,
+    generatedFrom,
+    workspace: buildStudioGameWorkspaceReadout(input.workspace),
+    attach: input.attach,
+    live,
+    commandProposals,
+    diagnostics: input.diagnostics ?? [],
+    nonClaims: [
+      'not_native_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+      'not_publish_artifact',
+    ],
+    artifactHash,
+  };
+}
+
+function npmRunScriptName(command: string): string | null {
+  const match = /^npm run ([A-Za-z0-9:_-]+)$/.exec(command);
+  return match?.[1] ?? null;
+}
+
+function studioGameWorkspaceDiagnostic(
+  code: StudioGameWorkspaceDiagnosticCode,
+  message: string,
+  source: string,
+  detail: string,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation: `asha.game.toml:${detail}`,
+  };
+}
+
+function studioGameWorkspaceAttachDiagnostic(
+  code: StudioGameWorkspaceAttachDiagnosticCode,
+  message: string,
+  source: string,
+  detail: string,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation: `devtools.attach:${detail}`,
+  };
+}
+
+function studioGameWorkspaceLiveDiagnostic(
+  code: StudioGameWorkspaceLiveDiagnosticCode,
+  message: string,
+  source: string,
+  detail: string,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation: `devtools.live:${detail}`,
+  };
+}
+
+function studioGameWorkspaceCommandDiagnostic(
+  code: StudioGameWorkspaceCommandDiagnosticCode,
+  message: string,
+  source: string,
+  detail: string,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation: `devtools.command:${detail}`,
+  };
 }
 
 function buildSceneHash(renderables: readonly StudioSceneRenderableReadModel[]): string {

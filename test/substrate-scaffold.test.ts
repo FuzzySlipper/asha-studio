@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import { COMMAND_IDS } from '@asha/command-registry';
+import { buildDevtoolsProtocolGoldenFixtures, createDevtoolsFixtureEndpoint } from '@asha/devtools';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   addReferenceRenderableReadModel,
+  attachStudioGameWorkspaceDevtools,
   applySelectedEntityReadModel,
+  buildStudioGameWorkspaceHandshakeRequest,
   buildAssetBrowserCategories,
   buildInitialWorkspaceReadModel,
+  buildStudioGameWorkspaceReadout,
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
   buildStudioCompatibilityEvidence,
@@ -29,13 +34,17 @@ import {
   createReparentSceneObjectRequest,
   createSceneObjectCommandIntent,
   createSelectEntityIntent,
+  exportStudioGameWorkspaceAttachEvidence,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
   loadScenarioReadModel,
+  loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
+  proposeStudioGameWorkspaceCommand,
   recordStudioWorkspaceUiCommand,
+  refreshStudioGameWorkspaceLiveReadModel,
   restoreStudioWorkspaceArtifact,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
@@ -54,6 +63,15 @@ import {
 import generateStudioFeatureSlice from '../libs/studio-workspace-generators/src/generators/studio-feature-slice/generator';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const demoRoot = join(repoRoot, '../asha-demo');
+
+function loadDemoPackageScripts(): Record<string, string> {
+  return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).scripts;
+}
+
+function loadDemoPackageName(): string {
+  return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).name;
+}
 
 test('selection intent maps through the public command identity before read model update', () => {
   const initialReadModel = buildInitialWorkspaceReadModel();
@@ -244,6 +262,333 @@ test('scenario load fails closed for unknown scenario ids', () => {
   assert.equal(loaded.ok, false);
   assert.equal(loaded.workspace, readModel);
   assert.equal(loaded.diagnostics.at(0)?.code, 'scenario_load_unknown');
+});
+
+test('game workspace loader opens the asha-demo manifest without path guessing', () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  assert.equal(result.workspace.workspaceVersion, 'studio-game-workspace.v0');
+  assert.equal(result.workspace.gameId, 'asha-demo');
+  assert.equal(result.workspace.manifestPath, 'asha.game.toml');
+  assert.equal(result.workspace.attachEndpoint, 'ws://127.0.0.1:7391');
+  assert.equal(result.workspace.devCommand, 'npm run dev');
+  assert.equal(result.workspace.publishCommand, 'npm run publish:artifact');
+  assert.deepEqual(result.workspace.sceneRoots, ['scenes']);
+  assert.deepEqual(result.workspace.assetRoots, ['assets']);
+  assert.deepEqual(result.workspace.catalogPackages, ['packages/game-catalogs']);
+  assert.deepEqual(result.workspace.policyPackages, ['packages/game-policy']);
+  assert.ok(result.workspace.allowedSourceWrites.includes('packages/game-catalogs'));
+  assert.match(result.workspace.workspaceHash, /^studio-game-workspace-/);
+
+  const readout = buildStudioGameWorkspaceReadout(result.workspace);
+  assert.equal(readout.readoutVersion, 'studio-game-workspace-readout.v0');
+  assert.deepEqual(readout.commandIds, {
+    openWorkspace: 'workspace.open_game_manifest',
+    validateManifest: 'workspace.validate_game_manifest',
+  });
+  assert.equal(readout.gameId, 'asha-demo');
+  assert.equal(readout.compatibility.engineVersion, '0.1.0');
+  assert.equal(readout.compatibility.contractsVersion, '0.1.0');
+  assert.equal(readout.compatibility.runtimeBridgeVersion, '0.1.0');
+  assert.equal(readout.compatibility.devtoolsProtocolVersion, 'devtools-protocol.v0');
+  assert.equal(readout.attachEndpoint, 'ws://127.0.0.1:7391');
+  assert.equal(readout.devCommand, 'npm run dev');
+  assert.equal(readout.publishCommand, 'npm run publish:artifact');
+  assert.deepEqual(readout.sceneRoots, ['scenes']);
+  assert.deepEqual(readout.assetRoots, ['assets']);
+  assert.deepEqual(readout.catalogPackages, ['packages/game-catalogs']);
+  assert.deepEqual(readout.policyPackages, ['packages/game-policy']);
+  assert.ok(COMMAND_IDS.includes('workspace.open_game_manifest'));
+  assert.ok(COMMAND_IDS.includes('workspace.validate_game_manifest'));
+});
+
+test('game workspace attach client performs typed devtools handshake', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const handshake = buildStudioGameWorkspaceHandshakeRequest(result.workspace);
+  assert.equal(handshake.type, 'handshake.request');
+  assert.equal(handshake.clientName, 'asha-studio');
+  assert.equal(handshake.requestedWorkspaceId, 'asha-demo');
+  assert.equal(handshake.protocolVersion, result.workspace.manifest.asha.devtoolsProtocolVersion);
+
+  const attached = await attachStudioGameWorkspaceDevtools(
+    result.workspace,
+    createDevtoolsFixtureEndpoint(),
+  );
+
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  assert.equal(attached.attach.attachVersion, 'studio-game-workspace-attach.v0');
+  assert.equal(attached.attach.status, 'attached');
+  assert.equal(attached.attach.endpoint, 'ws://127.0.0.1:7391');
+  assert.equal(attached.attach.runtime.gameId, 'asha-demo');
+  assert.equal(attached.attach.runtime.workspaceId, 'asha-demo');
+  assert.equal(attached.attach.compatibility.protocolVersion, 'devtools-protocol.v0');
+  assert.equal(attached.attach.compatibility.contractsCompatibility, 'contracts.v0');
+  assert.equal(attached.attach.compatibility.runtimeBridgeCompatibility, 'runtime-bridge.v0');
+  assert.equal(attached.attach.compatibility.publishArtifactFormat, 'publish-artifact.v0');
+  assert.equal(attached.attach.workspaceHash, result.workspace.workspaceHash);
+  assert.match(attached.attach.attachHash, /^studio-game-workspace-attach-/);
+});
+
+test('game workspace attach client fails closed on incompatible protocol', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const attached = await attachStudioGameWorkspaceDevtools(
+    result.workspace,
+    createDevtoolsFixtureEndpoint({ forceProtocolVersion: 'devtools-protocol.v999' }),
+  );
+
+  assert.equal(attached.ok, false);
+  if (attached.ok) throw new Error('incompatible protocol should fail');
+  assert.equal(attached.diagnostics.at(0)?.code, 'attach_protocol_mismatch');
+});
+
+test('game workspace live readout pulls projection render diff and telemetry through attach transport', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+
+  const live = await refreshStudioGameWorkspaceLiveReadModel(
+    result.workspace,
+    attached.attach,
+    transport,
+  );
+
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+  assert.equal(live.live.liveVersion, 'studio-game-workspace-live.v0');
+  assert.equal(live.live.endpoint, 'ws://127.0.0.1:7391');
+  assert.equal(live.live.workspaceHash, result.workspace.workspaceHash);
+  assert.equal(live.live.attachHash, attached.attach.attachHash);
+  assert.equal(live.live.projection.worldHash, 'world:demo:1');
+  assert.equal(live.live.projection.entityCount, 1);
+  assert.equal(live.live.renderDiffHash, 'render:demo:1');
+  assert.equal(live.live.renderDiff.ops.length, 0);
+  assert.equal(live.live.telemetry.some(sample => sample.metric === 'frame_ms'), true);
+  assert.equal(live.live.telemetry.some(sample => sample.metric === 'command_queue_depth'), true);
+  assert.match(live.live.liveHash, /^studio-game-workspace-live-/);
+});
+
+test('game workspace live readout fails closed when telemetry is unavailable', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const fixture = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, fixture);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+
+  const live = await refreshStudioGameWorkspaceLiveReadModel(
+    result.workspace,
+    attached.attach,
+    {
+      async exchange(message) {
+        if (message.type === 'telemetry.pull') {
+          return { type: 'telemetry.snapshot', samples: [] };
+        }
+        return fixture.exchange(message);
+      },
+    },
+  );
+
+  assert.equal(live.ok, false);
+  if (live.ok) throw new Error('missing telemetry should fail');
+  assert.equal(live.diagnostics.at(0)?.code, 'live_telemetry_unavailable');
+});
+
+test('game workspace command proposal flows through typed attach transport', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+
+  const proposal = await proposeStudioGameWorkspaceCommand(
+    result.workspace,
+    attached.attach,
+    transport,
+    { sequenceId: command.sequenceId, batch: command.batch },
+  );
+
+  assert.equal(proposal.ok, true);
+  if (!proposal.ok) throw new Error('command proposal should succeed');
+  assert.equal(proposal.proposal.proposalVersion, 'studio-game-workspace-command.v0');
+  assert.equal(proposal.proposal.status, 'accepted');
+  assert.equal(proposal.proposal.sequenceId, 'seq-1');
+  assert.equal(proposal.proposal.result.accepted, 1);
+  assert.equal(proposal.proposal.result.rejected, 0);
+  assert.equal(proposal.proposal.authorityHashAfter, 'authority:after:accepted');
+  assert.equal(proposal.proposal.rejectionReason, null);
+  assert.equal(proposal.proposal.workspaceHash, result.workspace.workspaceHash);
+  assert.equal(proposal.proposal.attachHash, attached.attach.attachHash);
+  assert.match(proposal.proposal.proposalHash, /^studio-game-workspace-command-/);
+});
+
+test('game workspace command proposal records runtime rejections without private retry path', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint({ commandProposalSupported: false });
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+
+  const proposal = await proposeStudioGameWorkspaceCommand(
+    result.workspace,
+    attached.attach,
+    transport,
+    { sequenceId: command.sequenceId, batch: command.batch },
+  );
+
+  assert.equal(proposal.ok, true);
+  if (!proposal.ok) throw new Error('runtime rejection is still a typed command result');
+  assert.equal(proposal.proposal.status, 'rejected');
+  assert.equal(proposal.proposal.result.accepted, 0);
+  assert.equal(proposal.proposal.result.rejected, 1);
+  assert.equal(proposal.proposal.rejectionReason, 'runtime_unavailable');
+  assert.equal(proposal.proposal.diagnostics.at(0)?.code, 'command_runtime_rejected');
+});
+
+test('game workspace attach evidence artifact correlates attach live and command readouts', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const live = await refreshStudioGameWorkspaceLiveReadModel(result.workspace, attached.attach, transport);
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+  const proposal = await proposeStudioGameWorkspaceCommand(
+    result.workspace,
+    attached.attach,
+    transport,
+    { sequenceId: command.sequenceId, batch: command.batch },
+  );
+  assert.equal(proposal.ok, true);
+  if (!proposal.ok) throw new Error('command proposal should succeed');
+
+  const artifact = exportStudioGameWorkspaceAttachEvidence({
+    workspace: result.workspace,
+    attach: attached.attach,
+    live: live.live,
+    commandProposals: [proposal.proposal],
+  });
+
+  assert.equal(artifact.artifactKind, 'studio_game_workspace_attach_evidence');
+  assert.equal(artifact.artifactVersion, 'studio-game-workspace-attach-evidence.v0');
+  assert.equal(artifact.workspace.gameId, 'asha-demo');
+  assert.equal(artifact.generatedFrom.workspaceHash, result.workspace.workspaceHash);
+  assert.equal(artifact.generatedFrom.attachHash, attached.attach.attachHash);
+  assert.equal(artifact.generatedFrom.liveHash, live.live.liveHash);
+  assert.deepEqual(artifact.generatedFrom.commandProposalHashes, [proposal.proposal.proposalHash]);
+  assert.equal(artifact.attach.runtime.gameId, 'asha-demo');
+  assert.equal(artifact.live?.projection.worldHash, 'world:demo:1');
+  assert.equal(artifact.commandProposals.at(0)?.status, 'accepted');
+  assert.deepEqual(artifact.nonClaims, [
+    'not_native_runtime_authority',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+    'not_publish_artifact',
+  ]);
+  assert.match(artifact.artifactId, /^studio-game-workspace-attach:studio-game-workspace-attach-evidence-/);
+  assert.match(artifact.artifactHash, /^studio-game-workspace-attach-evidence-/);
+});
+
+test('game workspace loader fails closed for invalid manifests and missing commands', () => {
+  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('engine_version = "0.1.0"', 'engine_version = "latest"');
+
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText,
+    packageScripts: {},
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, false);
+  if (result.ok) throw new Error('invalid workspace should fail');
+  assert.equal(result.diagnostics.some(diagnostic => diagnostic.code === 'manifest_invalid'), true);
 });
 
 test('hierarchy add action projects a reference renderable through scene.load_asset', () => {
