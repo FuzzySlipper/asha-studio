@@ -67,7 +67,14 @@ export type StudioAssetBrowserCategory =
   | 'textures'
   | 'generated'
   | 'preview';
-export type StudioBottomPanelTab = 'timeline' | 'assets' | 'proof_scenes' | 'evidence';
+export type StudioBottomPanelTab =
+  | 'timeline'
+  | 'assets'
+  | 'proof_scenes'
+  | 'commands'
+  | 'publish'
+  | 'evidence';
+export type StudioCommandProposalActionId = 'set_voxel_reference';
 export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'preferences';
 export type StudioRenderSettingKey =
   | 'wireframeEnabled'
@@ -110,12 +117,22 @@ export type StudioGameWorkspaceCommandDiagnosticCode =
   | 'command_unexpected_response'
   | 'command_sequence_mismatch'
   | 'command_runtime_rejected';
+export type StudioRuntimeSessionDiagnosticCode =
+  | 'runtime_session_attach_mismatch'
+  | 'runtime_session_live_mismatch'
+  | 'runtime_session_reserved';
 export type StudioAssetInventoryDiagnosticCode =
   | 'asset_inventory_artifact_mismatch'
   | 'asset_inventory_missing_entry'
   | 'asset_inventory_missing_resolution'
   | 'asset_inventory_dependency_mismatch'
   | 'asset_inventory_diagnostic';
+export type StudioPublishEvidenceDiagnosticCode =
+  | 'publish_evidence_missing'
+  | 'publish_evidence_version_mismatch'
+  | 'publish_evidence_stale'
+  | 'publish_evidence_dependency_guard_failed'
+  | 'publish_evidence_run_smoke_failed';
 export type StudioProofSceneDiagnosticCode =
   | 'proof_scene_missing'
   | 'proof_scene_unsupported_schema'
@@ -262,6 +279,36 @@ export interface StudioGameWorkspaceCommandProposalReadModel {
   readonly diagnostics: readonly StudioDiagnostic[];
 }
 
+export interface StudioCommandProposalActionReadModel {
+  readonly actionVersion: 'studio-command-proposal-action.v0';
+  readonly actionId: StudioCommandProposalActionId;
+  readonly label: string;
+  readonly commandMessageType: 'command.propose';
+  readonly commandOperation: string;
+  readonly runtimeSessionId: string;
+  readonly endpoint: string;
+  readonly batch: CommandBatch;
+  readonly available: boolean;
+  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly actionHash: string;
+}
+
+export interface StudioCommandProposalPanelReadModel {
+  readonly panelVersion: 'studio-command-proposal-panel.v0';
+  readonly runtimeSessionId: string;
+  readonly workspaceHash: string;
+  readonly actions: readonly StudioCommandProposalActionReadModel[];
+  readonly proposals: readonly StudioGameWorkspaceCommandProposalReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'does_not_mutate_without_devtools_acceptance',
+    'not_native_runtime_authority',
+    'not_freeform_json_method_call',
+  ];
+  readonly panelHash: string;
+}
+
 export type StudioGameWorkspaceCommandProposalResult =
   | {
       readonly ok: true;
@@ -296,6 +343,188 @@ export interface StudioGameWorkspaceAttachEvidenceArtifact {
   ];
   readonly artifactHash: string;
 }
+
+export type StudioRuntimeSessionType = 'preview' | 'attached' | 'fixture_reserved' | 'replay_reserved';
+export type StudioRuntimeSessionStatus = 'available' | 'attached' | 'reserved' | 'degraded';
+
+export interface StudioRuntimeSessionReadModel {
+  readonly runtimeSessionVersion: 'studio-runtime-session.v0';
+  readonly sessionId: string;
+  readonly sessionType: StudioRuntimeSessionType;
+  readonly status: StudioRuntimeSessionStatus;
+  readonly endpoint: string | null;
+  readonly profileId: string;
+  readonly runtimeMode: 'reference' | 'native' | 'degraded';
+  readonly attachStatus: 'not_attached' | 'attached' | 'reserved';
+  readonly workspaceHash: string;
+  readonly attachHash: string | null;
+  readonly liveHash: string | null;
+  readonly compatibility: {
+    readonly contractsVersion: string;
+    readonly runtimeBridgeVersion: string;
+    readonly devtoolsProtocolVersion: string;
+    readonly publishArtifactVersion: string;
+  };
+  readonly projection: {
+    readonly worldHash: string;
+    readonly renderDiffHash: string;
+    readonly entityCount: number;
+    readonly tick: number;
+  } | null;
+  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+  readonly nonClaims: readonly string[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly sessionHash: string;
+}
+
+export interface StudioRuntimeSessionListReadModel {
+  readonly runtimeSessionListVersion: 'studio-runtime-session-list.v0';
+  readonly sessions: readonly StudioRuntimeSessionReadModel[];
+  readonly activeSessionId: string;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly sessionListHash: string;
+}
+
+export type StudioPublishEvidenceStatus = 'ready' | 'missing' | 'stale' | 'degraded';
+
+export interface StudioPublishEvidenceResourceReadModel {
+  readonly assetId: string;
+  readonly outputKey: string;
+  readonly sourceHash: string | null;
+  readonly packedHash: string | null;
+  readonly runnableHash: string | null;
+}
+
+export interface StudioPublishEvidenceReadModel {
+  readonly publishEvidenceVersion: 'studio-publish-evidence.v0';
+  readonly status: StudioPublishEvidenceStatus;
+  readonly evidenceKind: string;
+  readonly evidenceVersion: string;
+  readonly evidenceId: string | null;
+  readonly evidenceHash: string | null;
+  readonly artifactPath: string | null;
+  readonly artifactHash: string | null;
+  readonly artifactVersion: string | null;
+  readonly artifactFileHash: string | null;
+  readonly runnableTarget: string | null;
+  readonly runnableEntrypointPath: string | null;
+  readonly runnableEntrypointHash: string | null;
+  readonly resourcePackManifestPath: string | null;
+  readonly resourcePackManifestHash: string | null;
+  readonly compiledAssetCount: number;
+  readonly publishAssetCount: number;
+  readonly packedResources: readonly StudioPublishEvidenceResourceReadModel[];
+  readonly dependencyGuard: {
+    readonly status: string;
+    readonly inspectedFileCount: number;
+    readonly forbiddenFragments: readonly string[];
+  };
+  readonly runSmoke: {
+    readonly path: string | null;
+    readonly fileHash: string | null;
+    readonly runtimeMode: string | null;
+    readonly launcherName: string | null;
+    readonly worldHash: string | null;
+    readonly acceptedCommandStatus: string | null;
+    readonly rejectedCommandStatus: string | null;
+    readonly resolvedResourceCount: number;
+  };
+  readonly checks: readonly string[];
+  readonly validations: readonly string[];
+  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly string[];
+  readonly publishEvidenceHash: string;
+}
+
+export type StudioPublishEvidenceLoadResult =
+  | {
+      readonly ok: true;
+      readonly publishEvidence: StudioPublishEvidenceReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    }
+  | {
+      readonly ok: false;
+      readonly publishEvidence: StudioPublishEvidenceReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export type StudioWorkspaceCockpitEvidenceDiagnosticCode =
+  | 'cockpit_missing_game_workspace'
+  | 'cockpit_missing_asset_inventory'
+  | 'cockpit_missing_proof_scenes'
+  | 'cockpit_missing_runtime_sessions'
+  | 'cockpit_missing_command_proposals'
+  | 'cockpit_missing_publish_evidence'
+  | 'cockpit_missing_panel_marker';
+
+export interface StudioWorkspaceCockpitEvidenceArtifact {
+  readonly artifactKind: 'studio_workspace_cockpit_evidence';
+  readonly artifactVersion: 'studio-workspace-cockpit-evidence.v0';
+  readonly generatedFrom: {
+    readonly studioWorkspaceHash: string;
+    readonly gameWorkspaceHash: string;
+    readonly assetInventoryHash: string;
+    readonly proofSceneListHash: string;
+    readonly runtimeSessionListHash: string;
+    readonly commandProposalPanelHash: string;
+    readonly publishEvidenceHash: string;
+  };
+  readonly workspace: {
+    readonly gameId: string;
+    readonly manifestPath: string;
+    readonly manifestHash: string;
+    readonly attachEndpoint: string;
+    readonly publishCommand: string;
+  };
+  readonly panels: {
+    readonly visibleMarkers: readonly string[];
+    readonly assetInventory: {
+      readonly status: string;
+      readonly entryCount: number;
+      readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+    };
+    readonly proofScenes: {
+      readonly sceneIds: readonly string[];
+      readonly evidenceStatuses: readonly string[];
+    };
+    readonly runtimeSessions: {
+      readonly activeSessionId: string;
+      readonly statuses: readonly string[];
+    };
+    readonly commandProposals: {
+      readonly actionIds: readonly StudioCommandProposalActionId[];
+      readonly proposalHashes: readonly string[];
+      readonly statuses: readonly string[];
+    };
+    readonly publishEvidence: {
+      readonly status: StudioPublishEvidenceStatus | 'missing';
+      readonly evidenceHash: string | null;
+      readonly artifactHash: string | null;
+      readonly dependencyGuard: string;
+    };
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_publish_builder',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+  ];
+  readonly artifactHash: string;
+}
+
+export type StudioWorkspaceCockpitEvidenceResult =
+  | {
+      readonly ok: true;
+      readonly artifact: StudioWorkspaceCockpitEvidenceArtifact;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly artifact: StudioWorkspaceCockpitEvidenceArtifact;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
 
 export interface StudioAssetInventoryEvidenceRef {
   readonly kind: string;
@@ -1430,6 +1659,265 @@ export async function proposeStudioGameWorkspaceCommand(
   return { ok: true, proposal, diagnostics: [] };
 }
 
+export function buildStudioGameWorkspaceCommandProposalReadModel(input: {
+  readonly workspace: StudioGameWorkspaceReadModel;
+  readonly attachHash: string;
+  readonly endpoint?: string;
+  readonly sequenceId: string;
+  readonly batch: CommandBatch;
+  readonly status: 'accepted' | 'rejected';
+  readonly result: CommandResult;
+  readonly authorityHashAfter: string | null;
+  readonly rejectionReason?: 'authority_rejected' | 'compatibility_mismatch' | 'runtime_unavailable' | null;
+}): StudioGameWorkspaceCommandProposalReadModel {
+  const rejectionReason = input.status === 'rejected'
+    ? input.rejectionReason ?? 'authority_rejected'
+    : null;
+  const diagnostics = rejectionReason === null
+    ? []
+    : [
+        studioGameWorkspaceCommandDiagnostic(
+          'command_runtime_rejected',
+          `Runtime rejected command proposal: ${rejectionReason}.`,
+          input.endpoint ?? input.workspace.attachEndpoint,
+          rejectionReason,
+        ),
+      ];
+  const proposalPayload = {
+    status: input.status,
+    sequenceId: input.sequenceId,
+    result: input.result,
+    authorityHashAfter: input.authorityHashAfter,
+    reason: rejectionReason,
+  };
+
+  return {
+    proposalVersion: 'studio-game-workspace-command.v0',
+    endpoint: input.endpoint ?? input.workspace.attachEndpoint,
+    workspaceHash: input.workspace.workspaceHash,
+    attachHash: input.attachHash,
+    sequenceId: input.sequenceId,
+    batch: input.batch,
+    status: input.status,
+    result: input.result,
+    authorityHashAfter: input.authorityHashAfter,
+    rejectionReason,
+    proposalHash: fnv1aHash('studio-game-workspace-command', {
+      workspaceHash: input.workspace.workspaceHash,
+      attachHash: input.attachHash,
+      sequenceId: input.sequenceId,
+      batch: input.batch,
+      proposal: proposalPayload,
+    }),
+    diagnostics,
+  };
+}
+
+export function buildStudioCommandProposalPanel(input: {
+  readonly workspace: StudioGameWorkspaceReadModel;
+  readonly runtimeSessions: StudioRuntimeSessionListReadModel;
+  readonly commandProposals?: readonly StudioGameWorkspaceCommandProposalReadModel[];
+}): StudioCommandProposalPanelReadModel {
+  const activeSession = input.runtimeSessions.sessions.find(
+    session => session.sessionId === input.runtimeSessions.activeSessionId,
+  );
+  const runtimeSessionId = activeSession?.sessionId ?? input.runtimeSessions.activeSessionId;
+  const endpoint = activeSession?.endpoint ?? input.workspace.attachEndpoint;
+  const batch: CommandBatch = {
+    commands: [
+      {
+        op: 'setVoxel',
+        grid: 0,
+        coord: { x: 0, y: 0, z: 0 },
+        value: { kind: 'solid', material: 1 },
+      },
+    ],
+  };
+  const actionDiagnostics = activeSession === undefined || activeSession.status === 'reserved'
+    ? [
+        studioGameWorkspaceCommandDiagnostic(
+          'command_runtime_rejected',
+          'Command proposal requires an available preview or attached runtime session.',
+          endpoint,
+          runtimeSessionId,
+        ),
+      ]
+    : [];
+  const action: StudioCommandProposalActionReadModel = {
+    actionVersion: 'studio-command-proposal-action.v0',
+    actionId: 'set_voxel_reference',
+    label: 'Set reference voxel',
+    commandMessageType: 'command.propose',
+    commandOperation: 'setVoxel',
+    runtimeSessionId,
+    endpoint,
+    batch,
+    available: actionDiagnostics.length === 0,
+    evidenceRefs: [
+      {
+        kind: 'devtools-command',
+        path: endpoint,
+        sha256: activeSession?.attachHash ?? activeSession?.sessionHash ?? null,
+      },
+    ],
+    diagnostics: actionDiagnostics,
+    actionHash: fnv1aHash('studio-command-proposal-action', {
+      runtimeSessionId,
+      endpoint,
+      batch,
+      actionDiagnostics,
+    }),
+  };
+  const proposals = input.commandProposals ?? [];
+  const diagnostics = [
+    ...input.runtimeSessions.diagnostics,
+    ...actionDiagnostics,
+    ...proposals.flatMap(proposal => proposal.diagnostics),
+  ];
+
+  return {
+    panelVersion: 'studio-command-proposal-panel.v0',
+    runtimeSessionId,
+    workspaceHash: input.workspace.workspaceHash,
+    actions: [action],
+    proposals,
+    diagnostics,
+    nonClaims: [
+      'does_not_mutate_without_devtools_acceptance',
+      'not_native_runtime_authority',
+      'not_freeform_json_method_call',
+    ],
+    panelHash: fnv1aHash('studio-command-proposal-panel', {
+      runtimeSessionId,
+      workspaceHash: input.workspace.workspaceHash,
+      actions: [action],
+      proposalHashes: proposals.map(proposal => proposal.proposalHash),
+      diagnostics,
+    }),
+  };
+}
+
+export function buildStudioRuntimeSessionList(input: {
+  readonly workspace: StudioGameWorkspaceReadModel;
+  readonly attach?: StudioGameWorkspaceAttachReadModel | null;
+  readonly live?: StudioGameWorkspaceLiveReadModel | null;
+}): StudioRuntimeSessionListReadModel {
+  const diagnostics: StudioDiagnostic[] = [];
+  const attach = input.attach ?? null;
+  const live = input.live ?? null;
+  if (attach !== null && attach.workspaceHash !== input.workspace.workspaceHash) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_attach_mismatch',
+      'Runtime attach state does not match the opened workspace.',
+      input.workspace.attachEndpoint,
+      attach.attachHash,
+    ));
+  }
+  if (live !== null && attach !== null && live.attachHash !== attach.attachHash) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_live_mismatch',
+      'Runtime live readout does not match the attached session.',
+      input.workspace.attachEndpoint,
+      live.liveHash,
+    ));
+  }
+
+  const activeSessionId = attach === null
+    ? `runtime-preview:${input.workspace.gameId}`
+    : `runtime-attached:${attach.runtime.workspaceId}:${attach.attachHash}`;
+  const activeSession: StudioRuntimeSessionReadModel = {
+    runtimeSessionVersion: 'studio-runtime-session.v0',
+    sessionId: activeSessionId,
+    sessionType: attach === null ? 'preview' : 'attached',
+    status: diagnostics.length > 0 ? 'degraded' : attach === null ? 'available' : 'attached',
+    endpoint: input.workspace.attachEndpoint,
+    profileId: input.workspace.manifest.devResourceProfile.resolutionPolicy,
+    runtimeMode: 'reference',
+    attachStatus: attach === null ? 'not_attached' : 'attached',
+    workspaceHash: input.workspace.workspaceHash,
+    attachHash: attach?.attachHash ?? null,
+    liveHash: live?.liveHash ?? null,
+    compatibility: {
+      contractsVersion: input.workspace.manifest.asha.contractsVersion,
+      runtimeBridgeVersion: input.workspace.manifest.asha.runtimeBridgeVersion,
+      devtoolsProtocolVersion: input.workspace.manifest.asha.devtoolsProtocolVersion,
+      publishArtifactVersion: input.workspace.manifest.asha.publishArtifactFormatVersion,
+    },
+    projection: live === null
+      ? null
+      : {
+          worldHash: live.projection.worldHash,
+          renderDiffHash: live.projection.renderDiffHash ?? live.renderDiffHash,
+          entityCount: live.projection.entityCount,
+          tick: live.projection.tick,
+        },
+    evidenceRefs: [
+      {
+        kind: attach === null ? 'runtime-preview' : 'runtime-attach',
+        path: input.workspace.attachEndpoint,
+        sha256: attach?.attachHash ?? null,
+      },
+      ...(live === null
+        ? []
+        : [{
+            kind: 'runtime-live',
+            path: 'devtools:projection/render-diff/telemetry',
+            sha256: live.liveHash,
+          }]),
+    ],
+    nonClaims: [
+      'not_native_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+      'not_publish_artifact',
+    ],
+    diagnostics,
+    sessionHash: fnv1aHash('studio-runtime-session', {
+      workspaceHash: input.workspace.workspaceHash,
+      attachHash: attach?.attachHash ?? null,
+      liveHash: live?.liveHash ?? null,
+      diagnostics,
+    }),
+  };
+  const fixtureReservedDiagnostic = studioRuntimeSessionDiagnostic(
+    'runtime_session_reserved',
+    'Fixture runtime session is represented but not launched in Studio V1.',
+    input.workspace.runtimeEntry,
+    null,
+  );
+  const replayReservedDiagnostic = studioRuntimeSessionDiagnostic(
+    'runtime_session_reserved',
+    'Replay runtime session is reserved for a later public replay workflow.',
+    input.workspace.manifest.workspace.replayRoots.join(', '),
+    null,
+  );
+  const fixtureSession = buildReservedRuntimeSession(input.workspace, {
+    sessionId: `runtime-fixture:${input.workspace.gameId}`,
+    sessionType: 'fixture_reserved',
+    profileId: input.workspace.runtimeEntry,
+    diagnostic: fixtureReservedDiagnostic,
+  });
+  const replaySession = buildReservedRuntimeSession(input.workspace, {
+    sessionId: `runtime-replay:${input.workspace.gameId}`,
+    sessionType: 'replay_reserved',
+    profileId: input.workspace.manifest.workspace.replayRoots.join(', ') || 'replays',
+    diagnostic: replayReservedDiagnostic,
+  });
+  const sessions = [activeSession, fixtureSession, replaySession];
+
+  return {
+    runtimeSessionListVersion: 'studio-runtime-session-list.v0',
+    sessions,
+    activeSessionId,
+    diagnostics,
+    sessionListHash: fnv1aHash('studio-runtime-session-list', {
+      activeSessionId,
+      sessions,
+      diagnostics,
+    }),
+  };
+}
+
 export function exportStudioGameWorkspaceAttachEvidence(
   input: {
     readonly workspace: StudioGameWorkspaceReadModel;
@@ -1474,6 +1962,449 @@ export function exportStudioGameWorkspaceAttachEvidence(
     ],
     artifactHash,
   };
+}
+
+function buildReservedRuntimeSession(
+  workspace: StudioGameWorkspaceReadModel,
+  input: {
+    readonly sessionId: string;
+    readonly sessionType: Extract<StudioRuntimeSessionType, 'fixture_reserved' | 'replay_reserved'>;
+    readonly profileId: string;
+    readonly diagnostic: StudioDiagnostic;
+  },
+): StudioRuntimeSessionReadModel {
+  return {
+    runtimeSessionVersion: 'studio-runtime-session.v0',
+    sessionId: input.sessionId,
+    sessionType: input.sessionType,
+    status: 'reserved',
+    endpoint: null,
+    profileId: input.profileId,
+    runtimeMode: 'reference',
+    attachStatus: 'reserved',
+    workspaceHash: workspace.workspaceHash,
+    attachHash: null,
+    liveHash: null,
+    compatibility: {
+      contractsVersion: workspace.manifest.asha.contractsVersion,
+      runtimeBridgeVersion: workspace.manifest.asha.runtimeBridgeVersion,
+      devtoolsProtocolVersion: workspace.manifest.asha.devtoolsProtocolVersion,
+      publishArtifactVersion: workspace.manifest.asha.publishArtifactFormatVersion,
+    },
+    projection: null,
+    evidenceRefs: [],
+    nonClaims: [
+      'not_native_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+      'not_publish_artifact',
+    ],
+    diagnostics: [input.diagnostic],
+    sessionHash: fnv1aHash('studio-runtime-session-reserved', {
+      workspaceHash: workspace.workspaceHash,
+      sessionId: input.sessionId,
+      sessionType: input.sessionType,
+      profileId: input.profileId,
+      diagnostic: input.diagnostic,
+    }),
+  };
+}
+
+export function loadStudioPublishEvidence(
+  artifact: unknown,
+  options: {
+    readonly workspace?: StudioGameWorkspaceReadModel | null;
+    readonly evidencePath?: string;
+  } = {},
+): StudioPublishEvidenceLoadResult {
+  const evidencePath = options.evidencePath ?? 'harness/out/publish-evidence/latest/index.json';
+  if (!isRecord(artifact)) {
+    const diagnostics = [
+      studioPublishEvidenceDiagnostic(
+        'publish_evidence_missing',
+        'Publish evidence manifest is missing or unreadable.',
+        evidencePath,
+        null,
+      ),
+    ];
+    const readModel = buildMissingStudioPublishEvidence(evidencePath, diagnostics);
+    return { ok: false, publishEvidence: readModel, diagnostics };
+  }
+
+  const publishArtifact = recordAt(artifact, 'publishArtifact');
+  const publishSmoke = recordAt(artifact, 'publishSmoke');
+  const publishRunSmoke = recordAt(artifact, 'publishRunSmoke');
+  const smokeReadback = recordAt(publishSmoke, 'readback');
+  const runSmokeRuntime = recordAt(publishRunSmoke, 'runtime');
+  const runSmokeProjection = recordAt(publishRunSmoke, 'projection');
+  const runSmokeCommandProof = recordAt(publishRunSmoke, 'commandProof');
+  const acceptedCommand = recordAt(runSmokeCommandProof, 'acceptedCommand');
+  const rejectedCommand = recordAt(runSmokeCommandProof, 'rejectedCommand');
+  const dependencyGuard = recordAt(smokeReadback, 'dependencyGuard');
+  const diagnostics: StudioDiagnostic[] = [];
+  const evidenceKind = stringAt(artifact, 'evidenceKind') ?? 'unknown';
+  const evidenceVersion = stringAt(artifact, 'evidenceVersion') ?? 'unknown';
+  const artifactVersion = stringAt(publishArtifact, 'artifactVersion');
+  const expectedArtifactVersion = options.workspace?.manifest.asha.publishArtifactFormatVersion ?? null;
+  const dependencyGuardStatus = stringAt(smokeReadback, 'publishDependencyGuard') ?? 'missing';
+  const runtimeMode = stringAt(runSmokeRuntime, 'runtimeMode');
+  const worldHash = stringAt(runSmokeProjection, 'worldHash');
+  const acceptedCommandStatus = stringAt(acceptedCommand, 'status');
+  const rejectedCommandStatus = stringAt(rejectedCommand, 'status');
+  const validations = stringArrayAt(artifact, 'validations');
+  const smokeChecks = stringArrayAt(publishSmoke, 'checks');
+  const runChecks = stringArrayAt(publishRunSmoke, 'checks');
+
+  if (evidenceKind !== 'asha_demo_publish_evidence_manifest' || evidenceVersion !== 'publish-evidence.v1') {
+    diagnostics.push(studioPublishEvidenceDiagnostic(
+      'publish_evidence_version_mismatch',
+      'Publish evidence manifest kind or version is not supported by Studio.',
+      evidencePath,
+      `${evidenceKind}:${evidenceVersion}`,
+    ));
+  }
+  if (expectedArtifactVersion !== null && artifactVersion !== expectedArtifactVersion) {
+    diagnostics.push(studioPublishEvidenceDiagnostic(
+      'publish_evidence_stale',
+      'Publish evidence artifact version does not match the opened workspace manifest.',
+      stringAt(publishArtifact, 'path') ?? evidencePath,
+      artifactVersion ?? 'missing',
+    ));
+  }
+  if (
+    stringAt(publishArtifact, 'artifactHash') === null
+    || stringAt(smokeReadback, 'artifactHash') !== stringAt(publishArtifact, 'artifactHash')
+    || numberAt(publishArtifact, 'compiledAssetCount') !== numberAt(smokeReadback, 'compiledAssetCount')
+    || numberAt(publishArtifact, 'publishAssetCount') !== numberAt(smokeReadback, 'publishAssetCount')
+  ) {
+    diagnostics.push(studioPublishEvidenceDiagnostic(
+      'publish_evidence_stale',
+      'Publish evidence manifest no longer agrees with publish artifact readback.',
+      stringAt(publishArtifact, 'path') ?? evidencePath,
+      stringAt(smokeReadback, 'artifactHash') ?? 'missing',
+    ));
+  }
+  if (
+    dependencyGuardStatus !== 'no-studio-dev-only-fragments'
+    || !smokeChecks.includes('runnable_dependency_guard_passed')
+  ) {
+    diagnostics.push(studioPublishEvidenceDiagnostic(
+      'publish_evidence_dependency_guard_failed',
+      'Publish dependency guard is missing or failed.',
+      stringAt(publishSmoke, 'path') ?? evidencePath,
+      dependencyGuardStatus,
+    ));
+  }
+  if (
+    runtimeMode !== 'reference'
+    || worldHash === null
+    || acceptedCommandStatus !== 'accepted'
+    || rejectedCommandStatus !== 'rejected'
+    || !validations.includes('runtime_projection_readback_present')
+    || !validations.includes('packaged_command_proof_present')
+  ) {
+    diagnostics.push(studioPublishEvidenceDiagnostic(
+      'publish_evidence_run_smoke_failed',
+      'Publish run smoke evidence is missing runtime projection or command proof readback.',
+      stringAt(publishRunSmoke, 'path') ?? evidencePath,
+      runtimeMode ?? 'missing',
+    ));
+  }
+
+  const status: StudioPublishEvidenceStatus = diagnostics.some(
+    diagnostic => diagnostic.code === 'publish_evidence_version_mismatch'
+      || diagnostic.code === 'publish_evidence_stale',
+  )
+    ? 'stale'
+    : diagnostics.length > 0
+      ? 'degraded'
+      : 'ready';
+  const packedResources = recordArrayAt(smokeReadback, 'packedResources').map(resource => ({
+    assetId: stringAt(resource, 'assetId') ?? 'unknown',
+    outputKey: stringAt(resource, 'outputKey') ?? 'unknown',
+    sourceHash: stringAt(resource, 'sourceHash'),
+    packedHash: stringAt(resource, 'packedHash'),
+    runnableHash: stringAt(resource, 'runnableHash'),
+  }));
+  const readModel: StudioPublishEvidenceReadModel = {
+    publishEvidenceVersion: 'studio-publish-evidence.v0',
+    status,
+    evidenceKind,
+    evidenceVersion,
+    evidenceId: stringAt(artifact, 'evidenceId'),
+    evidenceHash: stringAt(artifact, 'evidenceHash'),
+    artifactPath: stringAt(publishArtifact, 'path'),
+    artifactHash: stringAt(publishArtifact, 'artifactHash'),
+    artifactVersion,
+    artifactFileHash: stringAt(publishArtifact, 'fileHash'),
+    runnableTarget: stringAt(publishArtifact, 'runnableTarget'),
+    runnableEntrypointPath: stringAt(publishArtifact, 'runnableEntrypointPath'),
+    runnableEntrypointHash: stringAt(publishArtifact, 'runnableEntrypointHash'),
+    resourcePackManifestPath: stringAt(publishArtifact, 'resourcePackManifestPath'),
+    resourcePackManifestHash: stringAt(publishArtifact, 'resourcePackManifestHash'),
+    compiledAssetCount: numberAt(publishArtifact, 'compiledAssetCount') ?? 0,
+    publishAssetCount: numberAt(publishArtifact, 'publishAssetCount') ?? 0,
+    packedResources,
+    dependencyGuard: {
+      status: dependencyGuardStatus,
+      inspectedFileCount: stringArrayAt(dependencyGuard, 'inspectedRunnableFiles').length,
+      forbiddenFragments: stringArrayAt(dependencyGuard, 'forbiddenFragments'),
+    },
+    runSmoke: {
+      path: stringAt(publishRunSmoke, 'path'),
+      fileHash: stringAt(publishRunSmoke, 'fileHash'),
+      runtimeMode,
+      launcherName: stringAt(runSmokeRuntime, 'launcherName'),
+      worldHash,
+      acceptedCommandStatus,
+      rejectedCommandStatus,
+      resolvedResourceCount: numberAt(publishRunSmoke, 'resolvedResourceCount') ?? packedResources.length,
+    },
+    checks: [...smokeChecks, ...runChecks],
+    validations,
+    evidenceRefs: [
+      {
+        kind: 'publish-evidence',
+        path: evidencePath,
+        sha256: stringAt(artifact, 'evidenceHash'),
+      },
+      {
+        kind: 'publish-artifact',
+        path: stringAt(publishArtifact, 'path') ?? 'missing',
+        sha256: stringAt(publishArtifact, 'fileHash'),
+      },
+      {
+        kind: 'publish-run-smoke',
+        path: stringAt(publishRunSmoke, 'path') ?? 'missing',
+        sha256: stringAt(publishRunSmoke, 'fileHash'),
+      },
+    ],
+    diagnostics,
+    nonClaims: stringArrayAt(artifact, 'nonClaims'),
+    publishEvidenceHash: fnv1aHash('studio-publish-evidence', {
+      evidenceKind,
+      evidenceVersion,
+      evidenceHash: stringAt(artifact, 'evidenceHash'),
+      status,
+      diagnostics,
+      artifact: publishArtifact,
+      smokeReadback,
+      runSmoke: publishRunSmoke,
+    }),
+  };
+
+  return { ok: diagnostics.length === 0, publishEvidence: readModel, diagnostics };
+}
+
+function buildMissingStudioPublishEvidence(
+  evidencePath: string,
+  diagnostics: readonly StudioDiagnostic[],
+): StudioPublishEvidenceReadModel {
+  return {
+    publishEvidenceVersion: 'studio-publish-evidence.v0',
+    status: 'missing',
+    evidenceKind: 'missing',
+    evidenceVersion: 'missing',
+    evidenceId: null,
+    evidenceHash: null,
+    artifactPath: null,
+    artifactHash: null,
+    artifactVersion: null,
+    artifactFileHash: null,
+    runnableTarget: null,
+    runnableEntrypointPath: null,
+    runnableEntrypointHash: null,
+    resourcePackManifestPath: null,
+    resourcePackManifestHash: null,
+    compiledAssetCount: 0,
+    publishAssetCount: 0,
+    packedResources: [],
+    dependencyGuard: {
+      status: 'missing',
+      inspectedFileCount: 0,
+      forbiddenFragments: [],
+    },
+    runSmoke: {
+      path: null,
+      fileHash: null,
+      runtimeMode: null,
+      launcherName: null,
+      worldHash: null,
+      acceptedCommandStatus: null,
+      rejectedCommandStatus: null,
+      resolvedResourceCount: 0,
+    },
+    checks: [],
+    validations: [],
+    evidenceRefs: [
+      {
+        kind: 'publish-evidence',
+        path: evidencePath,
+        sha256: null,
+      },
+    ],
+    diagnostics,
+    nonClaims: [
+      'not_native_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+      'not_store_submission',
+    ],
+    publishEvidenceHash: fnv1aHash('studio-publish-evidence-missing', {
+      evidencePath,
+      diagnostics,
+    }),
+  };
+}
+
+export function exportStudioWorkspaceCockpitEvidence(input: {
+  readonly studioWorkspace: StudioWorkspaceReadModel;
+  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
+  readonly assetInventory: StudioAssetInventoryReadModel | null;
+  readonly proofScenes: StudioProofSceneListReadModel | null;
+  readonly runtimeSessions: StudioRuntimeSessionListReadModel | null;
+  readonly commandProposalPanel: StudioCommandProposalPanelReadModel | null;
+  readonly publishEvidence: StudioPublishEvidenceReadModel | null;
+  readonly visiblePanelMarkers: readonly string[];
+  readonly diagnostics?: readonly StudioDiagnostic[];
+}): StudioWorkspaceCockpitEvidenceResult {
+  const diagnostics: StudioDiagnostic[] = [...(input.diagnostics ?? [])];
+  const requiredMarkers = [
+    'studio-game-workspace-overview',
+    'studio-assets-panel',
+    'studio-proof-scene-panel',
+    'studio-runtime-session-panel',
+    'studio-command-proposal-panel',
+    'studio-publish-evidence-panel',
+  ];
+  if (input.gameWorkspace === null) {
+    diagnostics.push(studioWorkspaceCockpitDiagnostic(
+      'cockpit_missing_game_workspace',
+      'Workspace cockpit evidence requires an opened game workspace readout.',
+      null,
+      null,
+    ));
+  }
+  if (input.assetInventory === null || input.assetInventory.entries.length === 0) {
+    diagnostics.push(studioWorkspaceCockpitDiagnostic(
+      'cockpit_missing_asset_inventory',
+      'Workspace cockpit evidence requires asset inventory readout data.',
+      null,
+      null,
+    ));
+  }
+  if (input.proofScenes === null || input.proofScenes.scenes.length === 0) {
+    diagnostics.push(studioWorkspaceCockpitDiagnostic(
+      'cockpit_missing_proof_scenes',
+      'Workspace cockpit evidence requires proof scene readout data.',
+      null,
+      null,
+    ));
+  }
+  if (input.runtimeSessions === null || input.runtimeSessions.sessions.length === 0) {
+    diagnostics.push(studioWorkspaceCockpitDiagnostic(
+      'cockpit_missing_runtime_sessions',
+      'Workspace cockpit evidence requires runtime session readout data.',
+      null,
+      null,
+    ));
+  }
+  if (input.commandProposalPanel === null || input.commandProposalPanel.proposals.length === 0) {
+    diagnostics.push(studioWorkspaceCockpitDiagnostic(
+      'cockpit_missing_command_proposals',
+      'Workspace cockpit evidence requires command proposal evidence rows.',
+      null,
+      null,
+    ));
+  }
+  if (input.publishEvidence === null || input.publishEvidence.status !== 'ready') {
+    diagnostics.push(studioWorkspaceCockpitDiagnostic(
+      'cockpit_missing_publish_evidence',
+      'Workspace cockpit evidence requires ready publish evidence.',
+      input.publishEvidence?.evidenceId ?? null,
+      input.publishEvidence?.status ?? null,
+    ));
+  }
+  for (const marker of requiredMarkers) {
+    if (!input.visiblePanelMarkers.includes(marker)) {
+      diagnostics.push(studioWorkspaceCockpitDiagnostic(
+        'cockpit_missing_panel_marker',
+        `Workspace cockpit evidence marker is missing: ${marker}.`,
+        marker,
+        null,
+      ));
+    }
+  }
+
+  const gameWorkspace = input.gameWorkspace;
+  const assetInventory = input.assetInventory;
+  const proofScenes = input.proofScenes;
+  const runtimeSessions = input.runtimeSessions;
+  const commandProposalPanel = input.commandProposalPanel;
+  const publishEvidence = input.publishEvidence;
+  const generatedFrom = {
+    studioWorkspaceHash: input.studioWorkspace.scene.sceneHash,
+    gameWorkspaceHash: gameWorkspace?.workspaceHash ?? 'missing',
+    assetInventoryHash: assetInventory?.inventoryHash ?? 'missing',
+    proofSceneListHash: proofScenes?.proofSceneListHash ?? 'missing',
+    runtimeSessionListHash: runtimeSessions?.sessionListHash ?? 'missing',
+    commandProposalPanelHash: commandProposalPanel?.panelHash ?? 'missing',
+    publishEvidenceHash: publishEvidence?.publishEvidenceHash ?? 'missing',
+  };
+  const artifactBody = {
+    generatedFrom,
+    workspace: {
+      gameId: gameWorkspace?.gameId ?? 'missing',
+      manifestPath: gameWorkspace?.manifestPath ?? 'missing',
+      manifestHash: gameWorkspace?.workspaceHash ?? 'missing',
+      attachEndpoint: gameWorkspace?.attachEndpoint ?? 'missing',
+      publishCommand: gameWorkspace?.publishCommand ?? 'missing',
+    },
+    panels: {
+      visibleMarkers: input.visiblePanelMarkers,
+      assetInventory: {
+        status: assetInventory?.status ?? 'missing',
+        entryCount: assetInventory?.entries.length ?? 0,
+        evidenceRefs: assetInventory?.entries.flatMap(entry => entry.evidenceRefs) ?? [],
+      },
+      proofScenes: {
+        sceneIds: proofScenes?.scenes.map(scene => scene.sceneId) ?? [],
+        evidenceStatuses: proofScenes?.scenes.map(scene => scene.evidenceStatus) ?? [],
+      },
+      runtimeSessions: {
+        activeSessionId: runtimeSessions?.activeSessionId ?? 'missing',
+        statuses: runtimeSessions?.sessions.map(session => `${session.sessionType}:${session.status}`) ?? [],
+      },
+      commandProposals: {
+        actionIds: commandProposalPanel?.actions.map(action => action.actionId) ?? [],
+        proposalHashes: commandProposalPanel?.proposals.map(proposal => proposal.proposalHash) ?? [],
+        statuses: commandProposalPanel?.proposals.map(proposal => proposal.status) ?? [],
+      },
+      publishEvidence: {
+        status: publishEvidence?.status ?? 'missing',
+        evidenceHash: publishEvidence?.evidenceHash ?? null,
+        artifactHash: publishEvidence?.artifactHash ?? null,
+        dependencyGuard: publishEvidence?.dependencyGuard.status ?? 'missing',
+      },
+    },
+    diagnostics,
+  };
+  const artifact: StudioWorkspaceCockpitEvidenceArtifact = {
+    artifactKind: 'studio_workspace_cockpit_evidence',
+    artifactVersion: 'studio-workspace-cockpit-evidence.v0',
+    ...artifactBody,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_publish_builder',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+    artifactHash: fnv1aHash('studio-workspace-cockpit-evidence', artifactBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, artifact, diagnostics: [] }
+    : { ok: false, artifact, diagnostics };
 }
 
 export interface StudioAssetInventoryArtifactInput {
@@ -1872,8 +2803,53 @@ function studioGameWorkspaceCommandDiagnostic(
   };
 }
 
+function studioRuntimeSessionDiagnostic(
+  code: StudioRuntimeSessionDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: code === 'runtime_session_reserved' ? 'info' : 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
 function studioAssetInventoryDiagnostic(
   code: StudioAssetInventoryDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioPublishEvidenceDiagnostic(
+  code: StudioPublishEvidenceDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: code === 'publish_evidence_missing' ? 'warning' : 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioWorkspaceCockpitDiagnostic(
+  code: StudioWorkspaceCockpitEvidenceDiagnosticCode,
   message: string,
   source: string | null,
   remediation: string | null,
@@ -3506,6 +4482,32 @@ export function serializeStudioWorkspaceArtifact(options: {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function recordAt(value: unknown, key: string): Record<string, unknown> {
+  return isRecord(value) && isRecord(value[key]) ? value[key] : {};
+}
+
+function recordArrayAt(value: unknown, key: string): readonly Record<string, unknown>[] {
+  if (!isRecord(value) || !Array.isArray(value[key])) {
+    return [];
+  }
+  return value[key].filter(isRecord);
+}
+
+function stringAt(value: unknown, key: string): string | null {
+  return isRecord(value) && typeof value[key] === 'string' ? value[key] : null;
+}
+
+function stringArrayAt(value: unknown, key: string): readonly string[] {
+  if (!isRecord(value) || !Array.isArray(value[key])) {
+    return [];
+  }
+  return value[key].filter((item): item is string => typeof item === 'string');
+}
+
+function numberAt(value: unknown, key: string): number | null {
+  return isRecord(value) && typeof value[key] === 'number' ? value[key] : null;
 }
 
 function hydrateStudioWorkspaceReadModel(

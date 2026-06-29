@@ -8,8 +8,12 @@ import {
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
   buildStudioProofSceneList,
+  buildStudioRuntimeSessionList,
+  buildStudioCommandProposalPanel,
+  buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioGameWorkspaceReadout,
   loadStudioAssetInventory,
+  loadStudioPublishEvidence,
   buildStudioViewportReadout,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
@@ -23,6 +27,7 @@ import {
   createReparentSceneObjectRequest,
   createSceneObjectCommandIntent,
   createStudioCompactAgentReadout,
+  exportStudioWorkspaceCockpitEvidence,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
@@ -40,6 +45,7 @@ import {
   type StudioApplicationMenu,
   type StudioBottomPanelTab,
   type StudioGameWorkspaceLoadResult,
+  type StudioGameWorkspaceReadModel,
   type StudioGameWorkspaceReadout,
   type StudioAssetInventoryEntryReadModel,
   type StudioAssetInventoryLoadResult,
@@ -248,6 +254,144 @@ const DEMO_PROOF_SCENES = [
   },
 ] as const;
 
+const DEMO_PUBLISH_EVIDENCE = {
+  evidenceKind: 'asha_demo_publish_evidence_manifest',
+  evidenceVersion: 'publish-evidence.v1',
+  generatedAt: 'deterministic-as-structure-only',
+  publishArtifact: {
+    path: 'harness/out/publish/latest/index.json',
+    fileHash: 'sha256:85b942e5df6f30184fc16355d25d362fa06af26878a4fd21c7e274f0e747762a',
+    artifactId: 'asha-demo-publish:sha256:0b62e2e4e86bc1c0ab4ad5930599a068646c1048642bab88d1fb4b601f5f1256',
+    artifactHash: 'sha256:0b62e2e4e86bc1c0ab4ad5930599a068646c1048642bab88d1fb4b601f5f1256',
+    artifactVersion: 'publish-artifact.v0',
+    compiledAssetCount: 3,
+    publishAssetCount: 3,
+    runnableTarget: 'asha-demo-static-reference.v1',
+    runnableEntrypointPath: 'harness/out/publish/runnable/latest/index.html',
+    runnableEntrypointHash: 'sha256:740b5e8836e7e923ef19f3b78c3e4195ab19cc503ba5fce7fda222772e7345a2',
+    resourcePackManifestPath: 'harness/out/publish/resources/manifest.json',
+    resourcePackManifestHash: 'sha256:eb88d4443d0556db892b1f8371523462de0bd994d3c10dba3a1cf88e3828dd68',
+  },
+  publishSmoke: {
+    path: 'harness/out/publish-smoke/latest/index.json',
+    fileHash: 'sha256:95a795c9a2af139e15806bc35a658129cbcceb3e06a8d2bff2a7dadfa9ee08f1',
+    checks: [
+      'publish_artifact_built',
+      'artifact_hash_recomputed',
+      'compiled_assets_match_sources',
+      'packed_resources_match_publish_profile',
+      'no_dev_local_resource_reads',
+      'runnable_dependency_guard_passed',
+      'non_claims_preserved',
+    ],
+    readback: {
+      status: 'ok',
+      artifactPath: 'harness/out/publish/latest/index.json',
+      artifactHash: 'sha256:0b62e2e4e86bc1c0ab4ad5930599a068646c1048642bab88d1fb4b601f5f1256',
+      publishDependencyGuard: 'no-studio-dev-only-fragments',
+      sceneCount: 2,
+      catalogCount: 1,
+      compiledAssetCount: 3,
+      publishAssetCount: 3,
+      packedResources: [
+        {
+          assetId: 'mesh.demo-cube',
+          outputKey: 'meshes/demo-cube.mesh.json',
+          sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
+          packedHash: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
+          runnableHash: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
+        },
+        {
+          assetId: 'material.demo-copper',
+          outputKey: 'materials/demo-copper.material.json',
+          sourceHash: 'sha256:0190cf1f6ec702431fd1e37e38503b9002978681a989d6382830d92e586ccd6d',
+          packedHash: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
+          runnableHash: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
+        },
+        {
+          assetId: 'texture.demo-checker',
+          outputKey: 'textures/demo-checker.texture.json',
+          sourceHash: 'sha256:46f863709c0cf4f2d5d03b560f492f5556c3482640b69dddcc6a2ac56b8963d3',
+          packedHash: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
+          runnableHash: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
+        },
+      ],
+      dependencyGuard: {
+        inspectedRunnableFiles: [
+          'harness/out/publish/runnable/latest/index.html',
+          'harness/out/publish/runnable/latest/resources/manifest.json',
+          'harness/out/publish/runnable/latest/resources/materials/demo-copper.material.json',
+          'harness/out/publish/runnable/latest/resources/meshes/demo-cube.mesh.json',
+          'harness/out/publish/runnable/latest/resources/textures/demo-checker.texture.json',
+          'harness/out/publish/runnable/latest/runtime/reference-runtime.json',
+        ],
+        forbiddenFragments: [
+          '@asha-studio/',
+          'asha-studio',
+          '../asha-studio',
+          'studio-game-workspace',
+          'harness/out/dev-smoke',
+          'harness/out/publish-smoke',
+          'devtools_endpoint',
+          'ws://127.0.0.1',
+          'ws://localhost',
+        ],
+      },
+    },
+  },
+  publishRunSmoke: {
+    path: 'harness/out/publish-run-smoke/latest/index.json',
+    fileHash: 'sha256:ce809ae83fc0d4f6867c230b1950dbed5d802c90e3f654c9e69b5b563e4d8c8c',
+    runtime: {
+      runtimeMode: 'reference',
+      launcherName: 'reference-game-runtime-launcher',
+      nonClaims: [
+        'not_native_runtime',
+        'not_hardware_gpu',
+        'not_performance_evidence',
+        'not_publish_artifact',
+        'not_wasm_authority',
+      ],
+    },
+    projection: {
+      worldHash: 'reference-world:asha-demo:1002:accepted:0',
+    },
+    commandProof: {
+      acceptedCommand: { status: 'accepted' },
+      rejectedCommand: { status: 'rejected' },
+    },
+    resolvedResourceCount: 3,
+    checks: [
+      'entrypoint_exists_without_dev_server',
+      'runtime_metadata_loaded',
+      'packed_resources_resolved',
+      'reference_runtime_projection_pulled',
+      'packaged_runtime_accepted_command_mutated_projection',
+      'packaged_runtime_rejected_command_preserved_projection',
+      'no_devtools_endpoint_required',
+    ],
+  },
+  validations: [
+    'publish_artifact_hash_matches_readback',
+    'publish_smoke_references_publish_artifact',
+    'publish_run_smoke_references_runnable_artifact',
+    'runnable_entrypoint_hash_recorded',
+    'packed_resource_manifest_hash_recorded',
+    'runtime_projection_readback_present',
+    'packaged_command_proof_present',
+    'compiled_asset_count_matches_readback',
+    'studio_dev_only_dependency_guard_passed',
+  ],
+  nonClaims: [
+    'not_native_runtime_authority',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+    'not_store_submission',
+  ],
+  evidenceId: 'asha-demo-publish-evidence:sha256:95da5f3787aa4a97bc21ff998305ab2a8ffd6d8b02081cc8b00f410880ad842e',
+  evidenceHash: 'sha256:95da5f3787aa4a97bc21ff998305ab2a8ffd6d8b02081cc8b00f410880ad842e',
+} as const;
+
 function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
   return loadStudioGameWorkspaceManifest({
     workspaceRoot: '../asha-demo',
@@ -323,6 +467,58 @@ function loadDemoProofScenes(
       assetInventoryArtifactHash: 'sha256:87d9ba8eb31307e0ded564e456f3721275e481fdbfeb29e6ec267ac7c64c3894',
     },
   });
+}
+
+function buildDemoCommandProposalRows(workspace: StudioGameWorkspaceReadModel) {
+  const batch = {
+    commands: [
+      {
+        op: 'setVoxel',
+        grid: 0,
+        coord: { x: 0, y: 0, z: 0 },
+        value: { kind: 'solid', material: 1 },
+      },
+    ],
+  } as const;
+  const rejectedBatch = {
+    commands: [
+      {
+        op: 'setVoxel',
+        grid: 0,
+        coord: { x: 1, y: 0, z: 0 },
+        value: { kind: 'solid', material: 999 },
+      },
+    ],
+  } as const;
+  return [
+    buildStudioGameWorkspaceCommandProposalReadModel({
+      workspace,
+      attachHash: 'fixture:devtools-attach:asha-demo',
+      sequenceId: 'seq-1',
+      batch,
+      status: 'accepted',
+      result: {
+        accepted: 1,
+        rejected: 0,
+        rejections: [],
+      },
+      authorityHashAfter: 'authority:after:accepted',
+    }),
+    buildStudioGameWorkspaceCommandProposalReadModel({
+      workspace,
+      attachHash: 'fixture:devtools-attach:asha-demo',
+      sequenceId: 'seq-2',
+      batch: rejectedBatch,
+      status: 'rejected',
+      result: {
+        accepted: 0,
+        rejected: 1,
+        rejections: [{ reason: 'unknownMaterial', material: 999 }],
+      },
+      authorityHashAfter: 'authority:after:rejected',
+      rejectionReason: 'authority_rejected',
+    }),
+  ];
 }
 
 function browserStorage(): Storage | null {
@@ -402,6 +598,50 @@ export class StudioWorkspaceStore {
   readonly gameWorkspace = computed(() => {
     const overview = this.gameWorkspaceState();
     return overview.ok ? overview.workspace : null;
+  });
+  readonly publishEvidence = computed(() =>
+    loadStudioPublishEvidence(DEMO_PUBLISH_EVIDENCE, {
+      workspace: this.gameWorkspace(),
+      evidencePath: 'harness/out/publish-evidence/latest/index.json',
+    }),
+  );
+  readonly runtimeSessions = computed(() => {
+    const workspace = this.gameWorkspace();
+    return workspace === null
+      ? null
+      : buildStudioRuntimeSessionList({ workspace });
+  });
+  readonly commandProposalPanel = computed(() => {
+    const workspace = this.gameWorkspace();
+    const runtimeSessions = this.runtimeSessions();
+    return workspace === null || runtimeSessions === null
+      ? null
+      : buildStudioCommandProposalPanel({
+          workspace,
+          runtimeSessions,
+          commandProposals: buildDemoCommandProposalRows(workspace),
+        });
+  });
+  readonly workspaceCockpitEvidence = computed(() => {
+    const assetInventory = this.assetInventoryState().inventory;
+    const proofScenes = this.proofScenesState().proofScenes;
+    return exportStudioWorkspaceCockpitEvidence({
+      studioWorkspace: this.workspaceState(),
+      gameWorkspace: this.gameWorkspace(),
+      assetInventory,
+      proofScenes,
+      runtimeSessions: this.runtimeSessions(),
+      commandProposalPanel: this.commandProposalPanel(),
+      publishEvidence: this.publishEvidence().publishEvidence,
+      visiblePanelMarkers: [
+        'studio-game-workspace-overview',
+        'studio-assets-panel',
+        'studio-proof-scene-panel',
+        'studio-runtime-session-panel',
+        'studio-command-proposal-panel',
+        'studio-publish-evidence-panel',
+      ],
+    });
   });
 
   readonly selectedEntity = computed(() => {

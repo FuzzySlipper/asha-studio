@@ -15,7 +15,10 @@ import {
   buildAssetBrowserCategories,
   buildInitialWorkspaceReadModel,
   buildStudioGameWorkspaceReadout,
+  buildStudioCommandProposalPanel,
+  buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioProofSceneList,
+  buildStudioRuntimeSessionList,
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
   buildStudioCompatibilityEvidence,
@@ -35,6 +38,7 @@ import {
   createReparentSceneObjectRequest,
   createSceneObjectCommandIntent,
   createSelectEntityIntent,
+  exportStudioWorkspaceCockpitEvidence,
   exportStudioGameWorkspaceAttachEvidence,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
@@ -42,6 +46,7 @@ import {
   loadScenarioReadModel,
   loadStudioAssetInventory,
   loadStudioGameWorkspaceManifest,
+  loadStudioPublishEvidence,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
   proposeStudioGameWorkspaceCommand,
@@ -425,6 +430,80 @@ test('game workspace live readout pulls projection render diff and telemetry thr
   assert.match(live.live.liveHash, /^studio-game-workspace-live-/);
 });
 
+test('runtime session list turns attach and live evidence into an explicit session row', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const live = await refreshStudioGameWorkspaceLiveReadModel(result.workspace, attached.attach, transport);
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+
+  const sessions = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+    live: live.live,
+  });
+  const activeSession = sessions.sessions.find(session => session.sessionId === sessions.activeSessionId);
+
+  assert.equal(sessions.runtimeSessionListVersion, 'studio-runtime-session-list.v0');
+  assert.ok(activeSession);
+  assert.equal(activeSession.sessionType, 'attached');
+  assert.equal(activeSession.status, 'attached');
+  assert.equal(activeSession.runtimeMode, 'reference');
+  assert.equal(activeSession.attachStatus, 'attached');
+  assert.equal(activeSession.attachHash, attached.attach.attachHash);
+  assert.equal(activeSession.liveHash, live.live.liveHash);
+  assert.equal(activeSession.projection?.worldHash, 'world:demo:1');
+  assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-attach'), true);
+  assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-live'), true);
+  assert.equal(activeSession.nonClaims.includes('not_native_runtime_authority'), true);
+  assert.match(activeSession.sessionHash, /^studio-runtime-session-/);
+  assert.match(sessions.sessionListHash, /^studio-runtime-session-list-/);
+});
+
+test('runtime session list reserves fixture and replay sessions honestly before live launch', () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const sessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
+  const preview = sessions.sessions.find(session => session.sessionType === 'preview');
+  const fixture = sessions.sessions.find(session => session.sessionType === 'fixture_reserved');
+  const replay = sessions.sessions.find(session => session.sessionType === 'replay_reserved');
+
+  assert.ok(preview);
+  assert.equal(preview.status, 'available');
+  assert.equal(preview.attachStatus, 'not_attached');
+  assert.equal(preview.runtimeMode, 'reference');
+  assert.ok(fixture);
+  assert.equal(fixture.status, 'reserved');
+  assert.equal(fixture.profileId, 'harness/conformance/fixtures/minimal-world.json');
+  assert.equal(fixture.diagnostics.at(0)?.code, 'runtime_session_reserved');
+  assert.ok(replay);
+  assert.equal(replay.status, 'reserved');
+  assert.equal(replay.profileId, 'replays');
+  assert.equal(replay.diagnostics.at(0)?.code, 'runtime_session_reserved');
+});
+
 test('game workspace live readout fails closed when telemetry is unavailable', async () => {
   const result = loadStudioGameWorkspaceManifest({
     workspaceRoot: demoRoot,
@@ -531,6 +610,64 @@ test('game workspace command proposal records runtime rejections without private
   assert.equal(proposal.proposal.result.rejected, 1);
   assert.equal(proposal.proposal.rejectionReason, 'runtime_unavailable');
   assert.equal(proposal.proposal.diagnostics.at(0)?.code, 'command_runtime_rejected');
+});
+
+test('command proposal panel exposes known actions and accepted rejected evidence rows', () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const sessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+  const accepted = buildStudioGameWorkspaceCommandProposalReadModel({
+    workspace: result.workspace,
+    attachHash: 'fixture:devtools-attach:asha-demo',
+    sequenceId: command.sequenceId,
+    batch: command.batch,
+    status: 'accepted',
+    result: {
+      accepted: 1,
+      rejected: 0,
+      rejections: [],
+    },
+    authorityHashAfter: 'authority:after:accepted',
+  });
+  const rejected = buildStudioGameWorkspaceCommandProposalReadModel({
+    workspace: result.workspace,
+    attachHash: 'fixture:devtools-attach:asha-demo',
+    sequenceId: 'seq-2',
+    batch: command.batch,
+    status: 'rejected',
+    result: {
+      accepted: 0,
+      rejected: 1,
+      rejections: [{ reason: 'unknownMaterial', material: 999 }],
+    },
+    authorityHashAfter: 'authority:after:rejected',
+    rejectionReason: 'authority_rejected',
+  });
+
+  const panel = buildStudioCommandProposalPanel({
+    workspace: result.workspace,
+    runtimeSessions: sessions,
+    commandProposals: [accepted, rejected],
+  });
+
+  assert.equal(panel.panelVersion, 'studio-command-proposal-panel.v0');
+  assert.equal(panel.actions.at(0)?.commandMessageType, 'command.propose');
+  assert.equal(panel.actions.at(0)?.commandOperation, 'setVoxel');
+  assert.equal(panel.actions.at(0)?.available, true);
+  assert.deepEqual(panel.proposals.map(proposal => proposal.status), ['accepted', 'rejected']);
+  assert.equal(panel.proposals.at(1)?.diagnostics.at(0)?.code, 'command_runtime_rejected');
+  assert.ok(panel.nonClaims.includes('not_freeform_json_method_call'));
+  assert.match(panel.panelHash, /^studio-command-proposal-panel-/);
 });
 
 test('game workspace attach evidence artifact correlates attach live and command readouts', async () => {
@@ -1005,6 +1142,167 @@ test('proof scene read model fails closed on missing catalog references', () => 
   assert.equal(proofScenes.proofScenes.scenes.at(0)?.catalogStatus, 'missing');
   assert.deepEqual(proofScenes.proofScenes.scenes.at(0)?.missingCatalogAssetIds, ['material.missing']);
   assert.equal(proofScenes.diagnostics.at(0)?.code, 'proof_scene_missing_catalog_reference');
+});
+
+test('publish evidence read model loads latest asha-demo publish proof status', () => {
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  const evidencePath = 'harness/out/publish-evidence/latest/index.json';
+  const evidence = JSON.parse(readFileSync(join(demoRoot, evidencePath), 'utf8')) as unknown;
+
+  const result = loadStudioPublishEvidence(evidence, {
+    workspace: workspaceResult.workspace,
+    evidencePath,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.publishEvidence.status, 'ready');
+  assert.equal(result.publishEvidence.evidenceVersion, 'publish-evidence.v1');
+  assert.equal(result.publishEvidence.artifactPath, 'harness/out/publish/latest/index.json');
+  assert.equal(result.publishEvidence.dependencyGuard.status, 'no-studio-dev-only-fragments');
+  assert.equal(result.publishEvidence.runSmoke.runtimeMode, 'reference');
+  assert.equal(result.publishEvidence.runSmoke.acceptedCommandStatus, 'accepted');
+  assert.equal(result.publishEvidence.runSmoke.rejectedCommandStatus, 'rejected');
+  assert.equal(result.publishEvidence.packedResources.length, 3);
+  assert.ok(result.publishEvidence.validations.includes('packaged_command_proof_present'));
+  assert.ok(result.publishEvidence.nonClaims.includes('not_store_submission'));
+  assert.match(result.publishEvidence.publishEvidenceHash, /^studio-publish-evidence-/);
+});
+
+test('publish evidence read model fails closed for stale or missing evidence', () => {
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  const evidencePath = 'harness/out/publish-evidence/latest/index.json';
+  const staleEvidence = JSON.parse(readFileSync(join(demoRoot, evidencePath), 'utf8')) as {
+    publishArtifact: { artifactVersion: string };
+  };
+  staleEvidence.publishArtifact.artifactVersion = 'publish-artifact.old';
+
+  const stale = loadStudioPublishEvidence(staleEvidence, {
+    workspace: workspaceResult.workspace,
+    evidencePath,
+  });
+  const missing = loadStudioPublishEvidence(null, { evidencePath });
+
+  assert.equal(stale.ok, false);
+  assert.equal(stale.publishEvidence.status, 'stale');
+  assert.equal(stale.diagnostics.at(0)?.code, 'publish_evidence_stale');
+  assert.equal(missing.ok, false);
+  assert.equal(missing.publishEvidence.status, 'missing');
+  assert.equal(missing.diagnostics.at(0)?.code, 'publish_evidence_missing');
+});
+
+test('workspace cockpit evidence export covers panel readouts and fails closed on missing markers', () => {
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  const inventory = loadStudioAssetInventory(
+    JSON.parse(readFileSync(join(demoRoot, 'harness/out/asset-inventory/latest/index.json'), 'utf8')),
+  );
+  assert.equal(inventory.ok, true);
+  if (!inventory.ok) throw new Error('inventory should load');
+  const proofScenes = buildStudioProofSceneList({
+    workspace: workspaceResult.workspace,
+    assetInventory: inventory.inventory,
+    scenes: [
+      {
+        path: 'scenes/material-proof.scene.json',
+        schemaVersion: 1,
+        sceneId: 1002,
+        name: 'ASHA Demo Material Proof',
+        catalogAssetIds: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'],
+        runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
+      },
+    ],
+    evidence: { proofSceneCommandStatus: 'passed' },
+  });
+  assert.equal(proofScenes.ok, true);
+  const runtimeSessions = buildStudioRuntimeSessionList({ workspace: workspaceResult.workspace });
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+  const commandProposal = buildStudioGameWorkspaceCommandProposalReadModel({
+    workspace: workspaceResult.workspace,
+    attachHash: 'fixture:devtools-attach:asha-demo',
+    sequenceId: command.sequenceId,
+    batch: command.batch,
+    status: 'accepted',
+    result: { accepted: 1, rejected: 0, rejections: [] },
+    authorityHashAfter: 'authority:after:accepted',
+  });
+  const commandPanel = buildStudioCommandProposalPanel({
+    workspace: workspaceResult.workspace,
+    runtimeSessions,
+    commandProposals: [commandProposal],
+  });
+  const publishEvidence = loadStudioPublishEvidence(
+    JSON.parse(readFileSync(join(demoRoot, 'harness/out/publish-evidence/latest/index.json'), 'utf8')),
+    {
+      workspace: workspaceResult.workspace,
+      evidencePath: 'harness/out/publish-evidence/latest/index.json',
+    },
+  );
+  assert.equal(publishEvidence.ok, true);
+
+  const markers = [
+    'studio-game-workspace-overview',
+    'studio-assets-panel',
+    'studio-proof-scene-panel',
+    'studio-runtime-session-panel',
+    'studio-command-proposal-panel',
+    'studio-publish-evidence-panel',
+  ];
+  const artifact = exportStudioWorkspaceCockpitEvidence({
+    studioWorkspace: buildInitialWorkspaceReadModel(),
+    gameWorkspace: workspaceResult.workspace,
+    assetInventory: inventory.inventory,
+    proofScenes: proofScenes.proofScenes,
+    runtimeSessions,
+    commandProposalPanel: commandPanel,
+    publishEvidence: publishEvidence.publishEvidence,
+    visiblePanelMarkers: markers,
+  });
+  const missingMarker = exportStudioWorkspaceCockpitEvidence({
+    studioWorkspace: buildInitialWorkspaceReadModel(),
+    gameWorkspace: workspaceResult.workspace,
+    assetInventory: inventory.inventory,
+    proofScenes: proofScenes.proofScenes,
+    runtimeSessions,
+    commandProposalPanel: commandPanel,
+    publishEvidence: publishEvidence.publishEvidence,
+    visiblePanelMarkers: markers.filter(marker => marker !== 'studio-publish-evidence-panel'),
+  });
+
+  assert.equal(artifact.ok, true);
+  assert.equal(artifact.artifact.artifactKind, 'studio_workspace_cockpit_evidence');
+  assert.equal(artifact.artifact.panels.assetInventory.entryCount, 3);
+  assert.deepEqual(artifact.artifact.panels.commandProposals.statuses, ['accepted']);
+  assert.equal(artifact.artifact.panels.publishEvidence.dependencyGuard, 'no-studio-dev-only-fragments');
+  assert.ok(artifact.artifact.nonClaims.includes('not_publish_builder'));
+  assert.match(artifact.artifact.artifactHash, /^studio-workspace-cockpit-evidence-/);
+  assert.equal(missingMarker.ok, false);
+  assert.equal(missingMarker.diagnostics.at(0)?.code, 'cockpit_missing_panel_marker');
 });
 
 test('asset browser categories include newly loaded reference placeholders', () => {

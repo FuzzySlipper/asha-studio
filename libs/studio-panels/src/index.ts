@@ -135,6 +135,29 @@ function filteredHierarchyEntities(
           </div>
         }
       </section>
+
+      @if (store.runtimeSessions(); as runtimeSessions) {
+        <section class="runtime-session-strip" data-visual-id="studio-runtime-session-panel">
+          @for (session of runtimeSessions.sessions; track session.sessionHash) {
+            <article
+              class="runtime-session"
+              [class.runtime-session--active]="session.sessionId === runtimeSessions.activeSessionId"
+              [attr.data-runtime-session-id]="session.sessionId"
+              [attr.data-runtime-session-type]="session.sessionType"
+            >
+              <span>{{ session.sessionType }}</span>
+              <strong>{{ session.status }} · {{ session.runtimeMode }}</strong>
+              <small>{{ session.attachStatus }} · {{ session.endpoint ?? session.profileId }}</small>
+              @if (session.projection) {
+                <small>{{ session.projection.worldHash }} · {{ session.projection.renderDiffHash }}</small>
+              } @else {
+                <small>{{ session.profileId }}</small>
+              }
+              <small>{{ session.sessionHash }}</small>
+            </article>
+          }
+        </section>
+      }
     </section>
   `,
   styles: [
@@ -147,7 +170,7 @@ function filteredHierarchyEntities(
         display: grid;
         gap: 0.2rem 0.75rem;
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: auto auto auto minmax(0, 1fr);
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto;
         height: 100%;
         min-width: 0;
         padding: 0.5rem 0.75rem;
@@ -277,9 +300,52 @@ function filteredHierarchyEntities(
         grid-column: 1 / -1;
       }
 
+      .runtime-session-strip {
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        min-width: 0;
+      }
+
+      .runtime-session {
+        background: #111820;
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.05rem;
+        min-width: 0;
+        padding: 0.28rem 0.38rem;
+      }
+
+      .runtime-session--active {
+        border-color: var(--asha-color-accent);
+      }
+
+      .runtime-session span,
+      .runtime-session small {
+        color: var(--asha-color-muted);
+        font-size: 0.6rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .runtime-session strong {
+        font-size: 0.66rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       @media (max-width: 1100px) {
         .workspace-overview {
           grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .runtime-session-strip {
+          grid-template-columns: 1fr;
         }
       }
     `,
@@ -1254,6 +1320,20 @@ export class StudioInspectorPanelComponent {
           </button>
           <button
             type="button"
+            [class.active]="store.bottomPanelTab() === 'commands'"
+            (click)="store.setBottomPanelTab('commands')"
+          >
+            Commands
+          </button>
+          <button
+            type="button"
+            [class.active]="store.bottomPanelTab() === 'publish'"
+            (click)="store.setBottomPanelTab('publish')"
+          >
+            Publish
+          </button>
+          <button
+            type="button"
             [class.active]="store.bottomPanelTab() === 'evidence'"
             (click)="store.setBottomPanelTab('evidence')"
           >
@@ -1420,6 +1500,145 @@ export class StudioInspectorPanelComponent {
             </div>
           }
         </div>
+      } @else if (store.bottomPanelTab() === 'commands') {
+        <div class="command-proposal-panel" data-visual-id="studio-command-proposal-panel">
+          @if (store.commandProposalPanel(); as panel) {
+            <section class="command-proposal-summary" data-command-proposal-summary>
+              <span>{{ panel.panelVersion }}</span>
+              <strong>{{ panel.runtimeSessionId }}</strong>
+              <small>{{ panel.workspaceHash }} · {{ panel.panelHash }}</small>
+            </section>
+            <section class="command-action-list" aria-label="Command proposal actions">
+              @for (action of panel.actions; track action.actionHash) {
+                <article
+                  class="command-action"
+                  [class.command-action--disabled]="!action.available"
+                  [attr.data-command-action-id]="action.actionId"
+                >
+                  <header>
+                    <div>
+                      <strong>{{ action.label }}</strong>
+                      <span>{{ action.commandMessageType }} · {{ action.commandOperation }}</span>
+                    </div>
+                    <small>{{ action.available ? 'available' : 'blocked' }}</small>
+                  </header>
+                  <dl>
+                    <dt>endpoint</dt>
+                    <dd>{{ action.endpoint }}</dd>
+                    <dt>session</dt>
+                    <dd>{{ action.runtimeSessionId }}</dd>
+                    <dt>action hash</dt>
+                    <dd>{{ action.actionHash }}</dd>
+                  </dl>
+                </article>
+              }
+            </section>
+            <section class="command-proposal-list" aria-label="Command proposal results">
+              @for (proposal of panel.proposals; track proposal.proposalHash) {
+                <article
+                  class="command-proposal"
+                  [class.command-proposal--rejected]="proposal.status === 'rejected'"
+                  [attr.data-command-proposal-sequence]="proposal.sequenceId"
+                  [attr.data-command-proposal-status]="proposal.status"
+                >
+                  <header>
+                    <div>
+                      <strong>{{ proposal.sequenceId }} · {{ proposal.status }}</strong>
+                      <span>{{ proposal.batch.commands[0]?.op ?? 'unknown' }} through command.propose</span>
+                    </div>
+                    <small>{{ proposal.result.accepted }} accepted · {{ proposal.result.rejected }} rejected</small>
+                  </header>
+                  <dl>
+                    <dt>authority</dt>
+                    <dd>{{ proposal.authorityHashAfter ?? 'none' }}</dd>
+                    <dt>reason</dt>
+                    <dd>{{ proposal.rejectionReason ?? 'none' }}</dd>
+                    <dt>proposal hash</dt>
+                    <dd>{{ proposal.proposalHash }}</dd>
+                    <dt>attach</dt>
+                    <dd>{{ proposal.attachHash }}</dd>
+                  </dl>
+                  @if (proposal.diagnostics[0]; as diagnostic) {
+                    <small class="command-proposal__diagnostic">
+                      {{ diagnostic.code }} · {{ diagnostic.message }}
+                    </small>
+                  }
+                </article>
+              }
+            </section>
+            <section class="command-non-claims" aria-label="Command proposal non-claims">
+              @for (nonClaim of panel.nonClaims; track nonClaim) {
+                <span>{{ nonClaim }}</span>
+              }
+            </section>
+          }
+        </div>
+      } @else if (store.bottomPanelTab() === 'publish') {
+        <div class="publish-evidence-panel" data-visual-id="studio-publish-evidence-panel">
+          @if (store.publishEvidence().publishEvidence; as publish) {
+            <section
+              class="publish-evidence-summary"
+              [attr.data-publish-evidence-status]="publish.status"
+            >
+              <span>{{ publish.publishEvidenceVersion }} · {{ publish.evidenceVersion }}</span>
+              <strong>{{ publish.status }} · {{ publish.evidenceId ?? 'missing evidence' }}</strong>
+              <small>{{ publish.evidenceHash ?? 'no hash' }} · {{ publish.publishEvidenceHash }}</small>
+            </section>
+            <section class="publish-evidence-grid" aria-label="Publish evidence readout">
+              <article>
+                <span>Artifact</span>
+                <strong>{{ publish.artifactHash ?? 'missing' }}</strong>
+                <small>{{ publish.artifactPath ?? 'no artifact path' }}</small>
+              </article>
+              <article>
+                <span>Runnable</span>
+                <strong>{{ publish.runnableTarget ?? 'missing' }}</strong>
+                <small>{{ publish.runnableEntrypointPath ?? 'no entrypoint' }}</small>
+              </article>
+              <article>
+                <span>Resources</span>
+                <strong>{{ publish.packedResources.length }} packed</strong>
+                <small>{{ publish.resourcePackManifestHash ?? 'no resource manifest hash' }}</small>
+              </article>
+              <article>
+                <span>Dependency Guard</span>
+                <strong>{{ publish.dependencyGuard.status }}</strong>
+                <small>{{ publish.dependencyGuard.inspectedFileCount }} files inspected</small>
+              </article>
+              <article>
+                <span>Run Smoke</span>
+                <strong>{{ publish.runSmoke.runtimeMode ?? 'missing' }} · {{ publish.runSmoke.launcherName ?? 'no launcher' }}</strong>
+                <small>{{ publish.runSmoke.worldHash ?? 'no projection' }}</small>
+              </article>
+              <article>
+                <span>Command Proof</span>
+                <strong>{{ publish.runSmoke.acceptedCommandStatus ?? 'missing' }} / {{ publish.runSmoke.rejectedCommandStatus ?? 'missing' }}</strong>
+                <small>{{ publish.runSmoke.resolvedResourceCount }} resolved resources</small>
+              </article>
+            </section>
+            <section class="publish-resource-list" aria-label="Packed resources">
+              @for (resource of publish.packedResources; track resource.assetId) {
+                <article [attr.data-publish-resource-id]="resource.assetId">
+                  <strong>{{ resource.assetId }}</strong>
+                  <span>{{ resource.outputKey }}</span>
+                  <small>{{ resource.packedHash ?? 'no packed hash' }}</small>
+                </article>
+              }
+            </section>
+            @if (publish.diagnostics.length > 0) {
+              <section class="publish-diagnostics" data-publish-evidence-diagnostics="present">
+                @for (diagnostic of publish.diagnostics; track diagnostic.code + diagnostic.source) {
+                  <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
+                }
+              </section>
+            }
+            <section class="publish-non-claims" aria-label="Publish evidence non-claims">
+              @for (nonClaim of publish.nonClaims; track nonClaim) {
+                <span>{{ nonClaim }}</span>
+              }
+            </section>
+          }
+        </div>
       } @else {
         <div class="evidence-panel" data-visual-id="studio-secondary-evidence">
           <section class="evidence-summary" aria-label="Compact agent readout">
@@ -1496,6 +1715,20 @@ export class StudioInspectorPanelComponent {
             </details>
 
             <details>
+              <summary>Cockpit Evidence</summary>
+              <dl data-visual-id="studio-workspace-cockpit-evidence">
+                <dt>status</dt>
+                <dd>{{ store.workspaceCockpitEvidence().ok ? 'ready' : 'blocked' }}</dd>
+                <dt>artifact</dt>
+                <dd>{{ store.workspaceCockpitEvidence().artifact.artifactHash }}</dd>
+                <dt>version</dt>
+                <dd>{{ store.workspaceCockpitEvidence().artifact.artifactVersion }}</dd>
+                <dt>diagnostics</dt>
+                <dd>{{ store.workspaceCockpitEvidence().diagnostics.length }}</dd>
+              </dl>
+            </details>
+
+            <details>
               <summary>Non-Claims</summary>
               <ul>
                 @for (nonClaim of store.compactAgentReadout().nonClaims; track nonClaim) {
@@ -1562,6 +1795,8 @@ export class StudioInspectorPanelComponent {
       .asset-browser,
       .asset-grid,
       .proof-scene-panel,
+      .command-proposal-panel,
+      .publish-evidence-panel,
       .evidence-panel {
         min-height: 0;
         overflow: auto;
@@ -1680,7 +1915,10 @@ export class StudioInspectorPanelComponent {
       .asset-inventory-summary,
       .asset-inventory-diagnostics,
       .proof-scene-summary,
-      .proof-scene-diagnostics {
+      .proof-scene-diagnostics,
+      .command-proposal-summary,
+      .publish-evidence-summary,
+      .publish-diagnostics {
         border: 1px solid var(--asha-color-border);
         display: grid;
         gap: 0.1rem;
@@ -1690,14 +1928,21 @@ export class StudioInspectorPanelComponent {
       }
 
       .asset-inventory-summary,
-      .proof-scene-summary {
+      .proof-scene-summary,
+      .command-proposal-summary,
+      .publish-evidence-summary {
         background: #10161b;
       }
 
       .asset-inventory-diagnostics,
       .asset-entry--diagnostic,
       .proof-scene-diagnostics,
-      .proof-scene-entry--diagnostic {
+      .proof-scene-entry--diagnostic,
+      .command-proposal--rejected,
+      .publish-diagnostics,
+      .publish-evidence-summary[data-publish-evidence-status='degraded'],
+      .publish-evidence-summary[data-publish-evidence-status='stale'],
+      .publish-evidence-summary[data-publish-evidence-status='missing'] {
         border-color: var(--asha-color-warning);
       }
 
@@ -1707,8 +1952,13 @@ export class StudioInspectorPanelComponent {
       .asset-entry__diagnostic,
       .proof-scene-summary span,
       .proof-scene-summary small,
+      .command-proposal-summary span,
+      .command-proposal-summary small,
+      .publish-evidence-summary span,
+      .publish-evidence-summary small,
       .proof-scene-diagnostics span,
-      .proof-scene-entry__diagnostic {
+      .proof-scene-entry__diagnostic,
+      .publish-diagnostics span {
         color: var(--asha-color-muted);
         min-width: 0;
         overflow: hidden;
@@ -1717,17 +1967,62 @@ export class StudioInspectorPanelComponent {
       }
 
       .asset-inventory-summary strong,
-      .proof-scene-summary strong {
+      .proof-scene-summary strong,
+      .command-proposal-summary strong,
+      .publish-evidence-summary strong {
         color: var(--asha-color-accent-text);
       }
 
       .proof-scene-panel,
-      .proof-scene-list {
+      .proof-scene-list,
+      .command-proposal-panel,
+      .command-action-list,
+      .command-proposal-list,
+      .command-non-claims,
+      .publish-evidence-panel,
+      .publish-resource-list,
+      .publish-non-claims {
         display: grid;
         gap: 0.55rem;
       }
 
-      .proof-scene-entry {
+      .publish-evidence-grid {
+        display: grid;
+        gap: 0.55rem;
+        grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+      }
+
+      .publish-evidence-grid article,
+      .publish-resource-list article {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.15rem;
+        min-width: 0;
+        padding: 0.5rem;
+      }
+
+      .publish-evidence-grid span,
+      .publish-evidence-grid small,
+      .publish-resource-list span,
+      .publish-resource-list small {
+        color: var(--asha-color-muted);
+      }
+
+      .publish-evidence-grid strong,
+      .publish-evidence-grid small,
+      .publish-resource-list strong,
+      .publish-resource-list span,
+      .publish-resource-list small {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .proof-scene-entry,
+      .command-action,
+      .command-proposal {
         border: 1px solid var(--asha-color-border);
         background: var(--asha-color-control);
         display: grid;
@@ -1736,13 +2031,17 @@ export class StudioInspectorPanelComponent {
         padding: 0.55rem;
       }
 
-      .proof-scene-entry header {
+      .proof-scene-entry header,
+      .command-action header,
+      .command-proposal header {
         display: flex;
         gap: 0.5rem;
         justify-content: space-between;
       }
 
-      .proof-scene-entry header div {
+      .proof-scene-entry header div,
+      .command-action header div,
+      .command-proposal header div {
         display: grid;
         min-width: 0;
       }
@@ -1753,26 +2052,61 @@ export class StudioInspectorPanelComponent {
         margin: 0;
       }
 
-      .proof-scene-entry dl {
+      .proof-scene-entry dl,
+      .command-action dl,
+      .command-proposal dl {
         display: grid;
         gap: 0.18rem 0.55rem;
         grid-template-columns: 6.5rem minmax(0, 1fr);
         margin: 0;
       }
 
-      .proof-scene-entry dt {
+      .proof-scene-entry dt,
+      .command-action dt,
+      .command-proposal dt {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
       }
 
       .proof-scene-entry dd,
       .proof-scene-entry strong,
-      .proof-scene-entry span {
+      .proof-scene-entry span,
+      .command-action dd,
+      .command-action strong,
+      .command-action span,
+      .command-proposal dd,
+      .command-proposal strong,
+      .command-proposal span {
         margin: 0;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .command-action--disabled {
+        opacity: 0.72;
+      }
+
+      .command-proposal--rejected {
+        border-color: var(--asha-color-warning);
+      }
+
+      .command-proposal__diagnostic,
+      .command-non-claims span,
+      .publish-non-claims span {
+        color: var(--asha-color-muted);
+      }
+
+      .command-non-claims,
+      .publish-non-claims {
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      }
+
+      .command-non-claims span,
+      .publish-non-claims span {
+        border: 1px solid var(--asha-color-border);
+        padding: 0.35rem 0.45rem;
       }
 
       .empty-assets {
