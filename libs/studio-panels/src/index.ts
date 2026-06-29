@@ -1247,6 +1247,13 @@ export class StudioInspectorPanelComponent {
           </button>
           <button
             type="button"
+            [class.active]="store.bottomPanelTab() === 'proof_scenes'"
+            (click)="store.setBottomPanelTab('proof_scenes')"
+          >
+            Proof Scenes
+          </button>
+          <button
+            type="button"
             [class.active]="store.bottomPanelTab() === 'evidence'"
             (click)="store.setBottomPanelTab('evidence')"
           >
@@ -1300,28 +1307,118 @@ export class StudioInspectorPanelComponent {
             }
           </aside>
           <div class="asset-grid">
-            @for (asset of store.assetRenderables(); track asset.renderableId) {
+            @if (!store.assetInventory().ok && store.assetInventory().inventory === null) {
+              <p class="empty-assets" data-asset-inventory-diagnostics="missing">
+                Asset inventory is unavailable.
+              </p>
+            }
+            @if (store.assetInventory().inventory; as inventory) {
+              <div class="asset-inventory-summary" data-asset-inventory-summary>
+                <span>{{ inventory.artifactKind }} · {{ inventory.artifactVersion }}</span>
+                <strong>{{ inventory.status }}</strong>
+                <small>{{ inventory.catalogPath }} · {{ inventory.inventoryHash }}</small>
+              </div>
+              @if (inventory.diagnostics.length > 0) {
+                <div class="asset-inventory-diagnostics" data-asset-inventory-diagnostics="present">
+                  @for (diagnostic of inventory.diagnostics; track diagnostic.code + diagnostic.source) {
+                    <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
+                  }
+                </div>
+              }
+            }
+            @for (asset of store.catalogAssetEntries(); track asset.assetId) {
               <article
                 class="asset-entry"
                 role="button"
                 tabindex="0"
-                [class.asset-entry--selected]="store.selectedRenderable()?.renderableId === asset.renderableId"
-                [attr.data-asset-renderable-id]="asset.renderableId"
-                (click)="store.selectAssetRenderable(asset.renderableId)"
-                (keydown.enter)="store.selectAssetRenderable(asset.renderableId)"
-                (keydown.space)="store.selectAssetRenderable(asset.renderableId)"
+                [class.asset-entry--selected]="asset.referencedRenderableIds.includes(store.selectedRenderable()?.renderableId ?? '')"
+                [class.asset-entry--diagnostic]="asset.diagnostics.length > 0"
+                [attr.data-asset-id]="asset.assetId"
+                [attr.data-asset-kind]="asset.kind"
+                (click)="store.selectCatalogAsset(asset.assetId)"
+                (keydown.enter)="store.selectCatalogAsset(asset.assetId)"
+                (keydown.space)="store.selectCatalogAsset(asset.assetId)"
               >
                 <span class="asset-thumb">{{ assetIcon(asset) }}</span>
                 <div>
-                  <strong>{{ asset.label }}</strong>
-                  <span>{{ asset.meshRef ?? asset.renderableId }}</span>
-                  <small>{{ asset.sourceState }} · {{ asset.materialRef ?? 'no material' }}</small>
+                  <strong>{{ asset.assetId }}</strong>
+                  <span>{{ asset.sourcePath }}</span>
+                  <small>
+                    {{ asset.kind }} · deps {{ asset.dependencyStatus }} · dev
+                    {{ asset.devResolution?.importStatus ?? 'missing' }} · publish
+                    {{ asset.publishResolution?.outputKey ?? 'missing' }}
+                  </small>
+                  @if (asset.dependencies.length > 0) {
+                    <small>depends on {{ asset.dependencies.join(', ') }}</small>
+                  }
+                  @if (asset.referencedRenderableIds.length > 0) {
+                    <small>scene refs {{ asset.referencedRenderableIds.join(', ') }}</small>
+                  }
+                  @if (asset.diagnostics[0]; as diagnostic) {
+                    <small class="asset-entry__diagnostic">
+                      {{ diagnostic.code }} · {{ diagnostic.message }}
+                    </small>
+                  }
                 </div>
               </article>
             } @empty {
               <p class="empty-assets">No assets match {{ store.assetBrowserSummary() }}.</p>
             }
           </div>
+        </div>
+      } @else if (store.bottomPanelTab() === 'proof_scenes') {
+        <div class="proof-scene-panel" data-visual-id="studio-proof-scene-panel">
+          @if (store.proofScenes().proofScenes; as proofScenes) {
+            <section class="proof-scene-summary" data-proof-scene-list-summary>
+              <span>{{ proofScenes.proofSceneListVersion }}</span>
+              <strong>{{ proofScenes.scenes.length }} scenes</strong>
+              <small>{{ proofScenes.sceneRoots.join(', ') }} · {{ proofScenes.proofSceneListHash }}</small>
+            </section>
+            @if (proofScenes.diagnostics.length > 0) {
+              <section class="proof-scene-diagnostics" data-proof-scene-diagnostics="present">
+                @for (diagnostic of proofScenes.diagnostics; track diagnostic.code + diagnostic.source) {
+                  <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
+                }
+              </section>
+            }
+            <div class="proof-scene-list">
+              @for (scene of proofScenes.scenes; track scene.proofSceneHash) {
+                <article
+                  class="proof-scene-entry"
+                  [class.proof-scene-entry--diagnostic]="scene.diagnostics.length > 0"
+                  [attr.data-proof-scene-id]="scene.sceneId"
+                >
+                  <header>
+                    <div>
+                      <strong>{{ scene.name }}</strong>
+                      <span>{{ scene.path }}</span>
+                    </div>
+                    <small>{{ scene.evidenceStatus }}</small>
+                  </header>
+                  <p>{{ scene.description ?? 'No description.' }}</p>
+                  <dl>
+                    <dt>catalog ids</dt>
+                    <dd>{{ scene.catalogAssetIds.join(', ') }}</dd>
+                    <dt>catalog status</dt>
+                    <dd>{{ scene.catalogStatus }}</dd>
+                    <dt>runtime fixture</dt>
+                    <dd>{{ scene.runtimeFixture ?? 'missing' }}</dd>
+                    <dt>runtime profile</dt>
+                    <dd>{{ scene.runtimeProfile }}</dd>
+                    <dt>hash</dt>
+                    <dd>{{ scene.proofSceneHash }}</dd>
+                  </dl>
+                  @if (scene.diagnostics[0]; as diagnostic) {
+                    <small class="proof-scene-entry__diagnostic">
+                      {{ diagnostic.code }} · {{ diagnostic.message }}
+                    </small>
+                  }
+                </article>
+              } @empty {
+                <p class="empty-assets">No proof scenes available.</p>
+              }
+            </div>
+          }
         </div>
       } @else {
         <div class="evidence-panel" data-visual-id="studio-secondary-evidence">
@@ -1464,6 +1561,7 @@ export class StudioInspectorPanelComponent {
       .timeline-table-wrap,
       .asset-browser,
       .asset-grid,
+      .proof-scene-panel,
       .evidence-panel {
         min-height: 0;
         overflow: auto;
@@ -1577,6 +1675,104 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: auto minmax(0, 1fr);
         min-width: 0;
         padding: 0.5rem;
+      }
+
+      .asset-inventory-summary,
+      .asset-inventory-diagnostics,
+      .proof-scene-summary,
+      .proof-scene-diagnostics {
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.1rem;
+        grid-column: 1 / -1;
+        min-width: 0;
+        padding: 0.45rem 0.55rem;
+      }
+
+      .asset-inventory-summary,
+      .proof-scene-summary {
+        background: #10161b;
+      }
+
+      .asset-inventory-diagnostics,
+      .asset-entry--diagnostic,
+      .proof-scene-diagnostics,
+      .proof-scene-entry--diagnostic {
+        border-color: var(--asha-color-warning);
+      }
+
+      .asset-inventory-summary span,
+      .asset-inventory-summary small,
+      .asset-inventory-diagnostics span,
+      .asset-entry__diagnostic,
+      .proof-scene-summary span,
+      .proof-scene-summary small,
+      .proof-scene-diagnostics span,
+      .proof-scene-entry__diagnostic {
+        color: var(--asha-color-muted);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .asset-inventory-summary strong,
+      .proof-scene-summary strong {
+        color: var(--asha-color-accent-text);
+      }
+
+      .proof-scene-panel,
+      .proof-scene-list {
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .proof-scene-entry {
+        border: 1px solid var(--asha-color-border);
+        background: var(--asha-color-control);
+        display: grid;
+        gap: 0.35rem;
+        min-width: 0;
+        padding: 0.55rem;
+      }
+
+      .proof-scene-entry header {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: space-between;
+      }
+
+      .proof-scene-entry header div {
+        display: grid;
+        min-width: 0;
+      }
+
+      .proof-scene-entry p {
+        color: var(--asha-color-muted);
+        font-size: 0.75rem;
+        margin: 0;
+      }
+
+      .proof-scene-entry dl {
+        display: grid;
+        gap: 0.18rem 0.55rem;
+        grid-template-columns: 6.5rem minmax(0, 1fr);
+        margin: 0;
+      }
+
+      .proof-scene-entry dt {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+      }
+
+      .proof-scene-entry dd,
+      .proof-scene-entry strong,
+      .proof-scene-entry span {
+        margin: 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .empty-assets {
@@ -1693,13 +1889,15 @@ export class StudioAssetsBottomPanelComponent {
     return `${index * 120}ms`;
   }
 
-  assetIcon(asset: StudioSceneRenderableReadModel): string {
-    const labels: Record<StudioSceneRenderableReadModel['kind'], string> = {
+  assetIcon(asset: { readonly kind: string }): string {
+    const labels: Record<string, string> = {
       voxel_grid: 'G',
       voxel_cell: 'V',
       static_mesh: 'M',
+      material: 'Mat',
+      texture: 'Tex',
       preview_ghost: 'P',
     };
-    return labels[asset.kind];
+    return labels[asset.kind] ?? '?';
   }
 }

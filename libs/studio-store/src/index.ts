@@ -7,7 +7,9 @@ import {
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
+  buildStudioProofSceneList,
   buildStudioGameWorkspaceReadout,
+  loadStudioAssetInventory,
   buildStudioViewportReadout,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
@@ -39,6 +41,9 @@ import {
   type StudioBottomPanelTab,
   type StudioGameWorkspaceLoadResult,
   type StudioGameWorkspaceReadout,
+  type StudioAssetInventoryEntryReadModel,
+  type StudioAssetInventoryLoadResult,
+  type StudioProofSceneListLoadResult,
   type StudioPreferencesReadModel,
   type StudioRenderSettingKey,
   type StudioViewportCameraControlDelta,
@@ -106,6 +111,143 @@ const DEMO_GAME_WORKSPACE_PATHS = new Set([
   'packages/game-policy',
 ]);
 
+const DEMO_ASSET_INVENTORY_ARTIFACT = {
+  artifactKind: 'asha_demo_asset_inventory',
+  artifactVersion: 'asset-inventory.v1',
+  generatedAt: 'deterministic-as-structure-only',
+  sourceManifest: {
+    path: 'asha.game.toml',
+    hash: 'sha256:8dea305570a722c40d5e046b11197476c4d9e9674ce83f537dc803ada6bb9703',
+  },
+  catalog: {
+    path: 'packages/game-catalogs/catalog.json',
+    hash: 'sha256:d51427117af9d7eefb673cec1a9a555fcb2f7f772950325cc7117d2dc61d1540',
+  },
+  status: 'ok',
+  diagnostics: [],
+  dependencyOrder: [
+    'texture.demo-checker',
+    'material.demo-copper',
+    'mesh.demo-cube',
+  ],
+  entries: [
+    {
+      assetId: 'mesh.demo-cube',
+      kind: 'static_mesh',
+      sourcePath: 'assets/meshes/demo-cube.mesh.json',
+      dependencies: ['material.demo-copper'],
+      devResolution: {
+        assetId: 'mesh.demo-cube',
+        sourcePath: 'assets/meshes/demo-cube.mesh.json',
+        sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
+        devCacheKey: 'dev-cache/static_mesh/mesh.demo-cube/22b581000100',
+        generatedArtifactVersion: 'asset-import.v1',
+        importStatus: 'clean',
+        publishOutputKey: 'meshes/demo-cube.mesh.json',
+      },
+      publishResolution: {
+        outputKey: 'meshes/demo-cube.mesh.json',
+        packedPath: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
+        packedHash: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
+        packedBytes: 702,
+      },
+      diagnostics: [],
+      evidenceRefs: [
+        {
+          kind: 'source',
+          path: 'assets/meshes/demo-cube.mesh.json',
+          sha256: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
+        },
+        {
+          kind: 'packed-resource',
+          path: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
+          sha256: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
+        },
+      ],
+    },
+    {
+      assetId: 'material.demo-copper',
+      kind: 'material',
+      sourcePath: 'assets/materials/demo-copper.material.json',
+      dependencies: ['texture.demo-checker'],
+      devResolution: {
+        assetId: 'material.demo-copper',
+        sourcePath: 'assets/materials/demo-copper.material.json',
+        sourceHash: 'sha256:0190cf1f6ec702431fd1e37e38503b9002978681a989d6382830d92e586ccd6d',
+        devCacheKey: 'dev-cache/material/material.demo-copper/0190cf1f6ec7',
+        generatedArtifactVersion: 'asset-import.v1',
+        importStatus: 'clean',
+        publishOutputKey: 'materials/demo-copper.material.json',
+      },
+      publishResolution: {
+        outputKey: 'materials/demo-copper.material.json',
+        packedPath: 'harness/out/publish/resources/materials/demo-copper.material.json',
+        packedHash: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
+        packedBytes: 214,
+      },
+      diagnostics: [],
+      evidenceRefs: [
+        {
+          kind: 'source',
+          path: 'assets/materials/demo-copper.material.json',
+          sha256: 'sha256:0190cf1f6ec702431fd1e37e38503b9002978681a989d6382830d92e586ccd6d',
+        },
+        {
+          kind: 'packed-resource',
+          path: 'harness/out/publish/resources/materials/demo-copper.material.json',
+          sha256: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
+        },
+      ],
+    },
+    {
+      assetId: 'texture.demo-checker',
+      kind: 'texture',
+      sourcePath: 'assets/textures/demo-checker.texture.json',
+      dependencies: [],
+      devResolution: {
+        assetId: 'texture.demo-checker',
+        sourcePath: 'assets/textures/demo-checker.texture.json',
+        sourceHash: 'sha256:46f863709c0cf4f2d5d03b560f492f5556c3482640b69dddcc6a2ac56b8963d3',
+        devCacheKey: 'dev-cache/texture/texture.demo-checker/46f863709c0c',
+        generatedArtifactVersion: 'asset-import.v1',
+        importStatus: 'clean',
+        publishOutputKey: 'textures/demo-checker.texture.json',
+      },
+      publishResolution: {
+        outputKey: 'textures/demo-checker.texture.json',
+        packedPath: 'harness/out/publish/resources/textures/demo-checker.texture.json',
+        packedHash: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
+        packedBytes: 367,
+      },
+      diagnostics: [],
+      evidenceRefs: [
+        {
+          kind: 'source',
+          path: 'assets/textures/demo-checker.texture.json',
+          sha256: 'sha256:46f863709c0cf4f2d5d03b560f492f5556c3482640b69dddcc6a2ac56b8963d3',
+        },
+        {
+          kind: 'packed-resource',
+          path: 'harness/out/publish/resources/textures/demo-checker.texture.json',
+          sha256: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
+        },
+      ],
+    },
+  ],
+} as const;
+
+const DEMO_PROOF_SCENES = [
+  {
+    path: 'scenes/material-proof.scene.json',
+    schemaVersion: 1,
+    sceneId: 1002,
+    name: 'ASHA Demo Material Proof',
+    description: 'Proof scene that references mesh, material, and texture catalog assets together.',
+    catalogAssetIds: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'],
+    runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
+  },
+] as const;
+
 function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
   return loadStudioGameWorkspaceManifest({
     workspaceRoot: '../asha-demo',
@@ -114,6 +256,72 @@ function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
     manifestText: DEMO_GAME_WORKSPACE_MANIFEST,
     packageScripts: DEMO_GAME_WORKSPACE_SCRIPTS,
     pathExists: relativePath => DEMO_GAME_WORKSPACE_PATHS.has(relativePath),
+  });
+}
+
+function loadDemoAssetInventory(): StudioAssetInventoryLoadResult {
+  return loadStudioAssetInventory(DEMO_ASSET_INVENTORY_ARTIFACT, {
+    referencedRenderableIds: {
+      'mesh.demo-cube': ['model-preview-crate'],
+      'material.demo-copper': ['model-preview-crate'],
+    },
+  });
+}
+
+function loadDemoProofScenes(
+  workspace: StudioGameWorkspaceLoadResult,
+  inventory: StudioAssetInventoryLoadResult,
+): StudioProofSceneListLoadResult {
+  if (!workspace.ok || !inventory.ok) {
+    const fallbackWorkspace = workspace.ok ? workspace.workspace : null;
+    const fallbackInventory = inventory.inventory;
+    if (fallbackWorkspace !== null && fallbackInventory !== null) {
+      return buildStudioProofSceneList({
+        workspace: fallbackWorkspace,
+        assetInventory: fallbackInventory,
+        scenes: [],
+        evidence: { proofSceneCommandStatus: 'missing' },
+      });
+    }
+    return {
+      ok: false,
+      proofScenes: {
+        proofSceneListVersion: 'studio-proof-scene-list.v0',
+        sceneRoots: [],
+        scenes: [],
+        diagnostics: [
+          {
+            severity: 'error',
+            code: 'proof_scene_missing',
+            message: 'Proof scenes require a valid workspace and asset inventory.',
+            source: null,
+            remediation: null,
+          },
+        ],
+        proofSceneListHash: 'studio-proof-scene-list-unavailable',
+      },
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'proof_scene_missing',
+          message: 'Proof scenes require a valid workspace and asset inventory.',
+          source: null,
+          remediation: null,
+        },
+      ],
+    };
+  }
+
+  return buildStudioProofSceneList({
+    workspace: workspace.workspace,
+    assetInventory: inventory.inventory,
+    scenes: DEMO_PROOF_SCENES,
+    evidence: {
+      proofSceneCommandStatus: 'passed',
+      proofSceneCommand: '/usr/bin/node scripts/check-proof-scenes.mjs',
+      assetInventoryArtifactPath: 'harness/out/asset-inventory/latest/index.json',
+      assetInventoryArtifactHash: 'sha256:87d9ba8eb31307e0ded564e456f3721275e481fdbfeb29e6ec267ac7c64c3894',
+    },
   });
 }
 
@@ -168,6 +376,12 @@ export class StudioWorkspaceStore {
   private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>(
     loadDemoGameWorkspace(),
   );
+  private readonly assetInventoryState = signal<StudioAssetInventoryLoadResult>(
+    loadDemoAssetInventory(),
+  );
+  private readonly proofScenesState = signal<StudioProofSceneListLoadResult>(
+    loadDemoProofScenes(this.gameWorkspaceState(), this.assetInventoryState()),
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
@@ -183,6 +397,8 @@ export class StudioWorkspaceStore {
   readonly viewportHit = this.viewportHitState.asReadonly();
   readonly menuMessage = this.menuMessageState.asReadonly();
   readonly gameWorkspaceOverview = this.gameWorkspaceState.asReadonly();
+  readonly assetInventory = this.assetInventoryState.asReadonly();
+  readonly proofScenes = this.proofScenesState.asReadonly();
   readonly gameWorkspace = computed(() => {
     const overview = this.gameWorkspaceState();
     return overview.ok ? overview.workspace : null;
@@ -214,13 +430,39 @@ export class StudioWorkspaceStore {
   });
 
   readonly assetBrowserCategories = computed(() =>
-    buildAssetBrowserCategories(this.workspaceState().scene.renderables),
+    buildAssetBrowserCategories(this.workspaceState().scene.renderables).map(category => {
+      const inventory = this.assetInventoryState();
+      if (!inventory.ok || category.category === 'generated' || category.category === 'preview') {
+        return category;
+      }
+      const count = category.category === 'all'
+        ? inventory.inventory.entries.length
+        : inventory.inventory.entries.filter(entry => {
+            if (category.category === 'static_meshes') {
+              return entry.kind === 'static_mesh';
+            }
+            if (category.category === 'materials') {
+              return entry.kind === 'material';
+            }
+            return entry.kind === 'texture';
+          }).length;
+      return { ...category, count };
+    }),
   );
 
   readonly assetBrowserSummary = computed(() => {
     const category = this.assetBrowserCategoryState();
     const matchingCategory = this.assetBrowserCategories().find(item => item.category === category);
     return `${matchingCategory?.label ?? 'Assets'} · ${this.assetRenderables().length}`;
+  });
+
+  readonly catalogAssetEntries = computed(() => {
+    const inventory = this.assetInventoryState();
+    if (!inventory.ok && inventory.inventory === null) {
+      return [];
+    }
+    const entries = inventory.inventory?.entries ?? [];
+    return entries.filter(entry => this.catalogAssetMatchesCategory(entry));
   });
 
   readonly latestTimelineEntry = computed(() => {
@@ -352,6 +594,21 @@ export class StudioWorkspaceStore {
     }
     this.selectEntity(linkedEntity.id);
     this.menuMessageState.set(`Asset ${renderableId} selected for inspection.`);
+  }
+
+  selectCatalogAsset(assetId: string): void {
+    const asset = this.catalogAssetEntries().find(entry => entry.assetId === assetId) ?? null;
+    if (asset === null) {
+      this.menuMessageState.set(`Catalog asset ${assetId} is not available.`);
+      return;
+    }
+    const renderableId = asset.referencedRenderableIds.at(0) ?? null;
+    if (renderableId !== null) {
+      this.selectAssetRenderable(renderableId);
+      this.menuMessageState.set(`Catalog asset ${assetId} selected with renderable ${renderableId}.`);
+      return;
+    }
+    this.menuMessageState.set(`Catalog asset ${assetId} selected; no scene renderable reference.`);
   }
 
   setViewportTool(activeTool: StudioViewportToolMode): void {
@@ -545,5 +802,22 @@ export class StudioWorkspaceStore {
     });
     this.workspaceState.set(recorded.workspace);
     this.menuMessageState.set('View preference updated.');
+  }
+
+  private catalogAssetMatchesCategory(asset: StudioAssetInventoryEntryReadModel): boolean {
+    const category = this.assetBrowserCategoryState();
+    if (category === 'all') {
+      return true;
+    }
+    if (category === 'static_meshes') {
+      return asset.kind === 'static_mesh';
+    }
+    if (category === 'materials') {
+      return asset.kind === 'material';
+    }
+    if (category === 'textures') {
+      return asset.kind === 'texture';
+    }
+    return false;
   }
 }

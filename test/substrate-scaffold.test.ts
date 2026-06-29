@@ -15,6 +15,7 @@ import {
   buildAssetBrowserCategories,
   buildInitialWorkspaceReadModel,
   buildStudioGameWorkspaceReadout,
+  buildStudioProofSceneList,
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
   buildStudioCompatibilityEvidence,
@@ -39,6 +40,7 @@ import {
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
   loadScenarioReadModel,
+  loadStudioAssetInventory,
   loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
@@ -724,6 +726,287 @@ test('asset browser categories filter scene renderables deterministically', () =
   );
 });
 
+test('game asset inventory read model loads multi-kind asha-demo catalog evidence', () => {
+  const inventory = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: {
+      path: 'asha.game.toml',
+      hash: 'sha256:manifest',
+    },
+    catalog: {
+      path: 'packages/game-catalogs/catalog.json',
+      hash: 'sha256:catalog',
+    },
+    diagnostics: [],
+    dependencyOrder: ['texture.demo-checker', 'material.demo-copper', 'mesh.demo-cube'],
+    entries: [
+      {
+        assetId: 'mesh.demo-cube',
+        kind: 'static_mesh',
+        sourcePath: 'assets/meshes/demo-cube.mesh.json',
+        dependencies: ['material.demo-copper'],
+        devResolution: {
+          sourceHash: 'sha256:mesh',
+          devCacheKey: 'dev-cache/static_mesh/mesh.demo-cube/mesh',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'meshes/demo-cube.mesh.json',
+        },
+        publishResolution: {
+          outputKey: 'meshes/demo-cube.mesh.json',
+          packedPath: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
+          packedHash: 'sha256:packed-mesh',
+          packedBytes: 702,
+        },
+        diagnostics: [],
+        evidenceRefs: [{ kind: 'source', path: 'assets/meshes/demo-cube.mesh.json', sha256: 'sha256:mesh' }],
+      },
+      {
+        assetId: 'material.demo-copper',
+        kind: 'material',
+        sourcePath: 'assets/materials/demo-copper.material.json',
+        dependencies: ['texture.demo-checker'],
+        devResolution: {
+          sourceHash: 'sha256:material',
+          devCacheKey: 'dev-cache/material/material.demo-copper/material',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'materials/demo-copper.material.json',
+        },
+        publishResolution: {
+          outputKey: 'materials/demo-copper.material.json',
+          packedPath: 'harness/out/publish/resources/materials/demo-copper.material.json',
+          packedHash: 'sha256:packed-material',
+          packedBytes: 214,
+        },
+        diagnostics: [],
+        evidenceRefs: [{ kind: 'source', path: 'assets/materials/demo-copper.material.json', sha256: 'sha256:material' }],
+      },
+      {
+        assetId: 'texture.demo-checker',
+        kind: 'texture',
+        sourcePath: 'assets/textures/demo-checker.texture.json',
+        dependencies: [],
+        devResolution: {
+          sourceHash: 'sha256:texture',
+          devCacheKey: 'dev-cache/texture/texture.demo-checker/texture',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'textures/demo-checker.texture.json',
+        },
+        publishResolution: {
+          outputKey: 'textures/demo-checker.texture.json',
+          packedPath: 'harness/out/publish/resources/textures/demo-checker.texture.json',
+          packedHash: 'sha256:packed-texture',
+          packedBytes: 367,
+        },
+        diagnostics: [],
+        evidenceRefs: [{ kind: 'source', path: 'assets/textures/demo-checker.texture.json', sha256: 'sha256:texture' }],
+      },
+    ],
+  }, {
+    referencedRenderableIds: {
+      'mesh.demo-cube': ['model-preview-crate'],
+    },
+  });
+
+  assert.equal(inventory.ok, true);
+  if (!inventory.ok) throw new Error('asset inventory should load');
+  assert.equal(inventory.inventory.inventoryVersion, 'studio-asset-inventory.v0');
+  assert.equal(inventory.inventory.entries.length, 3);
+  assert.deepEqual(inventory.inventory.dependencyOrder, [
+    'texture.demo-checker',
+    'material.demo-copper',
+    'mesh.demo-cube',
+  ]);
+  assert.equal(inventory.inventory.entries.find(asset => asset.assetId === 'mesh.demo-cube')?.dependencyStatus, 'resolved');
+  assert.deepEqual(
+    inventory.inventory.entries.find(asset => asset.assetId === 'mesh.demo-cube')?.referencedRenderableIds,
+    ['model-preview-crate'],
+  );
+  assert.match(inventory.inventory.inventoryHash, /^studio-asset-inventory-/);
+});
+
+test('game asset inventory fails closed for broken assets instead of directory scans', () => {
+  const inventory = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'diagnostics',
+    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
+    catalog: { path: 'packages/game-catalogs/catalog.json', hash: 'sha256:catalog' },
+    diagnostics: [],
+    dependencyOrder: ['mesh.broken'],
+    entries: [
+      {
+        assetId: 'mesh.broken',
+        kind: 'static_mesh',
+        sourcePath: 'assets/meshes/broken.mesh.json',
+        dependencies: ['material.missing'],
+        devResolution: null,
+        publishResolution: null,
+        diagnostics: [{ code: 'missing_asset_file', path: 'entries[0]', message: 'asset file missing' }],
+        evidenceRefs: [],
+      },
+    ],
+  });
+
+  assert.equal(inventory.ok, false);
+  assert.ok(inventory.inventory);
+  assert.equal(inventory.inventory.status, 'diagnostics');
+  assert.equal(inventory.diagnostics.some(diagnostic => diagnostic.code === 'asset_inventory_missing_resolution'), true);
+  assert.equal(inventory.diagnostics.some(diagnostic => diagnostic.code === 'asset_inventory_dependency_mismatch'), true);
+  assert.equal(inventory.diagnostics.some(diagnostic => diagnostic.message === 'asset file missing'), true);
+});
+
+test('proof scene read model ties named scenes to catalog ids and evidence status', () => {
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('workspace should load');
+  const inventoryResult = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
+    catalog: { path: 'packages/game-catalogs/catalog.json', hash: 'sha256:catalog' },
+    diagnostics: [],
+    dependencyOrder: ['texture.demo-checker', 'material.demo-copper', 'mesh.demo-cube'],
+    entries: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'].map(assetId => ({
+      assetId,
+      kind: assetId.startsWith('mesh') ? 'static_mesh' : assetId.startsWith('material') ? 'material' : 'texture',
+      sourcePath: `assets/${assetId}.json`,
+      dependencies: [],
+      devResolution: {
+        sourceHash: `sha256:${assetId}`,
+        devCacheKey: `dev-cache/${assetId}`,
+        generatedArtifactVersion: 'asset-import.v1',
+        importStatus: 'clean',
+        publishOutputKey: `${assetId}.json`,
+      },
+      publishResolution: {
+        outputKey: `${assetId}.json`,
+        packedPath: `harness/out/publish/resources/${assetId}.json`,
+        packedHash: `sha256:packed-${assetId}`,
+        packedBytes: 1,
+      },
+      diagnostics: [],
+      evidenceRefs: [],
+    })),
+  });
+  assert.equal(inventoryResult.ok, true);
+  if (!inventoryResult.ok) throw new Error('inventory should load');
+
+  const proofScenes = buildStudioProofSceneList({
+    workspace: workspaceResult.workspace,
+    assetInventory: inventoryResult.inventory,
+    scenes: [
+      {
+        path: 'scenes/material-proof.scene.json',
+        schemaVersion: 1,
+        sceneId: 1002,
+        name: 'ASHA Demo Material Proof',
+        description: 'Proof scene that references mesh, material, and texture catalog assets together.',
+        catalogAssetIds: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'],
+        runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
+      },
+    ],
+    evidence: {
+      proofSceneCommandStatus: 'passed',
+      proofSceneCommand: '/usr/bin/node scripts/check-proof-scenes.mjs',
+      assetInventoryArtifactPath: 'harness/out/asset-inventory/latest/index.json',
+      assetInventoryArtifactHash: 'sha256:inventory',
+    },
+  });
+
+  assert.equal(proofScenes.ok, true);
+  if (!proofScenes.ok) throw new Error('proof scenes should load');
+  assert.equal(proofScenes.proofScenes.scenes.at(0)?.name, 'ASHA Demo Material Proof');
+  assert.deepEqual(proofScenes.proofScenes.scenes.at(0)?.catalogAssetIds, [
+    'mesh.demo-cube',
+    'material.demo-copper',
+    'texture.demo-checker',
+  ]);
+  assert.equal(proofScenes.proofScenes.scenes.at(0)?.catalogStatus, 'resolved');
+  assert.equal(proofScenes.proofScenes.scenes.at(0)?.evidenceStatus, 'passed');
+  assert.match(proofScenes.proofScenes.proofSceneListHash, /^studio-proof-scene-list-/);
+});
+
+test('proof scene read model fails closed on missing catalog references', () => {
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('workspace should load');
+  const inventoryResult = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
+    catalog: { path: 'packages/game-catalogs/catalog.json', hash: 'sha256:catalog' },
+    diagnostics: [],
+    dependencyOrder: ['mesh.demo-cube'],
+    entries: [
+      {
+        assetId: 'mesh.demo-cube',
+        kind: 'static_mesh',
+        sourcePath: 'assets/meshes/demo-cube.mesh.json',
+        dependencies: [],
+        devResolution: {
+          sourceHash: 'sha256:mesh',
+          devCacheKey: 'dev-cache/static_mesh/mesh.demo-cube',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'meshes/demo-cube.mesh.json',
+        },
+        publishResolution: {
+          outputKey: 'meshes/demo-cube.mesh.json',
+          packedPath: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
+          packedHash: 'sha256:packed',
+          packedBytes: 1,
+        },
+        diagnostics: [],
+        evidenceRefs: [],
+      },
+    ],
+  });
+  assert.equal(inventoryResult.ok, true);
+  if (!inventoryResult.ok) throw new Error('inventory should load');
+
+  const proofScenes = buildStudioProofSceneList({
+    workspace: workspaceResult.workspace,
+    assetInventory: inventoryResult.inventory,
+    scenes: [
+      {
+        path: 'scenes/broken.scene.json',
+        schemaVersion: 1,
+        sceneId: 'broken',
+        name: 'Broken Proof',
+        catalogAssetIds: ['mesh.demo-cube', 'material.missing'],
+        runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
+      },
+    ],
+    evidence: { proofSceneCommandStatus: 'passed' },
+  });
+
+  assert.equal(proofScenes.ok, false);
+  assert.equal(proofScenes.proofScenes.scenes.at(0)?.catalogStatus, 'missing');
+  assert.deepEqual(proofScenes.proofScenes.scenes.at(0)?.missingCatalogAssetIds, ['material.missing']);
+  assert.equal(proofScenes.diagnostics.at(0)?.code, 'proof_scene_missing_catalog_reference');
+});
+
 test('asset browser categories include newly loaded reference placeholders', () => {
   const readModel = addReferenceRenderableReadModel(buildInitialWorkspaceReadModel());
 
@@ -1018,14 +1301,15 @@ test('viewport toolbar exposes compact backed camera tools and disabled object t
   assert.equal(panelSource.includes('data-toolbar-readout="shading"'), true);
 });
 
-test('asset browser entries select renderables for inspector asset details', () => {
+test('asset browser entries project catalog assets and referenced renderables for inspector details', () => {
   const panelSource = readFileSync(
     join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
     'utf8',
   );
 
-  assert.equal(panelSource.includes('data-asset-renderable-id'), true);
-  assert.equal(panelSource.includes('store.selectAssetRenderable(asset.renderableId)'), true);
+  assert.equal(panelSource.includes('data-asset-id'), true);
+  assert.equal(panelSource.includes('store.selectCatalogAsset(asset.assetId)'), true);
+  assert.equal(panelSource.includes('referencedRenderableIds'), true);
   assert.equal(panelSource.includes('asset-entry--selected'), true);
   assert.equal(panelSource.includes('data-inspector-section="asset-details"'), true);
   assert.equal(panelSource.includes('assetTypeLabel(renderable)'), true);

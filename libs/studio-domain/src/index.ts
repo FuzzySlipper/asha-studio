@@ -64,9 +64,10 @@ export type StudioAssetBrowserCategory =
   | 'all'
   | 'static_meshes'
   | 'materials'
+  | 'textures'
   | 'generated'
   | 'preview';
-export type StudioBottomPanelTab = 'timeline' | 'assets' | 'evidence';
+export type StudioBottomPanelTab = 'timeline' | 'assets' | 'proof_scenes' | 'evidence';
 export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'preferences';
 export type StudioRenderSettingKey =
   | 'wireframeEnabled'
@@ -109,6 +110,18 @@ export type StudioGameWorkspaceCommandDiagnosticCode =
   | 'command_unexpected_response'
   | 'command_sequence_mismatch'
   | 'command_runtime_rejected';
+export type StudioAssetInventoryDiagnosticCode =
+  | 'asset_inventory_artifact_mismatch'
+  | 'asset_inventory_missing_entry'
+  | 'asset_inventory_missing_resolution'
+  | 'asset_inventory_dependency_mismatch'
+  | 'asset_inventory_diagnostic';
+export type StudioProofSceneDiagnosticCode =
+  | 'proof_scene_missing'
+  | 'proof_scene_unsupported_schema'
+  | 'proof_scene_missing_catalog_reference'
+  | 'proof_scene_missing_runtime_fixture'
+  | 'proof_scene_evidence_failed';
 
 export interface StudioGameWorkspaceReadModel {
   readonly workspaceVersion: 'studio-game-workspace.v0';
@@ -283,6 +296,117 @@ export interface StudioGameWorkspaceAttachEvidenceArtifact {
   ];
   readonly artifactHash: string;
 }
+
+export interface StudioAssetInventoryEvidenceRef {
+  readonly kind: string;
+  readonly path: string;
+  readonly sha256: string | null;
+}
+
+export interface StudioAssetInventoryEntryReadModel {
+  readonly assetId: string;
+  readonly kind: string;
+  readonly sourcePath: string;
+  readonly dependencies: readonly string[];
+  readonly dependencyStatus: 'none' | 'resolved' | 'missing';
+  readonly devResolution: {
+    readonly sourceHash: string | null;
+    readonly devCacheKey: string;
+    readonly generatedArtifactVersion: string | null;
+    readonly importStatus: string;
+    readonly publishOutputKey: string;
+  } | null;
+  readonly publishResolution: {
+    readonly outputKey: string;
+    readonly packedPath: string;
+    readonly packedHash: string | null;
+    readonly packedBytes: number | null;
+  } | null;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+  readonly referencedRenderableIds: readonly string[];
+}
+
+export interface StudioAssetInventoryReadModel {
+  readonly inventoryVersion: 'studio-asset-inventory.v0';
+  readonly artifactKind: 'asha_demo_asset_inventory';
+  readonly artifactVersion: 'asset-inventory.v1';
+  readonly status: 'ok' | 'diagnostics';
+  readonly sourceManifestPath: string;
+  readonly sourceManifestHash: string;
+  readonly catalogPath: string;
+  readonly catalogHash: string;
+  readonly dependencyOrder: readonly string[];
+  readonly entries: readonly StudioAssetInventoryEntryReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly inventoryHash: string;
+}
+
+export type StudioAssetInventoryLoadResult =
+  | {
+      readonly ok: true;
+      readonly inventory: StudioAssetInventoryReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly inventory: StudioAssetInventoryReadModel | null;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioProofSceneInput {
+  readonly path: string;
+  readonly schemaVersion: number;
+  readonly sceneId: number | string;
+  readonly name: string;
+  readonly description?: string;
+  readonly catalogAssetIds: readonly string[];
+  readonly runtimeFixture: string | null;
+}
+
+export interface StudioProofSceneEvidenceInput {
+  readonly proofSceneCommandStatus?: 'passed' | 'failed' | 'missing';
+  readonly proofSceneCommand?: string;
+  readonly assetInventoryArtifactPath?: string;
+  readonly assetInventoryArtifactHash?: string;
+}
+
+export interface StudioProofSceneReadModel {
+  readonly proofSceneVersion: 'studio-proof-scene.v0';
+  readonly path: string;
+  readonly sceneId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly catalogAssetIds: readonly string[];
+  readonly catalogStatus: 'resolved' | 'missing';
+  readonly missingCatalogAssetIds: readonly string[];
+  readonly runtimeFixture: string | null;
+  readonly runtimeProfile: string;
+  readonly evidenceStatus: 'passed' | 'failed' | 'missing';
+  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly proofSceneHash: string;
+}
+
+export interface StudioProofSceneListReadModel {
+  readonly proofSceneListVersion: 'studio-proof-scene-list.v0';
+  readonly sceneRoots: readonly string[];
+  readonly scenes: readonly StudioProofSceneReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly proofSceneListHash: string;
+}
+
+export type StudioProofSceneListLoadResult =
+  | {
+      readonly ok: true;
+      readonly proofScenes: StudioProofSceneListReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly proofScenes: StudioProofSceneListReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
 
 export interface StudioCompatibilityRequirement {
   readonly packageName: string;
@@ -1352,6 +1476,337 @@ export function exportStudioGameWorkspaceAttachEvidence(
   };
 }
 
+export interface StudioAssetInventoryArtifactInput {
+  readonly artifactKind?: string;
+  readonly artifactVersion?: string;
+  readonly status?: string;
+  readonly sourceManifest?: {
+    readonly path?: string;
+    readonly hash?: string;
+  };
+  readonly catalog?: {
+    readonly path?: string;
+    readonly hash?: string;
+  };
+  readonly diagnostics?: readonly {
+    readonly code?: string;
+    readonly path?: string;
+    readonly message?: string;
+  }[];
+  readonly dependencyOrder?: readonly string[];
+  readonly entries?: readonly {
+    readonly assetId?: string;
+    readonly kind?: string;
+    readonly sourcePath?: string;
+    readonly dependencies?: readonly string[];
+    readonly devResolution?: {
+      readonly sourceHash?: string | null;
+      readonly devCacheKey?: string;
+      readonly generatedArtifactVersion?: string | null;
+      readonly importStatus?: string;
+      readonly publishOutputKey?: string;
+    } | null;
+    readonly publishResolution?: {
+      readonly outputKey?: string;
+      readonly packedPath?: string;
+      readonly packedHash?: string | null;
+      readonly packedBytes?: number | null;
+    } | null;
+    readonly diagnostics?: readonly {
+      readonly code?: string;
+      readonly path?: string;
+      readonly message?: string;
+    }[];
+    readonly evidenceRefs?: readonly {
+      readonly kind?: string;
+      readonly path?: string;
+      readonly sha256?: string | null;
+    }[];
+  }[];
+}
+
+export function loadStudioAssetInventory(
+  artifact: StudioAssetInventoryArtifactInput,
+  options: {
+    readonly referencedRenderableIds?: Readonly<Record<string, readonly string[]>>;
+  } = {},
+): StudioAssetInventoryLoadResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  if (
+    artifact.artifactKind !== 'asha_demo_asset_inventory'
+    || artifact.artifactVersion !== 'asset-inventory.v1'
+  ) {
+    diagnostics.push(studioAssetInventoryDiagnostic(
+      'asset_inventory_artifact_mismatch',
+      'Asset inventory artifact must be asha_demo_asset_inventory asset-inventory.v1.',
+      artifact.artifactKind ?? null,
+      artifact.artifactVersion ?? null,
+    ));
+  }
+
+  const rawEntries = artifact.entries ?? [];
+  if (rawEntries.length === 0) {
+    diagnostics.push(studioAssetInventoryDiagnostic(
+      'asset_inventory_missing_entry',
+      'Asset inventory must include at least one catalog entry.',
+      artifact.catalog?.path ?? null,
+      artifact.status ?? null,
+    ));
+  }
+
+  const globalDiagnostics = (artifact.diagnostics ?? []).map(diagnostic =>
+    studioAssetInventoryDiagnostic(
+      'asset_inventory_diagnostic',
+      diagnostic.message ?? 'Asset inventory emitted a diagnostic.',
+      diagnostic.path ?? null,
+      diagnostic.code ?? null,
+    ),
+  );
+  diagnostics.push(...globalDiagnostics);
+
+  const entryIds = new Set(
+    rawEntries
+      .map(entry => entry.assetId)
+      .filter((assetId): assetId is string => typeof assetId === 'string' && assetId.length > 0),
+  );
+  const dependencyOrder = artifact.dependencyOrder ?? [];
+  for (const assetId of entryIds) {
+    if (!dependencyOrder.includes(assetId)) {
+      diagnostics.push(studioAssetInventoryDiagnostic(
+        'asset_inventory_dependency_mismatch',
+        `Asset ${assetId} is missing from dependency order.`,
+        artifact.catalog?.path ?? null,
+        assetId,
+      ));
+    }
+  }
+
+  const entries: StudioAssetInventoryEntryReadModel[] = rawEntries.map((entry, index) => {
+    const entryDiagnostics = (entry.diagnostics ?? []).map(diagnostic =>
+      studioAssetInventoryDiagnostic(
+        'asset_inventory_diagnostic',
+        diagnostic.message ?? 'Asset entry emitted a diagnostic.',
+        diagnostic.path ?? `entries[${index}]`,
+        diagnostic.code ?? null,
+      ),
+    );
+    if (entry.devResolution === null || entry.devResolution === undefined) {
+      entryDiagnostics.push(studioAssetInventoryDiagnostic(
+        'asset_inventory_missing_resolution',
+        `Asset ${entry.assetId ?? index} is missing dev resolution.`,
+        entry.sourcePath ?? `entries[${index}]`,
+        entry.assetId ?? null,
+      ));
+    }
+    if (entry.publishResolution === null || entry.publishResolution === undefined) {
+      entryDiagnostics.push(studioAssetInventoryDiagnostic(
+        'asset_inventory_missing_resolution',
+        `Asset ${entry.assetId ?? index} is missing publish resolution.`,
+        entry.sourcePath ?? `entries[${index}]`,
+        entry.assetId ?? null,
+      ));
+    }
+
+    const dependencies = entry.dependencies ?? [];
+    const missingDependencies = dependencies.filter(dependency => !entryIds.has(dependency));
+    if (missingDependencies.length > 0) {
+      entryDiagnostics.push(studioAssetInventoryDiagnostic(
+        'asset_inventory_dependency_mismatch',
+        `Asset ${entry.assetId ?? index} references missing dependencies: ${missingDependencies.join(', ')}`,
+        entry.sourcePath ?? `entries[${index}]`,
+        entry.assetId ?? null,
+      ));
+    }
+
+    diagnostics.push(...entryDiagnostics);
+    const assetId = entry.assetId ?? `missing-asset-id-${index}`;
+    return {
+      assetId,
+      kind: entry.kind ?? 'unknown',
+      sourcePath: entry.sourcePath ?? 'unknown',
+      dependencies,
+      dependencyStatus:
+        dependencies.length === 0
+          ? 'none'
+          : missingDependencies.length > 0
+            ? 'missing'
+            : 'resolved',
+      devResolution: entry.devResolution === null || entry.devResolution === undefined
+        ? null
+        : {
+            sourceHash: entry.devResolution.sourceHash ?? null,
+            devCacheKey: entry.devResolution.devCacheKey ?? 'unknown',
+            generatedArtifactVersion: entry.devResolution.generatedArtifactVersion ?? null,
+            importStatus: entry.devResolution.importStatus ?? 'unknown',
+            publishOutputKey: entry.devResolution.publishOutputKey ?? 'unknown',
+          },
+      publishResolution: entry.publishResolution === null || entry.publishResolution === undefined
+        ? null
+        : {
+            outputKey: entry.publishResolution.outputKey ?? 'unknown',
+            packedPath: entry.publishResolution.packedPath ?? 'unknown',
+            packedHash: entry.publishResolution.packedHash ?? null,
+            packedBytes: entry.publishResolution.packedBytes ?? null,
+          },
+      diagnostics: entryDiagnostics,
+      evidenceRefs: (entry.evidenceRefs ?? []).map(ref => ({
+        kind: ref.kind ?? 'unknown',
+        path: ref.path ?? 'unknown',
+        sha256: ref.sha256 ?? null,
+      })),
+      referencedRenderableIds: options.referencedRenderableIds?.[assetId] ?? [],
+    };
+  });
+
+  const inventory: StudioAssetInventoryReadModel = {
+    inventoryVersion: 'studio-asset-inventory.v0',
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: artifact.status === 'ok' && diagnostics.length === 0 ? 'ok' : 'diagnostics',
+    sourceManifestPath: artifact.sourceManifest?.path ?? 'unknown',
+    sourceManifestHash: artifact.sourceManifest?.hash ?? 'unknown',
+    catalogPath: artifact.catalog?.path ?? 'unknown',
+    catalogHash: artifact.catalog?.hash ?? 'unknown',
+    dependencyOrder,
+    entries,
+    diagnostics,
+    inventoryHash: fnv1aHash('studio-asset-inventory', {
+      artifactKind: artifact.artifactKind,
+      artifactVersion: artifact.artifactVersion,
+      sourceManifest: artifact.sourceManifest,
+      catalog: artifact.catalog,
+      status: artifact.status,
+      dependencyOrder,
+      entries,
+      diagnostics,
+    }),
+  };
+
+  if (diagnostics.length > 0) {
+    return { ok: false, inventory, diagnostics };
+  }
+  return { ok: true, inventory, diagnostics: [] };
+}
+
+export function buildStudioProofSceneList(
+  input: {
+    readonly workspace: StudioGameWorkspaceReadModel;
+    readonly assetInventory: StudioAssetInventoryReadModel;
+    readonly scenes: readonly StudioProofSceneInput[];
+    readonly evidence?: StudioProofSceneEvidenceInput;
+  },
+): StudioProofSceneListLoadResult {
+  const catalogAssetIds = new Set(input.assetInventory.entries.map(entry => entry.assetId));
+  const diagnostics: StudioDiagnostic[] = [];
+
+  if (input.scenes.length === 0) {
+    diagnostics.push(studioProofSceneDiagnostic(
+      'proof_scene_missing',
+      'Workspace scene roots did not provide any proof scenes.',
+      input.workspace.sceneRoots.join(', '),
+      null,
+    ));
+  }
+
+  const scenes = input.scenes.map(scene => {
+    const sceneDiagnostics: StudioDiagnostic[] = [];
+    if (scene.schemaVersion !== 1) {
+      sceneDiagnostics.push(studioProofSceneDiagnostic(
+        'proof_scene_unsupported_schema',
+        `Proof scene ${scene.path} uses unsupported schema ${scene.schemaVersion}.`,
+        scene.path,
+        String(scene.schemaVersion),
+      ));
+    }
+
+    const missingCatalogAssetIds = scene.catalogAssetIds.filter(assetId => !catalogAssetIds.has(assetId));
+    if (missingCatalogAssetIds.length > 0) {
+      sceneDiagnostics.push(studioProofSceneDiagnostic(
+        'proof_scene_missing_catalog_reference',
+        `Proof scene ${scene.name} references missing catalog assets: ${missingCatalogAssetIds.join(', ')}.`,
+        scene.path,
+        missingCatalogAssetIds.join(', '),
+      ));
+    }
+
+    if (scene.runtimeFixture === null || scene.runtimeFixture.length === 0) {
+      sceneDiagnostics.push(studioProofSceneDiagnostic(
+        'proof_scene_missing_runtime_fixture',
+        `Proof scene ${scene.name} is missing a runtime fixture.`,
+        scene.path,
+        null,
+      ));
+    }
+
+    const evidenceStatus = input.evidence?.proofSceneCommandStatus ?? 'missing';
+    if (evidenceStatus === 'failed') {
+      sceneDiagnostics.push(studioProofSceneDiagnostic(
+        'proof_scene_evidence_failed',
+        `Proof scene evidence command failed for ${scene.name}.`,
+        scene.path,
+        input.evidence?.proofSceneCommand ?? null,
+      ));
+    }
+
+    diagnostics.push(...sceneDiagnostics);
+    const evidenceRefs: StudioAssetInventoryEvidenceRef[] = [
+      {
+        kind: 'proof-scene',
+        path: scene.path,
+        sha256: null,
+      },
+      ...(input.evidence?.assetInventoryArtifactPath === undefined
+        ? []
+        : [{
+            kind: 'asset-inventory',
+            path: input.evidence.assetInventoryArtifactPath,
+            sha256: input.evidence.assetInventoryArtifactHash ?? null,
+          }]),
+    ];
+    const readModel: StudioProofSceneReadModel = {
+      proofSceneVersion: 'studio-proof-scene.v0',
+      path: scene.path,
+      sceneId: String(scene.sceneId),
+      name: scene.name,
+      description: scene.description ?? null,
+      catalogAssetIds: scene.catalogAssetIds,
+      catalogStatus: missingCatalogAssetIds.length === 0 ? 'resolved' : 'missing',
+      missingCatalogAssetIds,
+      runtimeFixture: scene.runtimeFixture,
+      runtimeProfile: input.workspace.manifest.publishResourceProfile.resolutionPolicy,
+      evidenceStatus,
+      evidenceRefs,
+      diagnostics: sceneDiagnostics,
+      proofSceneHash: fnv1aHash('studio-proof-scene', {
+        workspaceHash: input.workspace.workspaceHash,
+        assetInventoryHash: input.assetInventory.inventoryHash,
+        scene,
+        evidenceStatus,
+        diagnostics: sceneDiagnostics,
+      }),
+    };
+    return readModel;
+  });
+
+  const proofScenes: StudioProofSceneListReadModel = {
+    proofSceneListVersion: 'studio-proof-scene-list.v0',
+    sceneRoots: input.workspace.sceneRoots,
+    scenes,
+    diagnostics,
+    proofSceneListHash: fnv1aHash('studio-proof-scene-list', {
+      workspaceHash: input.workspace.workspaceHash,
+      assetInventoryHash: input.assetInventory.inventoryHash,
+      sceneRoots: input.workspace.sceneRoots,
+      scenes,
+      diagnostics,
+    }),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, proofScenes, diagnostics: [] }
+    : { ok: false, proofScenes, diagnostics };
+}
+
 function npmRunScriptName(command: string): string | null {
   const match = /^npm run ([A-Za-z0-9:_-]+)$/.exec(command);
   return match?.[1] ?? null;
@@ -1414,6 +1869,36 @@ function studioGameWorkspaceCommandDiagnostic(
     message,
     source,
     remediation: `devtools.command:${detail}`,
+  };
+}
+
+function studioAssetInventoryDiagnostic(
+  code: StudioAssetInventoryDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioProofSceneDiagnostic(
+  code: StudioProofSceneDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
   };
 }
 
@@ -1494,6 +1979,9 @@ export function assetMatchesBrowserCategory(
   if (category === 'materials') {
     return renderable.materialRef !== null;
   }
+  if (category === 'textures') {
+    return false;
+  }
   if (category === 'generated') {
     return (
       renderable.meshRef?.startsWith('generated:') === true
@@ -1522,6 +2010,7 @@ export function buildAssetBrowserCategories(
     { category: 'all', label: 'All Assets' },
     { category: 'static_meshes', label: 'Static Meshes' },
     { category: 'materials', label: 'Materials' },
+    { category: 'textures', label: 'Textures' },
     { category: 'generated', label: 'Generated' },
     { category: 'preview', label: 'Preview' },
   ];
