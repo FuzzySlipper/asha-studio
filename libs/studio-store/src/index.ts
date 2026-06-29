@@ -25,7 +25,9 @@ import {
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
+  createRotateSceneObjectRequest,
   createSceneObjectCommandIntent,
+  createTranslateSceneObjectRequest,
   createStudioCompactAgentReadout,
   exportStudioWorkspaceCockpitEvidence,
   frameStudioViewportCamera,
@@ -81,6 +83,9 @@ policy_packages = ["packages/game-policy"]
 dev_command = "npm run dev"
 devtools_endpoint = "ws://127.0.0.1:7391"
 wasm_or_native_entry = "harness/conformance/fixtures/minimal-world.json"
+backend_mode = "native"
+backend_profile = "native.napi.launcher.v1"
+backend_proof_refs = ["proof:dev-authority-smoke"]
 
 [studio]
 workspace_mode = true
@@ -661,6 +666,19 @@ export class StudioWorkspaceStore {
     );
   });
 
+  readonly selectedSceneObjectTransformEditable = computed(() => {
+    const workspace = this.workspaceState();
+    const selectedEntity = workspace.entities.find(entity => entity.id === workspace.selectedEntityId);
+    if (selectedEntity?.sceneObjectId === null || selectedEntity?.sceneObjectId === undefined) {
+      return false;
+    }
+    return (
+      workspace.sceneObjectSnapshot.objects.find(
+        object => object.objectId === selectedEntity.sceneObjectId,
+      )?.editability.transform ?? false
+    );
+  });
+
   readonly assetRenderables = computed(() => {
     const workspace = this.workspaceState();
     return filterAssetBrowserRenderables(
@@ -810,6 +828,52 @@ export class StudioWorkspaceStore {
     this.workspaceState.set(applyResult.workspace);
     this.menuMessageState.set(
       applyResult.ok ? `Reparented ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Reparent rejected.',
+    );
+  }
+
+  translateSelectedSceneObject(delta: readonly [number, number, number]): void {
+    const workspace = this.workspaceState();
+    const objectId = workspace.selectedEntityId;
+    if (objectId === null || !objectId.startsWith('scene-node:')) {
+      this.menuMessageState.set('Select a scene object before moving it.');
+      return;
+    }
+    const request = createTranslateSceneObjectRequest(workspace, objectId as SceneObjectId, delta);
+    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
+    if (
+      !dispatchResult.accepted
+      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
+      || dispatchResult.proposal.request === undefined
+    ) {
+      return;
+    }
+    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
+    this.workspaceState.set(applyResult.workspace);
+    this.menuMessageState.set(
+      applyResult.ok ? `Moved ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Move rejected.',
+    );
+  }
+
+  rotateSelectedSceneObject(rotation: readonly [number, number, number, number]): void {
+    const workspace = this.workspaceState();
+    const objectId = workspace.selectedEntityId;
+    if (objectId === null || !objectId.startsWith('scene-node:')) {
+      this.menuMessageState.set('Select a scene object before rotating it.');
+      return;
+    }
+    const request = createRotateSceneObjectRequest(workspace, objectId as SceneObjectId, rotation);
+    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
+    if (
+      !dispatchResult.accepted
+      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
+      || dispatchResult.proposal.request === undefined
+    ) {
+      return;
+    }
+    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
+    this.workspaceState.set(applyResult.workspace);
+    this.menuMessageState.set(
+      applyResult.ok ? `Rotated ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Rotate rejected.',
     );
   }
 

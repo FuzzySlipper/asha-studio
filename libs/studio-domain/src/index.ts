@@ -10,6 +10,7 @@ import {
   type SceneObjectCommandRequest,
   type SceneObjectCommandResult,
   type SceneObjectSnapshot as ContractSceneObjectSnapshot,
+  type SceneTransform,
 } from '@asha/contracts';
 import {
   ASHA_DEVTOOLS_PROTOCOL_VERSION,
@@ -59,7 +60,7 @@ export type StudioEntityProjectionDiagnosticCode =
   | 'selection_sync_mismatch'
   | 'stale_entity_list'
   | 'unsupported_private_entity_source';
-export type StudioViewportToolMode = 'select' | 'orbit' | 'pan' | 'frame';
+export type StudioViewportToolMode = 'select' | 'orbit' | 'pan' | 'move_object' | 'rotate_object' | 'frame';
 export type StudioAssetBrowserCategory =
   | 'all'
   | 'static_meshes'
@@ -4236,6 +4237,100 @@ function relabelRenderableForSceneNode(
   };
 }
 
+function isFiniteTuple3(value: readonly number[]): value is readonly [number, number, number] {
+  return value.length === 3 && value.every(Number.isFinite);
+}
+
+function isFiniteTuple4(value: readonly number[]): value is readonly [number, number, number, number] {
+  return value.length === 4 && value.every(Number.isFinite);
+}
+
+function isValidSceneTransform(transform: SceneTransform): boolean {
+  return isFiniteTuple3(transform.translation)
+    && isFiniteTuple4(transform.rotation)
+    && isFiniteTuple3(transform.scale)
+    && transform.scale.every(value => value > 0)
+    && Math.hypot(...transform.rotation) > 0.000001;
+}
+
+function isSceneNodeTransformReadonly(node: FlatSceneDocument['nodes'][number]): boolean {
+  return node.tags.includes('studio-root');
+}
+
+function translatedTransform(
+  transform: SceneTransform,
+  delta: readonly [number, number, number],
+): SceneTransform {
+  return {
+    ...transform,
+    translation: [
+      transform.translation[0] + delta[0],
+      transform.translation[1] + delta[1],
+      transform.translation[2] + delta[2],
+    ],
+  };
+}
+
+function normalizedRotation(rotation: readonly [number, number, number, number]): readonly [number, number, number, number] | null {
+  const length = Math.hypot(...rotation);
+  if (!Number.isFinite(length) || length <= 0.000001) {
+    return null;
+  }
+  return [
+    rotation[0] / length,
+    rotation[1] / length,
+    rotation[2] / length,
+    rotation[3] / length,
+  ];
+}
+
+function transformRenderableForSceneNode(
+  scene: StudioSceneReadModel,
+  sceneNode: SceneNodeId,
+  before: SceneTransform,
+  after: SceneTransform,
+): StudioSceneReadModel {
+  const renderableIndex = (sceneNode as number) - 2;
+  const renderable = scene.renderables[renderableIndex];
+  if (renderable === undefined) {
+    return scene;
+  }
+  const delta = {
+    x: after.translation[0] - before.translation[0],
+    y: after.translation[1] - before.translation[1],
+    z: after.translation[2] - before.translation[2],
+  };
+  const renderables = scene.renderables.map((item, index) =>
+    index === renderableIndex
+      ? {
+          ...item,
+          bounds: {
+            min: {
+              x: item.bounds.min.x + delta.x,
+              y: item.bounds.min.y + delta.y,
+              z: item.bounds.min.z + delta.z,
+            },
+            max: {
+              x: item.bounds.max.x + delta.x,
+              y: item.bounds.max.y + delta.y,
+              z: item.bounds.max.z + delta.z,
+            },
+          },
+          renderHash: fnv1aHash('scene-object-renderable-transform', {
+            renderHash: item.renderHash,
+            transform: after,
+          }),
+        }
+      : item,
+  );
+  return {
+    ...scene,
+    selectedRenderableId: renderable.renderableId,
+    renderables,
+    sceneHash: buildSceneHash(renderables),
+  };
+}
+
 export function createStudioFlatSceneDocument(
   scene: StudioSceneReadModel,
 ): FlatSceneDocument {
@@ -4313,6 +4408,36 @@ export function createReparentSceneObjectRequest(
   };
 }
 
+export function createTranslateSceneObjectRequest(
+  readModel: StudioWorkspaceReadModel,
+  objectId: SceneObjectId,
+  delta: readonly [number, number, number],
+): SceneObjectCommandRequest {
+  return {
+    expectedDocumentHash: documentHashForSceneObjectCommand(readModel.flatSceneDocument),
+    command: {
+      kind: 'translate',
+      id: sceneNodeIdFromObjectId(objectId),
+      delta,
+    },
+  };
+}
+
+export function createRotateSceneObjectRequest(
+  readModel: StudioWorkspaceReadModel,
+  objectId: SceneObjectId,
+  rotation: readonly [number, number, number, number],
+): SceneObjectCommandRequest {
+  return {
+    expectedDocumentHash: documentHashForSceneObjectCommand(readModel.flatSceneDocument),
+    command: {
+      kind: 'rotate',
+      id: sceneNodeIdFromObjectId(objectId),
+      rotation,
+    },
+  };
+}
+
 export function applySceneObjectCommandReadModel(
   readModel: StudioWorkspaceReadModel,
   request: SceneObjectCommandRequest,
@@ -4376,6 +4501,60 @@ export function applySceneObjectCommandReadModel(
         ),
       };
       selectedSceneNode = id;
+    }
+  } else if (request.command.kind === 'translate') {
+    const id = request.command.id;
+    const node = flatSceneDocument.nodes.find(item => item.id === id);
+    if (node === undefined) {
+      result = sceneObjectRejection('missing-scene-object', { id });
+    } else if (isSceneNodeTransformReadonly(node)) {
+      result = sceneObjectRejection('readonly-scene-object-transform', { id });
+    } else if (!isFiniteTuple3(request.command.delta)) {
+      result = sceneObjectRejection('invalid-scene-object-transform', { id });
+    } else {
+      const transform = translatedTransform(node.transform, request.command.delta);
+      if (!isValidSceneTransform(transform)) {
+        result = sceneObjectRejection('invalid-scene-object-transform', { id });
+      } else {
+        flatSceneDocument = {
+          ...flatSceneDocument,
+          nodes: flatSceneDocument.nodes.map(item =>
+            item.id === id ? { ...item, transform } : item,
+          ),
+        };
+        scene = transformRenderableForSceneNode(scene, id, node.transform, transform);
+        selectedSceneNode = id;
+      }
+    }
+  } else if (request.command.kind === 'rotate') {
+    const id = request.command.id;
+    const node = flatSceneDocument.nodes.find(item => item.id === id);
+    const rotation = isFiniteTuple4(request.command.rotation)
+      ? normalizedRotation(request.command.rotation)
+      : null;
+    if (node === undefined) {
+      result = sceneObjectRejection('missing-scene-object', { id });
+    } else if (isSceneNodeTransformReadonly(node)) {
+      result = sceneObjectRejection('readonly-scene-object-transform', { id });
+    } else if (rotation === null) {
+      result = sceneObjectRejection('invalid-scene-object-transform', { id });
+    } else {
+      const transform: SceneTransform = {
+        ...node.transform,
+        rotation,
+      };
+      if (!isValidSceneTransform(transform)) {
+        result = sceneObjectRejection('invalid-scene-object-transform', { id });
+      } else {
+        flatSceneDocument = {
+          ...flatSceneDocument,
+          nodes: flatSceneDocument.nodes.map(item =>
+            item.id === id ? { ...item, transform } : item,
+          ),
+        };
+        scene = transformRenderableForSceneNode(scene, id, node.transform, transform);
+        selectedSceneNode = id;
+      }
     }
   } else {
     const id = request.command.kind === 'create' ? request.command.record.id : request.command.id;

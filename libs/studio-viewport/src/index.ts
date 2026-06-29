@@ -97,6 +97,9 @@ function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string 
   if (tool === 'orbit' || tool === 'pan') {
     return 'grab';
   }
+  if (tool === 'move_object' || tool === 'rotate_object') {
+    return 'move';
+  }
   if (tool === 'select') {
     return 'crosshair';
   }
@@ -347,7 +350,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private readonly raycastDebugTimers = new Set<ReturnType<typeof setTimeout>>();
   private dragState: {
     readonly pointerId: number;
-    readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan'>;
+    readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan' | 'move_object' | 'rotate_object'>;
+    readonly startX: number;
+    readonly startY: number;
     readonly x: number;
     readonly y: number;
   } | null = null;
@@ -569,12 +574,21 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     }
     const activeTool = this.store.viewportTool().activeTool;
     const dragTool =
-      event.button === 2 ? 'orbit' : activeTool === 'orbit' || activeTool === 'pan' ? activeTool : null;
+      event.button === 2
+        ? 'orbit'
+        : activeTool === 'orbit'
+          || activeTool === 'pan'
+          || activeTool === 'move_object'
+          || activeTool === 'rotate_object'
+          ? activeTool
+          : null;
     if (dragTool !== null) {
       event.preventDefault();
       this.dragState = {
         pointerId: event.pointerId,
         tool: dragTool,
+        startX: event.clientX,
+        startY: event.clientY,
         x: event.clientX,
         y: event.clientY,
       };
@@ -586,6 +600,13 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.selectAtPointer(event);
+  };
+
+  private selectAtPointer(event: PointerEvent): void {
+    if (this.renderer === null || this.camera === null) {
+      return;
+    }
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
@@ -613,7 +634,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         );
       }
     }
-  };
+  }
 
   private addRaycastDebugMarker(point: THREE.Vector3): void {
     const marker = createRaycastDebugMarker(point);
@@ -641,7 +662,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
     if (dragState.tool === 'orbit') {
       this.store.orbitViewportCamera(delta);
-    } else {
+    } else if (dragState.tool === 'pan') {
       this.store.panViewportCamera(delta);
     }
     this.dragState = {
@@ -652,11 +673,31 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
-    if (this.dragState?.pointerId !== event.pointerId || this.renderer === null) {
+    const dragState = this.dragState;
+    if (dragState?.pointerId !== event.pointerId || this.renderer === null) {
       return;
     }
     if (this.renderer.domElement.hasPointerCapture(event.pointerId)) {
       this.renderer.domElement.releasePointerCapture(event.pointerId);
+    }
+    const totalDeltaX = event.clientX - dragState.startX;
+    const totalDeltaY = event.clientY - dragState.startY;
+    if (dragState.tool === 'move_object' && Math.hypot(totalDeltaX, totalDeltaY) >= 2) {
+      this.store.translateSelectedSceneObject([
+        totalDeltaX / 160,
+        -totalDeltaY / 160,
+        0,
+      ]);
+    } else if (dragState.tool === 'rotate_object' && Math.abs(totalDeltaX) >= 2) {
+      const radians = totalDeltaX / 180;
+      this.store.rotateSelectedSceneObject([
+        0,
+        Math.sin(radians / 2),
+        0,
+        Math.cos(radians / 2),
+      ]);
+    } else if (dragState.tool === 'move_object' || dragState.tool === 'rotate_object') {
+      this.selectAtPointer(event);
     }
     this.dragState = null;
     this.renderer.domElement.style.cursor = cursorForTool(

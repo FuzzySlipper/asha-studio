@@ -36,8 +36,10 @@ import {
   applySceneObjectCommandReadModel,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
+  createRotateSceneObjectRequest,
   createSceneObjectCommandIntent,
   createSelectEntityIntent,
+  createTranslateSceneObjectRequest,
   exportStudioWorkspaceCockpitEvidence,
   exportStudioGameWorkspaceAttachEvidence,
   frameStudioViewportCamera,
@@ -847,6 +849,77 @@ test('scene object command rejects stale expected document hashes without privat
   assert.equal(rejected.workspace.commandResults.at(-1)?.status, 'rejected');
 });
 
+test('scene object translate and rotate flow through public apply command readout', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const selectedObjectId = readModel.selectedEntityId;
+
+  assert.ok(selectedObjectId?.startsWith('scene-node:'));
+  const selectedNode = readModel.flatSceneDocument.nodes.find(
+    node => `scene-node:${node.id as number}` === selectedObjectId,
+  );
+  const selectedRenderable = readModel.scene.renderables.find(
+    renderable => renderable.renderableId === readModel.scene.selectedRenderableId,
+  );
+  assert.ok(selectedNode);
+  assert.ok(selectedRenderable);
+
+  const translateRequest = createTranslateSceneObjectRequest(readModel, selectedObjectId, [0.5, -0.25, 0]);
+  const translateDispatch = mapStudioIntentToCommand(createSceneObjectCommandIntent(readModel, translateRequest));
+  assert.equal(translateDispatch.proposal?.commandId, 'scene.apply_object_command');
+  const translated = applySceneObjectCommandReadModel(
+    readModel,
+    translateDispatch.proposal?.request ?? translateRequest,
+  );
+
+  assert.equal(translated.ok, true);
+  assert.equal(translated.workspace.timeline.at(-1)?.commandId, 'scene.apply_object_command');
+  assert.equal(translated.workspace.commandResults.at(-1)?.changedScene, true);
+  const translatedNode = translated.workspace.flatSceneDocument.nodes.find(
+    node => `scene-node:${node.id as number}` === selectedObjectId,
+  );
+  const translatedObject = translated.workspace.sceneObjectSnapshot.objects.find(
+    object => object.objectId === selectedObjectId,
+  );
+  assert.deepEqual(translatedNode?.transform.translation, [
+    selectedNode.transform.translation[0] + 0.5,
+    selectedNode.transform.translation[1] - 0.25,
+    selectedNode.transform.translation[2],
+  ]);
+  assert.deepEqual(translatedObject?.transform.translation, translatedNode?.transform.translation);
+  assert.notEqual(translated.workspace.scene.sceneHash, readModel.scene.sceneHash);
+
+  const rotateRequest = createRotateSceneObjectRequest(
+    translated.workspace,
+    selectedObjectId,
+    [0, 0.38268343, 0, 0.9238795],
+  );
+  const rotated = applySceneObjectCommandReadModel(translated.workspace, rotateRequest);
+  const rotatedNode = rotated.workspace.flatSceneDocument.nodes.find(
+    node => `scene-node:${node.id as number}` === selectedObjectId,
+  );
+
+  assert.equal(rotated.ok, true);
+  assert.ok(rotatedNode);
+  assert.ok(Math.abs(rotatedNode.transform.rotation[1] - 0.38268343) < 0.000001);
+  assert.ok(Math.abs(rotatedNode.transform.rotation[3] - 0.9238795) < 0.000001);
+  assert.equal(rotated.workspace.timeline.at(-1)?.commandId, 'scene.apply_object_command');
+});
+
+test('scene object transform command rejects readonly root transforms', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const rootObjectId = 'scene-node:1';
+  const request = createTranslateSceneObjectRequest(readModel, rootObjectId, [1, 0, 0]);
+  const rejected = applySceneObjectCommandReadModel(readModel, request);
+
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.result.rejection?.code, 'readonly-scene-object-transform');
+  assert.equal(rejected.workspace.scene.sceneHash, readModel.scene.sceneHash);
+  assert.equal(
+    rejected.workspace.sceneObjectSnapshot.objects.find(object => object.objectId === rootObjectId)?.editability.transform,
+    false,
+  );
+});
+
 test('asset browser categories filter scene renderables deterministically', () => {
   const readModel = buildInitialWorkspaceReadModel();
   const categories = buildAssetBrowserCategories(readModel.scene.renderables);
@@ -1582,7 +1655,7 @@ test('hierarchy panel exposes compact drag and filter affordances over scene obj
   assert.equal(panelSource.includes('store.reparentSceneObject'), true);
 });
 
-test('viewport toolbar exposes compact backed camera tools and disabled object transform affordances', () => {
+test('viewport toolbar exposes compact backed camera and object transform tools', () => {
   const panelSource = readFileSync(
     join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
     'utf8',
@@ -1594,7 +1667,9 @@ test('viewport toolbar exposes compact backed camera tools and disabled object t
   assert.equal(panelSource.includes("id: 'orbit'"), true);
   assert.equal(panelSource.includes("id: 'move_object'"), true);
   assert.equal(panelSource.includes("id: 'rotate_object'"), true);
-  assert.equal(panelSource.includes('transform command not available'), true);
+  assert.equal(panelSource.includes("backedTool: 'move_object'"), true);
+  assert.equal(panelSource.includes("backedTool: 'rotate_object'"), true);
+  assert.equal(panelSource.includes('selectedSceneObjectTransformEditable'), true);
   assert.equal(panelSource.includes('data-toolbar-readout="grid"'), true);
   assert.equal(panelSource.includes('data-toolbar-readout="shading"'), true);
 });

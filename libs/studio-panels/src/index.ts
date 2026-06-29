@@ -361,11 +361,11 @@ export class StudioSessionTopPanelComponent {
 }
 
 type ViewportToolbarTool = {
-  readonly id: StudioViewportToolMode | 'move_object' | 'rotate_object';
+  readonly id: StudioViewportToolMode;
   readonly icon: string;
   readonly title: string;
-  readonly backedTool: StudioViewportToolMode | null;
-  readonly enabled: boolean;
+  readonly backedTool: StudioViewportToolMode;
+  readonly requiresTransformEditable?: boolean;
 };
 
 @Component({
@@ -379,9 +379,9 @@ type ViewportToolbarTool = {
             type="button"
             [attr.data-tool-id]="tool.id"
             [class.active]="tool.backedTool === store.viewportTool().activeTool"
-            [disabled]="!tool.enabled"
-            [title]="tool.title"
-            [attr.aria-label]="tool.title"
+            [disabled]="!isToolEnabled(tool)"
+            [title]="toolTitle(tool)"
+            [attr.aria-label]="toolTitle(tool)"
             (click)="activateTool(tool)"
           >
             {{ tool.icon }}
@@ -502,47 +502,43 @@ export class StudioViewportToolbarPanelComponent {
       icon: 'S',
       title: 'Select on tap',
       backedTool: 'select',
-      enabled: true,
     },
     {
       id: 'pan',
       icon: 'P',
       title: 'Pan view on drag',
       backedTool: 'pan',
-      enabled: true,
     },
     {
       id: 'orbit',
       icon: 'O',
       title: 'Rotate view on drag',
       backedTool: 'orbit',
-      enabled: true,
     },
     {
       id: 'move_object',
       icon: 'M',
-      title: 'Move object on drag - transform command not available in this substrate',
-      backedTool: null,
-      enabled: false,
+      title: 'Move object on drag',
+      backedTool: 'move_object',
+      requiresTransformEditable: true,
     },
     {
       id: 'rotate_object',
       icon: 'R',
-      title: 'Rotate object on drag - transform command not available in this substrate',
-      backedTool: null,
-      enabled: false,
+      title: 'Rotate object on drag',
+      backedTool: 'rotate_object',
+      requiresTransformEditable: true,
     },
     {
       id: 'frame',
       icon: 'F',
       title: 'Frame selected renderable',
       backedTool: 'frame',
-      enabled: true,
     },
   ];
 
   activateTool(tool: ViewportToolbarTool): void {
-    if (!tool.enabled || tool.backedTool === null) {
+    if (!this.isToolEnabled(tool)) {
       return;
     }
     this.store.setViewportTool(tool.backedTool);
@@ -552,11 +548,26 @@ export class StudioViewportToolbarPanelComponent {
     }
   }
 
+  isToolEnabled(tool: ViewportToolbarTool): boolean {
+    return tool.requiresTransformEditable === true
+      ? this.store.selectedSceneObjectTransformEditable()
+      : true;
+  }
+
+  toolTitle(tool: ViewportToolbarTool): string {
+    if (!this.isToolEnabled(tool) && tool.requiresTransformEditable === true) {
+      return `${tool.title} - select a transform-editable scene object`;
+    }
+    return tool.title;
+  }
+
   activeToolLabel(): string {
     const labels: Record<StudioViewportToolMode, string> = {
       select: 'select',
       orbit: 'rotate view',
       pan: 'pan view',
+      move_object: 'move object',
+      rotate_object: 'rotate object',
       frame: 'frame',
     };
     return labels[this.store.viewportTool().activeTool];
