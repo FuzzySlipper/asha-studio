@@ -83,9 +83,10 @@ show workspace, runtime, and publish status.
        `GameRuntimeTelemetrySnapshot`, `GameRuntimeDiagnostic`, and
        `GameRuntimeEvidenceRef`.
      - `@asha/runtime-bridge` `createReferenceGameRuntimeLauncher()` for the
-       reference runtime path.
+       reference compatibility path and the approved selected-backend launcher
+       profile for V2 native evidence.
      - `@asha/devtools` package-root protocol when attaching to a running dev
-       endpoint is implemented in Studio.
+       endpoint in Studio.
    - Session operations:
      - `GameRuntimeLauncher.launch(config)`
      - `GameRuntimeSession.pullProjection()`
@@ -118,8 +119,9 @@ show workspace, runtime, and publish status.
      mutation hatch.
 
 6. **Publish and evidence status**
-   - Purpose: show whether the workspace has a runnable publish artifact and
-     whether the publish/run/evidence checks all agree.
+   - Purpose: show whether the workspace has a runnable publish artifact, a V2
+     staged native backend artifact, and whether the publish/run/evidence checks
+     all agree.
    - Public inputs:
      - Publish artifact evidence
        `harness/out/publish/latest/index.json` with
@@ -127,16 +129,20 @@ show workspace, runtime, and publish status.
      - Publish run smoke evidence
        `harness/out/publish-run-smoke/latest/index.json` with
        `artifactKind: "asha_demo_publish_run_smoke"`.
+     - Publish backend run smoke evidence
+       `harness/out/publish-backend-run-smoke/latest/index.json` with
+       `artifactKind: "asha_demo_publish_backend_run_smoke"`.
      - Publish evidence manifest
        `harness/out/publish-evidence/latest/index.json` with
        `evidenceVersion: "publish-evidence.v1"`.
      - Asset V1 aggregate evidence
        `harness/out/assets-v1/latest/index.json` with
        `artifactKind: "asha_demo_assets_v1_verification"`.
-   - Read model fields: runnable entrypoint, reference runtime metadata, resource
-     manifest hash, packed resources, dependency guard result, run-smoke
-     projection and command proof, publish evidence id/hash, non-claims, and
-     classified diagnostics.
+   - Read model fields: runnable entrypoint, reference runtime metadata, staged
+     native backend metadata, resource manifest hash, packed resources,
+     dependency guard result, run-smoke projection and command proof, publish
+     backend smoke projection and command proof, publish evidence id/hash,
+     non-claims, and classified diagnostics.
    - Actions: select evidence refs and show detail. Running publish commands from
      Studio is deferred until there is an explicit public workflow operation and
      evidence contract for it.

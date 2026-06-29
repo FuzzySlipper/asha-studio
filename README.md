@@ -32,6 +32,7 @@ pnpm run proof:v1
 pnpm run proof:browser
 pnpm run proof:visual-contract
 pnpm run proof:visual-capability
+pnpm run proof:v2-live-backend-evidence
 ```
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
@@ -40,7 +41,7 @@ The current local ASHA package linkage uses package-root links to `/home/dev/ash
 
 `boundary-policy.json` is the machine-readable import/dependency policy used by `pnpm run check:boundaries`.
 
-Current source imports may use only the public package roots approved in `boundary-policy.json`: `@asha/command-registry`, `@asha/contracts`, and `@asha/editor-tools`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
+Current source imports may use only the public package roots approved in `boundary-policy.json`: `@asha/command-registry`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, and `@asha/runtime-bridge`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
 
@@ -51,16 +52,16 @@ Task `asha#2732` adds startup/session compatibility readback for public ASHA sur
 - `@asha/contracts` compatibility: `contracts.v0`;
 - `@asha/command-registry` compatibility: `command-registry.v0`;
 - deferred `@asha/studio-evidence` marker: `studio-evidence.deferred-v0`;
-- `@asha/runtime-bridge` as `null` until a later task promotes that public surface for Studio runtime use;
-- supported runtime modes for this shell: `mock`, `reference`, and `unavailable`.
+- `@asha/runtime-bridge` compatibility: `runtime-bridge.v0` when Studio is consuming the V2 selected-backend proof path;
+- supported runtime modes for this shell: `mock`, `reference`, `native`, and `unavailable`.
 
-Native/WASM runtime modes fail closed until runtime bridge compatibility metadata is present. Task `asha#3047` adds the durable runtime bridge readiness gate in `docs/runtime-bridge-readiness-gate.md` and the machine-readable `evaluateRuntimeBridgeReadinessGate(...)` helper in `src/runtime-bridge-readiness.ts`; the gate lists required DTOs, facade operations, proof updates, negative smokes, and non-claims before Studio may replace browser-reference state with runtime authority. Update `src/compatibility.ts`, `src/runtime-bridge-readiness.ts`, `fixtures/studio-session-metadata.sample.json`, and the compatibility/readiness tests when ASHA generated contracts, command registry compatibility, or runtime bridge compatibility changes.
+Native mode now remains fail-closed unless runtime bridge compatibility metadata and the selected-backend proof artifacts are present. WASM runtime mode still fails closed until an equivalent public facade path and metadata land. Task `asha#3047` adds the durable runtime bridge readiness gate in `docs/runtime-bridge-readiness-gate.md` and the machine-readable `evaluateRuntimeBridgeReadinessGate(...)` helper in `src/runtime-bridge-readiness.ts`; the gate lists required DTOs, facade operations, proof updates, negative smokes, and non-claims before Studio may replace browser-reference state with runtime authority. Update `src/compatibility.ts`, `src/runtime-bridge-readiness.ts`, fixtures, and compatibility/readiness tests when ASHA generated contracts, command registry compatibility, or runtime bridge compatibility changes.
 
 ## Session workspace and command timeline
 
 Task `asha#2733` adds a mock/reference Studio workspace model with a shared human/agent command timeline. The shell now starts a deterministic preview session, loads the `voxel-basic` scenario through the same command registry path used for agent-originated calls, records structured command results, and exports `fixtures/studio-agent-readout.sample.json`.
 
-Current supported readout starts with session/workspace commands (`session.start`, `session.load_scenario`, and `inspection.session_status`) and extends through the V1 voxel workflow (`inspection.voxel`, `selection.voxel_from_screen_point`, `preview.voxel_brush`, `authority.voxel.apply_brush`, `render.capture_before_after`, and `export.agent_readout`). Runtime bridge/native execution remains deferred, but the exported readout includes session metadata, compatibility metadata, command timeline entries, command results, state evidence, diagnostics, artifact refs, visual evidence, and known limitations.
+Current supported readout starts with session/workspace commands (`session.start`, `session.load_scenario`, and `inspection.session_status`) and extends through the V1 voxel workflow (`inspection.voxel`, `selection.voxel_from_screen_point`, `preview.voxel_brush`, `authority.voxel.apply_brush`, `render.capture_before_after`, and `export.agent_readout`). The V2 selected-backend proof path additionally records native attach/session metadata, accepted/rejected command proposals, replay/evidence refs, and live readback through public `@asha/runtime-bridge`/`@asha/devtools` surfaces.
 
 ## Voxel inspect/select/preview/apply workflow
 
@@ -224,7 +225,7 @@ git diff --check
 
 ## Known limitations
 
-- Real in V1: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; runtime bridge readiness gate; shared GUI/agent command timeline; visible viewport editor panel; visible voxel inspect/select/preview/apply workflow; software-snapshot before/after review export; end-to-end `pnpm run proof:v1`; Chromium headless `pnpm run proof:browser`; deployed-service `pnpm run proof:visual-contract`; consolidated reviewer-facing `pnpm run proof:visual-capability`; model/material reference preview over public contract DTOs; bounded command batch/undo metadata with a V1 inverse `VoxelCommand.setVoxel` workflow.
-- Still mock/reference/deferred: native/WASM runtime-bridge execution in Studio, durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, and performance evidence.
-- `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser proof commands use Studio-owned review/proof artifact schemas until that package lands.
+- Real in V2 selected-backend path: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; runtime bridge readiness gate; shared GUI/agent command timeline; visible viewport/editor proof surfaces; public `@asha/runtime-bridge`/`@asha/devtools` selected-backend attach evidence; accepted/rejected native command proposal readback; replay/evidence refs; and `pnpm run proof:v2-live-backend-evidence` as the closeout proof command.
+- Still reference/projection-only outside the selected-backend proof: durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, performance evidence, and WASM authority.
+- `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser/V2 proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.

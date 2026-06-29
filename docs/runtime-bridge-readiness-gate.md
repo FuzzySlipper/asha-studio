@@ -9,15 +9,16 @@ not permission to import raw transports or make browser projection authoritative
 
 ## Current status
 
-Current Studio V1 remains **browser/reference** for visual projection, with a
-narrow post-`asha#3220` runtime-authority proof path:
+Current Studio keeps browser/reference projection evidence separate from the V2
+selected-backend runtime-authority proof path:
 
 - `@asha/contracts`, `@asha/command-registry`, `@asha/editor-tools`, and
   `@asha/runtime-bridge` are approved ASHA package roots in Studio source.
 - `@asha/runtime-bridge` is approved only as the public facade package root for
-  the narrow task `asha#3220` proof path.
+  selected-backend/native proof paths.
 - `native` runtime mode is enabled/ready only when Studio records
-  `runtime-bridge.v0` metadata and satisfies the proof obligations in this gate.
+  `runtime-bridge.v0` metadata, backend proof refs, accepted/rejected command
+  evidence, and satisfies the proof obligations in this gate.
 - `wasm` remains fail-closed until a future task proves an equivalent public
   facade path and metadata.
 - `@asha/native-bridge` and `@asha/wasm-replay-bridge` remain forbidden Studio
