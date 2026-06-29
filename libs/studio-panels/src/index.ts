@@ -144,15 +144,20 @@ function filteredHierarchyEntities(
               [class.runtime-session--active]="session.sessionId === runtimeSessions.activeSessionId"
               [attr.data-runtime-session-id]="session.sessionId"
               [attr.data-runtime-session-type]="session.sessionType"
+              [attr.data-runtime-backend-mode]="session.backendMode"
+              [attr.data-runtime-backend-state]="session.backendCompatibilityState"
             >
               <span>{{ session.sessionType }}</span>
-              <strong>{{ session.status }} · {{ session.runtimeMode }}</strong>
-              <small>{{ session.attachStatus }} · {{ session.endpoint ?? session.profileId }}</small>
+              <strong>{{ session.status }} · {{ session.backendMode }} · {{ session.backendCompatibilityState }}</strong>
+              <small>{{ session.attachStatus }} · runtime {{ session.runtimeMode }}</small>
+              <small>{{ session.backendProfile }}</small>
               @if (session.projection) {
                 <small>{{ session.projection.worldHash }} · {{ session.projection.renderDiffHash }}</small>
               } @else {
                 <small>{{ session.profileId }}</small>
               }
+              <small>proofs {{ session.backendProofRefs.length }} · {{ session.backendProofRefs.join(', ') || 'none' }}</small>
+              <small>{{ session.nonClaims.join(', ') }}</small>
               <small>{{ session.sessionHash }}</small>
             </article>
           }

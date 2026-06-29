@@ -31,6 +31,7 @@ import {
   parseAshaGameManifestToml,
   validateAshaConsumerCompatibility,
   type AshaGameManifest,
+  type AshaGameRuntimeBackendMode,
 } from '@asha/game-workspace';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
@@ -121,6 +122,8 @@ export type StudioGameWorkspaceCommandDiagnosticCode =
 export type StudioRuntimeSessionDiagnosticCode =
   | 'runtime_session_attach_mismatch'
   | 'runtime_session_live_mismatch'
+  | 'runtime_session_missing_backend_evidence'
+  | 'runtime_session_backend_incompatible'
   | 'runtime_session_reserved';
 export type StudioAssetInventoryDiagnosticCode =
   | 'asset_inventory_artifact_mismatch'
@@ -203,6 +206,11 @@ export interface StudioGameWorkspaceReadout {
   readonly attachEndpoint: string;
   readonly devCommand: string;
   readonly runtimeEntry: string;
+  readonly runtimeBackend: {
+    readonly backendMode: AshaGameRuntimeBackendMode;
+    readonly backendProfile: string;
+    readonly backendProofRefs: readonly string[];
+  };
   readonly publishCommand: string;
   readonly publishVerifyCommand: string;
   readonly devResourceProfile: AshaGameManifest['devResourceProfile'];
@@ -225,6 +233,7 @@ export interface StudioGameWorkspaceAttachReadModel {
   readonly handshakeRequest: Extract<DevtoolsAttachClientMessage, { readonly type: 'handshake.request' }>;
   readonly compatibility: DevtoolsCompatibilityMetadata;
   readonly runtime: DevtoolsRuntimeIdentity;
+  readonly runtimeBackendEvidence: StudioRuntimeBackendEvidence;
   readonly attachHash: string;
   readonly diagnostics: readonly [];
 }
@@ -271,9 +280,11 @@ export interface StudioGameWorkspaceCommandProposalReadModel {
   readonly workspaceHash: string;
   readonly attachHash: string;
   readonly sequenceId: string;
+  readonly backendMode: AshaGameRuntimeBackendMode | null;
   readonly batch: CommandBatch;
   readonly status: 'accepted' | 'rejected';
   readonly result: CommandResult;
+  readonly authorityHashBefore: string | null;
   readonly authorityHashAfter: string | null;
   readonly rejectionReason: 'authority_rejected' | 'compatibility_mismatch' | 'runtime_unavailable' | null;
   readonly proposalHash: string;
@@ -347,6 +358,23 @@ export interface StudioGameWorkspaceAttachEvidenceArtifact {
 
 export type StudioRuntimeSessionType = 'preview' | 'attached' | 'fixture_reserved' | 'replay_reserved';
 export type StudioRuntimeSessionStatus = 'available' | 'attached' | 'reserved' | 'degraded';
+export type StudioRuntimeBackendCompatibilityState =
+  | 'compatible'
+  | 'pending_attach'
+  | 'missing_evidence'
+  | 'incompatible'
+  | 'reserved';
+
+export interface StudioRuntimeBackendEvidence {
+  readonly source: 'devtools.handshake.runtime';
+  readonly backendMode: AshaGameRuntimeBackendMode | null;
+  readonly backendProfile: string | null;
+  readonly backendProofRefs: readonly string[];
+  readonly nativeProofRef: string | null;
+  readonly launcherName: string | null;
+  readonly runtimeProfileId: string | null;
+  readonly nonClaims: readonly string[];
+}
 
 export interface StudioRuntimeSessionReadModel {
   readonly runtimeSessionVersion: 'studio-runtime-session.v0';
@@ -355,7 +383,11 @@ export interface StudioRuntimeSessionReadModel {
   readonly status: StudioRuntimeSessionStatus;
   readonly endpoint: string | null;
   readonly profileId: string;
-  readonly runtimeMode: 'reference' | 'native' | 'degraded';
+  readonly runtimeMode: 'reference' | 'native' | 'wasm' | 'mock' | 'degraded';
+  readonly backendMode: AshaGameRuntimeBackendMode;
+  readonly backendProfile: string;
+  readonly backendProofRefs: readonly string[];
+  readonly backendCompatibilityState: StudioRuntimeBackendCompatibilityState;
   readonly attachStatus: 'not_attached' | 'attached' | 'reserved';
   readonly workspaceHash: string;
   readonly attachHash: string | null;
@@ -1367,6 +1399,11 @@ export function buildStudioGameWorkspaceReadout(
     attachEndpoint: workspace.attachEndpoint,
     devCommand: workspace.devCommand,
     runtimeEntry: workspace.runtimeEntry,
+    runtimeBackend: {
+      backendMode: workspace.manifest.runtime.backendMode,
+      backendProfile: workspace.manifest.runtime.backendProfile,
+      backendProofRefs: workspace.manifest.runtime.backendProofRefs,
+    },
     publishCommand: workspace.publishCommand,
     publishVerifyCommand: workspace.publishVerifyCommand,
     devResourceProfile: workspace.manifest.devResourceProfile,
@@ -1384,6 +1421,42 @@ export function buildStudioGameWorkspaceHandshakeRequest(
     protocolVersion: ASHA_DEVTOOLS_PROTOCOL_VERSION,
     clientName: 'asha-studio',
     requestedWorkspaceId: workspace.gameId,
+  };
+}
+
+function readRuntimeBackendEvidence(runtime: unknown): StudioRuntimeBackendEvidence {
+  const record = isRecord(runtime) ? runtime : {};
+  const backendMode = record.backendMode === 'reference' || record.backendMode === 'native' || record.backendMode === 'wasm'
+    ? record.backendMode
+    : null;
+  const backendProfile = typeof record.backendProfile === 'string' && record.backendProfile.length > 0
+    ? record.backendProfile
+    : null;
+  const backendProofRefs = Array.isArray(record.backendProofRefs)
+    ? record.backendProofRefs.filter((ref): ref is string => typeof ref === 'string' && ref.length > 0)
+    : [];
+  const nativeProofRef = typeof record.nativeProofRef === 'string' && record.nativeProofRef.length > 0
+    ? record.nativeProofRef
+    : null;
+  const launcherName = typeof record.launcherName === 'string' && record.launcherName.length > 0
+    ? record.launcherName
+    : null;
+  const runtimeProfileId = typeof record.runtimeProfileId === 'string' && record.runtimeProfileId.length > 0
+    ? record.runtimeProfileId
+    : null;
+  const nonClaims = Array.isArray(record.nonClaims)
+    ? record.nonClaims.filter((claim): claim is string => typeof claim === 'string' && claim.length > 0)
+    : [];
+
+  return {
+    source: 'devtools.handshake.runtime',
+    backendMode,
+    backendProfile,
+    backendProofRefs,
+    nativeProofRef,
+    launcherName,
+    runtimeProfileId,
+    nonClaims,
   };
 }
 
@@ -1459,6 +1532,7 @@ export async function attachStudioGameWorkspaceDevtools(
     return { ok: false, diagnostics };
   }
 
+  const runtimeBackendEvidence = readRuntimeBackendEvidence(response.runtime);
   const attach: StudioGameWorkspaceAttachReadModel = {
     attachVersion: 'studio-game-workspace-attach.v0',
     status: 'attached',
@@ -1467,11 +1541,13 @@ export async function attachStudioGameWorkspaceDevtools(
     handshakeRequest,
     compatibility: response.compatibility,
     runtime: response.runtime,
+    runtimeBackendEvidence,
     attachHash: fnv1aHash('studio-game-workspace-attach', {
       endpoint: workspace.attachEndpoint,
       workspaceHash: workspace.workspaceHash,
       compatibility: response.compatibility,
       runtime: response.runtime,
+      runtimeBackendEvidence,
     }),
     diagnostics: [],
   };
@@ -1642,9 +1718,11 @@ export async function proposeStudioGameWorkspaceCommand(
     workspaceHash: workspace.workspaceHash,
     attachHash: attach.attachHash,
     sequenceId: input.sequenceId,
+    backendMode: attach.runtimeBackendEvidence.backendMode,
     batch: input.batch,
     status: response.proposal.status,
     result: response.proposal.result,
+    authorityHashBefore: stringAt(response.proposal, 'authorityHashBefore'),
     authorityHashAfter: response.proposal.authorityHashAfter,
     rejectionReason: response.proposal.status === 'rejected' ? response.proposal.reason : null,
     proposalHash: fnv1aHash('studio-game-workspace-command', {
@@ -1652,6 +1730,7 @@ export async function proposeStudioGameWorkspaceCommand(
       attachHash: attach.attachHash,
       sequenceId: input.sequenceId,
       batch: input.batch,
+      backendMode: attach.runtimeBackendEvidence.backendMode,
       proposal: response.proposal,
     }),
     diagnostics,
@@ -1665,9 +1744,11 @@ export function buildStudioGameWorkspaceCommandProposalReadModel(input: {
   readonly attachHash: string;
   readonly endpoint?: string;
   readonly sequenceId: string;
+  readonly backendMode?: AshaGameRuntimeBackendMode | null;
   readonly batch: CommandBatch;
   readonly status: 'accepted' | 'rejected';
   readonly result: CommandResult;
+  readonly authorityHashBefore?: string | null;
   readonly authorityHashAfter: string | null;
   readonly rejectionReason?: 'authority_rejected' | 'compatibility_mismatch' | 'runtime_unavailable' | null;
 }): StudioGameWorkspaceCommandProposalReadModel {
@@ -1688,6 +1769,7 @@ export function buildStudioGameWorkspaceCommandProposalReadModel(input: {
     status: input.status,
     sequenceId: input.sequenceId,
     result: input.result,
+    authorityHashBefore: input.authorityHashBefore ?? null,
     authorityHashAfter: input.authorityHashAfter,
     reason: rejectionReason,
   };
@@ -1698,15 +1780,18 @@ export function buildStudioGameWorkspaceCommandProposalReadModel(input: {
     workspaceHash: input.workspace.workspaceHash,
     attachHash: input.attachHash,
     sequenceId: input.sequenceId,
+    backendMode: input.backendMode ?? input.workspace.manifest.runtime.backendMode,
     batch: input.batch,
     status: input.status,
     result: input.result,
+    authorityHashBefore: input.authorityHashBefore ?? null,
     authorityHashAfter: input.authorityHashAfter,
     rejectionReason,
     proposalHash: fnv1aHash('studio-game-workspace-command', {
       workspaceHash: input.workspace.workspaceHash,
       attachHash: input.attachHash,
       sequenceId: input.sequenceId,
+      backendMode: input.backendMode ?? input.workspace.manifest.runtime.backendMode,
       batch: input.batch,
       proposal: proposalPayload,
     }),
@@ -1806,6 +1891,16 @@ export function buildStudioRuntimeSessionList(input: {
   const diagnostics: StudioDiagnostic[] = [];
   const attach = input.attach ?? null;
   const live = input.live ?? null;
+  const backendMode = input.workspace.manifest.runtime.backendMode;
+  const backendProfile = input.workspace.manifest.runtime.backendProfile;
+  const backendProofRefs = input.workspace.manifest.runtime.backendProofRefs;
+  const attachedBackendEvidence = attach?.runtimeBackendEvidence ?? null;
+  const sessionBackendMode = attachedBackendEvidence?.backendMode ?? backendMode;
+  const sessionBackendProfile = attachedBackendEvidence?.backendProfile ?? backendProfile;
+  const sessionBackendProofRefs = attachedBackendEvidence === null
+    ? backendProofRefs
+    : attachedBackendEvidence.backendProofRefs;
+  const runtimeMode = attach?.runtime.runtimeMode ?? backendMode;
   if (attach !== null && attach.workspaceHash !== input.workspace.workspaceHash) {
     diagnostics.push(studioRuntimeSessionDiagnostic(
       'runtime_session_attach_mismatch',
@@ -1822,6 +1917,36 @@ export function buildStudioRuntimeSessionList(input: {
       live.liveHash,
     ));
   }
+  if ((backendMode === 'native' || backendMode === 'wasm') && sessionBackendProofRefs.length === 0) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_missing_backend_evidence',
+      `Runtime backend mode ${backendMode} requires public backend proof refs before Studio can treat it as compatible.`,
+      'runtime.backend_proof_refs',
+      backendMode,
+    ));
+  }
+  if (attach !== null && (
+    runtimeMode === 'mock'
+    || runtimeMode === 'degraded'
+    || runtimeMode !== backendMode
+    || sessionBackendMode !== backendMode
+  )) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_backend_incompatible',
+      `Attached runtime mode ${runtimeMode} and backend mode ${sessionBackendMode ?? 'missing'} do not match manifest backend mode ${backendMode}.`,
+      input.workspace.attachEndpoint,
+      attach.runtime.runtimeMode,
+    ));
+  }
+  const backendCompatibilityState: StudioRuntimeBackendCompatibilityState = diagnostics.some(
+    diagnostic => diagnostic.code === 'runtime_session_missing_backend_evidence',
+  )
+    ? 'missing_evidence'
+    : diagnostics.some(diagnostic => diagnostic.code === 'runtime_session_backend_incompatible')
+      ? 'incompatible'
+      : attach === null
+        ? 'pending_attach'
+        : 'compatible';
 
   const activeSessionId = attach === null
     ? `runtime-preview:${input.workspace.gameId}`
@@ -1833,7 +1958,11 @@ export function buildStudioRuntimeSessionList(input: {
     status: diagnostics.length > 0 ? 'degraded' : attach === null ? 'available' : 'attached',
     endpoint: input.workspace.attachEndpoint,
     profileId: input.workspace.manifest.devResourceProfile.resolutionPolicy,
-    runtimeMode: 'reference',
+    runtimeMode,
+    backendMode: sessionBackendMode,
+    backendProfile: sessionBackendProfile,
+    backendProofRefs: sessionBackendProofRefs,
+    backendCompatibilityState,
     attachStatus: attach === null ? 'not_attached' : 'attached',
     workspaceHash: input.workspace.workspaceHash,
     attachHash: attach?.attachHash ?? null,
@@ -1858,6 +1987,11 @@ export function buildStudioRuntimeSessionList(input: {
         path: input.workspace.attachEndpoint,
         sha256: attach?.attachHash ?? null,
       },
+      ...sessionBackendProofRefs.map(ref => ({
+        kind: 'runtime-backend-proof',
+        path: ref,
+        sha256: null,
+      })),
       ...(live === null
         ? []
         : [{
@@ -1867,7 +2001,8 @@ export function buildStudioRuntimeSessionList(input: {
           }]),
     ],
     nonClaims: [
-      'not_native_runtime_authority',
+      ...(sessionBackendMode === 'native' ? [] : ['not_native_runtime_authority']),
+      'not_wasm_authority',
       'not_hardware_gpu_evidence',
       'not_performance_evidence',
       'not_publish_artifact',
@@ -1877,6 +2012,10 @@ export function buildStudioRuntimeSessionList(input: {
       workspaceHash: input.workspace.workspaceHash,
       attachHash: attach?.attachHash ?? null,
       liveHash: live?.liveHash ?? null,
+      backendMode: sessionBackendMode,
+      backendProfile: sessionBackendProfile,
+      backendProofRefs: sessionBackendProofRefs,
+      backendCompatibilityState,
       diagnostics,
     }),
   };
@@ -1982,6 +2121,10 @@ function buildReservedRuntimeSession(
     endpoint: null,
     profileId: input.profileId,
     runtimeMode: 'reference',
+    backendMode: workspace.manifest.runtime.backendMode,
+    backendProfile: workspace.manifest.runtime.backendProfile,
+    backendProofRefs: workspace.manifest.runtime.backendProofRefs,
+    backendCompatibilityState: 'reserved',
     attachStatus: 'reserved',
     workspaceHash: workspace.workspaceHash,
     attachHash: null,
@@ -1995,7 +2138,8 @@ function buildReservedRuntimeSession(
     projection: null,
     evidenceRefs: [],
     nonClaims: [
-      'not_native_runtime_authority',
+      ...(workspace.manifest.runtime.backendMode === 'native' ? [] : ['not_native_runtime_authority']),
+      'not_wasm_authority',
       'not_hardware_gpu_evidence',
       'not_performance_evidence',
       'not_publish_artifact',
@@ -2006,6 +2150,9 @@ function buildReservedRuntimeSession(
       sessionId: input.sessionId,
       sessionType: input.sessionType,
       profileId: input.profileId,
+      backendMode: workspace.manifest.runtime.backendMode,
+      backendProfile: workspace.manifest.runtime.backendProfile,
+      backendProofRefs: workspace.manifest.runtime.backendProofRefs,
       diagnostic: input.diagnostic,
     }),
   };

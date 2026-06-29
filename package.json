@@ -13,6 +13,8 @@
     "typecheck": "NX_DAEMON=false nx run-many -t typecheck --all",
     "test": "NX_DAEMON=false nx run-many -t test --all",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "proof:selected-backend-attach": "tsx scripts/proof-selected-backend-attach.ts",
+    "proof:selected-backend-command": "tsx scripts/proof-selected-backend-command.ts",
     "generate:readout-fixture": "tsx scripts/generate-studio-readout-fixture.ts",
     "verify": "pnpm run check:boundaries && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },

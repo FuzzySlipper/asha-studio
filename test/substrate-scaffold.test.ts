@@ -364,6 +364,9 @@ test('game workspace attach client performs typed devtools handshake', async () 
   assert.equal(attached.attach.endpoint, 'ws://127.0.0.1:7391');
   assert.equal(attached.attach.runtime.gameId, 'asha-demo');
   assert.equal(attached.attach.runtime.workspaceId, 'asha-demo');
+  assert.equal(attached.attach.runtimeBackendEvidence.source, 'devtools.handshake.runtime');
+  assert.equal(attached.attach.runtimeBackendEvidence.backendMode, null);
+  assert.deepEqual(attached.attach.runtimeBackendEvidence.backendProofRefs, []);
   assert.equal(attached.attach.compatibility.protocolVersion, 'devtools-protocol.v0');
   assert.equal(attached.attach.compatibility.contractsCompatibility, 'contracts.v0');
   assert.equal(attached.attach.compatibility.runtimeBridgeCompatibility, 'runtime-bridge.v0');
@@ -433,11 +436,15 @@ test('game workspace live readout pulls projection render diff and telemetry thr
 });
 
 test('runtime session list turns attach and live evidence into an explicit session row', async () => {
+  const referenceManifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('backend_mode = "native"', 'backend_mode = "reference"')
+    .replace('backend_profile = "native.napi.launcher.v1"', 'backend_profile = "reference"')
+    .replace('backend_proof_refs = ["proof:dev-authority-smoke"]', 'backend_proof_refs = []');
   const result = loadStudioGameWorkspaceManifest({
     workspaceRoot: demoRoot,
     manifestPath: 'asha.game.toml',
     gameId: loadDemoPackageName(),
-    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    manifestText: referenceManifestText,
     packageScripts: loadDemoPackageScripts(),
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
@@ -464,6 +471,10 @@ test('runtime session list turns attach and live evidence into an explicit sessi
   assert.equal(activeSession.sessionType, 'attached');
   assert.equal(activeSession.status, 'attached');
   assert.equal(activeSession.runtimeMode, 'reference');
+  assert.equal(activeSession.backendMode, 'reference');
+  assert.equal(activeSession.backendProfile, 'reference');
+  assert.deepEqual(activeSession.backendProofRefs, []);
+  assert.equal(activeSession.backendCompatibilityState, 'compatible');
   assert.equal(activeSession.attachStatus, 'attached');
   assert.equal(activeSession.attachHash, attached.attach.attachHash);
   assert.equal(activeSession.liveHash, live.live.liveHash);
@@ -471,8 +482,89 @@ test('runtime session list turns attach and live evidence into an explicit sessi
   assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-attach'), true);
   assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-live'), true);
   assert.equal(activeSession.nonClaims.includes('not_native_runtime_authority'), true);
+  assert.equal(activeSession.nonClaims.includes('not_wasm_authority'), true);
   assert.match(activeSession.sessionHash, /^studio-runtime-session-/);
   assert.match(sessions.sessionListHash, /^studio-runtime-session-list-/);
+});
+
+test('runtime session list fails closed when backend evidence is missing or incompatible', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+
+  const mismatched = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+  });
+  const activeSession = mismatched.sessions.find(session => session.sessionId === mismatched.activeSessionId);
+  assert.ok(activeSession);
+  assert.equal(activeSession.status, 'degraded');
+  assert.equal(activeSession.runtimeMode, 'reference');
+  assert.equal(activeSession.backendMode, 'native');
+  assert.equal(activeSession.backendProfile, 'native.napi.launcher.v1');
+  assert.deepEqual(activeSession.backendProofRefs, []);
+  assert.equal(activeSession.backendCompatibilityState, 'missing_evidence');
+  assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-backend-proof'), false);
+  assert.equal(activeSession.diagnostics.some(diagnostic => diagnostic.code === 'runtime_session_missing_backend_evidence'), true);
+  assert.equal(activeSession.diagnostics.some(diagnostic => diagnostic.code === 'runtime_session_backend_incompatible'), true);
+  assert.equal(activeSession.nonClaims.includes('not_hardware_gpu_evidence'), true);
+
+  const missingProofWorkspace = {
+    ...result.workspace,
+    manifest: {
+      ...result.workspace.manifest,
+      runtime: {
+        ...result.workspace.manifest.runtime,
+        backendProofRefs: [],
+      },
+    },
+    workspaceHash: 'studio-game-workspace-test-missing-backend-proof',
+  };
+  const missingProof = buildStudioRuntimeSessionList({ workspace: missingProofWorkspace });
+  const preview = missingProof.sessions.find(session => session.sessionId === missingProof.activeSessionId);
+  assert.ok(preview);
+  assert.equal(preview.status, 'degraded');
+  assert.equal(preview.backendCompatibilityState, 'missing_evidence');
+  assert.equal(preview.diagnostics.some(diagnostic => diagnostic.code === 'runtime_session_missing_backend_evidence'), true);
+});
+
+test('runtime session list does not infer native wasm or gpu authority from marker text', () => {
+  const referenceManifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('backend_mode = "native"', 'backend_mode = "reference"')
+    .replace('backend_profile = "native.napi.launcher.v1"', 'backend_profile = "reference"')
+    .replace('backend_proof_refs = ["proof:dev-authority-smoke"]', 'backend_proof_refs = []');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: 'native-wasm-gpu-marker-text-only',
+    manifestPath: 'asha.game.toml',
+    gameId: 'native-wasm-gpu-marker-text-only',
+    manifestText: referenceManifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('reference workspace should load');
+  const sessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
+  const activeSession = sessions.sessions.find(session => session.sessionId === sessions.activeSessionId);
+  assert.ok(activeSession);
+  assert.equal(activeSession.backendMode, 'reference');
+  assert.equal(activeSession.runtimeMode, 'reference');
+  assert.equal(activeSession.backendProofRefs.length, 0);
+  assert.equal(activeSession.nonClaims.includes('not_native_runtime_authority'), true);
+  assert.equal(activeSession.nonClaims.includes('not_wasm_authority'), true);
+  assert.equal(activeSession.nonClaims.includes('not_hardware_gpu_evidence'), true);
 });
 
 test('runtime session list reserves fixture and replay sessions honestly before live launch', () => {
@@ -495,7 +587,9 @@ test('runtime session list reserves fixture and replay sessions honestly before 
   assert.ok(preview);
   assert.equal(preview.status, 'available');
   assert.equal(preview.attachStatus, 'not_attached');
-  assert.equal(preview.runtimeMode, 'reference');
+  assert.equal(preview.runtimeMode, 'native');
+  assert.equal(preview.backendMode, 'native');
+  assert.equal(preview.backendCompatibilityState, 'pending_attach');
   assert.ok(fixture);
   assert.equal(fixture.status, 'reserved');
   assert.equal(fixture.profileId, 'harness/conformance/fixtures/minimal-world.json');
@@ -571,8 +665,10 @@ test('game workspace command proposal flows through typed attach transport', asy
   assert.equal(proposal.proposal.proposalVersion, 'studio-game-workspace-command.v0');
   assert.equal(proposal.proposal.status, 'accepted');
   assert.equal(proposal.proposal.sequenceId, 'seq-1');
+  assert.equal(proposal.proposal.backendMode, null);
   assert.equal(proposal.proposal.result.accepted, 1);
   assert.equal(proposal.proposal.result.rejected, 0);
+  assert.equal(proposal.proposal.authorityHashBefore, null);
   assert.equal(proposal.proposal.authorityHashAfter, 'authority:after:accepted');
   assert.equal(proposal.proposal.rejectionReason, null);
   assert.equal(proposal.proposal.workspaceHash, result.workspace.workspaceHash);
@@ -608,10 +704,54 @@ test('game workspace command proposal records runtime rejections without private
   assert.equal(proposal.ok, true);
   if (!proposal.ok) throw new Error('runtime rejection is still a typed command result');
   assert.equal(proposal.proposal.status, 'rejected');
+  assert.equal(proposal.proposal.backendMode, null);
   assert.equal(proposal.proposal.result.accepted, 0);
   assert.equal(proposal.proposal.result.rejected, 1);
   assert.equal(proposal.proposal.rejectionReason, 'runtime_unavailable');
   assert.equal(proposal.proposal.diagnostics.at(0)?.code, 'command_runtime_rejected');
+});
+
+test('game workspace command proposal fails closed on missing command result evidence and stale attach state', async () => {
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, createDevtoolsFixtureEndpoint());
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const missingResult = await proposeStudioGameWorkspaceCommand(
+    result.workspace,
+    attached.attach,
+    { exchange: () => ({ type: 'telemetry.snapshot', samples: [] }) },
+    { sequenceId: command.sequenceId, batch: command.batch },
+  );
+
+  assert.equal(missingResult.ok, false);
+  if (missingResult.ok) throw new Error('missing command result evidence should fail');
+  assert.equal(missingResult.diagnostics.at(0)?.code, 'command_unexpected_response');
+
+  const staleWorkspace = {
+    ...result.workspace,
+    workspaceHash: 'studio-game-workspace-stale-command-proof',
+  };
+  const stale = await proposeStudioGameWorkspaceCommand(
+    staleWorkspace,
+    attached.attach,
+    createDevtoolsFixtureEndpoint(),
+    { sequenceId: command.sequenceId, batch: command.batch },
+  );
+
+  assert.equal(stale.ok, false);
+  if (stale.ok) throw new Error('stale workspace should fail');
+  assert.equal(stale.diagnostics.at(0)?.code, 'command_attach_workspace_mismatch');
 });
 
 test('command proposal panel exposes known actions and accepted rejected evidence rows', () => {
@@ -667,6 +807,8 @@ test('command proposal panel exposes known actions and accepted rejected evidenc
   assert.equal(panel.actions.at(0)?.commandOperation, 'setVoxel');
   assert.equal(panel.actions.at(0)?.available, true);
   assert.deepEqual(panel.proposals.map(proposal => proposal.status), ['accepted', 'rejected']);
+  assert.deepEqual(panel.proposals.map(proposal => proposal.backendMode), ['native', 'native']);
+  assert.equal(panel.proposals.at(0)?.authorityHashBefore, null);
   assert.equal(panel.proposals.at(1)?.diagnostics.at(0)?.code, 'command_runtime_rejected');
   assert.ok(panel.nonClaims.includes('not_freeform_json_method_call'));
   assert.match(panel.panelHash, /^studio-command-proposal-panel-/);
@@ -1717,6 +1859,19 @@ test('verification tiers document keeps proof escalation secondary', () => {
   assert.equal(doc.includes('Tier 4: compositor/runtime proof'), true);
   assert.equal(doc.includes('Do not add browser/compositor proof for a small domain helper'), true);
   assert.equal(projectBootstrap.includes('studio-agent-observability-verification.md'), true);
+});
+
+test('selected backend attach proof command has a stable reviewer artifact path', () => {
+  const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+
+  assert.equal(
+    packageJson.scripts['proof:selected-backend-attach'],
+    'tsx scripts/proof-selected-backend-attach.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:selected-backend-command'],
+    'tsx scripts/proof-selected-backend-command.ts',
+  );
 });
 
 test('unused placeholder viewport panel is retired from studio panels', () => {
