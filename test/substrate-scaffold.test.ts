@@ -1863,6 +1863,14 @@ test('verification tiers document keeps proof escalation secondary', () => {
 
 test('selected backend attach proof command has a stable reviewer artifact path', () => {
   const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+  const browserSmokeSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-selected-backend-browser-smoke.ts'),
+    'utf8',
+  );
+  const aggregateSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-v2-live-backend-evidence.ts'),
+    'utf8',
+  );
 
   assert.equal(
     packageJson.scripts['proof:selected-backend-attach'],
@@ -1872,6 +1880,19 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     packageJson.scripts['proof:selected-backend-command'],
     'tsx scripts/proof-selected-backend-command.ts',
   );
+  assert.equal(
+    packageJson.scripts['proof:selected-backend-browser-smoke'],
+    'tsx scripts/proof-selected-backend-browser-smoke.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:v2-live-backend-evidence'],
+    'tsx scripts/proof-v2-live-backend-evidence.ts',
+  );
+  assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
+  assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
+  assert.equal(aggregateSource.includes("artifactKind: 'studio_v2_live_backend_evidence'"), true);
+  assert.equal(aggregateSource.includes('stale source artifact hash'), true);
+  assert.equal(aggregateSource.includes('browser smoke must consume the current command proof'), true);
 });
 
 test('unused placeholder viewport panel is retired from studio panels', () => {
