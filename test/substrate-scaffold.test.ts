@@ -2630,6 +2630,114 @@ test('Author-to-runtime M5 closeout doc points at aggregate proof gate', () => {
   assert.match(doc, /private runtime mutation/);
 });
 
+test('proper demo capstone verifier records end-to-end milestone coverage', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:proper-demo-capstone-verifier'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 720000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/proper-demo-capstone-verifier\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/proper-demo-capstone-verifier/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_proper_demo_capstone_verifier');
+  assert.deepEqual(artifact.campaign.verifiedMilestones, ['M1', 'M2', 'M3', 'M4', 'M5']);
+  assert.equal(artifact.milestoneCoverage.workspacePersistenceM1, true);
+  assert.equal(artifact.milestoneCoverage.authoringUxM2, true);
+  assert.equal(artifact.milestoneCoverage.browserInteractiveM3, true);
+  assert.equal(artifact.milestoneCoverage.liveDebugM4, true);
+  assert.equal(artifact.milestoneCoverage.authorRuntimeRoundTripM5, true);
+  assert.equal(artifact.milestoneCoverage.v2HandlesPresent, true);
+  assert.equal(artifact.milestoneCoverage.privateTransportHintsAbsent, true);
+  assert.equal(artifact.capstoneReadout.authoredObjectId, 'scene-node:9401');
+  assert.equal(artifact.capstoneReadout.authoredAssetId, 'material.studio-authored-roundtrip');
+  assert.ok(artifact.validations.includes('m5_author_runtime_roundtrip_gate_passed'));
+  assert.equal(artifact.negativeSmokes.at(1)?.diagnostic, 'browser_event_log_missing_or_marker_only');
+  assert.equal(artifact.negativeSmokes.at(1)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_runtime_den_dependency'));
+});
+
+test('proper demo evidence index records final capstone source artifact graph', () => {
+  const verifier = spawnSync('pnpm', ['run', 'proof:proper-demo-capstone-verifier'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 720000,
+  });
+  assert.equal(verifier.status, 0, verifier.stdout + verifier.stderr);
+
+  const result = spawnSync('pnpm', ['run', 'proof:proper-demo-evidence-index'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/proper-demo-evidence-index\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/proper-demo-evidence-index/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_proper_demo_evidence_index');
+  assert.equal(artifact.coverage.allRequiredKindsIndexed, true);
+  assert.equal(artifact.coverage.verifierHashFresh, true);
+  assert.equal(artifact.evidenceMap.browserInteractive.kind, 'asha_demo_browser_interactive_proof');
+  assert.equal(artifact.evidenceMap.authorRuntimeRoundTrip.kind, 'studio_author_runtime_roundtrip_m5');
+  assert.equal(artifact.capstoneReadout.authoredObjectId, 'scene-node:9401');
+  assert.ok(artifact.validations.includes('m1_through_m5_evidence_kinds_indexed'));
+  assert.equal(artifact.negativeSmokes.at(0)?.diagnostic, 'stale_capstone_verifier_hash');
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_product_readiness'));
+});
+
+test('proper demo capstone guard enforces final boundary and non-claim checks', () => {
+  const index = spawnSync('pnpm', ['run', 'proof:proper-demo-evidence-index'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(index.status, 0, index.stdout + index.stderr);
+
+  const result = spawnSync('pnpm', ['run', 'proof:proper-demo-capstone-guard'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 180000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/proper-demo-capstone-guard\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/proper-demo-capstone-guard/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_proper_demo_capstone_guard');
+  assert.equal(artifact.guard.nonClaimsPresent, true);
+  assert.equal(artifact.guard.privateTransportHintsAbsent, true);
+  assert.equal(artifact.guard.generatedArtifactsNotAuthoredSource, true);
+  assert.equal(artifact.guard.studioBoundaryPassed, true);
+  assert.equal(artifact.guard.demoBoundaryPassed, true);
+  assert.ok(artifact.validations.includes('required_non_claims_present'));
+  assert.ok(artifact.validations.includes('private_transport_and_freeform_command_hints_absent'));
+  assert.equal(artifact.negativeSmokes.at(0)?.diagnostic, 'missing_required_non_claim');
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_private_transport'));
+});
+
+test('proper demo M6 workflow doc points at capstone proof commands', () => {
+  const doc = readFileSync(join(repoRoot, 'docs/proper-demo-proof-m6.md'), 'utf8');
+  assert.match(doc, /Task: `asha#3734`/);
+  assert.match(doc, /pnpm run proof:proper-demo-capstone-verifier/);
+  assert.match(doc, /pnpm run proof:proper-demo-evidence-index/);
+  assert.match(doc, /pnpm run proof:proper-demo-capstone-guard/);
+  assert.match(doc, /artifacts\/proper-demo-capstone-verifier\/latest\/index\.json/);
+  assert.match(doc, /artifacts\/proper-demo-evidence-index\/latest\/index\.json/);
+  assert.match(doc, /artifacts\/proper-demo-capstone-guard\/latest\/index\.json/);
+  assert.match(doc, /must not claim/);
+  assert.match(doc, /Generated proof artifacts are evidence, not authored source/);
+});
+
 test('game asset inventory read model loads multi-kind asha-demo catalog evidence', () => {
   const inventory = loadStudioAssetInventory({
     artifactKind: 'asha_demo_asset_inventory',
@@ -3447,6 +3555,18 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-author-runtime-roundtrip-m5.ts'),
     'utf8',
   );
+  const properDemoCapstoneVerifierSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-proper-demo-capstone-verifier.ts'),
+    'utf8',
+  );
+  const properDemoEvidenceIndexSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-proper-demo-evidence-index.ts'),
+    'utf8',
+  );
+  const properDemoCapstoneGuardSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-proper-demo-capstone-guard.ts'),
+    'utf8',
+  );
   const liveDebugIdentitySource = readFileSync(
     join(repoRoot, 'scripts', 'proof-live-debug-session-identity.ts'),
     'utf8',
@@ -3513,6 +3633,18 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'tsx scripts/proof-author-runtime-roundtrip-m5.ts',
   );
   assert.equal(
+    packageJson.scripts['proof:proper-demo-capstone-verifier'],
+    'tsx scripts/proof-proper-demo-capstone-verifier.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:proper-demo-evidence-index'],
+    'tsx scripts/proof-proper-demo-evidence-index.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:proper-demo-capstone-guard'],
+    'tsx scripts/proof-proper-demo-capstone-guard.ts',
+  );
+  assert.equal(
     packageJson.scripts['proof:live-debug-session-identity'],
     'tsx scripts/proof-live-debug-session-identity.ts',
   );
@@ -3559,6 +3691,15 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(authorRuntimeRoundtripM5Source.includes("artifactKind: 'studio_author_runtime_roundtrip_m5'"), true);
   assert.equal(authorRuntimeRoundtripM5Source.includes('proof:author-runtime-roundtrip-index'), true);
   assert.equal(authorRuntimeRoundtripM5Source.includes('authored_object_round_trips_from_studio_to_browser_back_to_studio_debug'), true);
+  assert.equal(properDemoCapstoneVerifierSource.includes("artifactKind: 'studio_proper_demo_capstone_verifier'"), true);
+  assert.equal(properDemoCapstoneVerifierSource.includes('proof:proper-demo-capstone-verifier'), true);
+  assert.equal(properDemoCapstoneVerifierSource.includes('negative_marker_only_browser_interaction_failed_closed'), true);
+  assert.equal(properDemoEvidenceIndexSource.includes("artifactKind: 'studio_proper_demo_evidence_index'"), true);
+  assert.equal(properDemoEvidenceIndexSource.includes('m1_through_m5_evidence_kinds_indexed'), true);
+  assert.equal(properDemoEvidenceIndexSource.includes('generated_artifact_is_not_authored_source'), true);
+  assert.equal(properDemoCapstoneGuardSource.includes("artifactKind: 'studio_proper_demo_capstone_guard'"), true);
+  assert.equal(properDemoCapstoneGuardSource.includes('required_non_claims_present'), true);
+  assert.equal(properDemoCapstoneGuardSource.includes('negative_private_hint_failed_closed'), true);
   assert.equal(liveDebugIdentitySource.includes("artifactKind: 'studio_live_debug_session_identity_proof'"), true);
   assert.equal(liveDebugIdentitySource.includes('stale_child_artifact'), true);
   assert.equal(liveDebugIdentitySource.includes('fixture-only readback'), true);
