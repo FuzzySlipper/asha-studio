@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -15,6 +17,8 @@ import {
   buildAssetBrowserCategories,
   buildInitialWorkspaceReadModel,
   buildStudioGameWorkspaceReadout,
+  buildStudioWorkspaceOpenReadModel,
+  buildStudioSceneAuthoringOperation,
   buildStudioCommandProposalPanel,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioProofSceneList,
@@ -33,6 +37,7 @@ import {
   createStudioCompactAgentReadout,
   createLoadReferenceAssetIntent,
   createLoadScenarioIntent,
+  createCreateSceneObjectRequest,
   applySceneObjectCommandReadModel,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
@@ -57,6 +62,7 @@ import {
   restoreStudioWorkspaceArtifact,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
+  studioSceneAuthoringBaseHash,
   updateStudioRenderSetting,
   validateEntityProjection,
   validateSelectionCommandSync,
@@ -80,6 +86,10 @@ function loadDemoPackageScripts(): Record<string, string> {
 
 function loadDemoPackageName(): string {
   return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).name;
+}
+
+function sha256(text: string): string {
+  return `sha256:${createHash('sha256').update(text).digest('hex')}`;
 }
 
 test('selection intent maps through the public command identity before read model update', () => {
@@ -332,6 +342,210 @@ test('game workspace loader opens the asha-demo manifest without path guessing',
   assert.deepEqual(readout.policyPackages, ['packages/game-policy']);
   assert.ok(COMMAND_IDS.includes('workspace.open_game_manifest'));
   assert.ok(COMMAND_IDS.includes('workspace.validate_game_manifest'));
+});
+
+test('workspace open/read model enumerates bounded scene and catalog refs', () => {
+  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+
+  const sourcePaths = [
+    'scenes/material-proof.scene.json',
+    'scenes/minimal.scene.json',
+    'packages/game-catalogs/catalog.json',
+  ];
+  const openRead = buildStudioWorkspaceOpenReadModel({
+    workspace: result.workspace,
+    manifestPath: 'asha.game.toml',
+    manifestHash: sha256(manifestText),
+    sourceFiles: sourcePaths.map(path => {
+      const text = readFileSync(join(demoRoot, path), 'utf8');
+      return { path, text, sha256: sha256(text) };
+    }),
+  });
+
+  assert.equal(openRead.ok, true);
+  if (!openRead.ok) throw new Error('workspace source files should read');
+  assert.equal(openRead.openRead.openReadVersion, 'studio-workspace-open-read.v0');
+  assert.equal(openRead.openRead.manifestPath, 'asha.game.toml');
+  assert.equal(openRead.openRead.authoringPersistenceVersion, 'authoring-persistence.v0');
+  assert.deepEqual(openRead.openRead.allowedSceneRoots, ['scenes']);
+  assert.deepEqual(openRead.openRead.allowedCatalogRoots, ['packages/game-catalogs']);
+  assert.deepEqual(openRead.openRead.sourceFiles.map(file => file.path), sourcePaths);
+  assert.deepEqual(openRead.openRead.sourceFiles.map(file => file.schemaKind), [
+    'proof-scene-json.v1',
+    'proof-scene-json.v1',
+    'asset-catalog-json.v1',
+  ]);
+  assert.ok(openRead.openRead.sourceFiles.every(file => file.hash.startsWith('sha256:')));
+  assert.ok(openRead.openRead.nonClaims.includes('not_repo_crawler'));
+  assert.ok(openRead.openRead.nonClaims.includes('not_source_write'));
+  assert.match(openRead.openRead.openReadHash, /^studio-workspace-open-read-/);
+});
+
+test('workspace open/read model fails closed on missing manifest and unsupported scans', () => {
+  const missingManifest = buildStudioWorkspaceOpenReadModel({
+    workspace: null,
+    manifestPath: 'missing/asha.game.toml',
+    manifestHash: null,
+    sourceFiles: [],
+  });
+  assert.equal(missingManifest.ok, false);
+  assert.equal(missingManifest.diagnostics.at(0)?.code, 'missing_manifest');
+
+  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+
+  const failed = buildStudioWorkspaceOpenReadModel({
+    workspace: result.workspace,
+    manifestPath: 'asha.game.toml',
+    manifestHash: sha256(manifestText),
+    sourceFiles: [
+      { path: '../asha/package.json', text: '{}', sha256: sha256('{}') },
+      { path: 'packages/game-catalogs/README.md', text: '# no', sha256: sha256('# no') },
+      { path: 'assets/meshes/demo-cube.mesh.json', text: '{}', sha256: sha256('{}') },
+    ],
+  });
+
+  assert.equal(failed.ok, false);
+  assert.equal(failed.openRead.sourceFiles.length, 0);
+  assert.ok(failed.diagnostics.some(diagnostic => diagnostic.code === 'workspace_source_path_escape'));
+  assert.ok(failed.diagnostics.some(diagnostic => diagnostic.code === 'private_repo_scan'));
+  assert.ok(failed.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_file_kind'));
+});
+
+test('workspace open/read proof command emits bounded source evidence', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:workspace-open-read'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/workspace-open-read-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/workspace-open-read-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_workspace_open_read_proof');
+  assert.equal(artifact.openRead.openReadVersion, 'studio-workspace-open-read.v0');
+  assert.deepEqual(artifact.openRead.sourceFiles.map((file: { path: string }) => file.path), [
+    'packages/game-catalogs/catalog.json',
+    'scenes/material-proof.scene.json',
+    'scenes/minimal.scene.json',
+  ]);
+  assert.ok(artifact.validations.includes('negative_missing_manifest_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_private_repo_scan_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_repo_crawler'));
+  assert.match(artifact.artifactHash, /^sha256:/);
+});
+
+test('scene save roundtrip proof command writes validates reopens and cleans up', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:scene-save-roundtrip'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/scene-save-roundtrip-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/scene-save-roundtrip-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_scene_save_roundtrip_proof');
+  assert.equal(artifact.save.ok, true);
+  assert.equal(artifact.save.readback.normalizedPath, 'scenes/studio-roundtrip.scene.json');
+  assert.equal(artifact.save.readback.previousFileHash, null);
+  assert.match(artifact.save.readback.nextFileHash, /^sha256:/);
+  assert.match(artifact.save.readback.semanticDiffHash, /^sha256:/);
+  assert.equal(artifact.reopened.ok, true);
+  assert.deepEqual(artifact.reopened.openRead.sourceFiles.map((file: { path: string }) => file.path), [
+    'scenes/studio-roundtrip.scene.json',
+  ]);
+  assert.ok(artifact.validations.includes('negative_stale_base_hash_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_invalid_scene_shape_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_disallowed_path_failed_closed'));
+  assert.equal(existsSync(join(demoRoot, 'scenes/studio-roundtrip.scene.json')), false);
+});
+
+test('catalog save roundtrip proof command writes validates reopens and restores', () => {
+  const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
+  const result = spawnSync('pnpm', ['run', 'proof:catalog-save-roundtrip'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/catalog-save-roundtrip-proof\/latest\/index\.json/);
+  assert.equal(readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8'), beforeCatalog);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/catalog-save-roundtrip-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_catalog_save_roundtrip_proof');
+  assert.equal(artifact.save.ok, true);
+  assert.equal(artifact.save.readback.normalizedPath, 'packages/game-catalogs/catalog.json');
+  assert.match(artifact.save.readback.previousFileHash, /^sha256:/);
+  assert.match(artifact.save.readback.nextFileHash, /^sha256:/);
+  assert.deepEqual(artifact.diffSummary.addedAssetIds, ['material.studio-roundtrip']);
+  assert.deepEqual(artifact.diffSummary.dependencyDiagnostics, []);
+  assert.equal(artifact.reopened.ok, true);
+  assert.ok(artifact.validations.includes('negative_duplicate_ids_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_stale_base_hash_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_invalid_asset_refs_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_disallowed_path_failed_closed'));
+});
+
+test('persistence M1 proof command aggregates workspace scene and catalog gates', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:persistence-m1'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/persistence-m1-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/persistence-m1-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_persistence_m1_proof');
+  assert.deepEqual(artifact.childArtifacts.map((child: { kind: string }) => child.kind), [
+    'studio_workspace_open_read_proof',
+    'studio_scene_save_roundtrip_proof',
+    'studio_catalog_save_roundtrip_proof',
+  ]);
+  assert.ok(artifact.childArtifacts.every((child: { fileHash: string; artifactHash: string }) =>
+    child.fileHash.startsWith('sha256:') && child.artifactHash.startsWith('sha256:'),
+  ));
+  assert.ok(artifact.validations.includes('boundary_guard_passed'));
+  assert.ok(artifact.validations.includes('negative_smokes_present'));
+  assert.deepEqual(artifact.workspaceOpen.allowedSceneRoots, ['scenes']);
+  assert.deepEqual(artifact.workspaceOpen.allowedCatalogRoots, ['packages/game-catalogs']);
+  assert.match(artifact.saveHashes.sceneAfter, /^sha256:/);
+  assert.match(artifact.saveHashes.catalogAfter, /^sha256:/);
+  assert.ok(artifact.diagnostics.sceneNegativeCount > 0);
+  assert.ok(artifact.diagnostics.catalogNegativeCount > 0);
+  assert.ok(artifact.nonClaims.includes('not_product_readiness'));
 });
 
 test('game workspace attach client performs typed devtools handshake', async () => {
@@ -933,6 +1147,189 @@ test('scene hierarchy projects canonical scene objects distinct from renderables
     true,
   );
   assert.ok(readModel.sceneObjectSnapshot.nonClaims.includes('not_authority_validation'));
+});
+
+test('scene authoring operation model hashes typed create update and delete requests', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const baseHash = studioSceneAuthoringBaseHash(readModel.flatSceneDocument);
+  const firstObjectId = readModel.sceneObjectSnapshot.objects[0]?.objectId ?? 'scene-node:1';
+  const create = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'agent',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'create_scene_object',
+      record: {
+        id: 9001,
+        parent: null,
+        childOrder: 10,
+        label: 'Authored object',
+        tags: ['proof'],
+        transform: {
+          translation: [0, 1, 0],
+          rotation: [0, 0, 0, 1],
+          scale: [1, 1, 1],
+        },
+        kind: { kind: 'emptyGroup' },
+      },
+    },
+  });
+  const update = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'gui',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'update_scene_object',
+      objectId: firstObjectId,
+      patch: { label: 'Updated label' },
+    },
+  });
+  const remove = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'agent',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'delete_scene_object',
+      objectId: firstObjectId,
+    },
+  });
+
+  assert.equal(create.ok, true);
+  assert.equal(update.ok, true);
+  assert.equal(remove.ok, true);
+  assert.match(create.operation.operationHash, /^studio-scene-authoring-operation-/);
+  assert.notEqual(create.operation.operationHash, update.operation.operationHash);
+  assert.notEqual(update.operation.operationHash, remove.operation.operationHash);
+  assert.deepEqual(create.operation.nonClaims, [
+    'not_runtime_authority',
+    'not_private_ui_mutation',
+    'not_source_write_until_save_operation',
+  ]);
+});
+
+test('scene authoring operation model fails closed on stale invalid operations', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const duplicate = readModel.flatSceneDocument.nodes[0];
+  assert.ok(duplicate);
+  const stale = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'agent',
+    expectedBaseHash: 'studio-scene-authoring-base-stale',
+    operation: {
+      kind: 'update_scene_object',
+      objectId: 'scene-node:999999',
+      patch: { label: 'Missing target' },
+    },
+  });
+  const invalidCreate = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'gui',
+    expectedBaseHash: studioSceneAuthoringBaseHash(readModel.flatSceneDocument),
+    operation: {
+      kind: 'create_scene_object',
+      record: {
+        ...duplicate,
+        label: '   ',
+        transform: {
+          ...duplicate.transform,
+          scale: [1, 0, 1],
+        },
+      },
+    },
+  });
+
+  assert.equal(stale.ok, false);
+  assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'stale_scene_source_hash'));
+  assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'missing_scene_object'));
+  assert.equal(invalidCreate.ok, false);
+  assert.ok(invalidCreate.diagnostics.some(diagnostic => diagnostic.code === 'duplicate_scene_object'));
+  assert.ok(invalidCreate.diagnostics.some(diagnostic => diagnostic.code === 'blank_scene_object_label'));
+  assert.ok(invalidCreate.diagnostics.some(diagnostic => diagnostic.code === 'invalid_scene_object_transform'));
+});
+
+test('scene object create authoring workflow projects saved object into hierarchy and inspector readout', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const record = {
+    id: 9101,
+    parent: 1,
+    childOrder: 20,
+    label: 'Created authoring object',
+    tags: ['authoring-proof'],
+    transform: {
+      translation: [2, 0, 0] as const,
+      rotation: [0, 0, 0, 1] as const,
+      scale: [1, 1, 1] as const,
+    },
+    kind: { kind: 'emptyGroup' as const },
+  };
+  const operation = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'agent',
+    expectedBaseHash: studioSceneAuthoringBaseHash(readModel.flatSceneDocument),
+    operation: {
+      kind: 'create_scene_object',
+      record,
+    },
+  });
+  assert.equal(operation.ok, true);
+  if (!operation.ok) throw new Error('create operation should validate');
+
+  const request = createCreateSceneObjectRequest(readModel, record);
+  const applied = applySceneObjectCommandReadModel(readModel, request);
+
+  assert.equal(applied.ok, true);
+  assert.equal(applied.result.accepted, true);
+  assert.equal(applied.workspace.flatSceneDocument.nodes.some(node => node.id === 9101), true);
+  assert.equal(
+    applied.workspace.sceneObjectSnapshot.objects.find(object => object.objectId === 'scene-node:9101')?.displayName,
+    'Created authoring object',
+  );
+  assert.equal(applied.workspace.selectedEntityId, 'scene-node:9101');
+  assert.equal(applied.workspace.timeline.at(-1)?.commandId, 'scene.apply_object_command');
+  assert.match(operation.operation.operationHash, /^studio-scene-authoring-operation-/);
+});
+
+test('scene object create authoring workflow rejects duplicate and stale creation', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const duplicate = readModel.flatSceneDocument.nodes[0];
+  assert.ok(duplicate);
+
+  const staleRequest = {
+    ...createCreateSceneObjectRequest(readModel, {
+      ...duplicate,
+      id: 9301,
+      label: 'Stale create',
+    }),
+    expectedDocumentHash: -1,
+  };
+  const stale = applySceneObjectCommandReadModel(readModel, staleRequest);
+  const duplicateResult = applySceneObjectCommandReadModel(
+    readModel,
+    createCreateSceneObjectRequest(readModel, duplicate),
+  );
+
+  assert.equal(stale.ok, false);
+  assert.equal(stale.result.rejection?.code, 'stale-scene-object-snapshot');
+  assert.equal(duplicateResult.ok, false);
+  assert.equal(duplicateResult.result.rejection?.code, 'duplicate-scene-object');
+});
+
+test('scene object create authoring proof command records operation and readout hashes', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:scene-object-create-authoring'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/scene-object-create-authoring-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/scene-object-create-authoring-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_scene_object_create_authoring_proof');
+  assert.equal(artifact.operation.operationKind, 'create_scene_object');
+  assert.match(artifact.operation.operationHash, /^studio-scene-authoring-operation-/);
+  assert.match(artifact.fileHashes.beforeDocumentHash, /^sha256:/);
+  assert.match(artifact.fileHashes.afterDocumentHash, /^sha256:/);
+  assert.equal(artifact.readout.selectedEntityId, 'scene-node:9201');
+  assert.match(artifact.readout.readoutHash, /^sha256:/);
+  assert.ok(artifact.validations.includes('negative_duplicate_create_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_stale_create_failed_closed'));
 });
 
 test('scene hierarchy root selection clears viewport renderable without private UI mutation', () => {

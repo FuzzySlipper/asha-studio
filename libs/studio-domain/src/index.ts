@@ -28,7 +28,9 @@ import {
 } from '@asha/editor-tools';
 import {
   ASHA_GAME_WORKSPACE_COMPATIBILITY,
+  buildAshaAuthoringPersistenceContract,
   parseAshaGameManifestToml,
+  resolveAshaAuthoringWriteTarget,
   validateAshaConsumerCompatibility,
   type AshaGameManifest,
   type AshaGameRuntimeBackendMode,
@@ -143,6 +145,20 @@ export type StudioProofSceneDiagnosticCode =
   | 'proof_scene_missing_catalog_reference'
   | 'proof_scene_missing_runtime_fixture'
   | 'proof_scene_evidence_failed';
+export type StudioWorkspaceOpenReadDiagnosticCode =
+  | 'missing_manifest'
+  | 'workspace_source_path_escape'
+  | 'private_repo_scan'
+  | 'unsupported_file_kind'
+  | 'workspace_source_not_allowed';
+export type StudioSceneAuthoringDiagnosticCode =
+  | 'stale_scene_source_hash'
+  | 'duplicate_scene_object'
+  | 'missing_scene_object'
+  | 'missing_scene_object_parent'
+  | 'blank_scene_object_label'
+  | 'invalid_scene_object_transform'
+  | 'runtime_authority_not_allowed';
 
 export interface StudioGameWorkspaceReadModel {
   readonly workspaceVersion: 'studio-game-workspace.v0';
@@ -218,6 +234,116 @@ export interface StudioGameWorkspaceReadout {
   readonly workspaceHash: string;
   readonly diagnostics: readonly StudioDiagnostic[];
 }
+
+export type StudioWorkspaceSourceSchemaKind =
+  | 'proof-scene-json.v1'
+  | 'asset-catalog-json.v1';
+
+export interface StudioWorkspaceSourceFileInput {
+  readonly path: string;
+  readonly text: string;
+  readonly sha256: string;
+}
+
+export interface StudioWorkspaceSourceFileReadModel {
+  readonly sourceVersion: 'studio-workspace-source-file.v0';
+  readonly path: string;
+  readonly hash: string;
+  readonly schemaKind: StudioWorkspaceSourceSchemaKind;
+  readonly operationKind: 'authoring.scene.save_source' | 'authoring.catalog.save_source';
+  readonly allowedRoot: string;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly sourceHash: string;
+}
+
+export interface StudioWorkspaceOpenReadModel {
+  readonly openReadVersion: 'studio-workspace-open-read.v0';
+  readonly workspaceHash: string;
+  readonly manifestPath: string;
+  readonly manifestHash: string;
+  readonly authoringPersistenceVersion: 'authoring-persistence.v0';
+  readonly allowedSceneRoots: readonly string[];
+  readonly allowedCatalogRoots: readonly string[];
+  readonly sourceFiles: readonly StudioWorkspaceSourceFileReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_repo_crawler',
+    'not_private_asset_database',
+    'not_source_write',
+    'not_runtime_authority',
+  ];
+  readonly openReadHash: string;
+}
+
+export type StudioWorkspaceOpenReadResult =
+  | {
+      readonly ok: true;
+      readonly openRead: StudioWorkspaceOpenReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly openRead: StudioWorkspaceOpenReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export type StudioSceneAuthoringOperationKind =
+  | 'create_scene_object'
+  | 'update_scene_object'
+  | 'delete_scene_object';
+
+export type StudioSceneAuthoringOperation =
+  | {
+      readonly kind: 'create_scene_object';
+      readonly record: FlatSceneDocument['nodes'][number];
+    }
+  | {
+      readonly kind: 'update_scene_object';
+      readonly objectId: SceneObjectId;
+      readonly patch: {
+        readonly label?: string | null;
+        readonly parentObjectId?: SceneObjectId | null;
+        readonly transform?: SceneTransform;
+      };
+    }
+  | {
+      readonly kind: 'delete_scene_object';
+      readonly objectId: SceneObjectId;
+    };
+
+export interface StudioSceneAuthoringOperationRequest {
+  readonly operation: StudioSceneAuthoringOperation;
+  readonly expectedBaseHash: string;
+  readonly actor: StudioActorKind;
+}
+
+export interface StudioSceneAuthoringOperationReadModel {
+  readonly operationVersion: 'studio-scene-authoring-operation.v0';
+  readonly operationKind: StudioSceneAuthoringOperationKind;
+  readonly expectedBaseHash: string;
+  readonly actualBaseHash: string;
+  readonly actor: StudioActorKind;
+  readonly operation: StudioSceneAuthoringOperation;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_ui_mutation',
+    'not_source_write_until_save_operation',
+  ];
+  readonly operationHash: string;
+}
+
+export type StudioSceneAuthoringOperationResult =
+  | {
+      readonly ok: true;
+      readonly operation: StudioSceneAuthoringOperationReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly operation: StudioSceneAuthoringOperationReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
 
 export interface StudioDevtoolsAttachTransport {
   readonly exchange: (
@@ -1411,6 +1537,132 @@ export function buildStudioGameWorkspaceReadout(
     workspaceHash: workspace.workspaceHash,
     diagnostics: workspace.diagnostics,
   };
+}
+
+export function buildStudioWorkspaceOpenReadModel(input: {
+  readonly workspace: StudioGameWorkspaceReadModel | null;
+  readonly manifestPath: string;
+  readonly manifestHash: string | null;
+  readonly sourceFiles: readonly StudioWorkspaceSourceFileInput[];
+}): StudioWorkspaceOpenReadResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  if (input.workspace === null) {
+    diagnostics.push(studioWorkspaceOpenReadDiagnostic(
+      'missing_manifest',
+      `Workspace manifest is required before source files can be read: ${input.manifestPath}.`,
+      input.manifestPath,
+      'Open asha.game.toml through workspace.open_game_manifest first.',
+    ));
+  }
+
+  const workspace = input.workspace;
+  const persistence = workspace === null
+    ? null
+    : buildAshaAuthoringPersistenceContract(workspace.manifest);
+  const allowedSceneRoots = persistence?.writeScopes.find(
+    scope => scope.operationKind === 'authoring.scene.save_source',
+  )?.allowedRoots ?? [];
+  const allowedCatalogRoots = persistence?.writeScopes.find(
+    scope => scope.operationKind === 'authoring.catalog.save_source',
+  )?.allowedRoots ?? [];
+
+  const sourceFiles: StudioWorkspaceSourceFileReadModel[] = [];
+  for (const file of input.sourceFiles) {
+    const fileDiagnostics: StudioDiagnostic[] = [];
+    const operationKind = workspaceSourceOperationKind(file.path);
+    if (file.path.length === 0 || file.path.startsWith('/') || file.path.split('/').includes('..')) {
+      fileDiagnostics.push(studioWorkspaceOpenReadDiagnostic(
+        'workspace_source_path_escape',
+        `Workspace source path must stay inside the game workspace: ${file.path}.`,
+        file.path,
+        'Use manifest-declared relative scene/catalog paths only.',
+      ));
+    }
+    if (file.path.startsWith('../asha') || file.path.startsWith('../asha-studio') || file.path.includes('/src/')) {
+      fileDiagnostics.push(studioWorkspaceOpenReadDiagnostic(
+        'private_repo_scan',
+        `Workspace source read cannot scan private sibling repos or ASHA internals: ${file.path}.`,
+        file.path,
+        'Use public package roots and manifest-declared game files.',
+      ));
+    }
+    if (operationKind === null) {
+      fileDiagnostics.push(studioWorkspaceOpenReadDiagnostic(
+        'unsupported_file_kind',
+        `Workspace open/read supports proof scene and catalog source files only: ${file.path}.`,
+        file.path,
+        'Read scenes/*.scene.json and catalog package catalog.json files only.',
+      ));
+    }
+    if (workspace !== null && operationKind !== null) {
+      const resolution = resolveAshaAuthoringWriteTarget(workspace.manifest, {
+        operationKind,
+        relativePath: file.path,
+      });
+      if (!resolution.ok) {
+        fileDiagnostics.push(...resolution.diagnostics.map(diagnostic =>
+          studioWorkspaceOpenReadDiagnostic(
+            'workspace_source_not_allowed',
+            diagnostic.message,
+            diagnostic.path,
+            diagnostic.code,
+          ),
+        ));
+      } else if (fileDiagnostics.length === 0) {
+        const readModel: StudioWorkspaceSourceFileReadModel = {
+          sourceVersion: 'studio-workspace-source-file.v0',
+          path: resolution.normalizedPath,
+          hash: file.sha256,
+          schemaKind: resolution.format === 'proof-scene-json.v1'
+            ? 'proof-scene-json.v1'
+            : 'asset-catalog-json.v1',
+          operationKind,
+          allowedRoot: resolution.allowedRoot,
+          diagnostics: [],
+          sourceHash: fnv1aHash('studio-workspace-source-file', {
+            workspaceHash: workspace.workspaceHash,
+            path: resolution.normalizedPath,
+            hash: file.sha256,
+            schemaKind: resolution.format,
+            operationKind,
+          }),
+        };
+        sourceFiles.push(readModel);
+      }
+    }
+    diagnostics.push(...fileDiagnostics);
+  }
+
+  const openRead: StudioWorkspaceOpenReadModel = {
+    openReadVersion: 'studio-workspace-open-read.v0',
+    workspaceHash: workspace?.workspaceHash ?? 'missing',
+    manifestPath: input.manifestPath,
+    manifestHash: input.manifestHash ?? 'missing',
+    authoringPersistenceVersion: 'authoring-persistence.v0',
+    allowedSceneRoots,
+    allowedCatalogRoots,
+    sourceFiles,
+    diagnostics,
+    nonClaims: [
+      'not_repo_crawler',
+      'not_private_asset_database',
+      'not_source_write',
+      'not_runtime_authority',
+    ],
+    openReadHash: fnv1aHash('studio-workspace-open-read', {
+      workspaceHash: workspace?.workspaceHash ?? 'missing',
+      manifestPath: input.manifestPath,
+      manifestHash: input.manifestHash ?? 'missing',
+      allowedSceneRoots,
+      allowedCatalogRoots,
+      sourceFiles,
+      diagnostics,
+    }),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, openRead, diagnostics: [] }
+    : { ok: false, openRead, diagnostics };
 }
 
 export function buildStudioGameWorkspaceHandshakeRequest(
@@ -2891,6 +3143,18 @@ function npmRunScriptName(command: string): string | null {
   return match?.[1] ?? null;
 }
 
+function workspaceSourceOperationKind(
+  path: string,
+): 'authoring.scene.save_source' | 'authoring.catalog.save_source' | null {
+  if (path.endsWith('.scene.json')) {
+    return 'authoring.scene.save_source';
+  }
+  if (path.endsWith('/catalog.json')) {
+    return 'authoring.catalog.save_source';
+  }
+  return null;
+}
+
 function studioGameWorkspaceDiagnostic(
   code: StudioGameWorkspaceDiagnosticCode,
   message: string,
@@ -2903,6 +3167,36 @@ function studioGameWorkspaceDiagnostic(
     message,
     source,
     remediation: `asha.game.toml:${detail}`,
+  };
+}
+
+function studioWorkspaceOpenReadDiagnostic(
+  code: StudioWorkspaceOpenReadDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioSceneAuthoringDiagnostic(
+  code: StudioSceneAuthoringDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
   };
 }
 
@@ -4305,6 +4599,41 @@ function sceneNodeIdFromObjectId(objectId: SceneObjectId): SceneNodeId {
   return sceneNodeId(Number(objectId.replace('scene-node:', '')));
 }
 
+function validateAuthoringLabel(
+  label: string | null,
+  source: string,
+  diagnostics: StudioDiagnostic[],
+): void {
+  if (label !== null && label.trim().length === 0) {
+    diagnostics.push(studioSceneAuthoringDiagnostic(
+      'blank_scene_object_label',
+      'Scene object labels must be null or non-blank.',
+      source,
+      null,
+    ));
+  }
+}
+
+function validateAuthoringTransform(
+  transform: SceneTransform,
+  source: string,
+  diagnostics: StudioDiagnostic[],
+): void {
+  const values = [
+    ...transform.translation,
+    ...transform.rotation,
+    ...transform.scale,
+  ];
+  if (values.some(value => !Number.isFinite(value)) || transform.scale.some(value => value === 0)) {
+    diagnostics.push(studioSceneAuthoringDiagnostic(
+      'invalid_scene_object_transform',
+      'Scene object transform must contain finite values and non-zero scale.',
+      source,
+      null,
+    ));
+  }
+}
+
 function documentHashForSceneObjectCommand(document: FlatSceneDocument): number {
   const hash = fnv1aHash('scene-object-document', document);
   return Number.parseInt(hash.replace('scene-object-document-', ''), 16);
@@ -4484,6 +4813,104 @@ export function createStudioFlatSceneDocument(
   return flatSceneDocumentForScene(scene);
 }
 
+export function studioSceneAuthoringBaseHash(document: FlatSceneDocument): string {
+  return fnv1aHash('studio-scene-authoring-base', document);
+}
+
+export function buildStudioSceneAuthoringOperation(
+  document: FlatSceneDocument,
+  request: StudioSceneAuthoringOperationRequest,
+): StudioSceneAuthoringOperationResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const actualBaseHash = studioSceneAuthoringBaseHash(document);
+  if (request.expectedBaseHash !== actualBaseHash) {
+    diagnostics.push(studioSceneAuthoringDiagnostic(
+      'stale_scene_source_hash',
+      'Scene authoring operation expectedBaseHash does not match the current scene source hash.',
+      request.operation.kind,
+      `${request.expectedBaseHash} != ${actualBaseHash}`,
+    ));
+  }
+
+  const existingIds = new Set(document.nodes.map(node => node.id));
+  const parentIds = new Set(document.nodes.map(node => node.id));
+  if (request.operation.kind === 'create_scene_object') {
+    const record = request.operation.record;
+    if (existingIds.has(record.id)) {
+      diagnostics.push(studioSceneAuthoringDiagnostic(
+        'duplicate_scene_object',
+        `Cannot create duplicate scene object ${record.id}.`,
+        `scene-node:${record.id}`,
+        null,
+      ));
+    }
+    if (record.parent !== null && !parentIds.has(record.parent)) {
+      diagnostics.push(studioSceneAuthoringDiagnostic(
+        'missing_scene_object_parent',
+        `Cannot parent new scene object ${record.id} under missing parent ${record.parent}.`,
+        `scene-node:${record.id}`,
+        `parent:${record.parent}`,
+      ));
+    }
+    validateAuthoringLabel(record.label, `scene-node:${record.id}`, diagnostics);
+    validateAuthoringTransform(record.transform, `scene-node:${record.id}`, diagnostics);
+  } else {
+    const id = sceneNodeIdFromObjectId(request.operation.objectId);
+    const current = document.nodes.find(node => node.id === id);
+    if (current === undefined) {
+      diagnostics.push(studioSceneAuthoringDiagnostic(
+        'missing_scene_object',
+        `Cannot ${request.operation.kind} missing scene object ${request.operation.objectId}.`,
+        request.operation.objectId,
+        null,
+      ));
+    }
+    if (request.operation.kind === 'update_scene_object') {
+      if (request.operation.patch.parentObjectId !== undefined && request.operation.patch.parentObjectId !== null) {
+        const parent = sceneNodeIdFromObjectId(request.operation.patch.parentObjectId);
+        if (!parentIds.has(parent)) {
+          diagnostics.push(studioSceneAuthoringDiagnostic(
+            'missing_scene_object_parent',
+            `Cannot parent scene object ${request.operation.objectId} under missing parent ${request.operation.patch.parentObjectId}.`,
+            request.operation.objectId,
+            request.operation.patch.parentObjectId,
+          ));
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(request.operation.patch, 'label')) {
+        validateAuthoringLabel(request.operation.patch.label ?? null, request.operation.objectId, diagnostics);
+      }
+      if (request.operation.patch.transform !== undefined) {
+        validateAuthoringTransform(request.operation.patch.transform, request.operation.objectId, diagnostics);
+      }
+    }
+  }
+
+  const readModel: StudioSceneAuthoringOperationReadModel = {
+    operationVersion: 'studio-scene-authoring-operation.v0',
+    operationKind: request.operation.kind,
+    expectedBaseHash: request.expectedBaseHash,
+    actualBaseHash,
+    actor: request.actor,
+    operation: request.operation,
+    diagnostics,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_ui_mutation',
+      'not_source_write_until_save_operation',
+    ],
+    operationHash: fnv1aHash('studio-scene-authoring-operation', {
+      actualBaseHash,
+      request,
+      diagnostics,
+    }),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, operation: readModel, diagnostics: [] }
+    : { ok: false, operation: readModel, diagnostics };
+}
+
 export function createSceneObjectCommandIntent(
   readModel: StudioWorkspaceReadModel,
   request: SceneObjectCommandRequest,
@@ -4585,6 +5012,19 @@ export function createRotateSceneObjectRequest(
   };
 }
 
+export function createCreateSceneObjectRequest(
+  readModel: StudioWorkspaceReadModel,
+  record: FlatSceneDocument['nodes'][number],
+): SceneObjectCommandRequest {
+  return {
+    expectedDocumentHash: documentHashForSceneObjectCommand(readModel.flatSceneDocument),
+    command: {
+      kind: 'create',
+      record,
+    },
+  };
+}
+
 export function applySceneObjectCommandReadModel(
   readModel: StudioWorkspaceReadModel,
   request: SceneObjectCommandRequest,
@@ -4600,6 +5040,29 @@ export function applySceneObjectCommandReadModel(
       expectedHash: request.expectedDocumentHash,
       actualHash,
     });
+  } else if (request.command.kind === 'create') {
+    const record = request.command.record;
+    if (flatSceneDocument.nodes.some(node => node.id === record.id)) {
+      result = sceneObjectRejection('duplicate-scene-object', { id: record.id });
+    } else if (
+      record.parent !== null
+      && !flatSceneDocument.nodes.some(node => node.id === record.parent)
+    ) {
+      result = sceneObjectRejection('missing-scene-object-parent', {
+        id: record.id,
+        parent: record.parent,
+      });
+    } else if (record.label !== null && record.label.trim().length === 0) {
+      result = sceneObjectRejection('blank-scene-object-label', { id: record.id });
+    } else if (!isValidSceneTransform(record.transform)) {
+      result = sceneObjectRejection('invalid-scene-object-transform', { id: record.id });
+    } else {
+      flatSceneDocument = {
+        ...flatSceneDocument,
+        nodes: [...flatSceneDocument.nodes, record],
+      };
+      selectedSceneNode = record.id;
+    }
   } else if (request.command.kind === 'rename') {
     const id = request.command.id;
     const label = request.command.label;
@@ -4704,7 +5167,7 @@ export function applySceneObjectCommandReadModel(
       }
     }
   } else {
-    const id = request.command.kind === 'create' ? request.command.record.id : request.command.id;
+    const id = request.command.id;
     result = sceneObjectRejection('invalid-scene-before-command', { id });
   }
 
