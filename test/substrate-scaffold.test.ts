@@ -21,6 +21,7 @@ import {
   buildStudioSceneAuthoringOperation,
   buildStudioCatalogAuthoringOperation,
   buildStudioCommandProposalPanel,
+  buildStudioAuthoredBrowserDebugReadModel,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioLiveDebugCommandProposalSurface,
   buildStudioProofSceneList,
@@ -2462,6 +2463,173 @@ test('authored browser interaction proof records DOM input against loaded conten
   assert.ok(artifact.nonClaims.includes('not_runtime_mutation_proof'));
 });
 
+test('authored browser debug read model projects browser selection into Studio debug readback', () => {
+  const fixture = {
+    fixtureKind: 'studio_authored_roundtrip_fixture' as const,
+    fixtureHash: 'sha256:fixture',
+    authoredScene: {
+      objectId: 'scene-node:9401',
+      record: {
+        label: 'Studio Authored Runtime Target',
+        transform: {
+          translation: [3, 0.5, -1] as const,
+          rotation: [0, 0, 0, 1] as const,
+          scale: [1, 1, 1] as const,
+        },
+      },
+    },
+    authoredCatalog: {
+      authoredAssetId: 'material.studio-authored-roundtrip',
+      authoredCatalogHash: 'studio-catalog-authoring-catalog-after',
+      entry: {
+        source: 'assets/materials/demo-copper.material.json',
+      },
+    },
+  };
+  const browserInteraction = {
+    artifactKind: 'studio_authored_browser_interaction_proof' as const,
+    artifactHash: 'sha256:interaction',
+    authoredInteraction: {
+      objectId: 'scene-node:9401',
+      assetId: 'material.studio-authored-roundtrip',
+      inputEventCount: 3,
+      typedRequestCount: 3,
+      readbackCount: 3,
+      finalSelectedObjectId: 'scene-node:9401',
+      finalSelectedAssetId: 'material.studio-authored-roundtrip',
+      interactionHash: 'sha256:browser-input',
+      runtimeWorldHash: 'reference-world:asha-demo:9401:accepted:0',
+    },
+  };
+
+  const debug = buildStudioAuthoredBrowserDebugReadModel({
+    fixture,
+    browserInteraction,
+    studioDebugEvidenceHash: 'sha256:studio-live-debug',
+  });
+
+  assert.equal(debug.ok, true);
+  assert.equal(debug.debug.debugVersion, 'studio-authored-browser-debug.v0');
+  assert.equal(debug.debug.selected.objectId, 'scene-node:9401');
+  assert.equal(debug.debug.selected.assetId, 'material.studio-authored-roundtrip');
+  assert.equal(debug.debug.browserReadback.inputEventCount, 3);
+  assert.equal(debug.debug.studioCorrelation.authoredObjectMatchesBrowserSelection, true);
+  assert.equal(debug.debug.studioCorrelation.authoredAssetMatchesBrowserSelection, true);
+  assert.match(debug.debug.debugHash, /^studio-authored-browser-debug-/);
+
+  const stale = buildStudioAuthoredBrowserDebugReadModel({
+    fixture,
+    browserInteraction: {
+      ...browserInteraction,
+      authoredInteraction: {
+        ...browserInteraction.authoredInteraction,
+        finalSelectedObjectId: 'scene-node:stale',
+      },
+    },
+    studioDebugEvidenceHash: 'sha256:studio-live-debug',
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.diagnostics.at(0)?.code, 'selected_authored_object_mismatch');
+
+  const missingEvidence = buildStudioAuthoredBrowserDebugReadModel({
+    fixture,
+    browserInteraction,
+  });
+  assert.equal(missingEvidence.ok, false);
+  assert.equal(missingEvidence.diagnostics.at(0)?.code, 'missing_studio_debug_evidence');
+});
+
+test('authored Studio debug readback proof inspects browser-mutated authored content', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:authored-studio-debug-readback'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 480000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/authored-studio-debug-readback\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/authored-studio-debug-readback/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_authored_studio_debug_readback_proof');
+  assert.equal(artifact.debug.debugVersion, 'studio-authored-browser-debug.v0');
+  assert.equal(artifact.debug.selected.objectId, 'scene-node:9401');
+  assert.equal(artifact.debug.selected.assetId, 'material.studio-authored-roundtrip');
+  assert.equal(artifact.debug.selected.finalSelectedObjectId, 'scene-node:9401');
+  assert.equal(artifact.debug.browserReadback.inputEventCount, 3);
+  assert.equal(artifact.debug.studioCorrelation.authoredObjectMatchesBrowserSelection, true);
+  assert.ok(artifact.validations.includes('browser_selected_authored_object_projected_to_studio_debug'));
+  assert.ok(artifact.validations.includes('studio_live_debug_m4_child_passed'));
+  assert.equal(artifact.negativeSmokes.at(0)?.diagnostics.at(0)?.code, 'missing_studio_debug_evidence');
+  assert.equal(artifact.negativeSmokes.at(1)?.diagnostics.at(0)?.code, 'selected_authored_object_mismatch');
+  assert.ok(artifact.nonClaims.includes('not_private_runtime_transport'));
+});
+
+test('author-to-runtime round-trip evidence index records current child proof chain', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:author-runtime-roundtrip-index'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 600000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/author-runtime-roundtrip-index\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/author-runtime-roundtrip-index/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_author_runtime_roundtrip_evidence_index');
+  assert.equal(artifact.authoredRefs.objectId, 'scene-node:9401');
+  assert.equal(artifact.authoredRefs.assetId, 'material.studio-authored-roundtrip');
+  assert.equal(artifact.sourceArtifacts.length, 5);
+  assert.equal(artifact.roundTrip.browserInteraction.inputEventCount, 3);
+  assert.equal(artifact.roundTrip.studioDebugReadback.authoredObjectMatchesBrowserSelection, true);
+  assert.equal(artifact.correlations.sourceArtifactChainCurrent, true);
+  assert.ok(artifact.validations.includes('authored_object_correlated_across_studio_browser_and_debug'));
+  assert.ok(artifact.validations.includes('source_artifact_hashes_verified'));
+  assert.equal(artifact.negativeSmokes.at(0)?.diagnostic, 'stale_source_artifact_hash');
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_publish_readiness'));
+});
+
+test('author-to-runtime round-trip M5 aggregate proof gate records milestone coverage', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:author-runtime-roundtrip-m5'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 660000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/author-runtime-roundtrip-m5\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/author-runtime-roundtrip-m5/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_author_runtime_roundtrip_m5');
+  assert.equal(artifact.authoredRefs.objectId, 'scene-node:9401');
+  assert.equal(artifact.authoredRefs.assetId, 'material.studio-authored-roundtrip');
+  assert.equal(artifact.evidenceIndex.kind, 'studio_author_runtime_roundtrip_evidence_index');
+  assert.equal(artifact.coverage.sourceArtifactChainCurrent, true);
+  assert.equal(artifact.coverage.browserInputCountsCorrelated, true);
+  assert.equal(artifact.roundTripReadout.finalSelectedObjectId, 'scene-node:9401');
+  assert.ok(artifact.validations.includes('author_runtime_roundtrip_index_child_passed'));
+  assert.ok(artifact.validations.includes('authored_object_round_trips_from_studio_to_browser_back_to_studio_debug'));
+  assert.equal(artifact.negativeSmokes.at(0)?.diagnostic, 'stale_source_artifact_hash');
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_runtime_authority'));
+});
+
+test('Author-to-runtime M5 closeout doc points at aggregate proof gate', () => {
+  const doc = readFileSync(join(repoRoot, 'docs/author-runtime-roundtrip-m5.md'), 'utf8');
+  assert.match(doc, /Task: `asha#3733`/);
+  assert.match(doc, /pnpm run proof:author-runtime-roundtrip-m5/);
+  assert.match(doc, /artifacts\/author-runtime-roundtrip-m5\/latest\/index\.json/);
+  assert.match(doc, /artifacts\/author-runtime-roundtrip-index\/latest\/index\.json/);
+  assert.match(doc, /does not claim Studio runtime authority/);
+  assert.match(doc, /private runtime mutation/);
+});
+
 test('game asset inventory read model loads multi-kind asha-demo catalog evidence', () => {
   const inventory = loadStudioAssetInventory({
     artifactKind: 'asha_demo_asset_inventory',
@@ -3267,6 +3435,18 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-authored-browser-interaction.ts'),
     'utf8',
   );
+  const authoredStudioDebugReadbackSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-authored-studio-debug-readback.ts'),
+    'utf8',
+  );
+  const authorRuntimeRoundtripIndexSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-author-runtime-roundtrip-index.ts'),
+    'utf8',
+  );
+  const authorRuntimeRoundtripM5Source = readFileSync(
+    join(repoRoot, 'scripts', 'proof-author-runtime-roundtrip-m5.ts'),
+    'utf8',
+  );
   const liveDebugIdentitySource = readFileSync(
     join(repoRoot, 'scripts', 'proof-live-debug-session-identity.ts'),
     'utf8',
@@ -3321,6 +3501,18 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'tsx scripts/proof-authored-browser-interaction.ts',
   );
   assert.equal(
+    packageJson.scripts['proof:authored-studio-debug-readback'],
+    'tsx scripts/proof-authored-studio-debug-readback.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:author-runtime-roundtrip-index'],
+    'tsx scripts/proof-author-runtime-roundtrip-index.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:author-runtime-roundtrip-m5'],
+    'tsx scripts/proof-author-runtime-roundtrip-m5.ts',
+  );
+  assert.equal(
     packageJson.scripts['proof:live-debug-session-identity'],
     'tsx scripts/proof-live-debug-session-identity.ts',
   );
@@ -3358,6 +3550,15 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(authoredBrowserInteractionSource.includes("artifactKind: 'studio_authored_browser_interaction_proof'"), true);
   assert.equal(authoredBrowserInteractionSource.includes('roundtrip:browser-interaction'), true);
   assert.equal(authoredBrowserInteractionSource.includes('authored_selection_readback_matches_runtime_load'), true);
+  assert.equal(authoredStudioDebugReadbackSource.includes("artifactKind: 'studio_authored_studio_debug_readback_proof'"), true);
+  assert.equal(authoredStudioDebugReadbackSource.includes('proof:live-gameplay-debug-m4'), true);
+  assert.equal(authoredStudioDebugReadbackSource.includes('browser_selected_authored_object_projected_to_studio_debug'), true);
+  assert.equal(authorRuntimeRoundtripIndexSource.includes("artifactKind: 'studio_author_runtime_roundtrip_evidence_index'"), true);
+  assert.equal(authorRuntimeRoundtripIndexSource.includes('source_artifact_chain_current'), true);
+  assert.equal(authorRuntimeRoundtripIndexSource.includes('stale_source_artifact_hash'), true);
+  assert.equal(authorRuntimeRoundtripM5Source.includes("artifactKind: 'studio_author_runtime_roundtrip_m5'"), true);
+  assert.equal(authorRuntimeRoundtripM5Source.includes('proof:author-runtime-roundtrip-index'), true);
+  assert.equal(authorRuntimeRoundtripM5Source.includes('authored_object_round_trips_from_studio_to_browser_back_to_studio_debug'), true);
   assert.equal(liveDebugIdentitySource.includes("artifactKind: 'studio_live_debug_session_identity_proof'"), true);
   assert.equal(liveDebugIdentitySource.includes('stale_child_artifact'), true);
   assert.equal(liveDebugIdentitySource.includes('fixture-only readback'), true);

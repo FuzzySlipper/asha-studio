@@ -153,6 +153,13 @@ export type StudioLiveDebugCommandProposalDiagnosticCode =
   | 'debug_command_scope_mismatch'
   | 'unsupported_debug_command'
   | 'missing_command_result_evidence';
+export type StudioAuthoredBrowserDebugDiagnosticCode =
+  | 'missing_authored_fixture'
+  | 'missing_browser_interaction'
+  | 'stale_browser_interaction'
+  | 'selected_authored_object_mismatch'
+  | 'selected_authored_asset_mismatch'
+  | 'missing_studio_debug_evidence';
 export type StudioAssetInventoryDiagnosticCode =
   | 'asset_inventory_artifact_mismatch'
   | 'asset_inventory_missing_entry'
@@ -938,6 +945,91 @@ export type StudioLiveDebugCommandProposalSurfaceResult =
   | {
       readonly ok: false;
       readonly surface: StudioLiveDebugCommandProposalSurfaceReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioAuthoredBrowserDebugInputFixture {
+  readonly fixtureKind: 'studio_authored_roundtrip_fixture';
+  readonly fixtureHash: string;
+  readonly authoredScene: {
+    readonly objectId: string;
+    readonly record: {
+      readonly label: string;
+      readonly transform: SceneTransform;
+    };
+  };
+  readonly authoredCatalog: {
+    readonly authoredAssetId: string;
+    readonly authoredCatalogHash: string;
+    readonly entry: {
+      readonly source: string;
+    };
+  };
+}
+
+export interface StudioAuthoredBrowserDebugInputInteraction {
+  readonly artifactKind: 'studio_authored_browser_interaction_proof';
+  readonly artifactHash: string;
+  readonly authoredInteraction: {
+    readonly objectId: string;
+    readonly assetId: string;
+    readonly inputEventCount: number;
+    readonly typedRequestCount: number;
+    readonly readbackCount: number;
+    readonly finalSelectedObjectId: string;
+    readonly finalSelectedAssetId: string;
+    readonly interactionHash: string;
+    readonly runtimeWorldHash: string;
+  };
+}
+
+export interface StudioAuthoredBrowserDebugReadModel {
+  readonly debugVersion: 'studio-authored-browser-debug.v0';
+  readonly authoredFixtureHash: string;
+  readonly browserInteractionHash: string;
+  readonly studioDebugEvidenceHash: string | null;
+  readonly selected: {
+    readonly objectId: string | null;
+    readonly assetId: string | null;
+    readonly label: string | null;
+    readonly transform: SceneTransform | null;
+    readonly finalSelectedObjectId: string | null;
+    readonly finalSelectedAssetId: string | null;
+  };
+  readonly browserReadback: {
+    readonly inputEventCount: number;
+    readonly typedRequestCount: number;
+    readonly readbackCount: number;
+    readonly interactionHash: string | null;
+    readonly runtimeWorldHash: string | null;
+  };
+  readonly studioCorrelation: {
+    readonly authoredObjectMatchesBrowserSelection: boolean;
+    readonly authoredAssetMatchesBrowserSelection: boolean;
+    readonly typedRequestsMatchInputs: boolean;
+    readonly readbacksMatchTypedRequests: boolean;
+    readonly studioDebugEvidencePresent: boolean;
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_runtime_transport',
+    'not_source_write',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+  ];
+  readonly debugHash: string;
+}
+
+export type StudioAuthoredBrowserDebugResult =
+  | {
+      readonly ok: true;
+      readonly debug: StudioAuthoredBrowserDebugReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly debug: StudioAuthoredBrowserDebugReadModel;
       readonly diagnostics: readonly StudioDiagnostic[];
     };
 
@@ -3172,6 +3264,133 @@ export function buildStudioLiveDebugCommandProposalSurface(input: {
     : { ok: false, surface, diagnostics };
 }
 
+export function buildStudioAuthoredBrowserDebugReadModel(input: {
+  readonly fixture: StudioAuthoredBrowserDebugInputFixture | null;
+  readonly browserInteraction: StudioAuthoredBrowserDebugInputInteraction | null;
+  readonly studioDebugEvidenceHash?: string | null;
+}): StudioAuthoredBrowserDebugResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const fixture = input.fixture;
+  const interaction = input.browserInteraction;
+  const authoredObjectId = fixture?.authoredScene.objectId ?? null;
+  const authoredAssetId = fixture?.authoredCatalog.authoredAssetId ?? null;
+  const interactionReadback = interaction?.authoredInteraction ?? null;
+
+  if (fixture === null) {
+    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
+      'missing_authored_fixture',
+      'Studio authored browser debug readback requires the authored round-trip fixture.',
+      null,
+      'pnpm run proof:authored-roundtrip-fixture',
+    ));
+  }
+  if (interaction === null) {
+    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
+      'missing_browser_interaction',
+      'Studio authored browser debug readback requires the authored browser interaction proof.',
+      null,
+      'pnpm run proof:authored-browser-interaction',
+    ));
+  }
+  if (
+    interaction !== null
+    && (
+      interaction.authoredInteraction.inputEventCount <= 0
+      || interaction.authoredInteraction.typedRequestCount !== interaction.authoredInteraction.inputEventCount
+      || interaction.authoredInteraction.readbackCount !== interaction.authoredInteraction.typedRequestCount
+      || interaction.authoredInteraction.interactionHash.length === 0
+    )
+  ) {
+    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
+      'stale_browser_interaction',
+      'Authored browser interaction proof has stale or incomplete input/readback evidence.',
+      interaction.artifactHash,
+      interaction.authoredInteraction.interactionHash,
+    ));
+  }
+  if (
+    fixture !== null
+    && interaction !== null
+    && interaction.authoredInteraction.finalSelectedObjectId !== fixture.authoredScene.objectId
+  ) {
+    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
+      'selected_authored_object_mismatch',
+      'Browser-selected authored object does not match the Studio-authored fixture object.',
+      interaction.authoredInteraction.finalSelectedObjectId,
+      fixture.authoredScene.objectId,
+    ));
+  }
+  if (
+    fixture !== null
+    && interaction !== null
+    && interaction.authoredInteraction.finalSelectedAssetId !== fixture.authoredCatalog.authoredAssetId
+  ) {
+    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
+      'selected_authored_asset_mismatch',
+      'Browser-selected authored asset does not match the Studio-authored fixture asset.',
+      interaction.authoredInteraction.finalSelectedAssetId,
+      fixture.authoredCatalog.authoredAssetId,
+    ));
+  }
+  if ((input.studioDebugEvidenceHash ?? null) === null) {
+    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
+      'missing_studio_debug_evidence',
+      'Authored browser debug readback requires Studio live debug evidence as a capability gate.',
+      null,
+      'pnpm run proof:live-gameplay-debug-m4',
+    ));
+  }
+
+  const debugBody = {
+    authoredFixtureHash: fixture?.fixtureHash ?? 'missing',
+    browserInteractionHash: interaction?.artifactHash ?? 'missing',
+    studioDebugEvidenceHash: input.studioDebugEvidenceHash ?? null,
+    selected: {
+      objectId: authoredObjectId,
+      assetId: authoredAssetId,
+      label: fixture?.authoredScene.record.label ?? null,
+      transform: fixture?.authoredScene.record.transform ?? null,
+      finalSelectedObjectId: interactionReadback?.finalSelectedObjectId ?? null,
+      finalSelectedAssetId: interactionReadback?.finalSelectedAssetId ?? null,
+    },
+    browserReadback: {
+      inputEventCount: interactionReadback?.inputEventCount ?? 0,
+      typedRequestCount: interactionReadback?.typedRequestCount ?? 0,
+      readbackCount: interactionReadback?.readbackCount ?? 0,
+      interactionHash: interactionReadback?.interactionHash ?? null,
+      runtimeWorldHash: interactionReadback?.runtimeWorldHash ?? null,
+    },
+    studioCorrelation: {
+      authoredObjectMatchesBrowserSelection: authoredObjectId !== null
+        && interactionReadback?.finalSelectedObjectId === authoredObjectId,
+      authoredAssetMatchesBrowserSelection: authoredAssetId !== null
+        && interactionReadback?.finalSelectedAssetId === authoredAssetId,
+      typedRequestsMatchInputs: interactionReadback !== null
+        && interactionReadback.typedRequestCount === interactionReadback.inputEventCount,
+      readbacksMatchTypedRequests: interactionReadback !== null
+        && interactionReadback.readbackCount === interactionReadback.typedRequestCount,
+      studioDebugEvidencePresent: (input.studioDebugEvidenceHash ?? null) !== null,
+    },
+    diagnostics,
+  };
+  const debug: StudioAuthoredBrowserDebugReadModel = {
+    debugVersion: 'studio-authored-browser-debug.v0',
+    ...debugBody,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_runtime_transport',
+      'not_source_write',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+    debugHash: fnv1aHash('studio-authored-browser-debug', debugBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, debug, diagnostics: [] }
+    : { ok: false, debug, diagnostics };
+}
+
 export function exportStudioGameWorkspaceAttachEvidence(
   input: {
     readonly workspace: StudioGameWorkspaceReadModel;
@@ -4617,6 +4836,21 @@ function studioLiveRuntimeTelemetryDebugDiagnostic(
 
 function studioLiveDebugCommandProposalDiagnostic(
   code: StudioLiveDebugCommandProposalDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioAuthoredBrowserDebugDiagnostic(
+  code: StudioAuthoredBrowserDebugDiagnosticCode,
   message: string,
   source: string | null,
   remediation: string | null,
