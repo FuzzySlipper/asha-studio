@@ -22,8 +22,13 @@ import {
   buildStudioCatalogAuthoringOperation,
   buildStudioCommandProposalPanel,
   buildStudioGameWorkspaceCommandProposalReadModel,
+  buildStudioLiveDebugCommandProposalSurface,
   buildStudioProofSceneList,
   buildStudioAuthoredStatePanelReflection,
+  buildStudioLiveDebugSessionIdentity,
+  buildStudioLiveAssetResourceDebugInspector,
+  buildStudioLiveRuntimeTelemetryDebugInspector,
+  buildStudioLiveSceneEntityDebugInspector,
   buildStudioRuntimeSessionList,
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
@@ -751,6 +756,424 @@ test('runtime session list turns attach and live evidence into an explicit sessi
   assert.equal(activeSession.nonClaims.includes('not_wasm_authority'), true);
   assert.match(activeSession.sessionHash, /^studio-runtime-session-/);
   assert.match(sessions.sessionListHash, /^studio-runtime-session-list-/);
+});
+
+test('live debug session identity records attached session freshness and child evidence', async () => {
+  const referenceManifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('backend_mode = "native"', 'backend_mode = "reference"')
+    .replace('backend_profile = "native.napi.launcher.v1"', 'backend_profile = "reference"')
+    .replace('backend_proof_refs = ["proof:dev-authority-smoke"]', 'backend_proof_refs = []');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: referenceManifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const live = await refreshStudioGameWorkspaceLiveReadModel(result.workspace, attached.attach, transport);
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+  const sessions = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+    live: live.live,
+  });
+
+  const identity = buildStudioLiveDebugSessionIdentity({
+    runtimeSessions: sessions,
+    childArtifacts: [{
+      kind: 'studio-selected-backend-attach-proof',
+      path: 'artifacts/selected-backend-attach-proof/latest/index.json',
+      artifactHash: 'sha256:attach',
+      fileHash: 'sha256:file',
+      expectedArtifactHash: 'sha256:attach',
+      expectedFileHash: 'sha256:file',
+    }],
+  });
+
+  assert.equal(identity.ok, true);
+  assert.equal(identity.identity.identityVersion, 'studio-live-debug-session-identity.v0');
+  assert.equal(identity.identity.attachStatus, 'attached');
+  assert.equal(identity.identity.liveFreshness.readAfterAttach, true);
+  assert.equal(identity.identity.liveFreshness.worldHash, 'world:demo:1');
+  assert.equal(identity.identity.liveFreshness.projectionTick, 1);
+  assert.equal(identity.identity.liveFreshness.telemetrySampleCount, 1);
+  assert.equal(identity.identity.childArtifacts.length, 1);
+  assert.ok(identity.identity.nonClaims.includes('not_studio_runtime_authority'));
+  assert.match(identity.identity.identityHash, /^studio-live-debug-session-identity-/);
+
+  const stale = buildStudioLiveDebugSessionIdentity({
+    runtimeSessions: sessions,
+    childArtifacts: [{
+      kind: 'studio-selected-backend-attach-proof',
+      path: 'artifacts/selected-backend-attach-proof/latest/index.json',
+      artifactHash: 'sha256:attach',
+      fileHash: 'sha256:file',
+      expectedArtifactHash: 'sha256:stale',
+    }],
+  });
+  assert.equal(stale.ok, false);
+  assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'stale_child_artifact'));
+
+  const fixtureOnly = buildStudioLiveDebugSessionIdentity({
+    runtimeSessions: {
+      ...sessions,
+      activeSessionId: 'runtime-fixture:asha-demo',
+    },
+  });
+  assert.equal(fixtureOnly.ok, false);
+  assert.ok(fixtureOnly.diagnostics.some(diagnostic => diagnostic.code === 'missing_live_session'));
+  assert.ok(fixtureOnly.diagnostics.some(diagnostic => diagnostic.code === 'stale_fixture_readback'));
+});
+
+test('live scene/entity debug inspector projects selected scene readback without private ECS state', async () => {
+  const workspace = buildInitialWorkspaceReadModel();
+  const identityResult = buildStudioLiveDebugSessionIdentity({
+    runtimeSessions: {
+      runtimeSessionListVersion: 'studio-runtime-session-list.v0',
+      activeSessionId: 'runtime-attached:asha-demo:attach-1',
+      diagnostics: [],
+      sessionListHash: 'runtime-session-list-test',
+      sessions: [{
+        runtimeSessionVersion: 'studio-runtime-session.v0',
+        sessionId: 'runtime-attached:asha-demo:attach-1',
+        sessionType: 'attached',
+        status: 'attached',
+        endpoint: 'ws://127.0.0.1:7391',
+        profileId: 'prefer-source',
+        runtimeMode: 'reference',
+        backendMode: 'reference',
+        backendProfile: 'reference',
+        backendProofRefs: [],
+        backendCompatibilityState: 'compatible',
+        attachStatus: 'attached',
+        workspaceHash: 'workspace-test',
+        attachHash: 'attach-1',
+        liveHash: 'live-2',
+        compatibility: {
+          contractsVersion: '0.1.0',
+          runtimeBridgeVersion: '0.1.0',
+          devtoolsProtocolVersion: 'devtools-protocol.v0',
+          publishArtifactVersion: 'publish-artifact.v0',
+        },
+        projection: {
+          worldHash: 'world:debug',
+          renderDiffHash: 'render:debug',
+          entityCount: 1,
+          tick: 2,
+        },
+        evidenceRefs: [{ kind: 'runtime-live', path: 'devtools:projection', sha256: 'live-2' }],
+        nonClaims: ['not_native_runtime_authority'],
+        diagnostics: [],
+        sessionHash: 'session-debug',
+      }],
+    },
+  });
+  assert.equal(identityResult.ok, true);
+  if (!identityResult.ok) throw new Error('identity should validate');
+
+  const inspector = buildStudioLiveSceneEntityDebugInspector({
+    workspace,
+    liveSessionIdentity: identityResult.identity,
+  });
+  assert.equal(inspector.ok, true);
+  assert.equal(inspector.inspector.inspectorVersion, 'studio-live-scene-entity-debug-inspector.v0');
+  assert.equal(inspector.inspector.scene.sceneId, workspace.scene.sceneId);
+  assert.equal(inspector.inspector.scene.renderableCount, workspace.scene.renderables.length);
+  assert.equal(inspector.inspector.scene.selectedRenderableId, workspace.scene.selectedRenderableId);
+  assert.equal(inspector.inspector.entity.entityId, workspace.selectedEntityId);
+  assert.equal(inspector.inspector.entity.label, 'Voxel (0, 0, 0)');
+  assert.equal(inspector.inspector.entity.provenance?.renderableId, workspace.scene.selectedRenderableId);
+  assert.deepEqual(inspector.inspector.entity.transform?.translation, [0.5, 0.5, 0.5]);
+  assert.ok(inspector.inspector.nonClaims.includes('not_private_ecs_read'));
+  assert.match(inspector.inspector.inspectorHash, /^studio-live-scene-entity-debug-inspector-/);
+
+  const missingSelection = buildStudioLiveSceneEntityDebugInspector({
+    workspace: { ...workspace, selectedEntityId: null },
+    liveSessionIdentity: identityResult.identity,
+  });
+  assert.equal(missingSelection.ok, false);
+  assert.ok(missingSelection.diagnostics.some(diagnostic => diagnostic.code === 'missing_selected_entity'));
+
+  const staleSession = buildStudioLiveSceneEntityDebugInspector({
+    workspace,
+    liveSessionIdentity: {
+      ...identityResult.identity,
+      attachStatus: 'not_attached',
+      liveFreshness: { ...identityResult.identity.liveFreshness, readAfterAttach: false },
+    },
+  });
+  assert.equal(staleSession.ok, false);
+  assert.ok(staleSession.diagnostics.some(diagnostic => diagnostic.code === 'missing_live_session'));
+});
+
+test('live asset/resource debug inspector projects catalog and resource readback', () => {
+  const identityResult = buildStudioLiveDebugSessionIdentity({
+    runtimeSessions: {
+      runtimeSessionListVersion: 'studio-runtime-session-list.v0',
+      activeSessionId: 'runtime-attached:asha-demo:attach-1',
+      diagnostics: [],
+      sessionListHash: 'runtime-session-list-test',
+      sessions: [{
+        runtimeSessionVersion: 'studio-runtime-session.v0',
+        sessionId: 'runtime-attached:asha-demo:attach-1',
+        sessionType: 'attached',
+        status: 'attached',
+        endpoint: 'ws://127.0.0.1:7391',
+        profileId: 'prefer-source',
+        runtimeMode: 'reference',
+        backendMode: 'reference',
+        backendProfile: 'reference',
+        backendProofRefs: [],
+        backendCompatibilityState: 'compatible',
+        attachStatus: 'attached',
+        workspaceHash: 'workspace-test',
+        attachHash: 'attach-1',
+        liveHash: 'live-2',
+        compatibility: {
+          contractsVersion: '0.1.0',
+          runtimeBridgeVersion: '0.1.0',
+          devtoolsProtocolVersion: 'devtools-protocol.v0',
+          publishArtifactVersion: 'publish-artifact.v0',
+        },
+        projection: {
+          worldHash: 'world:debug',
+          renderDiffHash: 'render:debug',
+          entityCount: 1,
+          tick: 2,
+        },
+        evidenceRefs: [{ kind: 'runtime-live', path: 'devtools:projection', sha256: 'live-2' }],
+        nonClaims: ['not_native_runtime_authority'],
+        diagnostics: [],
+        sessionHash: 'session-debug',
+      }],
+    },
+  });
+  assert.equal(identityResult.ok, true);
+  if (!identityResult.ok) throw new Error('identity should validate');
+  const catalog = sampleCatalog();
+  const inventory = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
+    catalog: { path: 'packages/game-catalogs/catalog.json', hash: 'sha256:catalog' },
+    diagnostics: [],
+    dependencyOrder: catalog.entries.map(entry => entry.id),
+    entries: catalog.entries.map(entry => ({
+      assetId: entry.id,
+      kind: entry.kind,
+      sourcePath: entry.source,
+      dependencies: entry.dependencies ?? [],
+      devResolution: {
+        sourceHash: entry.importMetadata?.sourceHash ?? null,
+        devCacheKey: entry.importMetadata?.cacheKey ?? `dev-cache/${entry.kind}/${entry.id}`,
+        generatedArtifactVersion: entry.importMetadata?.generatedArtifactVersion ?? null,
+        importStatus: 'clean',
+        publishOutputKey: entry.publish.outputKey,
+      },
+      publishResolution: {
+        outputKey: entry.publish.outputKey,
+        packedPath: `harness/out/publish/resources/${entry.publish.outputKey}`,
+        packedHash: `sha256:${entry.id}`,
+        packedBytes: 1,
+      },
+      diagnostics: [],
+      evidenceRefs: [],
+    })),
+  }, {
+    referencedRenderableIds: { 'material.demo-copper': ['model-preview-crate'] },
+  });
+  assert.equal(inventory.ok, true);
+  if (!inventory.ok) throw new Error('inventory should load');
+
+  const inspector = buildStudioLiveAssetResourceDebugInspector({
+    assetInventory: inventory.inventory,
+    liveSessionIdentity: identityResult.identity,
+    selectedAssetId: 'material.demo-copper',
+  });
+  assert.equal(inspector.ok, true);
+  assert.equal(inspector.inspector.inspectorVersion, 'studio-live-asset-resource-debug-inspector.v0');
+  assert.equal(inspector.inspector.asset.assetId, 'material.demo-copper');
+  assert.equal(inspector.inspector.asset.kind, 'material');
+  assert.equal(inspector.inspector.asset.sourceHash, 'sha256:material');
+  assert.equal(inspector.inspector.asset.importStatus, 'clean');
+  assert.deepEqual(inspector.inspector.asset.referencedRenderableIds, ['model-preview-crate']);
+  assert.match(inspector.inspector.inspectorHash, /^studio-live-asset-resource-debug-inspector-/);
+
+  const missing = buildStudioLiveAssetResourceDebugInspector({
+    assetInventory: inventory.inventory,
+    liveSessionIdentity: identityResult.identity,
+    selectedAssetId: 'material.missing',
+  });
+  assert.equal(missing.ok, false);
+  assert.ok(missing.diagnostics.some(diagnostic => diagnostic.code === 'missing_asset_resource'));
+});
+
+test('live runtime/telemetry debug inspector projects runtime and command metrics', async () => {
+  const referenceManifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('backend_mode = "native"', 'backend_mode = "reference"')
+    .replace('backend_profile = "native.napi.launcher.v1"', 'backend_profile = "reference"')
+    .replace('backend_proof_refs = ["proof:dev-authority-smoke"]', 'backend_proof_refs = []');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: referenceManifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const live = await refreshStudioGameWorkspaceLiveReadModel(result.workspace, attached.attach, transport);
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+  const sessions = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+    live: live.live,
+  });
+  const identity = buildStudioLiveDebugSessionIdentity({ runtimeSessions: sessions });
+  assert.equal(identity.ok, true);
+  if (!identity.ok) throw new Error('identity should validate');
+
+  const inspector = buildStudioLiveRuntimeTelemetryDebugInspector({
+    liveSessionIdentity: identity.identity,
+    live: live.live,
+  });
+  assert.equal(inspector.ok, true);
+  assert.equal(inspector.inspector.inspectorVersion, 'studio-live-runtime-telemetry-debug-inspector.v0');
+  assert.equal(inspector.inspector.runtime.runtimeMode, 'reference');
+  assert.equal(inspector.inspector.projection?.worldHash, 'world:demo:1');
+  assert.equal(inspector.inspector.telemetry.sampleCount, live.live.telemetry.length);
+  assert.ok(inspector.inspector.telemetry.sampleMetrics.includes('command_queue_depth'));
+  assert.equal(inspector.inspector.telemetry.commandQueueDepth, 0);
+  assert.match(inspector.inspector.inspectorHash, /^studio-live-runtime-telemetry-debug-inspector-/);
+
+  const missingTelemetry = buildStudioLiveRuntimeTelemetryDebugInspector({
+    liveSessionIdentity: identity.identity,
+    live: { ...live.live, telemetry: [] },
+  });
+  assert.equal(missingTelemetry.ok, false);
+  assert.ok(missingTelemetry.diagnostics.some(diagnostic => diagnostic.code === 'telemetry_readback_missing'));
+});
+
+test('live debug command proposal surface bounds actions to shared command evidence', async () => {
+  const referenceManifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('backend_mode = "native"', 'backend_mode = "reference"')
+    .replace('backend_profile = "native.napi.launcher.v1"', 'backend_profile = "reference"')
+    .replace('backend_proof_refs = ["proof:dev-authority-smoke"]', 'backend_proof_refs = []');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: referenceManifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const live = await refreshStudioGameWorkspaceLiveReadModel(result.workspace, attached.attach, transport);
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+  const sessions = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+    live: live.live,
+  });
+  const identity = buildStudioLiveDebugSessionIdentity({ runtimeSessions: sessions });
+  assert.equal(identity.ok, true);
+  if (!identity.ok) throw new Error('identity should validate');
+  const sceneInspector = buildStudioLiveSceneEntityDebugInspector({
+    workspace: buildInitialWorkspaceReadModel(),
+    liveSessionIdentity: identity.identity,
+  });
+  assert.equal(sceneInspector.ok, true);
+  const runtimeInspector = buildStudioLiveRuntimeTelemetryDebugInspector({
+    liveSessionIdentity: identity.identity,
+    live: live.live,
+  });
+  assert.equal(runtimeInspector.ok, true);
+  const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
+  const accepted = buildStudioGameWorkspaceCommandProposalReadModel({
+    workspace: result.workspace,
+    attachHash: attached.attach.attachHash,
+    sequenceId: command.sequenceId,
+    batch: command.batch,
+    status: 'accepted',
+    result: { accepted: 1, rejected: 0, rejections: [] },
+    authorityHashAfter: 'authority:after:accepted',
+  });
+  const rejected = buildStudioGameWorkspaceCommandProposalReadModel({
+    workspace: result.workspace,
+    attachHash: attached.attach.attachHash,
+    sequenceId: 'seq-2',
+    batch: command.batch,
+    status: 'rejected',
+    result: { accepted: 0, rejected: 1, rejections: [{ reason: 'runtime_unavailable' }] },
+    authorityHashBefore: 'authority:after:accepted',
+    authorityHashAfter: 'authority:after:accepted',
+    rejectionReason: 'runtime_unavailable',
+  });
+  const panel = buildStudioCommandProposalPanel({
+    workspace: result.workspace,
+    runtimeSessions: sessions,
+    commandProposals: [accepted, rejected],
+  });
+
+  const surface = buildStudioLiveDebugCommandProposalSurface({
+    liveSessionIdentity: identity.identity,
+    sceneEntityInspector: sceneInspector.inspector,
+    runtimeTelemetryInspector: runtimeInspector.inspector,
+    commandProposalPanel: panel,
+    evidenceRefs: [{ kind: 'studio-selected-backend-command-proof', path: 'artifacts/proof.json', sha256: 'sha256:proof' }],
+  });
+
+  assert.equal(surface.ok, true);
+  assert.equal(surface.surface.surfaceVersion, 'studio-live-debug-command-proposals.v0');
+  assert.deepEqual(surface.surface.allowedActionIds, ['set_voxel_reference']);
+  assert.deepEqual(surface.surface.proposalStatuses, ['accepted', 'rejected']);
+  assert.equal(surface.surface.acceptedProposalHash, accepted.proposalHash);
+  assert.equal(surface.surface.rejectedProposalHash, rejected.proposalHash);
+  assert.ok(surface.surface.nonClaims.includes('not_freeform_json_method_call'));
+  assert.match(surface.surface.surfaceHash, /^studio-live-debug-command-proposals-/);
+
+  const unsupported = buildStudioLiveDebugCommandProposalSurface({
+    liveSessionIdentity: identity.identity,
+    sceneEntityInspector: sceneInspector.inspector,
+    runtimeTelemetryInspector: runtimeInspector.inspector,
+    commandProposalPanel: {
+      ...panel,
+      actions: [{ ...panel.actions[0], commandOperation: 'debug.rawJson' }],
+    },
+  });
+  assert.equal(unsupported.ok, false);
+  assert.equal(unsupported.diagnostics.at(0)?.code, 'unsupported_debug_command');
+
+  const missingRejected = buildStudioLiveDebugCommandProposalSurface({
+    liveSessionIdentity: identity.identity,
+    sceneEntityInspector: sceneInspector.inspector,
+    runtimeTelemetryInspector: runtimeInspector.inspector,
+    commandProposalPanel: { ...panel, proposals: [accepted] },
+  });
+  assert.equal(missingRejected.ok, false);
+  assert.equal(missingRejected.diagnostics.at(0)?.code, 'missing_command_result_evidence');
 });
 
 test('runtime session list fails closed when backend evidence is missing or incompatible', async () => {
@@ -1955,6 +2378,39 @@ test('Studio authoring M2 closeout doc points at the aggregate proof gate', () =
   assert.match(doc, /not claim runtime authority/);
 });
 
+test('authored round-trip fixture proof writes deterministic scene and catalog fixture', () => {
+  const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
+  const result = spawnSync('pnpm', ['run', 'proof:authored-roundtrip-fixture'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/authored-roundtrip-fixture\/latest\/index\.json/);
+  assert.match(result.stdout, /fixtures\/round-trip\/studio-authored-content\.fixture\.json/);
+  assert.equal(readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8'), beforeCatalog);
+
+  const fixture = JSON.parse(readFileSync(
+    join(repoRoot, 'fixtures/round-trip/studio-authored-content.fixture.json'),
+    'utf8',
+  ));
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/authored-roundtrip-fixture/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(fixture.fixtureKind, 'studio_authored_roundtrip_fixture');
+  assert.equal(fixture.authoredScene.objectId, 'scene-node:9401');
+  assert.equal(fixture.authoredCatalog.authoredAssetId, 'material.studio-authored-roundtrip');
+  assert.equal(fixture.runtimeHints.expectedRenderableLabel, 'Studio Authored Runtime Target');
+  assert.equal(artifact.artifactKind, 'studio_authored_roundtrip_fixture_proof');
+  assert.equal(artifact.authoredRefs.sceneObjectId, fixture.authoredScene.objectId);
+  assert.equal(artifact.authoredRefs.assetId, fixture.authoredCatalog.authoredAssetId);
+  assert.ok(artifact.validations.includes('committed_fixture_written_and_reopened'));
+  assert.ok(artifact.nonClaims.includes('not_runtime_loaded'));
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.equal(artifact.negativeSmokes.at(1)?.ok, false);
+});
+
 test('game asset inventory read model loads multi-kind asha-demo catalog evidence', () => {
   const inventory = loadStudioAssetInventory({
     artifactKind: 'asha_demo_asset_inventory',
@@ -2748,6 +3204,34 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-v2-live-backend-evidence.ts'),
     'utf8',
   );
+  const authoredRoundtripFixtureSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-authored-roundtrip-fixture.ts'),
+    'utf8',
+  );
+  const liveDebugIdentitySource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-live-debug-session-identity.ts'),
+    'utf8',
+  );
+  const liveSceneEntitySource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-live-scene-entity-debug-inspector.ts'),
+    'utf8',
+  );
+  const liveAssetResourceSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-live-asset-resource-debug-inspector.ts'),
+    'utf8',
+  );
+  const liveRuntimeTelemetrySource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-live-runtime-telemetry-debug-inspector.ts'),
+    'utf8',
+  );
+  const liveDebugCommandSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-live-debug-command-proposals.ts'),
+    'utf8',
+  );
+  const liveGameplayDebugM4Source = readFileSync(
+    join(repoRoot, 'scripts', 'proof-live-gameplay-debug-m4.ts'),
+    'utf8',
+  );
 
   assert.equal(
     packageJson.scripts['proof:selected-backend-attach'],
@@ -2765,11 +3249,219 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     packageJson.scripts['proof:v2-live-backend-evidence'],
     'tsx scripts/proof-v2-live-backend-evidence.ts',
   );
+  assert.equal(
+    packageJson.scripts['proof:authored-roundtrip-fixture'],
+    'tsx scripts/proof-authored-roundtrip-fixture.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:live-debug-session-identity'],
+    'tsx scripts/proof-live-debug-session-identity.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:live-scene-entity-debug-inspector'],
+    'tsx scripts/proof-live-scene-entity-debug-inspector.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:live-asset-resource-debug-inspector'],
+    'tsx scripts/proof-live-asset-resource-debug-inspector.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:live-runtime-telemetry-debug-inspector'],
+    'tsx scripts/proof-live-runtime-telemetry-debug-inspector.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:live-debug-command-proposals'],
+    'tsx scripts/proof-live-debug-command-proposals.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:live-gameplay-debug-m4'],
+    'tsx scripts/proof-live-gameplay-debug-m4.ts',
+  );
   assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
   assert.equal(aggregateSource.includes("artifactKind: 'studio_v2_live_backend_evidence'"), true);
   assert.equal(aggregateSource.includes('stale source artifact hash'), true);
   assert.equal(aggregateSource.includes('browser smoke must consume the current command proof'), true);
+  assert.equal(authoredRoundtripFixtureSource.includes("artifactKind: 'studio_authored_roundtrip_fixture_proof'"), true);
+  assert.equal(authoredRoundtripFixtureSource.includes('studio-authored-content.fixture.json'), true);
+  assert.equal(authoredRoundtripFixtureSource.includes('not_runtime_loaded'), true);
+  assert.equal(liveDebugIdentitySource.includes("artifactKind: 'studio_live_debug_session_identity_proof'"), true);
+  assert.equal(liveDebugIdentitySource.includes('stale_child_artifact'), true);
+  assert.equal(liveDebugIdentitySource.includes('fixture-only readback'), true);
+  assert.equal(liveSceneEntitySource.includes("artifactKind: 'studio_live_scene_entity_debug_inspector_proof'"), true);
+  assert.equal(liveSceneEntitySource.includes('selected_entity_transform_projected'), true);
+  assert.equal(liveSceneEntitySource.includes('missing selected entity'), true);
+  assert.equal(liveAssetResourceSource.includes("artifactKind: 'studio_live_asset_resource_debug_inspector_proof'"), true);
+  assert.equal(liveAssetResourceSource.includes('referenced_renderables_present'), true);
+  assert.equal(liveAssetResourceSource.includes('missing asset resource'), true);
+  assert.equal(liveRuntimeTelemetrySource.includes("artifactKind: 'studio_live_runtime_telemetry_debug_inspector_proof'"), true);
+  assert.equal(liveRuntimeTelemetrySource.includes('telemetry_samples_present'), true);
+  assert.equal(liveRuntimeTelemetrySource.includes('mismatched live hash'), true);
+  assert.equal(liveDebugCommandSource.includes("artifactKind: 'studio_live_debug_command_proposals'"), true);
+  assert.equal(liveDebugCommandSource.includes('unsupported_debug_command'), true);
+  assert.equal(liveDebugCommandSource.includes('no_freeform_json_command_hatch'), true);
+  assert.equal(liveGameplayDebugM4Source.includes("artifactKind: 'studio_live_gameplay_debug_m4'"), true);
+  assert.equal(liveGameplayDebugM4Source.includes('source_artifact_hashes_verified'), true);
+  assert.equal(liveGameplayDebugM4Source.includes('stale_source_artifact_hash'), true);
+});
+
+test('live debug session identity proof command records freshness and child artifacts', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:live-debug-session-identity'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/live-debug-session-identity-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/live-debug-session-identity-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_live_debug_session_identity_proof');
+  assert.equal(artifact.identity.identityVersion, 'studio-live-debug-session-identity.v0');
+  assert.equal(artifact.identity.attachStatus, 'attached');
+  assert.equal(artifact.identity.liveFreshness.readAfterAttach, true);
+  assert.match(artifact.identity.identityHash, /^studio-live-debug-session-identity-/);
+  assert.equal(artifact.sourceArtifacts.length, 2);
+  assert.ok(artifact.validations.includes('live_session_identity_projected'));
+  assert.ok(artifact.validations.includes('negative_stale_child_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_private_transport'));
+});
+
+test('live scene/entity debug inspector proof command records selected scene readback', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:live-scene-entity-debug-inspector'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/live-scene-entity-debug-inspector-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/live-scene-entity-debug-inspector-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_live_scene_entity_debug_inspector_proof');
+  assert.equal(artifact.inspector.inspectorVersion, 'studio-live-scene-entity-debug-inspector.v0');
+  assert.equal(artifact.inspector.entity.label, 'Voxel (0, 0, 0)');
+  assert.equal(artifact.inspector.scene.renderableCount > 0, true);
+  assert.match(artifact.inspector.inspectorHash, /^studio-live-scene-entity-debug-inspector-/);
+  assert.ok(artifact.validations.includes('selected_entity_transform_projected'));
+  assert.ok(artifact.validations.includes('negative_missing_selection_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_private_ecs_read'));
+});
+
+test('live asset/resource debug inspector proof command records selected asset readback', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:live-asset-resource-debug-inspector'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/live-asset-resource-debug-inspector-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/live-asset-resource-debug-inspector-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_live_asset_resource_debug_inspector_proof');
+  assert.equal(artifact.inspector.inspectorVersion, 'studio-live-asset-resource-debug-inspector.v0');
+  assert.equal(artifact.inspector.asset.assetId, 'material.demo-copper');
+  assert.equal(artifact.inspector.asset.importStatus, 'clean');
+  assert.ok(artifact.inspector.asset.referencedRenderableIds.includes('model-preview-crate'));
+  assert.match(artifact.inspector.inspectorHash, /^studio-live-asset-resource-debug-inspector-/);
+  assert.ok(artifact.validations.includes('referenced_renderables_present'));
+  assert.ok(artifact.validations.includes('negative_missing_asset_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_private_asset_database'));
+});
+
+test('live runtime/telemetry debug inspector proof command records live metrics', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:live-runtime-telemetry-debug-inspector'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/live-runtime-telemetry-debug-inspector-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/live-runtime-telemetry-debug-inspector-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_live_runtime_telemetry_debug_inspector_proof');
+  assert.equal(artifact.inspector.inspectorVersion, 'studio-live-runtime-telemetry-debug-inspector.v0');
+  assert.equal(artifact.inspector.telemetry.sampleCount > 0, true);
+  assert.ok(artifact.inspector.telemetry.sampleMetrics.includes('command_queue_depth'));
+  assert.match(artifact.inspector.inspectorHash, /^studio-live-runtime-telemetry-debug-inspector-/);
+  assert.ok(artifact.validations.includes('telemetry_samples_present'));
+  assert.ok(artifact.validations.includes('negative_missing_telemetry_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_performance_evidence'));
+});
+
+test('live debug command proposals proof command records bounded shared command evidence', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:live-debug-command-proposals'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 300000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/live-debug-command-proposals-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/live-debug-command-proposals-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_live_debug_command_proposals');
+  assert.equal(artifact.surface.surfaceVersion, 'studio-live-debug-command-proposals.v0');
+  assert.equal(artifact.surface.allowedActionIds.at(0), 'set_voxel_reference');
+  assert.equal(artifact.surface.actions.at(0)?.commandMessageType, 'command.propose');
+  assert.equal(artifact.surface.actions.at(0)?.commandOperation, 'setVoxel');
+  assert.deepEqual(artifact.surface.proposalStatuses, ['accepted', 'rejected']);
+  assert.match(artifact.surface.acceptedProposalHash, /^studio-game-workspace-command-/);
+  assert.match(artifact.surface.rejectedProposalHash, /^studio-game-workspace-command-/);
+  assert.equal(artifact.commandProposalPanel.panelVersion, 'studio-command-proposal-panel.v0');
+  assert.ok(artifact.validations.includes('debug_actions_are_bounded_to_known_command_ids'));
+  assert.ok(artifact.surface.nonClaims.includes('not_freeform_json_method_call'));
+  assert.equal(artifact.negativeSmokes.at(0)?.diagnostics.at(0)?.code, 'unsupported_debug_command');
+  assert.equal(artifact.negativeSmokes.at(1)?.diagnostics.at(0)?.code, 'missing_command_result_evidence');
+  assert.equal(artifact.negativeSmokes.at(2)?.diagnostics.at(0)?.code, 'debug_command_scope_mismatch');
+});
+
+test('live gameplay debug M4 aggregate proof gate records all child surfaces', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:live-gameplay-debug-m4'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 420000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/live-gameplay-debug-m4\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/live-gameplay-debug-m4/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_live_gameplay_debug_m4');
+  assert.equal(artifact.sourceArtifacts.length, 5);
+  assert.equal(artifact.liveSession.attachStatus, 'attached');
+  assert.equal(artifact.liveSession.liveFreshness.readAfterAttach, true);
+  assert.match(artifact.debugSurfaces.commandProposalSurfaceHash, /^studio-live-debug-command-proposals-/);
+  assert.deepEqual(artifact.readouts.commandProposalStatuses, ['accepted', 'rejected']);
+  assert.ok(artifact.validations.includes('bounded_command_proposals_present'));
+  assert.ok(artifact.validations.includes('missing_or_stale_child_artifact_fails_closed'));
+  assert.equal(artifact.negativeSmokes.at(0)?.case, 'stale_source_artifact_hash');
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_private_runtime_mutation'));
+});
+
+test('Studio live gameplay debug M4 closeout doc points at aggregate proof gate', () => {
+  const doc = readFileSync(join(repoRoot, 'docs', 'live-gameplay-debug-m4.md'), 'utf8');
+
+  assert.match(doc, /pnpm run proof:live-gameplay-debug-m4/);
+  assert.match(doc, /artifacts\/live-gameplay-debug-m4\/latest\/index\.json/);
+  assert.match(doc, /proof:live-debug-session-identity/);
+  assert.match(doc, /proof:live-debug-command-proposals/);
+  assert.match(doc, /no `call\(methodName, json\)` path/);
 });
 
 test('unused placeholder viewport panel is retired from studio panels', () => {

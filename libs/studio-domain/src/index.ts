@@ -130,6 +130,29 @@ export type StudioRuntimeSessionDiagnosticCode =
   | 'runtime_session_missing_backend_evidence'
   | 'runtime_session_backend_incompatible'
   | 'runtime_session_reserved';
+export type StudioLiveDebugSessionDiagnosticCode =
+  | 'missing_live_session'
+  | 'stale_fixture_readback'
+  | 'backend_proof_mismatch'
+  | 'stale_child_artifact';
+export type StudioLiveSceneEntityDebugDiagnosticCode =
+  | 'missing_live_session'
+  | 'missing_selected_entity'
+  | 'inspector_readback_drift';
+export type StudioLiveAssetResourceDebugDiagnosticCode =
+  | 'missing_live_session'
+  | 'missing_asset_resource'
+  | 'asset_resource_readback_drift';
+export type StudioLiveRuntimeTelemetryDebugDiagnosticCode =
+  | 'missing_live_session'
+  | 'telemetry_readback_missing'
+  | 'runtime_readback_mismatch';
+export type StudioLiveDebugCommandProposalDiagnosticCode =
+  | 'missing_live_session'
+  | 'missing_command_proposal_panel'
+  | 'debug_command_scope_mismatch'
+  | 'unsupported_debug_command'
+  | 'missing_command_result_evidence';
 export type StudioAssetInventoryDiagnosticCode =
   | 'asset_inventory_artifact_mismatch'
   | 'asset_inventory_missing_entry'
@@ -694,6 +717,229 @@ export interface StudioRuntimeSessionListReadModel {
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly sessionListHash: string;
 }
+
+export interface StudioLiveDebugSessionChildArtifactRef {
+  readonly kind: string;
+  readonly path: string;
+  readonly artifactHash: string;
+  readonly fileHash: string;
+  readonly expectedArtifactHash?: string;
+  readonly expectedFileHash?: string;
+}
+
+export interface StudioLiveDebugSessionIdentityReadModel {
+  readonly identityVersion: 'studio-live-debug-session-identity.v0';
+  readonly sessionId: string;
+  readonly sessionHash: string;
+  readonly sessionType: StudioRuntimeSessionType;
+  readonly attachStatus: 'not_attached' | 'attached' | 'reserved';
+  readonly runtimeMode: StudioRuntimeSessionReadModel['runtimeMode'];
+  readonly backendMode: AshaGameRuntimeBackendMode;
+  readonly backendProfile: string;
+  readonly backendProofRefs: readonly string[];
+  readonly backendCompatibilityState: StudioRuntimeBackendCompatibilityState;
+  readonly endpoint: string | null;
+  readonly workspaceHash: string;
+  readonly attachHash: string;
+  readonly liveHash: string;
+  readonly liveFreshness: {
+    readonly freshnessVersion: 'studio-live-debug-freshness.v0';
+    readonly attachSequenceId: string;
+    readonly readSequenceId: string;
+    readonly readAfterAttach: boolean;
+    readonly projectionTick: number | null;
+    readonly worldHash: string | null;
+    readonly renderDiffHash: string | null;
+    readonly telemetrySampleCount: number;
+  };
+  readonly childArtifacts: readonly StudioLiveDebugSessionChildArtifactRef[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_studio_runtime_authority',
+    'not_private_transport',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+  ];
+  readonly identityHash: string;
+}
+
+export type StudioLiveDebugSessionIdentityResult =
+  | {
+      readonly ok: true;
+      readonly identity: StudioLiveDebugSessionIdentityReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly identity: StudioLiveDebugSessionIdentityReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioLiveSceneEntityDebugInspectorReadModel {
+  readonly inspectorVersion: 'studio-live-scene-entity-debug-inspector.v0';
+  readonly sessionId: string;
+  readonly scene: {
+    readonly sceneId: string;
+    readonly sceneHash: string;
+    readonly renderableCount: number;
+    readonly selectedRenderableId: string | null;
+    readonly selectedEntityId: string | null;
+    readonly sceneObjectSnapshotHash: string;
+  };
+  readonly entity: {
+    readonly entityId: string | null;
+    readonly sceneObjectId: SceneObjectId | null;
+    readonly label: string | null;
+    readonly sourceState: StudioEntitySourceState | null;
+    readonly renderableId: string | null;
+    readonly provenance: {
+      readonly renderableId: string | null;
+      readonly materialRef: string | null;
+      readonly meshRef: string | null;
+    } | null;
+    readonly transform: SceneTransform | null;
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_ecs_read',
+    'not_source_authoring_write',
+  ];
+  readonly inspectorHash: string;
+}
+
+export type StudioLiveSceneEntityDebugInspectorResult =
+  | {
+      readonly ok: true;
+      readonly inspector: StudioLiveSceneEntityDebugInspectorReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly inspector: StudioLiveSceneEntityDebugInspectorReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioLiveAssetResourceDebugInspectorReadModel {
+  readonly inspectorVersion: 'studio-live-asset-resource-debug-inspector.v0';
+  readonly sessionId: string;
+  readonly inventoryHash: string;
+  readonly selectedAssetId: string;
+  readonly asset: {
+    readonly assetId: string | null;
+    readonly kind: string | null;
+    readonly sourcePath: string | null;
+    readonly sourceHash: string | null;
+    readonly importStatus: string | null;
+    readonly dependencyStatus: 'none' | 'resolved' | 'missing' | null;
+    readonly referencedRenderableIds: readonly string[];
+    readonly publishOutputKey: string | null;
+    readonly packedHash: string | null;
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_asset_database',
+    'not_publish_builder',
+  ];
+  readonly inspectorHash: string;
+}
+
+export type StudioLiveAssetResourceDebugInspectorResult =
+  | {
+      readonly ok: true;
+      readonly inspector: StudioLiveAssetResourceDebugInspectorReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly inspector: StudioLiveAssetResourceDebugInspectorReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioLiveRuntimeTelemetryDebugInspectorReadModel {
+  readonly inspectorVersion: 'studio-live-runtime-telemetry-debug-inspector.v0';
+  readonly sessionId: string;
+  readonly runtime: {
+    readonly runtimeMode: StudioRuntimeSessionReadModel['runtimeMode'];
+    readonly backendMode: AshaGameRuntimeBackendMode;
+    readonly backendProfile: string;
+    readonly backendProofRefs: readonly string[];
+    readonly endpoint: string | null;
+    readonly attachHash: string;
+    readonly liveHash: string;
+  };
+  readonly projection: {
+    readonly worldHash: string;
+    readonly renderDiffHash: string;
+    readonly entityCount: number;
+    readonly tick: number;
+  } | null;
+  readonly telemetry: {
+    readonly sampleCount: number;
+    readonly sampleMetrics: readonly string[];
+    readonly commandQueueDepth: number | null;
+    readonly acceptedCommandCount: number | null;
+    readonly rejectedCommandCount: number | null;
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_transport',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+  ];
+  readonly inspectorHash: string;
+}
+
+export type StudioLiveRuntimeTelemetryDebugInspectorResult =
+  | {
+      readonly ok: true;
+      readonly inspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly inspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioLiveDebugCommandProposalSurfaceReadModel {
+  readonly surfaceVersion: 'studio-live-debug-command-proposals.v0';
+  readonly sessionId: string;
+  readonly workspaceHash: string;
+  readonly attachHash: string;
+  readonly liveHash: string;
+  readonly sceneEntityInspectorHash: string;
+  readonly runtimeTelemetryInspectorHash: string;
+  readonly allowedActionIds: readonly StudioCommandProposalActionId[];
+  readonly actions: readonly StudioCommandProposalActionReadModel[];
+  readonly proposals: readonly StudioGameWorkspaceCommandProposalReadModel[];
+  readonly proposalStatuses: readonly ('accepted' | 'rejected')[];
+  readonly acceptedProposalHash: string | null;
+  readonly rejectedProposalHash: string | null;
+  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'does_not_mutate_without_devtools_acceptance',
+    'not_runtime_authority',
+    'not_private_runtime_mutation',
+    'not_freeform_json_method_call',
+  ];
+  readonly surfaceHash: string;
+}
+
+export type StudioLiveDebugCommandProposalSurfaceResult =
+  | {
+      readonly ok: true;
+      readonly surface: StudioLiveDebugCommandProposalSurfaceReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly surface: StudioLiveDebugCommandProposalSurfaceReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
 
 export type StudioPublishEvidenceStatus = 'ready' | 'missing' | 'stale' | 'degraded';
 
@@ -2458,7 +2704,472 @@ export function buildStudioRuntimeSessionList(input: {
       sessions,
       diagnostics,
     }),
+	  };
+	}
+	
+export function buildStudioLiveDebugSessionIdentity(input: {
+  readonly runtimeSessions: StudioRuntimeSessionListReadModel;
+  readonly childArtifacts?: readonly StudioLiveDebugSessionChildArtifactRef[];
+}): StudioLiveDebugSessionIdentityResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const session = input.runtimeSessions.sessions.find(
+    candidate => candidate.sessionId === input.runtimeSessions.activeSessionId,
+  ) ?? null;
+  const childArtifacts = input.childArtifacts ?? [];
+
+  if (session === null || session.sessionType !== 'attached' || session.attachStatus !== 'attached') {
+    diagnostics.push(studioLiveDebugSessionDiagnostic(
+      'missing_live_session',
+      'Studio live debug session identity requires an attached runtime session.',
+      input.runtimeSessions.activeSessionId,
+      null,
+    ));
+  }
+  if (session !== null && (session.liveHash === null || session.projection === null)) {
+    diagnostics.push(studioLiveDebugSessionDiagnostic(
+      'stale_fixture_readback',
+      'Studio live debug session identity requires live projection/readback, not fixture-only session data.',
+      session.sessionId,
+      session.attachHash,
+    ));
+  }
+  if (
+    session !== null
+    && (session.backendMode === 'native' || session.backendMode === 'wasm')
+    && session.backendProofRefs.length === 0
+  ) {
+    diagnostics.push(studioLiveDebugSessionDiagnostic(
+      'backend_proof_mismatch',
+      `Studio live debug session ${session.sessionId} claims ${session.backendMode} without backend proof refs.`,
+      session.sessionId,
+      session.backendMode,
+    ));
+  }
+  for (const artifact of childArtifacts) {
+    if (
+      (artifact.expectedArtifactHash !== undefined && artifact.expectedArtifactHash !== artifact.artifactHash)
+      || (artifact.expectedFileHash !== undefined && artifact.expectedFileHash !== artifact.fileHash)
+    ) {
+      diagnostics.push(studioLiveDebugSessionDiagnostic(
+        'stale_child_artifact',
+        `Studio live debug child artifact is stale: ${artifact.path}.`,
+        artifact.path,
+        artifact.kind,
+      ));
+    }
+  }
+
+  const projection = session?.projection ?? null;
+  const attachHash = session?.attachHash ?? null;
+  const liveHash = session?.liveHash ?? null;
+  const readAfterAttach = attachHash !== null && liveHash !== null && attachHash !== liveHash;
+  const identityBody = {
+    sessionId: session?.sessionId ?? input.runtimeSessions.activeSessionId,
+    sessionHash: session?.sessionHash ?? 'missing',
+    sessionType: session?.sessionType ?? 'preview',
+    attachStatus: session?.attachStatus ?? 'not_attached',
+    runtimeMode: session?.runtimeMode ?? 'degraded',
+    backendMode: session?.backendMode ?? 'reference',
+    backendProfile: session?.backendProfile ?? 'missing',
+    backendProofRefs: session?.backendProofRefs ?? [],
+    backendCompatibilityState: session?.backendCompatibilityState ?? 'missing_evidence',
+    endpoint: session?.endpoint ?? null,
+    workspaceHash: session?.workspaceHash ?? 'missing',
+    attachHash: attachHash ?? 'missing',
+    liveHash: liveHash ?? 'missing',
+    liveFreshness: {
+      freshnessVersion: 'studio-live-debug-freshness.v0' as const,
+      attachSequenceId: attachHash ?? 'missing',
+      readSequenceId: liveHash ?? 'missing',
+      readAfterAttach,
+      projectionTick: projection?.tick ?? null,
+      worldHash: projection?.worldHash ?? null,
+      renderDiffHash: projection?.renderDiffHash ?? null,
+      telemetrySampleCount: session?.evidenceRefs.some(ref => ref.kind === 'runtime-live') === true ? 1 : 0,
+    },
+    childArtifacts,
+    diagnostics,
   };
+  const identity: StudioLiveDebugSessionIdentityReadModel = {
+    identityVersion: 'studio-live-debug-session-identity.v0',
+    ...identityBody,
+    nonClaims: [
+      'not_studio_runtime_authority',
+      'not_private_transport',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+    identityHash: fnv1aHash('studio-live-debug-session-identity', identityBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, identity, diagnostics: [] }
+    : { ok: false, identity, diagnostics };
+}
+
+export function buildStudioLiveSceneEntityDebugInspector(input: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
+}): StudioLiveSceneEntityDebugInspectorResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
+    diagnostics.push(studioLiveSceneEntityDebugDiagnostic(
+      'missing_live_session',
+      'Live scene/entity debug inspector requires a fresh attached live debug session.',
+      input.liveSessionIdentity.sessionId,
+      input.liveSessionIdentity.liveHash,
+    ));
+  }
+
+  const selectedEntity = input.workspace.selectedEntityId === null
+    ? null
+    : input.workspace.entities.find(entity => entity.id === input.workspace.selectedEntityId) ?? null;
+  const selectedRenderable = input.workspace.scene.selectedRenderableId === null
+    ? null
+    : input.workspace.scene.renderables.find(
+      renderable => renderable.renderableId === input.workspace.scene.selectedRenderableId,
+    ) ?? null;
+  const selectedObject = selectedEntity?.sceneObjectId === null || selectedEntity?.sceneObjectId === undefined
+    ? null
+    : input.workspace.sceneObjectSnapshot.objects.find(object => object.objectId === selectedEntity.sceneObjectId) ?? null;
+  const selectedNode = selectedEntity?.sceneObjectId === null || selectedEntity?.sceneObjectId === undefined
+    ? null
+    : input.workspace.flatSceneDocument.nodes.find(
+      node => `scene-node:${node.id as number}` === selectedEntity.sceneObjectId,
+    ) ?? null;
+
+  if (selectedEntity === null) {
+    diagnostics.push(studioLiveSceneEntityDebugDiagnostic(
+      'missing_selected_entity',
+      'Live scene/entity debug inspector requires a selected entity readback.',
+      input.workspace.selectedEntityId,
+      null,
+    ));
+  }
+  if (
+    selectedEntity !== null
+    && (
+      selectedEntity.renderableId !== input.workspace.scene.selectedRenderableId
+      || selectedObject === null
+      || selectedEntity.label !== selectedObject.displayName
+    )
+  ) {
+    diagnostics.push(studioLiveSceneEntityDebugDiagnostic(
+      'inspector_readback_drift',
+      'Live scene/entity debug inspector selection diverges from scene, hierarchy, or selected object readback.',
+      selectedEntity.id,
+      input.workspace.scene.selectedRenderableId,
+    ));
+  }
+
+  const sceneObjectSnapshotHash = fnv1aHash('studio-scene-object-snapshot', input.workspace.sceneObjectSnapshot);
+  const inspectorBody = {
+    sessionId: input.liveSessionIdentity.sessionId,
+    scene: {
+      sceneId: input.workspace.scene.sceneId,
+      sceneHash: input.workspace.scene.sceneHash,
+      renderableCount: input.workspace.scene.renderables.length,
+      selectedRenderableId: input.workspace.scene.selectedRenderableId,
+      selectedEntityId: input.workspace.selectedEntityId,
+      sceneObjectSnapshotHash,
+    },
+    entity: {
+      entityId: selectedEntity?.id ?? null,
+      sceneObjectId: selectedEntity?.sceneObjectId ?? null,
+      label: selectedEntity?.label ?? null,
+      sourceState: selectedEntity?.sourceState ?? null,
+      renderableId: selectedEntity?.renderableId ?? null,
+      provenance: selectedEntity === null
+        ? null
+        : {
+            renderableId: selectedObject?.provenance.renderableId ?? selectedEntity.renderableId,
+            materialRef: selectedRenderable?.materialRef ?? null,
+            meshRef: selectedRenderable?.meshRef ?? null,
+          },
+      transform: selectedNode?.transform ?? null,
+    },
+    diagnostics,
+  };
+  const inspector: StudioLiveSceneEntityDebugInspectorReadModel = {
+    inspectorVersion: 'studio-live-scene-entity-debug-inspector.v0',
+    ...inspectorBody,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_ecs_read',
+      'not_source_authoring_write',
+    ],
+    inspectorHash: fnv1aHash('studio-live-scene-entity-debug-inspector', inspectorBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, inspector, diagnostics: [] }
+    : { ok: false, inspector, diagnostics };
+}
+
+export function buildStudioLiveAssetResourceDebugInspector(input: {
+  readonly assetInventory: StudioAssetInventoryReadModel;
+  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
+  readonly selectedAssetId: string;
+}): StudioLiveAssetResourceDebugInspectorResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
+    diagnostics.push(studioLiveAssetResourceDebugDiagnostic(
+      'missing_live_session',
+      'Live asset/resource debug inspector requires a fresh attached live debug session.',
+      input.liveSessionIdentity.sessionId,
+      input.liveSessionIdentity.liveHash,
+    ));
+  }
+  const asset = input.assetInventory.entries.find(entry => entry.assetId === input.selectedAssetId) ?? null;
+  if (asset === null) {
+    diagnostics.push(studioLiveAssetResourceDebugDiagnostic(
+      'missing_asset_resource',
+      `Live asset/resource debug inspector could not find asset ${input.selectedAssetId}.`,
+      input.selectedAssetId,
+      input.assetInventory.inventoryHash,
+    ));
+  } else if (
+    asset.diagnostics.length > 0
+    || asset.dependencyStatus === 'missing'
+    || asset.devResolution?.importStatus === 'stale'
+  ) {
+    diagnostics.push(studioLiveAssetResourceDebugDiagnostic(
+      'asset_resource_readback_drift',
+      `Live asset/resource debug inspector found stale or diagnostic asset readback for ${input.selectedAssetId}.`,
+      input.selectedAssetId,
+      asset.dependencyStatus,
+    ));
+  }
+
+  const inspectorBody = {
+    sessionId: input.liveSessionIdentity.sessionId,
+    inventoryHash: input.assetInventory.inventoryHash,
+    selectedAssetId: input.selectedAssetId,
+    asset: {
+      assetId: asset?.assetId ?? null,
+      kind: asset?.kind ?? null,
+      sourcePath: asset?.sourcePath ?? null,
+      sourceHash: asset?.devResolution?.sourceHash ?? null,
+      importStatus: asset?.devResolution?.importStatus ?? null,
+      dependencyStatus: asset?.dependencyStatus ?? null,
+      referencedRenderableIds: asset?.referencedRenderableIds ?? [],
+      publishOutputKey: asset?.devResolution?.publishOutputKey ?? asset?.publishResolution?.outputKey ?? null,
+      packedHash: asset?.publishResolution?.packedHash ?? null,
+    },
+    diagnostics,
+  };
+  const inspector: StudioLiveAssetResourceDebugInspectorReadModel = {
+    inspectorVersion: 'studio-live-asset-resource-debug-inspector.v0',
+    ...inspectorBody,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_asset_database',
+      'not_publish_builder',
+    ],
+    inspectorHash: fnv1aHash('studio-live-asset-resource-debug-inspector', inspectorBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, inspector, diagnostics: [] }
+    : { ok: false, inspector, diagnostics };
+}
+
+export function buildStudioLiveRuntimeTelemetryDebugInspector(input: {
+  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
+  readonly live: StudioGameWorkspaceLiveReadModel | null;
+}): StudioLiveRuntimeTelemetryDebugInspectorResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
+    diagnostics.push(studioLiveRuntimeTelemetryDebugDiagnostic(
+      'missing_live_session',
+      'Live runtime/telemetry debug inspector requires a fresh attached live debug session.',
+      input.liveSessionIdentity.sessionId,
+      input.liveSessionIdentity.liveHash,
+    ));
+  }
+  if (input.live === null || input.live.telemetry.length === 0) {
+    diagnostics.push(studioLiveRuntimeTelemetryDebugDiagnostic(
+      'telemetry_readback_missing',
+      'Live runtime/telemetry debug inspector requires telemetry samples.',
+      input.liveSessionIdentity.sessionId,
+      null,
+    ));
+  }
+  if (input.live !== null && input.live.liveHash !== input.liveSessionIdentity.liveHash) {
+    diagnostics.push(studioLiveRuntimeTelemetryDebugDiagnostic(
+      'runtime_readback_mismatch',
+      'Live runtime/telemetry debug inspector live hash does not match the live session identity.',
+      input.live.liveHash,
+      input.liveSessionIdentity.liveHash,
+    ));
+  }
+
+  const sampleValue = (metric: string): number | null =>
+    input.live?.telemetry.find(sample => sample.metric === metric)?.value ?? null;
+  const projection = input.liveSessionIdentity.liveFreshness.worldHash === null
+    ? null
+    : {
+        worldHash: input.liveSessionIdentity.liveFreshness.worldHash,
+        renderDiffHash: input.liveSessionIdentity.liveFreshness.renderDiffHash ?? 'missing',
+        entityCount: input.live?.projection.entityCount ?? 0,
+        tick: input.liveSessionIdentity.liveFreshness.projectionTick ?? 0,
+      };
+  const inspectorBody = {
+    sessionId: input.liveSessionIdentity.sessionId,
+    runtime: {
+      runtimeMode: input.liveSessionIdentity.runtimeMode,
+      backendMode: input.liveSessionIdentity.backendMode,
+      backendProfile: input.liveSessionIdentity.backendProfile,
+      backendProofRefs: input.liveSessionIdentity.backendProofRefs,
+      endpoint: input.liveSessionIdentity.endpoint,
+      attachHash: input.liveSessionIdentity.attachHash,
+      liveHash: input.liveSessionIdentity.liveHash,
+    },
+    projection,
+    telemetry: {
+      sampleCount: input.live?.telemetry.length ?? 0,
+      sampleMetrics: input.live?.telemetry.map(sample => sample.metric) ?? [],
+      commandQueueDepth: sampleValue('command_queue_depth'),
+      acceptedCommandCount: sampleValue('accepted_command_count'),
+      rejectedCommandCount: sampleValue('rejected_command_count'),
+    },
+    diagnostics,
+  };
+  const inspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel = {
+    inspectorVersion: 'studio-live-runtime-telemetry-debug-inspector.v0',
+    ...inspectorBody,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_transport',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+    inspectorHash: fnv1aHash('studio-live-runtime-telemetry-debug-inspector', inspectorBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, inspector, diagnostics: [] }
+    : { ok: false, inspector, diagnostics };
+}
+
+export function buildStudioLiveDebugCommandProposalSurface(input: {
+  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
+  readonly sceneEntityInspector: StudioLiveSceneEntityDebugInspectorReadModel;
+  readonly runtimeTelemetryInspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel;
+  readonly commandProposalPanel: StudioCommandProposalPanelReadModel | null;
+  readonly evidenceRefs?: readonly StudioAssetInventoryEvidenceRef[];
+}): StudioLiveDebugCommandProposalSurfaceResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const allowedActionIds: readonly StudioCommandProposalActionId[] = ['set_voxel_reference'];
+  const panel = input.commandProposalPanel;
+  const actions = panel?.actions ?? [];
+  const proposals = panel?.proposals ?? [];
+
+  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
+    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
+      'missing_live_session',
+      'Live debug command proposals require a fresh attached live debug session.',
+      input.liveSessionIdentity.sessionId,
+      input.liveSessionIdentity.liveHash,
+    ));
+  }
+  if (panel === null) {
+    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
+      'missing_command_proposal_panel',
+      'Live debug command proposals require the shared command proposal panel read model.',
+      input.liveSessionIdentity.sessionId,
+      null,
+    ));
+  }
+  if (
+    panel !== null && (
+      panel.runtimeSessionId !== input.liveSessionIdentity.sessionId
+      || panel.workspaceHash !== input.liveSessionIdentity.workspaceHash
+      || input.sceneEntityInspector.sessionId !== input.liveSessionIdentity.sessionId
+      || input.runtimeTelemetryInspector.sessionId !== input.liveSessionIdentity.sessionId
+      || input.runtimeTelemetryInspector.runtime.attachHash !== input.liveSessionIdentity.attachHash
+      || input.runtimeTelemetryInspector.runtime.liveHash !== input.liveSessionIdentity.liveHash
+    )
+  ) {
+    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
+      'debug_command_scope_mismatch',
+      'Live debug command proposal read models do not describe the same live session scope.',
+      panel.runtimeSessionId,
+      input.liveSessionIdentity.sessionId,
+    ));
+  }
+
+  const unsupportedAction = actions.find(action =>
+    !allowedActionIds.includes(action.actionId)
+    || action.commandMessageType !== 'command.propose'
+    || action.commandOperation !== 'setVoxel'
+    || action.batch.commands.some(command => command.op !== 'setVoxel')
+  );
+  if (unsupportedAction !== undefined) {
+    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
+      'unsupported_debug_command',
+      'Live debug command proposals are bounded to known command.propose actions only.',
+      unsupportedAction.actionId,
+      unsupportedAction.commandOperation,
+    ));
+  }
+
+  const scopedProposalMismatch = proposals.find(proposal =>
+    proposal.workspaceHash !== input.liveSessionIdentity.workspaceHash
+    || proposal.attachHash !== input.liveSessionIdentity.attachHash
+    || proposal.batch.commands.some(command => command.op !== 'setVoxel')
+  );
+  if (scopedProposalMismatch !== undefined) {
+    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
+      'debug_command_scope_mismatch',
+      'Live debug command proposal result evidence does not match the attached live session.',
+      scopedProposalMismatch.proposalHash,
+      input.liveSessionIdentity.attachHash,
+    ));
+  }
+
+  const accepted = proposals.find(proposal => proposal.status === 'accepted') ?? null;
+  const rejected = proposals.find(proposal => proposal.status === 'rejected') ?? null;
+  if (accepted === null || rejected === null) {
+    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
+      'missing_command_result_evidence',
+      'Live debug command proposals require both accepted and rejected command result evidence rows.',
+      panel?.runtimeSessionId ?? input.liveSessionIdentity.sessionId,
+      `accepted:${accepted !== null};rejected:${rejected !== null}`,
+    ));
+  }
+
+  const surfaceBody = {
+    sessionId: input.liveSessionIdentity.sessionId,
+    workspaceHash: input.liveSessionIdentity.workspaceHash,
+    attachHash: input.liveSessionIdentity.attachHash,
+    liveHash: input.liveSessionIdentity.liveHash,
+    sceneEntityInspectorHash: input.sceneEntityInspector.inspectorHash,
+    runtimeTelemetryInspectorHash: input.runtimeTelemetryInspector.inspectorHash,
+    allowedActionIds,
+    actions,
+    proposals,
+    proposalStatuses: proposals.map(proposal => proposal.status),
+    acceptedProposalHash: accepted?.proposalHash ?? null,
+    rejectedProposalHash: rejected?.proposalHash ?? null,
+    evidenceRefs: input.evidenceRefs ?? [],
+    diagnostics,
+  };
+  const surface: StudioLiveDebugCommandProposalSurfaceReadModel = {
+    surfaceVersion: 'studio-live-debug-command-proposals.v0',
+    ...surfaceBody,
+    nonClaims: [
+      'does_not_mutate_without_devtools_acceptance',
+      'not_runtime_authority',
+      'not_private_runtime_mutation',
+      'not_freeform_json_method_call',
+    ],
+    surfaceHash: fnv1aHash('studio-live-debug-command-proposals', surfaceBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, surface, diagnostics: [] }
+    : { ok: false, surface, diagnostics };
 }
 
 export function exportStudioGameWorkspaceAttachEvidence(
@@ -3837,6 +4548,81 @@ function studioRuntimeSessionDiagnostic(
 ): StudioDiagnostic {
   return {
     severity: code === 'runtime_session_reserved' ? 'info' : 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioLiveDebugSessionDiagnostic(
+  code: StudioLiveDebugSessionDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioLiveSceneEntityDebugDiagnostic(
+  code: StudioLiveSceneEntityDebugDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioLiveAssetResourceDebugDiagnostic(
+  code: StudioLiveAssetResourceDebugDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioLiveRuntimeTelemetryDebugDiagnostic(
+  code: StudioLiveRuntimeTelemetryDebugDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioLiveDebugCommandProposalDiagnostic(
+  code: StudioLiveDebugCommandProposalDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
     code,
     message,
     source,
