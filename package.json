@@ -24,6 +24,8 @@
     "proof:authored-state-panel-reflection": "tsx scripts/proof-authored-state-panel-reflection.ts",
     "proof:authoring-ux-m2": "tsx scripts/proof-authoring-ux-m2.ts",
     "proof:authored-roundtrip-fixture": "tsx scripts/proof-authored-roundtrip-fixture.ts",
+    "proof:authored-browser-runtime-load": "tsx scripts/proof-authored-browser-runtime-load.ts",
+    "proof:authored-browser-interaction": "tsx scripts/proof-authored-browser-interaction.ts",
     "proof:live-debug-session-identity": "tsx scripts/proof-live-debug-session-identity.ts",
     "proof:live-scene-entity-debug-inspector": "tsx scripts/proof-live-scene-entity-debug-inspector.ts",
     "proof:live-asset-resource-debug-inspector": "tsx scripts/proof-live-asset-resource-debug-inspector.ts",

@@ -2411,6 +2411,57 @@ test('authored round-trip fixture proof writes deterministic scene and catalog f
   assert.equal(artifact.negativeSmokes.at(1)?.ok, false);
 });
 
+test('authored browser runtime load proof consumes demo browser readback', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:authored-browser-runtime-load'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 300000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/authored-browser-runtime-load\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/authored-browser-runtime-load/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_authored_browser_runtime_load_proof');
+  assert.equal(artifact.authoredRuntimeLoad.objectId, 'scene-node:9401');
+  assert.equal(artifact.authoredRuntimeLoad.assetId, 'material.studio-authored-roundtrip');
+  assert.equal(artifact.authoredRuntimeLoad.runtimeMode, 'reference');
+  assert.match(artifact.authoredRuntimeLoad.resourceManifestHash, /^sha256:/);
+  assert.match(artifact.authoredRuntimeLoad.browserPageReadbackHash, /^sha256:/);
+  assert.ok(artifact.validations.includes('demo_authored_runtime_load_child_passed'));
+  assert.ok(artifact.validations.includes('authored_scene_object_loaded_in_browser_page'));
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_browser_interaction_evidence'));
+});
+
+test('authored browser interaction proof records DOM input against loaded content', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:authored-browser-interaction'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 360000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/authored-browser-interaction\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/authored-browser-interaction/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_authored_browser_interaction_proof');
+  assert.equal(artifact.authoredInteraction.objectId, 'scene-node:9401');
+  assert.equal(artifact.authoredInteraction.assetId, 'material.studio-authored-roundtrip');
+  assert.equal(artifact.authoredInteraction.inputEventCount, 3);
+  assert.equal(artifact.authoredInteraction.typedRequestCount, artifact.authoredInteraction.inputEventCount);
+  assert.equal(artifact.authoredInteraction.readbackCount, artifact.authoredInteraction.typedRequestCount);
+  assert.equal(artifact.authoredInteraction.finalSelectedObjectId, artifact.authoredInteraction.objectId);
+  assert.ok(artifact.validations.includes('dom_input_events_recorded_for_authored_content'));
+  assert.ok(artifact.validations.includes('authored_selection_readback_matches_runtime_load'));
+  assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
+  assert.ok(artifact.nonClaims.includes('not_runtime_mutation_proof'));
+});
+
 test('game asset inventory read model loads multi-kind asha-demo catalog evidence', () => {
   const inventory = loadStudioAssetInventory({
     artifactKind: 'asha_demo_asset_inventory',
@@ -3208,6 +3259,14 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-authored-roundtrip-fixture.ts'),
     'utf8',
   );
+  const authoredBrowserRuntimeLoadSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-authored-browser-runtime-load.ts'),
+    'utf8',
+  );
+  const authoredBrowserInteractionSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-authored-browser-interaction.ts'),
+    'utf8',
+  );
   const liveDebugIdentitySource = readFileSync(
     join(repoRoot, 'scripts', 'proof-live-debug-session-identity.ts'),
     'utf8',
@@ -3254,6 +3313,14 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'tsx scripts/proof-authored-roundtrip-fixture.ts',
   );
   assert.equal(
+    packageJson.scripts['proof:authored-browser-runtime-load'],
+    'tsx scripts/proof-authored-browser-runtime-load.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:authored-browser-interaction'],
+    'tsx scripts/proof-authored-browser-interaction.ts',
+  );
+  assert.equal(
     packageJson.scripts['proof:live-debug-session-identity'],
     'tsx scripts/proof-live-debug-session-identity.ts',
   );
@@ -3285,6 +3352,12 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(authoredRoundtripFixtureSource.includes("artifactKind: 'studio_authored_roundtrip_fixture_proof'"), true);
   assert.equal(authoredRoundtripFixtureSource.includes('studio-authored-content.fixture.json'), true);
   assert.equal(authoredRoundtripFixtureSource.includes('not_runtime_loaded'), true);
+  assert.equal(authoredBrowserRuntimeLoadSource.includes("artifactKind: 'studio_authored_browser_runtime_load_proof'"), true);
+  assert.equal(authoredBrowserRuntimeLoadSource.includes('roundtrip:runtime-load'), true);
+  assert.equal(authoredBrowserRuntimeLoadSource.includes('fixture_hash_matches_demo_runtime_load'), true);
+  assert.equal(authoredBrowserInteractionSource.includes("artifactKind: 'studio_authored_browser_interaction_proof'"), true);
+  assert.equal(authoredBrowserInteractionSource.includes('roundtrip:browser-interaction'), true);
+  assert.equal(authoredBrowserInteractionSource.includes('authored_selection_readback_matches_runtime_load'), true);
   assert.equal(liveDebugIdentitySource.includes("artifactKind: 'studio_live_debug_session_identity_proof'"), true);
   assert.equal(liveDebugIdentitySource.includes('stale_child_artifact'), true);
   assert.equal(liveDebugIdentitySource.includes('fixture-only readback'), true);
