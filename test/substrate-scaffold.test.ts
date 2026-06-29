@@ -19,9 +19,11 @@ import {
   buildStudioGameWorkspaceReadout,
   buildStudioWorkspaceOpenReadModel,
   buildStudioSceneAuthoringOperation,
+  buildStudioCatalogAuthoringOperation,
   buildStudioCommandProposalPanel,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioProofSceneList,
+  buildStudioAuthoredStatePanelReflection,
   buildStudioRuntimeSessionList,
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
@@ -39,6 +41,7 @@ import {
   createLoadScenarioIntent,
   createCreateSceneObjectRequest,
   applySceneObjectCommandReadModel,
+  applyStudioCatalogAuthoringOperation,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
   createRotateSceneObjectRequest,
@@ -63,6 +66,7 @@ import {
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
   studioSceneAuthoringBaseHash,
+  studioCatalogAuthoringBaseHash,
   updateStudioRenderSetting,
   validateEntityProjection,
   validateSelectionCommandSync,
@@ -90,6 +94,54 @@ function loadDemoPackageName(): string {
 
 function sha256(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex')}`;
+}
+
+function sampleCatalog() {
+  return {
+    schemaVersion: 1 as const,
+    entries: [
+      {
+        id: 'texture.demo-checker',
+        kind: 'texture' as const,
+        source: 'assets/textures/demo-checker.texture.json',
+        importProfile: 'inline-texture.v0',
+        importMetadata: {
+          sourceHash: 'sha256:texture',
+          cacheKey: 'dev-cache/texture/texture.demo-checker',
+          generatedArtifactVersion: 'asset-import.v1',
+        },
+        dependencies: [],
+        publish: {
+          include: true,
+          outputKey: 'textures/demo-checker.texture.json',
+        },
+        diagnostics: {
+          owner: 'asha-demo',
+          notes: [],
+        },
+      },
+      {
+        id: 'material.demo-copper',
+        kind: 'material' as const,
+        source: 'assets/materials/demo-copper.material.json',
+        importProfile: 'inline-material.v0',
+        importMetadata: {
+          sourceHash: 'sha256:material',
+          cacheKey: 'dev-cache/material/material.demo-copper',
+          generatedArtifactVersion: 'asset-import.v1',
+        },
+        dependencies: ['texture.demo-checker'],
+        publish: {
+          include: true,
+          outputKey: 'materials/demo-copper.material.json',
+        },
+        diagnostics: {
+          owner: 'asha-demo',
+          notes: [],
+        },
+      },
+    ],
+  };
 }
 
 test('selection intent maps through the public command identity before read model update', () => {
@@ -1332,6 +1384,54 @@ test('scene object create authoring proof command records operation and readout 
   assert.ok(artifact.validations.includes('negative_stale_create_failed_closed'));
 });
 
+test('scene object edit authoring workflow rejects unsupported fields', () => {
+  const readModel = buildInitialWorkspaceReadModel();
+  const targetId = readModel.selectedEntityId;
+  assert.ok(targetId?.startsWith('scene-node:'));
+  const result = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
+    actor: 'agent',
+    expectedBaseHash: studioSceneAuthoringBaseHash(readModel.flatSceneDocument),
+    operation: {
+      kind: 'update_scene_object',
+      objectId: targetId,
+      patch: {
+        materialId: 'material.demo-copper',
+      },
+    },
+  } as Parameters<typeof buildStudioSceneAuthoringOperation>[1]);
+
+  assert.equal(result.ok, false);
+  assert.ok(result.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_scene_authoring_field'));
+});
+
+test('scene object edit authoring proof command records edit hashes and diagnostics', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:scene-object-edit-authoring'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/scene-object-edit-authoring-proof\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/scene-object-edit-authoring-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_scene_object_edit_authoring_proof');
+  assert.deepEqual(artifact.operations.map((operation: { operationKind: string }) => operation.operationKind), [
+    'update_scene_object',
+    'update_scene_object',
+  ]);
+  assert.ok(artifact.operations.every((operation: { operationHash: string }) =>
+    operation.operationHash.startsWith('studio-scene-authoring-operation-'),
+  ));
+  assert.match(artifact.fileHashes.beforeDocumentHash, /^sha256:/);
+  assert.equal(artifact.fileHashes.afterDocumentHash, artifact.fileHashes.reopenedDocumentHash);
+  assert.equal(artifact.readout.hierarchyName, 'Edited authoring object');
+  assert.ok(artifact.validations.includes('negative_stale_edit_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_unsupported_field_failed_closed'));
+});
+
 test('scene hierarchy root selection clears viewport renderable without private UI mutation', () => {
   const readModel = buildInitialWorkspaceReadModel();
   const root = readModel.entities.find(entity => entity.sceneObjectId === 'scene-node:1');
@@ -1473,6 +1573,386 @@ test('asset browser categories filter scene renderables deterministically', () =
     ),
     ['preview-ghost:1,0,0'],
   );
+});
+
+test('catalog authoring operation model hashes create update and remove requests', () => {
+  const catalog = sampleCatalog();
+  const baseHash = studioCatalogAuthoringBaseHash(catalog);
+  const create = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'create_catalog_entry',
+      entry: {
+        id: 'material.authored',
+        kind: 'material',
+        source: 'assets/materials/authored.material.json',
+        importProfile: 'inline-material.v0',
+        importMetadata: {
+          sourceHash: 'sha256:authored',
+          cacheKey: 'dev-cache/material/material.authored',
+          generatedArtifactVersion: 'asset-import.v1',
+        },
+        dependencies: ['texture.demo-checker'],
+        publish: {
+          include: false,
+          outputKey: 'materials/authored.material.json',
+        },
+        diagnostics: {
+          owner: 'asha-studio',
+          notes: ['typed authoring test'],
+        },
+      },
+    },
+  });
+  const update = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'gui',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'update_catalog_entry',
+      assetId: 'material.demo-copper',
+      patch: {
+        dependencies: ['texture.demo-checker'],
+        diagnostics: {
+          owner: 'asha-demo',
+          notes: ['updated from Studio'],
+        },
+      },
+    },
+  });
+  const remove = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'remove_catalog_entry',
+      assetId: 'material.demo-copper',
+    },
+  });
+
+  assert.equal(create.ok, true);
+  assert.equal(update.ok, true);
+  assert.equal(remove.ok, true);
+  assert.match(create.operation.operationHash, /^studio-catalog-authoring-operation-/);
+  assert.notEqual(create.operation.operationHash, update.operation.operationHash);
+  assert.notEqual(update.operation.operationHash, remove.operation.operationHash);
+  assert.deepEqual(create.operation.nonClaims, [
+    'not_private_asset_database',
+    'not_source_write_until_save_operation',
+    'not_runtime_authority',
+  ]);
+});
+
+test('catalog authoring operation model fails closed on invalid refs and hatches', () => {
+  const catalog = sampleCatalog();
+  const baseHash = studioCatalogAuthoringBaseHash(catalog);
+  const duplicate = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'create_catalog_entry',
+      entry: catalog.entries[0],
+    },
+  });
+  const unsupportedKind = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'create_catalog_entry',
+      entry: {
+        ...catalog.entries[0],
+        id: 'scene.unsupported',
+        kind: 'scene',
+        source: 'scenes/minimal.scene.json',
+        importProfile: 'flat-scene.v0',
+        publish: {
+          include: false,
+          outputKey: 'scenes/minimal.scene.json',
+        },
+      },
+    },
+  });
+  const missingDependency = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'gui',
+    expectedBaseHash: baseHash,
+    operation: {
+      kind: 'update_catalog_entry',
+      assetId: 'material.demo-copper',
+      patch: {
+        dependencies: ['missing.asset'],
+        freeformJson: true,
+      },
+    },
+  } as Parameters<typeof buildStudioCatalogAuthoringOperation>[1]);
+  const stale = buildStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: 'studio-catalog-authoring-base-stale',
+    operation: {
+      kind: 'remove_catalog_entry',
+      assetId: 'material.demo-copper',
+    },
+  });
+
+  assert.equal(duplicate.ok, false);
+  assert.ok(duplicate.diagnostics.some(diagnostic => diagnostic.code === 'duplicate_catalog_asset_id'));
+  assert.equal(unsupportedKind.ok, false);
+  assert.ok(unsupportedKind.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_catalog_asset_kind'));
+  assert.ok(unsupportedKind.diagnostics.some(diagnostic => diagnostic.code === 'invalid_catalog_asset_source'));
+  assert.equal(missingDependency.ok, false);
+  assert.ok(missingDependency.diagnostics.some(diagnostic => diagnostic.code === 'missing_catalog_dependency'));
+  assert.ok(missingDependency.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_catalog_authoring_field'));
+  assert.equal(stale.ok, false);
+  assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'stale_catalog_source_hash'));
+});
+
+test('catalog entry authoring workflow projects saved entry into asset inventory readout', () => {
+  const catalog = sampleCatalog();
+  const applied = applyStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: studioCatalogAuthoringBaseHash(catalog),
+    operation: {
+      kind: 'create_catalog_entry',
+      entry: {
+        id: 'material.authored',
+        kind: 'material',
+        source: 'assets/materials/authored.material.json',
+        importProfile: 'inline-material.v0',
+        importMetadata: {
+          sourceHash: 'sha256:authored',
+          cacheKey: 'dev-cache/material/material.authored',
+          generatedArtifactVersion: 'asset-import.v1',
+        },
+        dependencies: ['texture.demo-checker'],
+        publish: {
+          include: false,
+          outputKey: 'materials/authored.material.json',
+        },
+        diagnostics: {
+          owner: 'asha-studio',
+          notes: ['typed authoring test'],
+        },
+      },
+    },
+  });
+  assert.equal(applied.ok, true);
+  assert.match(applied.catalogHash, /^studio-catalog-authoring-base-/);
+
+  const inventory = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
+    catalog: { path: 'packages/game-catalogs/catalog.json', hash: applied.catalogHash },
+    diagnostics: [],
+    dependencyOrder: applied.catalog.entries.map(entry => entry.id),
+    entries: applied.catalog.entries.map(entry => ({
+      assetId: entry.id,
+      kind: entry.kind,
+      sourcePath: entry.source,
+      dependencies: entry.dependencies ?? [],
+      devResolution: {
+        sourceHash: entry.importMetadata?.sourceHash ?? null,
+        devCacheKey: entry.importMetadata?.cacheKey ?? `dev-cache/${entry.kind}/${entry.id}`,
+        generatedArtifactVersion: entry.importMetadata?.generatedArtifactVersion ?? null,
+        importStatus: 'clean',
+        publishOutputKey: entry.publish.outputKey,
+      },
+      publishResolution: {
+        outputKey: entry.publish.outputKey,
+        packedPath: `harness/out/publish/resources/${entry.publish.outputKey}`,
+        packedHash: `sha256:${entry.id}`,
+        packedBytes: 1,
+      },
+      diagnostics: [],
+      evidenceRefs: [],
+    })),
+  });
+  assert.equal(inventory.ok, true);
+  if (!inventory.ok) throw new Error('inventory should load');
+  const authored = inventory.inventory.entries.find(entry => entry.assetId === 'material.authored');
+  assert.equal(authored?.sourcePath, 'assets/materials/authored.material.json');
+  assert.equal(authored?.dependencyStatus, 'resolved');
+});
+
+test('authored state panel reflection proves saved scene and catalog readouts are visible', () => {
+  const workspace = buildInitialWorkspaceReadModel();
+  const selectedObjectId = workspace.selectedEntityId;
+  assert.ok(selectedObjectId?.startsWith('scene-node:'));
+  const renamed = applySceneObjectCommandReadModel(
+    workspace,
+    createRenameSceneObjectRequest(workspace, selectedObjectId, 'Panel reflected object'),
+  );
+  assert.equal(renamed.ok, true);
+  const catalog = sampleCatalog();
+  const applied = applyStudioCatalogAuthoringOperation(catalog, {
+    actor: 'agent',
+    expectedBaseHash: studioCatalogAuthoringBaseHash(catalog),
+    operation: {
+      kind: 'create_catalog_entry',
+      entry: {
+        id: 'material.panel-reflection',
+        kind: 'material',
+        source: 'assets/materials/panel-reflection.material.json',
+        importProfile: 'inline-material.v0',
+        importMetadata: {
+          sourceHash: 'sha256:panel-reflection',
+          cacheKey: 'dev-cache/material/material.panel-reflection',
+          generatedArtifactVersion: 'asset-import.v1',
+        },
+        dependencies: ['texture.demo-checker'],
+        publish: {
+          include: false,
+          outputKey: 'materials/panel-reflection.material.json',
+        },
+      },
+    },
+  });
+  assert.equal(applied.ok, true);
+  const inventory = loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
+    catalog: { path: 'packages/game-catalogs/catalog.json', hash: applied.catalogHash },
+    diagnostics: [],
+    dependencyOrder: applied.catalog.entries.map(entry => entry.id),
+    entries: applied.catalog.entries.map(entry => ({
+      assetId: entry.id,
+      kind: entry.kind,
+      sourcePath: entry.source,
+      dependencies: entry.dependencies ?? [],
+      devResolution: {
+        sourceHash: entry.importMetadata?.sourceHash ?? null,
+        devCacheKey: entry.importMetadata?.cacheKey ?? `dev-cache/${entry.kind}/${entry.id}`,
+        generatedArtifactVersion: entry.importMetadata?.generatedArtifactVersion ?? null,
+        importStatus: 'clean',
+        publishOutputKey: entry.publish.outputKey,
+      },
+      publishResolution: {
+        outputKey: entry.publish.outputKey,
+        packedPath: `harness/out/publish/resources/${entry.publish.outputKey}`,
+        packedHash: `sha256:${entry.id}`,
+        packedBytes: 1,
+      },
+      diagnostics: [],
+      evidenceRefs: [],
+    })),
+  });
+  assert.equal(inventory.ok, true);
+  if (!inventory.ok) throw new Error('inventory should load');
+
+  const reflection = buildStudioAuthoredStatePanelReflection({
+    workspace: renamed.workspace,
+    assetInventory: inventory.inventory,
+    authoredSceneObjectId: selectedObjectId,
+    authoredSceneObjectLabel: 'Panel reflected object',
+    authoredCatalogAssetId: 'material.panel-reflection',
+    visiblePanelMarkers: [
+      'studio-hierarchy-panel',
+      'studio-viewport-top-panel',
+      'studio-inspector-panel',
+      'studio-assets-panel',
+    ],
+  });
+  assert.equal(reflection.ok, true);
+  assert.equal(reflection.reflection.hierarchyPanel.displayName, 'Panel reflected object');
+  assert.equal(reflection.reflection.inspectorPanel.selectedObjectName, 'Panel reflected object');
+  assert.equal(reflection.reflection.assetsPanel.assetId, 'material.panel-reflection');
+  assert.match(reflection.reflection.reflectionHash, /^studio-authored-state-panel-reflection-/);
+
+  const stale = buildStudioAuthoredStatePanelReflection({
+    workspace: renamed.workspace,
+    assetInventory: inventory.inventory,
+    authoredSceneObjectId: selectedObjectId,
+    authoredSceneObjectLabel: 'Missing label',
+    authoredCatalogAssetId: 'material.panel-reflection',
+    visiblePanelMarkers: ['studio-hierarchy-panel', 'studio-viewport-top-panel', 'studio-assets-panel'],
+  });
+  assert.equal(stale.ok, false);
+  assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'authored_scene_object_missing_from_hierarchy'));
+  assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'authored_panel_marker_missing'));
+});
+
+test('catalog entry authoring UI proof command records persisted readout and negatives', () => {
+  const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
+  const result = spawnSync('pnpm', ['run', 'proof:catalog-entry-authoring-ui'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/catalog-entry-authoring-ui-proof\/latest\/index\.json/);
+  assert.equal(readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8'), beforeCatalog);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/catalog-entry-authoring-ui-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_catalog_entry_authoring_ui_proof');
+  assert.equal(artifact.operation.operationKind, 'create_catalog_entry');
+  assert.match(artifact.operation.operationHash, /^studio-catalog-authoring-operation-/);
+  assert.equal(artifact.readout.authoredAssetId, 'material.studio-authored-ui');
+  assert.equal(artifact.readout.dependencyStatus, 'resolved');
+  assert.match(artifact.readout.inventoryHash, /^studio-asset-inventory-/);
+  assert.ok(artifact.validations.includes('negative_stale_catalog_edit_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_invalid_source_failed_closed'));
+  assert.ok(artifact.validations.includes('negative_invalid_dependency_failed_closed'));
+});
+
+test('authored state panel reflection proof command records visible saved panel readouts', () => {
+  const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
+  const result = spawnSync('pnpm', ['run', 'proof:authored-state-panel-reflection'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/authored-state-panel-reflection-proof\/latest\/index\.json/);
+  assert.equal(readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8'), beforeCatalog);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/authored-state-panel-reflection-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_authored_state_panel_reflection_proof');
+  assert.equal(artifact.reflection.hierarchyPanel.displayName, 'Panel-reflected authoring object');
+  assert.equal(artifact.reflection.inspectorPanel.selectedObjectName, 'Panel-reflected authoring object');
+  assert.equal(artifact.reflection.assetsPanel.assetId, 'material.studio-panel-reflection');
+  assert.match(artifact.reflection.reflectionHash, /^studio-authored-state-panel-reflection-/);
+  assert.ok(artifact.validations.includes('hierarchy_panel_reflects_authored_scene_object'));
+  assert.ok(artifact.validations.includes('assets_panel_reflects_authored_catalog_entry'));
+  assert.ok(artifact.validations.includes('negative_missing_asset_failed_closed'));
+});
+
+test('authoring UX M2 aggregate proof gate records child evidence and guards', () => {
+  const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
+  const result = spawnSync('pnpm', ['run', 'proof:authoring-ux-m2'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/authoring-ux-m2-proof\/latest\/index\.json/);
+  assert.equal(readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8'), beforeCatalog);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/authoring-ux-m2-proof/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_authoring_ux_m2_proof');
+  assert.equal(artifact.childArtifacts.length, 4);
+  assert.match(artifact.authoringCoverage.sceneCreateOperationHash, /^studio-scene-authoring-operation-/);
+  assert.match(artifact.authoringCoverage.catalogCreateOperationHash, /^studio-catalog-authoring-operation-/);
+  assert.match(artifact.authoringCoverage.panelReflectionHash, /^studio-authored-state-panel-reflection-/);
+  assert.equal(artifact.visibleReadouts.reflectedAssetId, 'material.studio-panel-reflection');
+  assert.ok(artifact.validations.includes('studio_domain_typecheck_passed'));
+  assert.ok(artifact.validations.includes('boundary_guard_passed'));
+});
+
+test('Studio authoring M2 closeout doc points at the aggregate proof gate', () => {
+  const doc = readFileSync(join(repoRoot, 'docs/studio-authoring-m2.md'), 'utf8');
+  assert.match(doc, /pnpm run proof:authoring-ux-m2/);
+  assert.match(doc, /artifacts\/authoring-ux-m2-proof\/latest\/index\.json/);
+  assert.match(doc, /not claim runtime authority/);
 });
 
 test('game asset inventory read model loads multi-kind asha-demo catalog evidence', () => {

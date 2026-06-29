@@ -32,6 +32,9 @@ import {
   parseAshaGameManifestToml,
   resolveAshaAuthoringWriteTarget,
   validateAshaConsumerCompatibility,
+  type AshaGameAssetCatalog,
+  type AshaGameAssetCatalogEntry,
+  type AshaGameAssetKind,
   type AshaGameManifest,
   type AshaGameRuntimeBackendMode,
 } from '@asha/game-workspace';
@@ -158,7 +161,24 @@ export type StudioSceneAuthoringDiagnosticCode =
   | 'missing_scene_object_parent'
   | 'blank_scene_object_label'
   | 'invalid_scene_object_transform'
-  | 'runtime_authority_not_allowed';
+  | 'runtime_authority_not_allowed'
+  | 'unsupported_scene_authoring_field';
+export type StudioCatalogAuthoringDiagnosticCode =
+  | 'stale_catalog_source_hash'
+  | 'duplicate_catalog_asset_id'
+  | 'missing_catalog_asset_id'
+  | 'unsupported_catalog_asset_kind'
+  | 'invalid_catalog_asset_source'
+  | 'invalid_catalog_asset_metadata'
+  | 'missing_catalog_dependency'
+  | 'unsupported_catalog_authoring_field';
+export type StudioAuthoredStatePanelReflectionDiagnosticCode =
+  | 'authored_panel_marker_missing'
+  | 'authored_scene_object_missing_from_hierarchy'
+  | 'authored_scene_object_missing_from_inspector'
+  | 'authored_scene_object_missing_from_viewport'
+  | 'authored_catalog_entry_missing_from_assets'
+  | 'authored_catalog_entry_missing_from_inspector';
 
 export interface StudioGameWorkspaceReadModel {
   readonly workspaceVersion: 'studio-game-workspace.v0';
@@ -342,6 +362,137 @@ export type StudioSceneAuthoringOperationResult =
   | {
       readonly ok: false;
       readonly operation: StudioSceneAuthoringOperationReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export type StudioCatalogAuthoringOperationKind =
+  | 'create_catalog_entry'
+  | 'update_catalog_entry'
+  | 'remove_catalog_entry';
+
+export type StudioCatalogAuthoringOperation =
+  | {
+      readonly kind: 'create_catalog_entry';
+      readonly entry: AshaGameAssetCatalogEntry;
+    }
+  | {
+      readonly kind: 'update_catalog_entry';
+      readonly assetId: string;
+      readonly patch: {
+        readonly source?: string;
+        readonly importProfile?: string | null;
+        readonly importMetadata?: AshaGameAssetCatalogEntry['importMetadata'];
+        readonly dependencies?: readonly string[];
+        readonly publish?: AshaGameAssetCatalogEntry['publish'];
+        readonly diagnostics?: AshaGameAssetCatalogEntry['diagnostics'];
+      };
+    }
+  | {
+      readonly kind: 'remove_catalog_entry';
+      readonly assetId: string;
+    };
+
+export interface StudioCatalogAuthoringOperationRequest {
+  readonly operation: StudioCatalogAuthoringOperation;
+  readonly expectedBaseHash: string;
+  readonly actor: StudioActorKind;
+}
+
+export interface StudioCatalogAuthoringOperationReadModel {
+  readonly operationVersion: 'studio-catalog-authoring-operation.v0';
+  readonly operationKind: StudioCatalogAuthoringOperationKind;
+  readonly expectedBaseHash: string;
+  readonly actualBaseHash: string;
+  readonly actor: StudioActorKind;
+  readonly operation: StudioCatalogAuthoringOperation;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_private_asset_database',
+    'not_source_write_until_save_operation',
+    'not_runtime_authority',
+  ];
+  readonly operationHash: string;
+}
+
+export type StudioCatalogAuthoringOperationResult =
+  | {
+      readonly ok: true;
+      readonly operation: StudioCatalogAuthoringOperationReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly operation: StudioCatalogAuthoringOperationReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export type StudioCatalogAuthoringApplyResult =
+  | {
+      readonly ok: true;
+      readonly catalog: AshaGameAssetCatalog;
+      readonly operation: StudioCatalogAuthoringOperationReadModel;
+      readonly diagnostics: readonly [];
+      readonly catalogHash: string;
+    }
+  | {
+      readonly ok: false;
+      readonly catalog: AshaGameAssetCatalog;
+      readonly operation: StudioCatalogAuthoringOperationReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+      readonly catalogHash: string;
+    };
+
+export interface StudioAuthoredStatePanelReflectionReadModel {
+  readonly reflectionVersion: 'studio-authored-state-panel-reflection.v0';
+  readonly visiblePanelMarkers: readonly string[];
+  readonly expected: {
+    readonly sceneObjectId: SceneObjectId;
+    readonly sceneObjectLabel: string;
+    readonly catalogAssetId: string;
+  };
+  readonly hierarchyPanel: {
+    readonly objectId: SceneObjectId | null;
+    readonly displayName: string | null;
+    readonly selected: boolean;
+    readonly sceneObjectSnapshotHash: string;
+  };
+  readonly viewportPanel: {
+    readonly selectedEntityId: string | null;
+    readonly selectedRenderableId: string | null;
+    readonly renderableIds: readonly string[];
+    readonly sceneHash: string;
+  };
+  readonly inspectorPanel: {
+    readonly selectedObjectId: SceneObjectId | null;
+    readonly selectedObjectName: string | null;
+    readonly selectedCatalogAssetId: string | null;
+    readonly selectedCatalogAssetKind: string | null;
+  };
+  readonly assetsPanel: {
+    readonly assetId: string | null;
+    readonly kind: string | null;
+    readonly sourcePath: string | null;
+    readonly dependencyStatus: 'none' | 'resolved' | 'missing' | null;
+    readonly inventoryHash: string;
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_ui_mutation',
+    'not_dom_screenshot',
+  ];
+  readonly reflectionHash: string;
+}
+
+export type StudioAuthoredStatePanelReflectionResult =
+  | {
+      readonly ok: true;
+      readonly reflection: StudioAuthoredStatePanelReflectionReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly reflection: StudioAuthoredStatePanelReflectionReadModel;
       readonly diagnostics: readonly StudioDiagnostic[];
     };
 
@@ -3019,6 +3170,275 @@ export function loadStudioAssetInventory(
   return { ok: true, inventory, diagnostics: [] };
 }
 
+export function studioCatalogAuthoringBaseHash(catalog: AshaGameAssetCatalog): string {
+  return fnv1aHash('studio-catalog-authoring-base', catalog);
+}
+
+export function buildStudioCatalogAuthoringOperation(
+  catalog: AshaGameAssetCatalog,
+  request: StudioCatalogAuthoringOperationRequest,
+): StudioCatalogAuthoringOperationResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const actualBaseHash = studioCatalogAuthoringBaseHash(catalog);
+  if (request.expectedBaseHash !== actualBaseHash) {
+    diagnostics.push(studioCatalogAuthoringDiagnostic(
+      'stale_catalog_source_hash',
+      'Catalog authoring operation expectedBaseHash does not match the current catalog source hash.',
+      request.operation.kind,
+      `${request.expectedBaseHash} != ${actualBaseHash}`,
+    ));
+  }
+
+  const entriesById = new Map(catalog.entries.map(entry => [entry.id, entry]));
+  if (request.operation.kind === 'create_catalog_entry') {
+    validateCatalogEntryForAuthoring(request.operation.entry, catalog, diagnostics);
+    if (entriesById.has(request.operation.entry.id)) {
+      diagnostics.push(studioCatalogAuthoringDiagnostic(
+        'duplicate_catalog_asset_id',
+        `Cannot create duplicate catalog asset id ${request.operation.entry.id}.`,
+        request.operation.entry.id,
+        null,
+      ));
+    }
+  } else {
+    const current = entriesById.get(request.operation.assetId);
+    if (current === undefined) {
+      diagnostics.push(studioCatalogAuthoringDiagnostic(
+        'missing_catalog_asset_id',
+        `Cannot ${request.operation.kind} missing catalog asset id ${request.operation.assetId}.`,
+        request.operation.assetId,
+        null,
+      ));
+    }
+    if (request.operation.kind === 'update_catalog_entry') {
+      for (const key of Object.keys(request.operation.patch)) {
+        if (!['source', 'importProfile', 'importMetadata', 'dependencies', 'publish', 'diagnostics'].includes(key)) {
+          diagnostics.push(studioCatalogAuthoringDiagnostic(
+            'unsupported_catalog_authoring_field',
+            `Catalog authoring update field is not supported: ${key}.`,
+            request.operation.assetId,
+            key,
+          ));
+        }
+      }
+      if (current !== undefined) {
+        validateCatalogEntryForAuthoring(
+          mergeCatalogEntryPatch(current, request.operation.patch),
+          catalog,
+          diagnostics,
+          request.operation.assetId,
+        );
+      }
+    }
+  }
+
+  const readModel: StudioCatalogAuthoringOperationReadModel = {
+    operationVersion: 'studio-catalog-authoring-operation.v0',
+    operationKind: request.operation.kind,
+    expectedBaseHash: request.expectedBaseHash,
+    actualBaseHash,
+    actor: request.actor,
+    operation: request.operation,
+    diagnostics,
+    nonClaims: [
+      'not_private_asset_database',
+      'not_source_write_until_save_operation',
+      'not_runtime_authority',
+    ],
+    operationHash: fnv1aHash('studio-catalog-authoring-operation', {
+      actualBaseHash,
+      request,
+      diagnostics,
+    }),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, operation: readModel, diagnostics: [] }
+    : { ok: false, operation: readModel, diagnostics };
+}
+
+export function applyStudioCatalogAuthoringOperation(
+  catalog: AshaGameAssetCatalog,
+  request: StudioCatalogAuthoringOperationRequest,
+): StudioCatalogAuthoringApplyResult {
+  const operation = buildStudioCatalogAuthoringOperation(catalog, request);
+  if (!operation.ok) {
+    return {
+      ok: false,
+      catalog,
+      operation: operation.operation,
+      diagnostics: operation.diagnostics,
+      catalogHash: studioCatalogAuthoringBaseHash(catalog),
+    };
+  }
+  const requestedOperation = request.operation;
+  let nextCatalog: AshaGameAssetCatalog = catalog;
+  switch (requestedOperation.kind) {
+    case 'create_catalog_entry':
+      nextCatalog = {
+        ...catalog,
+        entries: [...catalog.entries, requestedOperation.entry],
+      };
+      break;
+    case 'update_catalog_entry':
+      nextCatalog = {
+        ...catalog,
+        entries: catalog.entries.map(entry =>
+          entry.id === requestedOperation.assetId
+            ? mergeCatalogEntryPatch(entry, requestedOperation.patch)
+            : entry,
+        ),
+      };
+      break;
+    case 'remove_catalog_entry':
+      nextCatalog = {
+        ...catalog,
+        entries: catalog.entries.filter(entry => entry.id !== requestedOperation.assetId),
+      };
+      break;
+  }
+
+  return {
+    ok: true,
+    catalog: nextCatalog,
+    operation: operation.operation,
+    diagnostics: [],
+    catalogHash: studioCatalogAuthoringBaseHash(nextCatalog),
+  };
+}
+
+export function buildStudioAuthoredStatePanelReflection(input: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly assetInventory: StudioAssetInventoryReadModel;
+  readonly authoredSceneObjectId: SceneObjectId;
+  readonly authoredSceneObjectLabel: string;
+  readonly authoredCatalogAssetId: string;
+  readonly visiblePanelMarkers: readonly string[];
+}): StudioAuthoredStatePanelReflectionResult {
+  const diagnostics: StudioDiagnostic[] = [];
+  const requiredMarkers = [
+    'studio-hierarchy-panel',
+    'studio-viewport-top-panel',
+    'studio-inspector-panel',
+    'studio-assets-panel',
+  ];
+  for (const marker of requiredMarkers) {
+    if (!input.visiblePanelMarkers.includes(marker)) {
+      diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
+        'authored_panel_marker_missing',
+        `Authored state panel reflection marker is missing: ${marker}.`,
+        marker,
+        null,
+      ));
+    }
+  }
+
+  const hierarchyObject = input.workspace.sceneObjectSnapshot.objects.find(
+    object => object.objectId === input.authoredSceneObjectId,
+  );
+  const selectedEntity = input.workspace.entities.find(entity => entity.id === input.workspace.selectedEntityId);
+  const selectedRenderable = input.workspace.scene.renderables.find(
+    renderable => renderable.renderableId === input.workspace.scene.selectedRenderableId,
+  );
+  const assetEntry = input.assetInventory.entries.find(entry => entry.assetId === input.authoredCatalogAssetId);
+
+  if (hierarchyObject?.displayName !== input.authoredSceneObjectLabel) {
+    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
+      'authored_scene_object_missing_from_hierarchy',
+      `Authored scene object ${input.authoredSceneObjectId} is missing or stale in the hierarchy panel readout.`,
+      input.authoredSceneObjectId,
+      input.authoredSceneObjectLabel,
+    ));
+  }
+  if (
+    selectedEntity?.sceneObjectId !== input.authoredSceneObjectId
+    || selectedEntity.label !== input.authoredSceneObjectLabel
+  ) {
+    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
+      'authored_scene_object_missing_from_inspector',
+      `Authored scene object ${input.authoredSceneObjectId} is not reflected by the selected inspector readout.`,
+      input.workspace.selectedEntityId,
+      input.authoredSceneObjectId,
+    ));
+  }
+  if (
+    input.workspace.scene.selectedRenderableId !== selectedEntity?.renderableId
+    || selectedRenderable === undefined
+  ) {
+    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
+      'authored_scene_object_missing_from_viewport',
+      `Authored scene object ${input.authoredSceneObjectId} is not reflected by the viewport selected renderable.`,
+      input.workspace.scene.selectedRenderableId,
+      selectedEntity?.renderableId ?? null,
+    ));
+  }
+  if (assetEntry === undefined) {
+    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
+      'authored_catalog_entry_missing_from_assets',
+      `Authored catalog entry ${input.authoredCatalogAssetId} is missing from the assets panel readout.`,
+      input.authoredCatalogAssetId,
+      null,
+    ));
+  }
+  if (assetEntry?.assetId !== input.authoredCatalogAssetId) {
+    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
+      'authored_catalog_entry_missing_from_inspector',
+      `Authored catalog entry ${input.authoredCatalogAssetId} is not reflected by the asset inspector readout.`,
+      input.authoredCatalogAssetId,
+      assetEntry?.assetId ?? null,
+    ));
+  }
+
+  const reflectionBody = {
+    visiblePanelMarkers: input.visiblePanelMarkers,
+    expected: {
+      sceneObjectId: input.authoredSceneObjectId,
+      sceneObjectLabel: input.authoredSceneObjectLabel,
+      catalogAssetId: input.authoredCatalogAssetId,
+    },
+    hierarchyPanel: {
+      objectId: hierarchyObject?.objectId ?? null,
+      displayName: hierarchyObject?.displayName ?? null,
+      selected: hierarchyObject?.objectId === input.workspace.selectedEntityId,
+      sceneObjectSnapshotHash: fnv1aHash('studio-scene-object-snapshot', input.workspace.sceneObjectSnapshot),
+    },
+    viewportPanel: {
+      selectedEntityId: input.workspace.selectedEntityId,
+      selectedRenderableId: input.workspace.scene.selectedRenderableId,
+      renderableIds: input.workspace.scene.renderables.map(renderable => renderable.renderableId),
+      sceneHash: input.workspace.scene.sceneHash,
+    },
+    inspectorPanel: {
+      selectedObjectId: selectedEntity?.sceneObjectId ?? null,
+      selectedObjectName: selectedEntity?.label ?? null,
+      selectedCatalogAssetId: assetEntry?.assetId ?? null,
+      selectedCatalogAssetKind: assetEntry?.kind ?? null,
+    },
+    assetsPanel: {
+      assetId: assetEntry?.assetId ?? null,
+      kind: assetEntry?.kind ?? null,
+      sourcePath: assetEntry?.sourcePath ?? null,
+      dependencyStatus: assetEntry?.dependencyStatus ?? null,
+      inventoryHash: input.assetInventory.inventoryHash,
+    },
+    diagnostics,
+  };
+  const reflection: StudioAuthoredStatePanelReflectionReadModel = {
+    reflectionVersion: 'studio-authored-state-panel-reflection.v0',
+    ...reflectionBody,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_ui_mutation',
+      'not_dom_screenshot',
+    ],
+    reflectionHash: fnv1aHash('studio-authored-state-panel-reflection', reflectionBody),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, reflection, diagnostics: [] }
+    : { ok: false, reflection, diagnostics };
+}
+
 export function buildStudioProofSceneList(
   input: {
     readonly workspace: StudioGameWorkspaceReadModel;
@@ -3198,6 +3618,170 @@ function studioSceneAuthoringDiagnostic(
     source,
     remediation,
   };
+}
+
+function studioCatalogAuthoringDiagnostic(
+  code: StudioCatalogAuthoringDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioAuthoredStatePanelReflectionDiagnostic(
+  code: StudioAuthoredStatePanelReflectionDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function validateCatalogEntryForAuthoring(
+  entry: AshaGameAssetCatalogEntry,
+  catalog: AshaGameAssetCatalog,
+  diagnostics: StudioDiagnostic[],
+  originalAssetId: string | null = null,
+): void {
+  if (entry.id.length === 0) {
+    diagnostics.push(studioCatalogAuthoringDiagnostic(
+      'missing_catalog_asset_id',
+      'Catalog entry id is required.',
+      originalAssetId,
+      null,
+    ));
+  }
+  const kindConfig = catalogKindConfig(entry.kind);
+  if (!entry.source.startsWith('assets/')) {
+    diagnostics.push(studioCatalogAuthoringDiagnostic(
+      'invalid_catalog_asset_source',
+      `Catalog asset ${entry.id} source must stay under assets/.`,
+      entry.source,
+      entry.id,
+    ));
+  }
+  if (kindConfig === null) {
+    diagnostics.push(studioCatalogAuthoringDiagnostic(
+      'unsupported_catalog_asset_kind',
+      `Catalog asset kind is not supported for Studio authoring: ${entry.kind}.`,
+      entry.id,
+      entry.kind,
+    ));
+  } else {
+    if (!entry.source.endsWith(kindConfig.sourceSuffix)) {
+      diagnostics.push(studioCatalogAuthoringDiagnostic(
+        'invalid_catalog_asset_source',
+        `Catalog asset ${entry.id} source must end with ${kindConfig.sourceSuffix}.`,
+        entry.source,
+        entry.id,
+      ));
+    }
+    if (entry.importProfile !== kindConfig.importProfile) {
+      diagnostics.push(studioCatalogAuthoringDiagnostic(
+        'invalid_catalog_asset_metadata',
+        `Catalog asset ${entry.id} must use import profile ${kindConfig.importProfile}.`,
+        entry.id,
+        entry.importProfile ?? 'missing',
+      ));
+    }
+    if (!entry.publish.outputKey.startsWith(kindConfig.outputPrefix) || !entry.publish.outputKey.endsWith(kindConfig.sourceSuffix)) {
+      diagnostics.push(studioCatalogAuthoringDiagnostic(
+        'invalid_catalog_asset_metadata',
+        `Catalog asset ${entry.id} publish output must use ${kindConfig.outputPrefix}*${kindConfig.sourceSuffix}.`,
+        entry.publish.outputKey,
+        entry.id,
+      ));
+    }
+  }
+  const metadata = entry.importMetadata;
+  if (
+    metadata === undefined
+    || !metadata.sourceHash.startsWith('sha256:')
+    || metadata.cacheKey.length === 0
+    || metadata.generatedArtifactVersion.length === 0
+  ) {
+    diagnostics.push(studioCatalogAuthoringDiagnostic(
+      'invalid_catalog_asset_metadata',
+      `Catalog asset ${entry.id} import metadata must include source hash, cache key, and generated artifact version.`,
+      entry.id,
+      null,
+    ));
+  }
+  const ids = new Set(catalog.entries.map(candidate => candidate.id));
+  for (const dependency of entry.dependencies ?? []) {
+    if (!ids.has(dependency)) {
+      diagnostics.push(studioCatalogAuthoringDiagnostic(
+        'missing_catalog_dependency',
+        `Catalog asset ${entry.id} depends on missing asset ${dependency}.`,
+        entry.id,
+        dependency,
+      ));
+    }
+  }
+}
+
+function mergeCatalogEntryPatch(
+  current: AshaGameAssetCatalogEntry,
+  patch: Extract<StudioCatalogAuthoringOperation, { readonly kind: 'update_catalog_entry' }>['patch'],
+): AshaGameAssetCatalogEntry {
+  const merged = {
+    id: current.id,
+    kind: current.kind,
+    source: patch.source ?? current.source,
+    importProfile: Object.prototype.hasOwnProperty.call(patch, 'importProfile')
+      ? (patch.importProfile ?? null)
+      : current.importProfile,
+    publish: patch.publish ?? current.publish,
+    diagnostics: patch.diagnostics ?? current.diagnostics,
+  };
+  const importMetadata = Object.prototype.hasOwnProperty.call(patch, 'importMetadata')
+    ? patch.importMetadata
+    : current.importMetadata;
+  const dependencies = patch.dependencies ?? current.dependencies;
+  const withDependencies = dependencies === undefined ? merged : { ...merged, dependencies };
+  return importMetadata === undefined ? withDependencies : { ...withDependencies, importMetadata };
+}
+
+function catalogKindConfig(kind: AshaGameAssetKind): {
+  readonly importProfile: string;
+  readonly sourceSuffix: string;
+  readonly outputPrefix: string;
+} | null {
+  if (kind === 'static_mesh') {
+    return {
+      importProfile: 'inline-static-mesh.v0',
+      sourceSuffix: '.mesh.json',
+      outputPrefix: 'meshes/',
+    };
+  }
+  if (kind === 'material') {
+    return {
+      importProfile: 'inline-material.v0',
+      sourceSuffix: '.material.json',
+      outputPrefix: 'materials/',
+    };
+  }
+  if (kind === 'texture') {
+    return {
+      importProfile: 'inline-texture.v0',
+      sourceSuffix: '.texture.json',
+      outputPrefix: 'textures/',
+    };
+  }
+  return null;
 }
 
 function studioGameWorkspaceAttachDiagnostic(
@@ -4866,6 +5450,16 @@ export function buildStudioSceneAuthoringOperation(
       ));
     }
     if (request.operation.kind === 'update_scene_object') {
+      for (const key of Object.keys(request.operation.patch)) {
+        if (!['label', 'parentObjectId', 'transform'].includes(key)) {
+          diagnostics.push(studioSceneAuthoringDiagnostic(
+            'unsupported_scene_authoring_field',
+            `Scene authoring update field is not supported: ${key}.`,
+            request.operation.objectId,
+            key,
+          ));
+        }
+      }
       if (request.operation.patch.parentObjectId !== undefined && request.operation.patch.parentObjectId !== null) {
         const parent = sceneNodeIdFromObjectId(request.operation.patch.parentObjectId);
         if (!parentIds.has(parent)) {
