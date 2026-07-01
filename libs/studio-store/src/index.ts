@@ -11,6 +11,7 @@ import {
   buildStudioProofSceneList,
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
+  buildStudioCatalogWorkflowReadModel,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioGameWorkspaceReadout,
   buildStudioSceneFileList,
@@ -40,6 +41,7 @@ import {
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
   applyOpenSceneFileReadModel,
+  applyStudioCatalogAuthoringOperation,
   loadScenarioReadModel,
   loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
@@ -50,6 +52,7 @@ import {
   serializeWorkspaceSceneSource,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
+  studioCatalogAuthoringBaseHash,
   updateStudioRenderSetting,
   zoomStudioViewportCamera,
   type StudioAssetBrowserCategory,
@@ -66,6 +69,8 @@ import {
   type StudioSceneFileSourceInput,
   type StudioAssetInventoryEntryReadModel,
   type StudioAssetInventoryLoadResult,
+  type StudioCatalogSourceEvidenceInput,
+  type StudioCatalogWorkflowReadModel,
   type StudioProofSceneListLoadResult,
   type StudioPreferencesReadModel,
   type StudioRenderSettingKey,
@@ -77,6 +82,7 @@ import {
   type StudioWorkspaceReadModel,
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
+import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
 
@@ -487,11 +493,95 @@ function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
 
 function loadDemoAssetInventory(): StudioAssetInventoryLoadResult {
   return loadStudioAssetInventory(DEMO_ASSET_INVENTORY_ARTIFACT, {
-    referencedRenderableIds: {
-      'mesh.demo-cube': ['model-preview-crate'],
-      'material.demo-copper': ['model-preview-crate'],
-    },
+    referencedRenderableIds: demoReferencedRenderableIds(),
   });
+}
+
+function demoReferencedRenderableIds(): Readonly<Record<string, readonly string[]>> {
+  return {
+    'mesh.demo-cube': ['model-preview-crate'],
+    'material.demo-copper': ['model-preview-crate'],
+  };
+}
+
+function importProfileForKind(kind: string): string {
+  if (kind === 'static_mesh') {
+    return 'inline-static-mesh.v0';
+  }
+  if (kind === 'material') {
+    return 'inline-material.v0';
+  }
+  return 'inline-texture.v0';
+}
+
+function catalogFromInventoryArtifact(): AshaGameAssetCatalog {
+  return {
+    schemaVersion: 1,
+    entries: DEMO_ASSET_INVENTORY_ARTIFACT.entries.map((entry): AshaGameAssetCatalogEntry => ({
+      id: entry.assetId,
+      kind: entry.kind as AshaGameAssetKind,
+      source: entry.sourcePath,
+      importProfile: importProfileForKind(entry.kind),
+      importMetadata: {
+        sourceHash: entry.devResolution.sourceHash,
+        cacheKey: entry.devResolution.devCacheKey,
+        generatedArtifactVersion: entry.devResolution.generatedArtifactVersion,
+      },
+      dependencies: entry.dependencies ?? [],
+      publish: {
+        include: true,
+        outputKey: entry.publishResolution.outputKey,
+      },
+      diagnostics: {
+        owner: 'asha-studio',
+        notes: [],
+      },
+    })),
+  };
+}
+
+function inventoryFromCatalog(
+  catalog: AshaGameAssetCatalog,
+  catalogPath: string,
+  catalogHash: string,
+  referencedRenderableIds: Readonly<Record<string, readonly string[]>>,
+): StudioAssetInventoryLoadResult {
+  return loadStudioAssetInventory({
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: DEMO_ASSET_INVENTORY_ARTIFACT.sourceManifest,
+    catalog: { path: catalogPath, hash: catalogHash },
+    diagnostics: [],
+    dependencyOrder: catalog.entries.map(entry => entry.id),
+    entries: catalog.entries.map(entry => ({
+      assetId: entry.id,
+      kind: entry.kind,
+      sourcePath: entry.source,
+      dependencies: entry.dependencies ?? [],
+      devResolution: {
+        sourceHash: entry.importMetadata?.sourceHash ?? null,
+        devCacheKey: entry.importMetadata?.cacheKey ?? `dev-cache/${entry.kind}/${entry.id}`,
+        generatedArtifactVersion: entry.importMetadata?.generatedArtifactVersion ?? null,
+        importStatus: 'catalog-linked',
+        publishOutputKey: entry.publish.outputKey,
+      },
+      publishResolution: {
+        outputKey: entry.publish.outputKey,
+        packedPath: `harness/out/publish/resources/${entry.publish.outputKey}`,
+        packedHash: null,
+        packedBytes: null,
+      },
+      diagnostics: [],
+      evidenceRefs: [
+        {
+          kind: 'catalog-source',
+          path: entry.source,
+          sha256: entry.importMetadata?.sourceHash ?? null,
+        },
+      ],
+    })),
+  }, { referencedRenderableIds });
 }
 
 function loadDemoProofScenes(
@@ -743,6 +833,17 @@ export class StudioWorkspaceStore {
   private readonly runtimeAttachState = signal<StudioGameWorkspaceAttachReadModel | null>(null);
   private readonly runtimeLiveState = signal<StudioGameWorkspaceLiveReadModel | null>(null);
   private readonly runtimeConnectionMessageState = signal('No running project connected.');
+  private readonly catalogPathState = signal('packages/game-catalogs/catalog.json');
+  private readonly catalogSourceState = signal<AshaGameAssetCatalog>(catalogFromInventoryArtifact());
+  private readonly selectedCatalogWorkflowAssetIdState = signal<string | null>('mesh.demo-cube');
+  private readonly catalogSourceEvidenceState = signal<readonly StudioCatalogSourceEvidenceInput[]>(
+    DEMO_ASSET_INVENTORY_ARTIFACT.entries.map(entry => ({
+      path: entry.sourcePath,
+      exists: true,
+      hash: entry.devResolution.sourceHash,
+    })),
+  );
+  private readonly catalogWorkflowMessageState = signal('Catalog workflow ready.');
   private readonly assetInventoryState = signal<StudioAssetInventoryLoadResult>(
     loadDemoAssetInventory(),
   );
@@ -785,6 +886,7 @@ export class StudioWorkspaceStore {
   readonly menuMessage = this.menuMessageState.asReadonly();
   readonly gameWorkspaceOverview = this.gameWorkspaceState.asReadonly();
   readonly runtimeConnectionMessage = this.runtimeConnectionMessageState.asReadonly();
+  readonly catalogWorkflowMessage = this.catalogWorkflowMessageState.asReadonly();
   readonly assetInventory = this.assetInventoryState.asReadonly();
   readonly proofScenes = this.proofScenesState.asReadonly();
   readonly gameWorkspace = computed(() => {
@@ -821,6 +923,17 @@ export class StudioWorkspaceStore {
     buildStudioRunningProjectDiscovery({
       workspace: this.gameWorkspace(),
       runtimeSessions: this.runtimeSessions(),
+    }),
+  );
+  readonly catalogWorkflow = computed<StudioCatalogWorkflowReadModel>(() =>
+    buildStudioCatalogWorkflowReadModel({
+      workspace: this.gameWorkspace(),
+      catalogPath: this.catalogPathState(),
+      catalog: this.catalogSourceState(),
+      catalogHash: studioCatalogAuthoringBaseHash(this.catalogSourceState()),
+      selectedAssetId: this.selectedCatalogWorkflowAssetIdState(),
+      sourceEvidence: this.catalogSourceEvidenceState(),
+      referencedRenderableIds: demoReferencedRenderableIds(),
     }),
   );
   readonly commandProposalPanel = computed(() => {
@@ -1124,6 +1237,199 @@ export class StudioWorkspaceStore {
       return;
     }
     this.menuMessageState.set(`Catalog asset ${assetId} selected; no scene renderable reference.`);
+  }
+
+  selectCatalogWorkflowAsset(assetId: string): void {
+    this.selectedCatalogWorkflowAssetIdState.set(assetId);
+    this.catalogWorkflowMessageState.set(`Catalog asset ${assetId} selected.`);
+  }
+
+  createCatalogSource(path = 'packages/game-catalogs/catalog.json'): void {
+    const normalizedPath = normalizeProjectFilePath(path);
+    const catalog: AshaGameAssetCatalog = { schemaVersion: 1, entries: [] };
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId: 'catalog.create_source',
+      label: 'Create Catalog Source',
+      inputSummary: `path=${normalizedPath}`,
+      outputSummary: 'Empty catalog source created locally.',
+    });
+    this.workspaceState.set(recorded.workspace);
+    this.catalogPathState.set(normalizedPath);
+    this.catalogSourceState.set(catalog);
+    this.selectedCatalogWorkflowAssetIdState.set(null);
+    this.catalogSourceEvidenceState.set([]);
+    this.syncAssetInventoryFromCatalog();
+    this.catalogWorkflowMessageState.set(`Created catalog ${normalizedPath}.`);
+  }
+
+  async loadCatalogSource(path = this.catalogPathState()): Promise<void> {
+    const normalizedPath = normalizeProjectFilePath(path);
+    try {
+      const readback = await this.readProjectText(normalizedPath);
+      const parsed = JSON.parse(readback.text) as AshaGameAssetCatalog;
+      if (!Array.isArray(parsed.entries) || parsed.schemaVersion !== 1) {
+        throw new Error('invalid catalog schema');
+      }
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'catalog.load_source',
+        label: 'Load Catalog Source',
+        inputSummary: `path=${normalizedPath}`,
+        outputSummary: `Catalog source ${normalizedPath} loaded.`,
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.catalogPathState.set(normalizeProjectFilePath(readback.path));
+      this.catalogSourceState.set(parsed);
+      this.selectedCatalogWorkflowAssetIdState.set(parsed.entries.at(0)?.id ?? null);
+      this.syncAssetInventoryFromCatalog();
+      this.catalogWorkflowMessageState.set(`Loaded catalog ${normalizedPath}.`);
+    } catch {
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'catalog.load_source',
+        label: 'Load Catalog Source',
+        inputSummary: `path=${normalizedPath}`,
+        outputSummary: `Catalog source ${normalizedPath} could not be loaded.`,
+        status: 'rejected',
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.catalogWorkflowMessageState.set(`Could not load catalog ${normalizedPath}.`);
+    }
+  }
+
+  async saveCatalogSource(): Promise<void> {
+    const path = this.catalogPathState();
+    const text = `${JSON.stringify(this.catalogSourceState(), null, 2)}\n`;
+    try {
+      let persistedHash = stableBrowserHash(text);
+      if (this.projectFileConnectedState()) {
+        const response = await fetch(`${projectFileApiBase()}/api/project/file`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ path, text }),
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const payload = await response.json() as { readonly ok?: boolean; readonly sha256?: string; readonly diagnostic?: string };
+        if (payload.ok === false) {
+          throw new Error(payload.diagnostic ?? 'catalog write rejected');
+        }
+        persistedHash = payload.sha256 ?? persistedHash;
+        await this.refreshProjectFiles(parentProjectDir(path));
+      }
+      this.syncAssetInventoryFromCatalog(persistedHash);
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'catalog.save_source',
+        label: 'Save Catalog Source',
+        inputSummary: `path=${path}`,
+        outputSummary: `Catalog source ${path} saved.`,
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.catalogWorkflowMessageState.set(`Saved catalog ${path}.`);
+    } catch {
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'catalog.save_source',
+        label: 'Save Catalog Source',
+        inputSummary: `path=${path}`,
+        outputSummary: `Catalog source ${path} could not be saved.`,
+        status: 'rejected',
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.catalogWorkflowMessageState.set(`Could not save catalog ${path}.`);
+    }
+  }
+
+  linkCatalogAsset(kind: AshaGameAssetKind = 'material'): void {
+    const catalog = this.catalogSourceState();
+    const suffix = catalog.entries.length + 1;
+    const assetId = `${kind === 'static_mesh' ? 'mesh' : kind}.studio-linked-${suffix}`;
+    const sourceSuffix = kind === 'static_mesh' ? 'mesh' : kind;
+    const entry: AshaGameAssetCatalogEntry = {
+      id: assetId,
+      kind,
+      source: `assets/${kind === 'static_mesh' ? 'meshes' : `${kind}s`}/studio-linked-${suffix}.${sourceSuffix}.json`,
+      importProfile: importProfileForKind(kind),
+      importMetadata: {
+        sourceHash: 'sha256:pending',
+        cacheKey: `dev-cache/${kind}/${assetId}`,
+        generatedArtifactVersion: 'asset-import.v1',
+      },
+      dependencies: kind === 'static_mesh' && catalog.entries.some(candidate => candidate.kind === 'material')
+        ? [catalog.entries.find(candidate => candidate.kind === 'material')?.id ?? '']
+        : [],
+      publish: {
+        include: false,
+        outputKey: `${kind === 'static_mesh' ? 'meshes' : `${kind}s`}/studio-linked-${suffix}.${sourceSuffix}.json`,
+      },
+      diagnostics: {
+        owner: 'asha-studio',
+        notes: ['linked from Studio catalog workflow'],
+      },
+    };
+    this.applyCatalogOperation('catalog.link_asset', {
+      kind: 'create_catalog_entry',
+      entry: { ...entry, dependencies: (entry.dependencies ?? []).filter(Boolean) },
+    });
+  }
+
+  updateSelectedCatalogAssetSource(sourcePath: string): void {
+    const assetId = this.catalogWorkflow().selectedAssetId;
+    if (assetId === null) {
+      this.catalogWorkflowMessageState.set('Select a catalog asset before updating it.');
+      return;
+    }
+    this.applyCatalogOperation('catalog.update_asset', {
+      kind: 'update_catalog_entry',
+      assetId,
+      patch: { source: normalizeProjectFilePath(sourcePath) },
+    });
+  }
+
+  removeSelectedCatalogAsset(): void {
+    const assetId = this.catalogWorkflow().selectedAssetId;
+    if (assetId === null) {
+      this.catalogWorkflowMessageState.set('Select a catalog asset before removing it.');
+      return;
+    }
+    this.applyCatalogOperation('catalog.remove_asset', { kind: 'remove_catalog_entry', assetId });
+  }
+
+  async validateCatalogSource(): Promise<void> {
+    const evidence: StudioCatalogSourceEvidenceInput[] = [];
+    if (this.projectFileConnectedState()) {
+      for (const entry of this.catalogSourceState().entries) {
+        try {
+          const readback = await this.readProjectText(entry.source);
+          evidence.push({ path: entry.source, exists: true, hash: readback.sha256 });
+        } catch {
+          evidence.push({ path: entry.source, exists: false, hash: null });
+        }
+      }
+    } else {
+      evidence.push(...this.catalogSourceEvidenceState());
+    }
+    this.catalogSourceEvidenceState.set(evidence);
+    const workflow = buildStudioCatalogWorkflowReadModel({
+      workspace: this.gameWorkspace(),
+      catalogPath: this.catalogPathState(),
+      catalog: this.catalogSourceState(),
+      catalogHash: studioCatalogAuthoringBaseHash(this.catalogSourceState()),
+      selectedAssetId: this.selectedCatalogWorkflowAssetIdState(),
+      sourceEvidence: evidence,
+      referencedRenderableIds: demoReferencedRenderableIds(),
+    });
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId: 'catalog.validate_source',
+      label: 'Validate Catalog Source',
+      inputSummary: `path=${this.catalogPathState()};entries=${workflow.entryCount}`,
+      outputSummary: workflow.diagnostics.length === 0
+        ? 'Catalog validation passed.'
+        : `${workflow.diagnostics.length} catalog diagnostics.`,
+      status: workflow.diagnostics.length === 0 ? 'ok' : 'rejected',
+    });
+    this.workspaceState.set(recorded.workspace);
+    this.catalogWorkflowMessageState.set(
+      workflow.diagnostics.length === 0 ? 'Catalog validation passed.' : `${workflow.diagnostics.length} catalog diagnostics.`,
+    );
   }
 
   setViewportTool(activeTool: StudioViewportToolMode): void {
@@ -1632,6 +1938,77 @@ export class StudioWorkspaceStore {
     });
     this.workspaceState.set(recorded.workspace);
     this.menuMessageState.set('View preference updated.');
+  }
+
+  private async readProjectText(path: string): Promise<{ readonly path: string; readonly text: string; readonly sha256: string }> {
+    const normalizedPath = normalizeProjectFilePath(path);
+    if (!this.projectFileConnectedState()) {
+      throw new Error('project file server is not connected');
+    }
+    const response = await fetch(`${projectFileApiBase()}/api/project/file?path=${encodeURIComponent(normalizedPath)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly path?: string;
+      readonly text?: string;
+      readonly sha256?: string;
+      readonly diagnostic?: string;
+    };
+    if (payload.ok === false || typeof payload.path !== 'string' || typeof payload.text !== 'string' || typeof payload.sha256 !== 'string') {
+      throw new Error(payload.diagnostic ?? 'invalid project file readback');
+    }
+    return { path: normalizeProjectFilePath(payload.path), text: payload.text, sha256: payload.sha256 };
+  }
+
+  private applyCatalogOperation(
+    commandId: 'catalog.link_asset' | 'catalog.update_asset' | 'catalog.remove_asset',
+    operation: Parameters<typeof applyStudioCatalogAuthoringOperation>[1]['operation'],
+  ): void {
+    const catalog = this.catalogSourceState();
+    const result = applyStudioCatalogAuthoringOperation(catalog, {
+      actor: 'gui',
+      expectedBaseHash: studioCatalogAuthoringBaseHash(catalog),
+      operation,
+    });
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId,
+      label: commandId === 'catalog.link_asset'
+        ? 'Link Catalog Asset'
+        : commandId === 'catalog.update_asset'
+          ? 'Update Catalog Asset'
+          : 'Remove Catalog Asset',
+      inputSummary: `operation=${operation.kind}`,
+      outputSummary: result.ok
+        ? `Catalog operation ${operation.kind} applied.`
+        : result.diagnostics.at(0)?.message ?? 'Catalog operation rejected.',
+      status: result.ok ? 'ok' : 'rejected',
+    });
+    this.workspaceState.set(recorded.workspace);
+    if (!result.ok) {
+      this.catalogWorkflowMessageState.set(result.diagnostics.at(0)?.message ?? 'Catalog operation rejected.');
+      return;
+    }
+    this.catalogSourceState.set(result.catalog);
+    if (operation.kind === 'create_catalog_entry') {
+      this.selectedCatalogWorkflowAssetIdState.set(operation.entry.id);
+    } else if (operation.kind === 'remove_catalog_entry') {
+      this.selectedCatalogWorkflowAssetIdState.set(result.catalog.entries.at(0)?.id ?? null);
+    }
+    this.syncAssetInventoryFromCatalog(result.catalogHash);
+    this.catalogWorkflowMessageState.set(`Catalog operation ${operation.kind} applied.`);
+  }
+
+  private syncAssetInventoryFromCatalog(catalogHash = studioCatalogAuthoringBaseHash(this.catalogSourceState())): void {
+    this.assetInventoryState.set(
+      inventoryFromCatalog(
+        this.catalogSourceState(),
+        this.catalogPathState(),
+        catalogHash,
+        demoReferencedRenderableIds(),
+      ),
+    );
   }
 
   private catalogAssetMatchesCategory(asset: StudioAssetInventoryEntryReadModel): boolean {

@@ -31,6 +31,7 @@ import {
   buildAshaAuthoringPersistenceContract,
   parseAshaGameManifestToml,
   resolveAshaAuthoringWriteTarget,
+  validateAshaGameAssetCatalog,
   validateAshaConsumerCompatibility,
   type AshaGameAssetCatalog,
   type AshaGameAssetCatalogEntry,
@@ -77,6 +78,7 @@ export type StudioAssetBrowserCategory =
 export type StudioBottomPanelTab =
   | 'timeline'
   | 'assets'
+  | 'catalog'
   | 'proof_scenes'
   | 'commands'
   | 'publish'
@@ -96,6 +98,13 @@ export type StudioUiEventCommandId =
   | 'scene.open_source'
   | 'scene.save_source'
   | 'scene.save_source_as'
+  | 'catalog.create_source'
+  | 'catalog.load_source'
+  | 'catalog.save_source'
+  | 'catalog.link_asset'
+  | 'catalog.update_asset'
+  | 'catalog.remove_asset'
+  | 'catalog.validate_source'
   | 'project.refresh_sessions'
   | 'project.connect_running'
   | 'project.disconnect_running';
@@ -224,6 +233,14 @@ export type StudioCatalogAuthoringDiagnosticCode =
   | 'invalid_catalog_asset_metadata'
   | 'missing_catalog_dependency'
   | 'unsupported_catalog_authoring_field';
+export type StudioCatalogWorkflowDiagnosticCode =
+  | 'catalog_workflow_missing_workspace'
+  | 'catalog_workflow_path_not_allowed'
+  | 'catalog_workflow_invalid_schema'
+  | 'catalog_workflow_missing_entry'
+  | 'catalog_workflow_source_missing'
+  | 'catalog_workflow_source_hash_mismatch'
+  | 'catalog_workflow_validation_diagnostic';
 export type StudioAuthoredStatePanelReflectionDiagnosticCode =
   | 'authored_panel_marker_missing'
   | 'authored_scene_object_missing_from_hierarchy'
@@ -557,6 +574,72 @@ export type StudioCatalogAuthoringApplyResult =
       readonly diagnostics: readonly StudioDiagnostic[];
       readonly catalogHash: string;
     };
+
+export interface StudioCatalogSourceEvidenceInput {
+  readonly path: string;
+  readonly exists: boolean;
+  readonly hash: string | null;
+}
+
+export interface StudioCatalogAssetPreviewReadModel {
+  readonly assetId: string;
+  readonly kind: AshaGameAssetKind;
+  readonly sourcePath: string;
+  readonly sourceExists: boolean;
+  readonly sourceHash: string | null;
+  readonly expectedSourceHash: string | null;
+  readonly sourceHashMatches: boolean | null;
+  readonly dependencies: readonly string[];
+  readonly dependencyStatus: 'none' | 'resolved' | 'missing';
+  readonly missingDependencies: readonly string[];
+  readonly publishOutputKey: string | null;
+  readonly referencedRenderableIds: readonly string[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly previewHash: string;
+}
+
+export interface StudioCatalogWorkflowReadModel {
+  readonly workflowVersion: 'studio-catalog-workflow.v0';
+  readonly catalogPath: string;
+  readonly catalogHash: string;
+  readonly entryCount: number;
+  readonly selectedAssetId: string | null;
+  readonly selectedAsset: StudioCatalogAssetPreviewReadModel | null;
+  readonly assets: readonly StudioCatalogAssetPreviewReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly commandIds: {
+    readonly create: 'catalog.create_source';
+    readonly load: 'catalog.load_source';
+    readonly save: 'catalog.save_source';
+    readonly linkAsset: 'catalog.link_asset';
+    readonly updateAsset: 'catalog.update_asset';
+    readonly removeAsset: 'catalog.remove_asset';
+    readonly validate: 'catalog.validate_source';
+  };
+  readonly previewStrategy: {
+    readonly now: readonly [
+      'metadata',
+      'dependency_status',
+      'source_hash',
+      'referenced_renderables',
+    ];
+    readonly deferred: readonly [
+      'mesh_preview',
+      'material_preview',
+      'texture_preview',
+      'runtime_loaded_preview',
+    ];
+  };
+  readonly nonClaims: readonly [
+    'not_mesh_material_texture_preview',
+    'not_private_asset_database',
+    'not_runtime_authority',
+    'not_publish_builder',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+  ];
+  readonly workflowHash: string;
+}
 
 export interface StudioAuthoredStatePanelReflectionReadModel {
   readonly reflectionVersion: 'studio-authored-state-panel-reflection.v0';
@@ -4707,6 +4790,178 @@ export function applyStudioCatalogAuthoringOperation(
   };
 }
 
+export function buildStudioCatalogWorkflowReadModel(input: {
+  readonly workspace: StudioGameWorkspaceReadModel | null;
+  readonly catalogPath: string;
+  readonly catalog: AshaGameAssetCatalog | null;
+  readonly catalogHash: string;
+  readonly selectedAssetId?: string | null;
+  readonly sourceEvidence?: readonly StudioCatalogSourceEvidenceInput[];
+  readonly referencedRenderableIds?: Readonly<Record<string, readonly string[]>>;
+}): StudioCatalogWorkflowReadModel {
+  const diagnostics: StudioDiagnostic[] = [];
+  const sourceEvidence = new Map((input.sourceEvidence ?? []).map(evidence => [evidence.path, evidence]));
+  if (input.workspace === null) {
+    diagnostics.push(studioCatalogWorkflowDiagnostic(
+      'catalog_workflow_missing_workspace',
+      'Catalog workflow requires an opened game workspace.',
+      input.catalogPath,
+      'Open a game workspace before editing catalogs.',
+    ));
+  }
+  const allowedCatalogRoots = input.workspace?.catalogPackages ?? [];
+  const allowed = allowedCatalogRoots.some(root =>
+    input.catalogPath === `${root}/catalog.json` || input.catalogPath.startsWith(`${root}/`),
+  );
+  if (input.workspace !== null && !allowed) {
+    diagnostics.push(studioCatalogWorkflowDiagnostic(
+      'catalog_workflow_path_not_allowed',
+      `Catalog path ${input.catalogPath} is outside manifest catalog packages.`,
+      input.catalogPath,
+      `Use one of: ${allowedCatalogRoots.join(', ')}`,
+    ));
+  }
+  if (input.catalog === null) {
+    diagnostics.push(studioCatalogWorkflowDiagnostic(
+      'catalog_workflow_invalid_schema',
+      'Catalog source must parse as an ASHA game asset catalog.',
+      input.catalogPath,
+      'Load or create a catalog.json source.',
+    ));
+  }
+  if (input.catalog !== null && input.catalog.entries.length === 0) {
+    diagnostics.push(studioCatalogWorkflowDiagnostic(
+      'catalog_workflow_missing_entry',
+      'Catalog source must contain at least one asset entry before it is useful.',
+      input.catalogPath,
+      'Link an asset entry into the catalog.',
+    ));
+  }
+
+  const validation = input.catalog === null || input.workspace === null
+    ? null
+    : validateAshaGameAssetCatalog(
+        input.catalog,
+        input.workspace.manifest,
+        path => sourceEvidence.get(path)?.exists ?? false,
+        { sourceHash: path => sourceEvidence.get(path)?.hash ?? null },
+      );
+  if (validation !== null && !validation.ok) {
+    for (const diagnostic of validation.diagnostics) {
+      diagnostics.push(studioCatalogWorkflowDiagnostic(
+        'catalog_workflow_validation_diagnostic',
+        diagnostic.message,
+        diagnostic.path,
+        diagnostic.code,
+      ));
+    }
+  }
+
+  const assetIds = new Set(input.catalog?.entries.map(entry => entry.id) ?? []);
+  const assets = (input.catalog?.entries ?? []).map(entry => {
+    const assetDiagnostics: StudioDiagnostic[] = [];
+    const evidence = sourceEvidence.get(entry.source) ?? null;
+    if (evidence !== null && !evidence.exists) {
+      assetDiagnostics.push(studioCatalogWorkflowDiagnostic(
+        'catalog_workflow_source_missing',
+        `Catalog asset ${entry.id} source is missing: ${entry.source}.`,
+        entry.source,
+        'Create the source file or update the catalog entry source.',
+      ));
+    }
+    const expectedSourceHash = entry.importMetadata?.sourceHash ?? null;
+    const sourceHashMatches = evidence?.hash === null || expectedSourceHash === null || evidence === null
+      ? null
+      : evidence.hash === expectedSourceHash;
+    if (sourceHashMatches === false) {
+      assetDiagnostics.push(studioCatalogWorkflowDiagnostic(
+        'catalog_workflow_source_hash_mismatch',
+        `Catalog asset ${entry.id} source hash does not match import metadata.`,
+        entry.source,
+        `${expectedSourceHash} != ${evidence?.hash ?? 'missing'}`,
+      ));
+    }
+    const dependencies = entry.dependencies ?? [];
+    const missingDependencies = dependencies.filter(dependency => !assetIds.has(dependency));
+    if (missingDependencies.length > 0) {
+      assetDiagnostics.push(studioCatalogWorkflowDiagnostic(
+        'catalog_workflow_validation_diagnostic',
+        `Catalog asset ${entry.id} depends on missing assets: ${missingDependencies.join(', ')}.`,
+        entry.id,
+        'missing_asset_dependency',
+      ));
+    }
+    diagnostics.push(...assetDiagnostics);
+    const preview: StudioCatalogAssetPreviewReadModel = {
+      assetId: entry.id,
+      kind: entry.kind,
+      sourcePath: entry.source,
+      sourceExists: evidence?.exists ?? false,
+      sourceHash: evidence?.hash ?? null,
+      expectedSourceHash,
+      sourceHashMatches,
+      dependencies,
+      dependencyStatus:
+        dependencies.length === 0
+          ? 'none'
+          : missingDependencies.length === 0
+            ? 'resolved'
+            : 'missing',
+      missingDependencies,
+      publishOutputKey: entry.publish.outputKey,
+      referencedRenderableIds: input.referencedRenderableIds?.[entry.id] ?? [],
+      diagnostics: assetDiagnostics,
+      previewHash: fnv1aHash('studio-catalog-asset-preview', {
+        entry,
+        evidence,
+        missingDependencies,
+        referencedRenderableIds: input.referencedRenderableIds?.[entry.id] ?? [],
+      }),
+    };
+    return preview;
+  });
+  const selectedAsset = assets.find(asset => asset.assetId === input.selectedAssetId) ?? assets.at(0) ?? null;
+
+  return {
+    workflowVersion: 'studio-catalog-workflow.v0',
+    catalogPath: input.catalogPath,
+    catalogHash: input.catalogHash,
+    entryCount: input.catalog?.entries.length ?? 0,
+    selectedAssetId: selectedAsset?.assetId ?? null,
+    selectedAsset,
+    assets,
+    diagnostics,
+    commandIds: {
+      create: 'catalog.create_source',
+      load: 'catalog.load_source',
+      save: 'catalog.save_source',
+      linkAsset: 'catalog.link_asset',
+      updateAsset: 'catalog.update_asset',
+      removeAsset: 'catalog.remove_asset',
+      validate: 'catalog.validate_source',
+    },
+    previewStrategy: {
+      now: ['metadata', 'dependency_status', 'source_hash', 'referenced_renderables'],
+      deferred: ['mesh_preview', 'material_preview', 'texture_preview', 'runtime_loaded_preview'],
+    },
+    nonClaims: [
+      'not_mesh_material_texture_preview',
+      'not_private_asset_database',
+      'not_runtime_authority',
+      'not_publish_builder',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+    workflowHash: fnv1aHash('studio-catalog-workflow', {
+      catalogPath: input.catalogPath,
+      catalogHash: input.catalogHash,
+      selectedAssetId: selectedAsset?.assetId ?? null,
+      assets,
+      diagnostics,
+    }),
+  };
+}
+
 export function buildStudioAuthoredStatePanelReflection(input: {
   readonly workspace: StudioWorkspaceReadModel;
   readonly assetInventory: StudioAssetInventoryReadModel;
@@ -5043,6 +5298,21 @@ function studioCatalogAuthoringDiagnostic(
 ): StudioDiagnostic {
   return {
     severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioCatalogWorkflowDiagnostic(
+  code: StudioCatalogWorkflowDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: code === 'catalog_workflow_validation_diagnostic' ? 'warning' : 'error',
     code,
     message,
     source,

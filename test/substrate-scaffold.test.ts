@@ -22,6 +22,7 @@ import {
   buildStudioWorkspaceOpenReadModel,
   buildStudioSceneAuthoringOperation,
   buildStudioCatalogAuthoringOperation,
+  buildStudioCatalogWorkflowReadModel,
   buildStudioCommandProposalPanel,
   buildStudioAuthoredBrowserDebugReadModel,
   buildStudioGameWorkspaceCommandProposalReadModel,
@@ -2388,6 +2389,61 @@ test('catalog entry authoring workflow projects saved entry into asset inventory
   assert.equal(authored?.dependencyStatus, 'resolved');
 });
 
+test('catalog workflow read model exposes bounded human commands and preview non-claims', () => {
+  const catalog = sampleCatalog();
+  const workspace = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: path => existsSync(join(demoRoot, path)),
+  });
+  assert.equal(workspace.ok, true);
+  if (!workspace.ok) throw new Error('workspace fixture failed');
+
+  const workflow = buildStudioCatalogWorkflowReadModel({
+    workspace: workspace.workspace,
+    catalogPath: 'packages/game-catalogs/catalog.json',
+    catalog,
+    catalogHash: studioCatalogAuthoringBaseHash(catalog),
+    selectedAssetId: 'material.demo-copper',
+    sourceEvidence: [
+      { path: 'assets/textures/demo-checker.texture.json', exists: true, hash: 'sha256:texture' },
+      { path: 'assets/materials/demo-copper.material.json', exists: true, hash: 'sha256:material' },
+      { path: 'assets/meshes/demo-cube.mesh.json', exists: true, hash: 'sha256:mesh' },
+    ],
+    referencedRenderableIds: { 'material.demo-copper': ['model-preview-crate'] },
+  });
+
+  assert.equal(workflow.commandIds.create, 'catalog.create_source');
+  assert.equal(workflow.commandIds.linkAsset, 'catalog.link_asset');
+  assert.equal(workflow.selectedAsset?.assetId, 'material.demo-copper');
+  assert.ok(workflow.selectedAsset?.referencedRenderableIds.includes('model-preview-crate'));
+  assert.ok(workflow.previewStrategy.now.includes('source_hash'));
+  assert.ok(workflow.previewStrategy.deferred.includes('mesh_preview'));
+  assert.ok(workflow.nonClaims.includes('not_mesh_material_texture_preview'));
+
+  const missingSource = buildStudioCatalogWorkflowReadModel({
+    workspace: workspace.workspace,
+    catalogPath: 'packages/game-catalogs/catalog.json',
+    catalog,
+    catalogHash: studioCatalogAuthoringBaseHash(catalog),
+    sourceEvidence: [
+      { path: 'assets/textures/demo-checker.texture.json', exists: false, hash: null },
+    ],
+  });
+  assert.ok(missingSource.diagnostics.some(diagnostic => diagnostic.code === 'catalog_workflow_source_missing'));
+
+  const privatePath = buildStudioCatalogWorkflowReadModel({
+    workspace: workspace.workspace,
+    catalogPath: '../outside/catalog.json',
+    catalog,
+    catalogHash: studioCatalogAuthoringBaseHash(catalog),
+  });
+  assert.ok(privatePath.diagnostics.some(diagnostic => diagnostic.code === 'catalog_workflow_path_not_allowed'));
+});
+
 test('authored state panel reflection proves saved scene and catalog readouts are visible', () => {
   const workspace = buildInitialWorkspaceReadModel();
   const selectedObjectId = workspace.selectedEntityId;
@@ -3681,6 +3737,23 @@ test('asset browser entries project catalog assets and referenced renderables fo
   assert.equal(panelSource.includes('assetTypeLabel(renderable)'), true);
 });
 
+test('catalog bottom panel exposes human catalog workflow without preview overclaims', () => {
+  const panelSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
+    'utf8',
+  );
+  const doc = readFileSync(join(repoRoot, 'docs', 'catalog-preview-strategy-m3.md'), 'utf8');
+
+  assert.equal(panelSource.includes("store.setBottomPanelTab('catalog')"), true);
+  assert.equal(panelSource.includes('data-visual-id="studio-catalog-workflow-panel"'), true);
+  assert.equal(panelSource.includes('store.linkCatalogAsset'), true);
+  assert.equal(panelSource.includes('store.validateCatalogSource'), true);
+  assert.equal(panelSource.includes('data-catalog-source-exists'), true);
+  assert.equal(doc.includes('Previewable Now'), true);
+  assert.equal(doc.includes('not_mesh_material_texture_preview'), true);
+  assert.equal(doc.includes('pnpm run proof:catalog-workflow-m3'), true);
+});
+
 test('viewport raycast debug draws temporary hit markers from view render setting', () => {
   const viewportSource = readFileSync(
     join(repoRoot, 'libs', 'studio-viewport', 'src', 'index.ts'),
@@ -3802,6 +3875,10 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-running-project-connection.ts'),
     'utf8',
   );
+  const catalogWorkflowM3Source = readFileSync(
+    join(repoRoot, 'scripts', 'proof-catalog-workflow-m3.ts'),
+    'utf8',
+  );
 
   assert.equal(
     packageJson.scripts['proof:selected-backend-attach'],
@@ -3891,6 +3968,10 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     packageJson.scripts['proof:running-project-connection'],
     'tsx scripts/proof-running-project-connection.ts',
   );
+  assert.equal(
+    packageJson.scripts['proof:catalog-workflow-m3'],
+    'tsx scripts/proof-catalog-workflow-m3.ts',
+  );
   assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
   assert.equal(sceneFileMenuWorkflowSource.includes("artifactKind: 'studio_scene_file_menu_browser_proof'"), true);
@@ -3954,6 +4035,9 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(runningProjectConnectionSource.includes("artifactKind: 'studio_running_project_connection_browser_proof'"), true);
   assert.equal(runningProjectConnectionSource.includes('structured running project readout JSON is required'), true);
   assert.equal(runningProjectConnectionSource.includes('negative_private_transport_failed_closed'), true);
+  assert.equal(catalogWorkflowM3Source.includes("artifactKind: 'studio_catalog_workflow_m3_browser_proof'"), true);
+  assert.equal(catalogWorkflowM3Source.includes('structured catalog workflow readout JSON is required'), true);
+  assert.equal(catalogWorkflowM3Source.includes('negative_private_catalog_path_failed_closed'), true);
 });
 
 test('live debug session identity proof command records freshness and child artifacts', () => {
@@ -4124,6 +4208,27 @@ test('running project connection browser proof captures human connect readout', 
   assert.ok(artifact.validations.includes('browser_dom_contains_structured_running_project_readout'));
   assert.ok(artifact.validations.includes('negative_private_transport_failed_closed'));
   assert.ok(artifact.nonClaims.includes('not_network_scan'));
+  assert.match(artifact.browser.screenshotHash, /^sha256:/);
+});
+
+test('catalog workflow M3 browser proof captures human catalog readout', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:catalog-workflow-m3'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/catalog-workflow-m3\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/catalog-workflow-m3/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_catalog_workflow_m3_browser_proof');
+  assert.equal(artifact.readout.workflow.commandIds.linkAsset, 'catalog.link_asset');
+  assert.ok(artifact.validations.includes('browser_dom_contains_structured_catalog_readout'));
+  assert.ok(artifact.validations.includes('negative_private_catalog_path_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_mesh_material_texture_preview'));
   assert.match(artifact.browser.screenshotHash, /^sha256:/);
 });
 

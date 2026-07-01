@@ -41,6 +41,7 @@
     "proof:live-debug-command-proposals": "tsx scripts/proof-live-debug-command-proposals.ts",
     "proof:live-gameplay-debug-m4": "tsx scripts/proof-live-gameplay-debug-m4.ts",
     "proof:running-project-connection": "tsx scripts/proof-running-project-connection.ts",
+    "proof:catalog-workflow-m3": "tsx scripts/proof-catalog-workflow-m3.ts",
     "proof:selected-backend-command": "tsx scripts/proof-selected-backend-command.ts",
     "proof:selected-backend-browser-smoke": "tsx scripts/proof-selected-backend-browser-smoke.ts",
     "proof:v2-live-backend-evidence": "tsx scripts/proof-v2-live-backend-evidence.ts",

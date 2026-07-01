@@ -1329,6 +1329,13 @@ export class StudioInspectorPanelComponent {
           </button>
           <button
             type="button"
+            [class.active]="store.bottomPanelTab() === 'catalog'"
+            (click)="store.setBottomPanelTab('catalog')"
+          >
+            Catalog
+          </button>
+          <button
+            type="button"
             [class.active]="store.bottomPanelTab() === 'proof_scenes'"
             (click)="store.setBottomPanelTab('proof_scenes')"
           >
@@ -1461,6 +1468,110 @@ export class StudioInspectorPanelComponent {
               <p class="empty-assets">No assets match {{ store.assetBrowserSummary() }}.</p>
             }
           </div>
+        </div>
+      } @else if (store.bottomPanelTab() === 'catalog') {
+        <div class="catalog-workflow" data-visual-id="studio-catalog-workflow-panel">
+          @if (store.catalogWorkflow(); as catalog) {
+            <section class="catalog-toolbar" aria-label="Catalog workflow commands">
+              <div>
+                <span>{{ catalog.workflowVersion }}</span>
+                <strong>{{ catalog.catalogPath }}</strong>
+                <small>{{ catalog.entryCount }} entries · {{ catalog.catalogHash }}</small>
+              </div>
+              <button type="button" (click)="store.createCatalogSource()">New</button>
+              <button type="button" (click)="loadCatalog()">Load</button>
+              <button type="button" (click)="saveCatalog()">Save</button>
+              <button type="button" (click)="store.linkCatalogAsset('material')">Link Material</button>
+              <button type="button" (click)="store.linkCatalogAsset('static_mesh')">Link Mesh</button>
+              <button type="button" (click)="validateCatalog()">Validate</button>
+            </section>
+            <section class="catalog-message" data-catalog-workflow-message>
+              {{ store.catalogWorkflowMessage() }}
+            </section>
+            <div class="catalog-workflow-grid">
+              <section class="catalog-asset-list" aria-label="Catalog assets">
+                @for (asset of catalog.assets; track asset.assetId) {
+                  <article
+                    role="button"
+                    tabindex="0"
+                    class="catalog-asset-row"
+                    [class.catalog-asset-row--selected]="asset.assetId === catalog.selectedAssetId"
+                    [class.catalog-asset-row--diagnostic]="asset.diagnostics.length > 0"
+                    [attr.data-catalog-asset-id]="asset.assetId"
+                    [attr.data-catalog-source-exists]="asset.sourceExists"
+                    (click)="store.selectCatalogWorkflowAsset(asset.assetId)"
+                    (keydown.enter)="store.selectCatalogWorkflowAsset(asset.assetId)"
+                    (keydown.space)="store.selectCatalogWorkflowAsset(asset.assetId)"
+                  >
+                    <strong>{{ asset.assetId }}</strong>
+                    <span>{{ asset.kind }} · {{ asset.dependencyStatus }}</span>
+                    <small>{{ asset.sourcePath }}</small>
+                  </article>
+                } @empty {
+                  <p class="empty-assets">No catalog assets linked.</p>
+                }
+              </section>
+              <section class="catalog-detail" data-catalog-selected-asset>
+                @if (catalog.selectedAsset; as asset) {
+                  <header>
+                    <div>
+                      <strong>{{ asset.assetId }}</strong>
+                      <span>{{ asset.kind }} · {{ asset.previewHash }}</span>
+                    </div>
+                    <button type="button" (click)="store.removeSelectedCatalogAsset()">Remove</button>
+                  </header>
+                  <label>
+                    Source
+                    <input
+                      type="text"
+                      [value]="asset.sourcePath"
+                      (change)="store.updateSelectedCatalogAssetSource($any($event.target).value)"
+                    />
+                  </label>
+                  <dl>
+                    <dt>source exists</dt>
+                    <dd>{{ asset.sourceExists }}</dd>
+                    <dt>source hash</dt>
+                    <dd>{{ asset.sourceHash ?? 'not read' }}</dd>
+                    <dt>expected hash</dt>
+                    <dd>{{ asset.expectedSourceHash ?? 'none' }}</dd>
+                    <dt>hash matches</dt>
+                    <dd>{{ asset.sourceHashMatches ?? 'unknown' }}</dd>
+                    <dt>dependencies</dt>
+                    <dd>{{ asset.dependencies.join(', ') || 'none' }}</dd>
+                    <dt>render refs</dt>
+                    <dd>{{ asset.referencedRenderableIds.join(', ') || 'none' }}</dd>
+                    <dt>publish</dt>
+                    <dd>{{ asset.publishOutputKey ?? 'none' }}</dd>
+                  </dl>
+                  @if (asset.diagnostics.length > 0) {
+                    <section class="catalog-diagnostics" data-catalog-asset-diagnostics="present">
+                      @for (diagnostic of asset.diagnostics; track diagnostic.code + diagnostic.source) {
+                        <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
+                      }
+                    </section>
+                  }
+                } @else {
+                  <p class="empty-assets">Select or link a catalog asset.</p>
+                }
+              </section>
+              <section class="catalog-preview-policy" aria-label="Catalog preview strategy">
+                <strong>Preview Readout</strong>
+                <span>Now: {{ catalog.previewStrategy.now.join(', ') }}</span>
+                <span>Deferred: {{ catalog.previewStrategy.deferred.join(', ') }}</span>
+                @for (nonClaim of catalog.nonClaims; track nonClaim) {
+                  <small>{{ nonClaim }}</small>
+                }
+              </section>
+            </div>
+            @if (catalog.diagnostics.length > 0) {
+              <section class="catalog-diagnostics" data-catalog-workflow-diagnostics="present">
+                @for (diagnostic of catalog.diagnostics; track diagnostic.code + diagnostic.source + diagnostic.message) {
+                  <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
+                }
+              </section>
+            }
+          }
         </div>
       } @else if (store.bottomPanelTab() === 'proof_scenes') {
         <div class="proof-scene-panel" data-visual-id="studio-proof-scene-panel">
@@ -2216,6 +2327,104 @@ export class StudioInspectorPanelComponent {
         margin: 0;
       }
 
+      .catalog-workflow {
+        display: grid;
+        gap: 0.5rem;
+        min-height: 0;
+      }
+
+      .catalog-toolbar {
+        align-items: center;
+        display: flex;
+        gap: 0.45rem;
+        min-width: 0;
+      }
+
+      .catalog-toolbar div {
+        display: grid;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .catalog-workflow-grid {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: minmax(13rem, 0.85fr) minmax(18rem, 1.35fr) minmax(12rem, 0.8fr);
+        min-height: 0;
+      }
+
+      .catalog-asset-list,
+      .catalog-detail,
+      .catalog-preview-policy,
+      .catalog-diagnostics {
+        background: var(--asha-color-panel);
+        border: 1px solid var(--asha-color-border);
+        border-radius: 6px;
+        min-width: 0;
+        padding: 0.5rem;
+      }
+
+      .catalog-asset-list,
+      .catalog-preview-policy {
+        display: grid;
+        gap: 0.35rem;
+      }
+
+      .catalog-asset-row {
+        border: 1px solid transparent;
+        border-radius: 5px;
+        cursor: pointer;
+        display: grid;
+        gap: 0.1rem;
+        padding: 0.35rem 0.45rem;
+      }
+
+      .catalog-asset-row--selected {
+        background: var(--asha-color-control-active);
+        border-color: var(--asha-color-accent);
+      }
+
+      .catalog-asset-row--diagnostic {
+        border-color: var(--asha-color-warning);
+      }
+
+      .catalog-detail {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .catalog-detail header {
+        align-items: start;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: space-between;
+      }
+
+      .catalog-detail label {
+        display: grid;
+        gap: 0.25rem;
+      }
+
+      .catalog-detail input {
+        min-width: 0;
+      }
+
+      .catalog-detail dl {
+        display: grid;
+        gap: 0.25rem 0.6rem;
+        grid-template-columns: 7rem minmax(0, 1fr);
+        margin: 0;
+      }
+
+      .catalog-detail dd {
+        margin: 0;
+      }
+
+      .catalog-diagnostics {
+        display: grid;
+        gap: 0.25rem;
+      }
+
       small {
         color: var(--asha-color-muted);
         font-size: 0.75rem;
@@ -2229,6 +2438,18 @@ export class StudioAssetsBottomPanelComponent {
 
   selectAssetCategory(category: StudioAssetBrowserCategory): void {
     this.store.setAssetBrowserCategory(category);
+  }
+
+  loadCatalog(): void {
+    void this.store.loadCatalogSource();
+  }
+
+  saveCatalog(): void {
+    void this.store.saveCatalogSource();
+  }
+
+  validateCatalog(): void {
+    void this.store.validateCatalogSource();
   }
 
   evidenceLabel(entry: StudioCommandTimelineEntry): string {
