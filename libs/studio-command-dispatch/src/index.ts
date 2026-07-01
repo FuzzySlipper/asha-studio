@@ -5,10 +5,16 @@ export interface StudioCommandProposal {
     | 'selection.set_active_entity'
     | 'scene.apply_object_command'
     | 'session.load_scenario'
-    | 'scene.load_asset';
+    | 'scene.load_asset'
+    | 'scene.open_source'
+    | 'scene.save_source'
+    | 'scene.save_source_as';
   readonly entityId?: string;
   readonly scenarioId?: string;
   readonly assetId?: string;
+  readonly path?: string;
+  readonly expectedHash?: string;
+  readonly expectedPreviousHash?: string | null;
   readonly request?: Extract<StudioIntent, { readonly kind: 'scene_object_command' }>['request'];
   readonly expectedTimelineSequence: number;
 }
@@ -60,6 +66,28 @@ export function mapStudioIntentToCommand(
         proposal: {
           commandId: 'scene.load_asset',
           assetId: intent.assetId,
+          expectedTimelineSequence: intent.expectedTimelineSequence,
+        },
+      };
+    case 'open_scene_file':
+      return {
+        accepted: true,
+        diagnostic: null,
+        proposal: {
+          commandId: 'scene.open_source',
+          path: intent.path,
+          expectedHash: intent.expectedHash,
+          expectedTimelineSequence: intent.expectedTimelineSequence,
+        },
+      };
+    case 'save_scene_file':
+      return {
+        accepted: true,
+        diagnostic: null,
+        proposal: {
+          commandId: intent.saveAs ? 'scene.save_source_as' : 'scene.save_source',
+          path: intent.path,
+          expectedPreviousHash: intent.expectedPreviousHash,
           expectedTimelineSequence: intent.expectedTimelineSequence,
         },
       };

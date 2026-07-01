@@ -82,7 +82,7 @@ export type StudioBottomPanelTab =
   | 'publish'
   | 'evidence';
 export type StudioCommandProposalActionId = 'set_voxel_reference';
-export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'preferences';
+export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'project' | 'preferences';
 export type StudioRenderSettingKey =
   | 'wireframeEnabled'
   | 'showGrid'
@@ -92,7 +92,13 @@ export type StudioRenderSettingKey =
 export type StudioUiEventCommandId =
   | 'workspace.save_browser_slot'
   | 'workspace.load_browser_slot'
-  | 'preferences.set_render_setting';
+  | 'preferences.set_render_setting'
+  | 'scene.open_source'
+  | 'scene.save_source'
+  | 'scene.save_source_as'
+  | 'project.refresh_sessions'
+  | 'project.connect_running'
+  | 'project.disconnect_running';
 
 export interface StudioDiagnostic {
   readonly severity: StudioDiagnosticSeverity;
@@ -130,6 +136,13 @@ export type StudioRuntimeSessionDiagnosticCode =
   | 'runtime_session_missing_backend_evidence'
   | 'runtime_session_backend_incompatible'
   | 'runtime_session_reserved';
+export type StudioRunningProjectDiscoveryDiagnosticCode =
+  | 'running_project_missing_workspace'
+  | 'running_project_missing_endpoint'
+  | 'running_project_not_attached'
+  | 'running_project_incompatible'
+  | 'running_project_stale_live_readback'
+  | 'running_project_private_transport';
 export type StudioLiveDebugSessionDiagnosticCode =
   | 'missing_live_session'
   | 'stale_fixture_readback'
@@ -184,6 +197,15 @@ export type StudioWorkspaceOpenReadDiagnosticCode =
   | 'private_repo_scan'
   | 'unsupported_file_kind'
   | 'workspace_source_not_allowed';
+export type StudioSceneFileDiagnosticCode =
+  | 'scene_file_missing_workspace'
+  | 'scene_file_not_found'
+  | 'scene_file_unsupported_schema'
+  | 'scene_file_invalid_json'
+  | 'scene_file_stale_hash'
+  | 'scene_file_path_not_allowed'
+  | 'scene_file_missing_name'
+  | 'scene_file_missing_catalog_assets';
 export type StudioSceneAuthoringDiagnosticCode =
   | 'stale_scene_source_hash'
   | 'duplicate_scene_object'
@@ -323,6 +345,70 @@ export interface StudioWorkspaceOpenReadModel {
     'not_runtime_authority',
   ];
   readonly openReadHash: string;
+}
+
+export interface StudioSceneFileSourceInput {
+  readonly path: string;
+  readonly text: string;
+  readonly sha256: string;
+}
+
+export interface StudioSceneFileReadModel {
+  readonly sceneFileVersion: 'studio-scene-file.v0';
+  readonly path: string;
+  readonly hash: string;
+  readonly sceneId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly catalogAssetIds: readonly string[];
+  readonly runtimeFixture: string | null;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly sceneFileHash: string;
+}
+
+export interface StudioSceneFileListReadModel {
+  readonly sceneFileListVersion: 'studio-scene-file-list.v0';
+  readonly workspaceHash: string;
+  readonly allowedSceneRoots: readonly string[];
+  readonly files: readonly StudioSceneFileReadModel[];
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly commandIds: {
+    readonly list: 'scene.list_sources';
+    readonly open: 'scene.open_source';
+  };
+  readonly nonClaims: readonly [
+    'not_repo_crawler',
+    'not_private_file_picker',
+    'not_runtime_authority',
+  ];
+  readonly sceneFileListHash: string;
+}
+
+export type StudioSceneFileListResult =
+  | {
+      readonly ok: true;
+      readonly sceneFiles: StudioSceneFileListReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly sceneFiles: StudioSceneFileListReadModel;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
+
+export interface StudioSceneFileSaveReadback {
+  readonly saveVersion: 'studio-scene-file-save.v0';
+  readonly commandId: 'scene.save_source' | 'scene.save_source_as';
+  readonly path: string;
+  readonly previousHash: string | null;
+  readonly nextHash: string;
+  readonly sceneFileHash: string;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_file_write',
+  ];
+  readonly saveHash: string;
 }
 
 export type StudioWorkspaceOpenReadResult =
@@ -723,6 +809,43 @@ export interface StudioRuntimeSessionListReadModel {
   readonly activeSessionId: string;
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly sessionListHash: string;
+}
+
+export interface StudioRunningProjectDiscoveryReadModel {
+  readonly discoveryVersion: 'studio-running-project-discovery.v0';
+  readonly workspaceHash: string;
+  readonly gameId: string;
+  readonly endpoint: string | null;
+  readonly sessions: readonly {
+    readonly sessionId: string;
+    readonly status: StudioRuntimeSessionStatus;
+    readonly sessionType: StudioRuntimeSessionType;
+    readonly runtimeMode: StudioRuntimeSessionReadModel['runtimeMode'];
+    readonly backendMode: AshaGameRuntimeBackendMode;
+    readonly backendCompatibilityState: StudioRuntimeBackendCompatibilityState;
+    readonly attachStatus: StudioRuntimeSessionReadModel['attachStatus'];
+    readonly liveHash: string | null;
+    readonly worldHash: string | null;
+    readonly diagnostics: readonly StudioDiagnostic[];
+  }[];
+  readonly activeSessionId: string | null;
+  readonly canConnect: boolean;
+  readonly canDisconnect: boolean;
+  readonly canRefresh: boolean;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly commandIds: {
+    readonly refresh: 'project.refresh_sessions';
+    readonly connect: 'project.connect_running';
+    readonly disconnect: 'project.disconnect_running';
+  };
+  readonly nonClaims: readonly [
+    'not_network_scan',
+    'not_private_transport',
+    'not_runtime_authority',
+    'not_hardware_gpu_evidence',
+    'not_performance_evidence',
+  ];
+  readonly discoveryHash: string;
 }
 
 export interface StudioLiveDebugSessionChildArtifactRef {
@@ -1654,6 +1777,21 @@ export interface LoadReferenceAssetIntent {
   readonly expectedTimelineSequence: number;
 }
 
+export interface OpenSceneFileIntent {
+  readonly kind: 'open_scene_file';
+  readonly path: string;
+  readonly expectedHash: string;
+  readonly expectedTimelineSequence: number;
+}
+
+export interface SaveSceneFileIntent {
+  readonly kind: 'save_scene_file';
+  readonly path: string;
+  readonly expectedPreviousHash: string | null;
+  readonly saveAs: boolean;
+  readonly expectedTimelineSequence: number;
+}
+
 export interface NoopIntent {
   readonly kind: 'noop';
   readonly reason: string;
@@ -1664,6 +1802,8 @@ export type StudioIntent =
   | SceneObjectCommandIntent
   | LoadScenarioIntent
   | LoadReferenceAssetIntent
+  | OpenSceneFileIntent
+  | SaveSceneFileIntent
   | NoopIntent;
 
 export interface StudioSceneObjectCommandApplyResult {
@@ -2152,6 +2292,220 @@ export function buildStudioWorkspaceOpenReadModel(input: {
   return diagnostics.length === 0
     ? { ok: true, openRead, diagnostics: [] }
     : { ok: false, openRead, diagnostics };
+}
+
+export function buildStudioSceneFileList(input: {
+  readonly workspace: StudioGameWorkspaceReadModel | null;
+  readonly manifestPath: string;
+  readonly manifestHash: string | null;
+  readonly sourceFiles: readonly StudioSceneFileSourceInput[];
+  readonly allowProjectRoot?: boolean;
+}): StudioSceneFileListResult {
+  const openRead = buildStudioWorkspaceOpenReadModel({
+    workspace: input.workspace,
+    manifestPath: input.manifestPath,
+    manifestHash: input.manifestHash,
+    sourceFiles: input.sourceFiles,
+  });
+  const allowProjectRoot = input.allowProjectRoot ?? false;
+  const diagnostics: StudioDiagnostic[] = allowProjectRoot ? [] : [...openRead.diagnostics];
+  const files: StudioSceneFileReadModel[] = [];
+
+  for (const source of input.sourceFiles) {
+    const readSource = openRead.openRead.sourceFiles.find(file => file.path === source.path);
+    const projectRootPathAllowed = allowProjectRoot
+      && source.path.endsWith('.scene.json')
+      && source.path.length > 0
+      && !source.path.startsWith('/')
+      && !source.path.split('/').includes('..');
+    if (
+      (readSource === undefined || readSource.schemaKind !== 'proof-scene-json.v1')
+      && !projectRootPathAllowed
+    ) {
+      diagnostics.push(sceneFileDiagnostic(
+        'scene_file_path_not_allowed',
+        `Scene source ${source.path} must be a .scene.json file under the project root.`,
+        source.path,
+        'Choose a .scene.json file from the project root.',
+      ));
+      continue;
+    }
+    const parsed = parseStudioSceneFileSource(source);
+    diagnostics.push(...parsed.diagnostics);
+    files.push({
+      sceneFileVersion: 'studio-scene-file.v0',
+      path: readSource?.path ?? source.path,
+      hash: source.sha256,
+      sceneId: parsed.sceneId,
+      name: parsed.name,
+      description: parsed.description,
+      catalogAssetIds: parsed.catalogAssetIds,
+      runtimeFixture: parsed.runtimeFixture,
+      diagnostics: parsed.diagnostics,
+      sceneFileHash: fnv1aHash('studio-scene-file', {
+        path: readSource?.path ?? source.path,
+        hash: source.sha256,
+        parsed,
+      }),
+    });
+  }
+
+  if (input.workspace === null) {
+    diagnostics.push(sceneFileDiagnostic(
+      'scene_file_missing_workspace',
+      'Scene file listing requires an opened game workspace manifest.',
+      input.manifestPath,
+      'Open asha.game.toml before listing scene sources.',
+    ));
+  }
+
+  const sceneFiles: StudioSceneFileListReadModel = {
+    sceneFileListVersion: 'studio-scene-file-list.v0',
+    workspaceHash: input.workspace?.workspaceHash ?? 'missing',
+    allowedSceneRoots: allowProjectRoot ? ['project-root'] : openRead.openRead.allowedSceneRoots,
+    files,
+    diagnostics,
+    commandIds: {
+      list: 'scene.list_sources',
+      open: 'scene.open_source',
+    },
+    nonClaims: [
+      'not_repo_crawler',
+      'not_private_file_picker',
+      'not_runtime_authority',
+    ],
+    sceneFileListHash: fnv1aHash('studio-scene-file-list', {
+      workspaceHash: input.workspace?.workspaceHash ?? 'missing',
+      allowedSceneRoots: allowProjectRoot ? ['project-root'] : openRead.openRead.allowedSceneRoots,
+      files,
+      diagnostics,
+    }),
+  };
+
+  return diagnostics.length === 0
+    ? { ok: true, sceneFiles, diagnostics: [] }
+    : { ok: false, sceneFiles, diagnostics };
+}
+
+export function applyOpenSceneFileReadModel(
+  readModel: StudioWorkspaceReadModel,
+  sceneFile: StudioSceneFileReadModel,
+): StudioWorkspaceReadModel {
+  const renderables = buildSceneFileRenderables(sceneFile);
+  const selectedRenderableId = firstSelectableRenderableId(renderables);
+  const session: StudioSessionReadModel = {
+    ...readModel.session,
+    scenarioId: sceneFile.path,
+    scenarioLabel: sceneFile.name,
+    status: 'ready',
+  };
+  const scene: StudioSceneReadModel = {
+    sceneId: `scene-file:${sceneFile.sceneId}:v1`,
+    selectedRenderableId,
+    renderables,
+    sceneHash: buildSceneHash(renderables),
+  };
+  const flatSceneDocument = createStudioFlatSceneDocument(scene);
+  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
+  const entities = projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities);
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: 'scene.open_source',
+    label: 'Open Scene Source',
+    requestedBy: 'gui',
+    inputSummary: `path=${sceneFile.path};hash=${sceneFile.hash}`,
+    outputSummary: `Opened ${sceneFile.name}.`,
+    changedScene: true,
+    changedSelection: readModel.selectedEntityId !== selectedRenderableId,
+  });
+
+  return {
+    ...readModel,
+    session,
+    scene,
+    scenarios: readModel.scenarios.map(item => ({ ...item, status: 'available' })),
+    flatSceneDocument,
+    sceneObjectSnapshot,
+    entities,
+    selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, selectedRenderableId),
+    timeline: [...readModel.timeline, command.timelineEntry],
+    commandResults: [...readModel.commandResults, command.commandResult],
+    timelineSequence: readModel.timelineSequence + 1,
+  };
+}
+
+export function serializeWorkspaceSceneSource(
+  readModel: StudioWorkspaceReadModel,
+): string {
+  const catalogAssetIds = Array.from(new Set(readModel.scene.renderables
+    .filter(renderable => renderable.kind === 'static_mesh')
+    .map(renderable => renderable.meshRef?.replace(/^static-mesh:/, 'mesh.'))
+    .filter((assetId): assetId is string => assetId !== undefined && assetId.length > 0)));
+
+  return `${JSON.stringify({
+    schemaVersion: 1,
+    sceneId: readModel.session.scenarioId.startsWith('scenes/')
+      ? readModel.session.scenarioId.replace(/^scenes\//, '').replace(/\.scene\.json$/, '')
+      : readModel.session.scenarioId,
+    name: readModel.session.scenarioLabel,
+    description: `Saved from ASHA Studio scene hash ${readModel.scene.sceneHash}.`,
+    catalogAssetIds,
+    runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
+  }, null, 2)}\n`;
+}
+
+export function buildStudioSceneFileSaveReadback(input: {
+  readonly commandId: 'scene.save_source' | 'scene.save_source_as';
+  readonly path: string;
+  readonly previousHash: string | null;
+  readonly expectedPreviousHash: string | null;
+  readonly nextText: string;
+  readonly nextHash: string;
+  readonly workspace: StudioGameWorkspaceReadModel | null;
+  readonly allowProjectRoot?: boolean;
+}): StudioSceneFileSaveReadback {
+  const diagnostics: StudioDiagnostic[] = [];
+  const fileList = buildStudioSceneFileList({
+    workspace: input.workspace,
+    manifestPath: input.workspace?.manifestPath ?? 'missing',
+    manifestHash: input.workspace?.workspaceHash ?? null,
+    sourceFiles: [{ path: input.path, text: input.nextText, sha256: input.nextHash }],
+    allowProjectRoot: input.allowProjectRoot ?? false,
+  });
+  if (!fileList.ok) {
+    diagnostics.push(...fileList.diagnostics);
+  }
+  if (input.previousHash !== input.expectedPreviousHash) {
+    diagnostics.push(sceneFileDiagnostic(
+      'scene_file_stale_hash',
+      `Scene source ${input.path} changed before save.`,
+      input.path,
+      'Reopen the scene source before saving.',
+    ));
+  }
+  const sceneFileHash = fileList.sceneFiles.files.at(0)?.sceneFileHash ?? 'missing';
+
+  return {
+    saveVersion: 'studio-scene-file-save.v0',
+    commandId: input.commandId,
+    path: input.path,
+    previousHash: input.previousHash,
+    nextHash: input.nextHash,
+    sceneFileHash,
+    diagnostics,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_file_write',
+    ],
+    saveHash: fnv1aHash('studio-scene-file-save', {
+      commandId: input.commandId,
+      path: input.path,
+      previousHash: input.previousHash,
+      nextHash: input.nextHash,
+      sceneFileHash,
+      diagnostics,
+    }),
+  };
 }
 
 export function buildStudioGameWorkspaceHandshakeRequest(
@@ -2798,6 +3152,122 @@ export function buildStudioRuntimeSessionList(input: {
     }),
 	  };
 	}
+
+export function buildStudioRunningProjectDiscovery(input: {
+  readonly workspace: StudioGameWorkspaceReadModel | null;
+  readonly runtimeSessions?: StudioRuntimeSessionListReadModel | null;
+  readonly attemptedPrivateTransport?: boolean;
+}): StudioRunningProjectDiscoveryReadModel {
+  const diagnostics: StudioDiagnostic[] = [];
+  const workspace = input.workspace;
+  const runtimeSessions = input.runtimeSessions ?? null;
+  if (workspace === null) {
+    diagnostics.push(studioRunningProjectDiscoveryDiagnostic(
+      'running_project_missing_workspace',
+      'Running project discovery requires an opened ASHA game workspace.',
+      null,
+      'Open a project manifest before connecting.',
+    ));
+  }
+  if (workspace !== null && workspace.attachEndpoint.length === 0) {
+    diagnostics.push(studioRunningProjectDiscoveryDiagnostic(
+      'running_project_missing_endpoint',
+      'Opened workspace does not expose a devtools endpoint.',
+      workspace.gameId,
+      'Set runtime.devtools_endpoint in asha.game.toml.',
+    ));
+  }
+  if (input.attemptedPrivateTransport === true) {
+    diagnostics.push(studioRunningProjectDiscoveryDiagnostic(
+      'running_project_private_transport',
+      'Running project discovery must use the public devtools handshake, not private transports.',
+      workspace?.attachEndpoint ?? null,
+      'Use handshake.request through the shared connect command.',
+    ));
+  }
+
+  const sessions = runtimeSessions?.sessions.map(session => {
+    const sessionDiagnostics: StudioDiagnostic[] = [...session.diagnostics];
+    if (session.sessionType === 'attached' && session.backendCompatibilityState !== 'compatible') {
+      sessionDiagnostics.push(studioRunningProjectDiscoveryDiagnostic(
+        'running_project_incompatible',
+        `Running project session ${session.sessionId} is not compatible with the opened workspace.`,
+        session.endpoint,
+        session.backendCompatibilityState,
+      ));
+    }
+    if (session.sessionType === 'attached' && (session.liveHash === null || session.projection === null)) {
+      sessionDiagnostics.push(studioRunningProjectDiscoveryDiagnostic(
+        'running_project_stale_live_readback',
+        `Running project session ${session.sessionId} has no fresh live readback.`,
+        session.endpoint,
+        session.attachHash,
+      ));
+    }
+    return {
+      sessionId: session.sessionId,
+      status: session.status,
+      sessionType: session.sessionType,
+      runtimeMode: session.runtimeMode,
+      backendMode: session.backendMode,
+      backendCompatibilityState: session.backendCompatibilityState,
+      attachStatus: session.attachStatus,
+      liveHash: session.liveHash,
+      worldHash: session.projection?.worldHash ?? null,
+      diagnostics: sessionDiagnostics,
+    };
+  }) ?? [];
+
+  const activeSession = runtimeSessions === null
+    ? null
+    : runtimeSessions.sessions.find(session => session.sessionId === runtimeSessions.activeSessionId) ?? null;
+  if (workspace !== null && activeSession !== null && activeSession.sessionType !== 'attached') {
+    diagnostics.push(studioRunningProjectDiscoveryDiagnostic(
+      'running_project_not_attached',
+      'No running project is currently attached.',
+      workspace.attachEndpoint,
+      'Use Connect Running Project.',
+    ));
+  }
+  diagnostics.push(...(runtimeSessions?.diagnostics ?? []));
+  diagnostics.push(...sessions.flatMap(session => session.diagnostics));
+  const connected = activeSession?.sessionType === 'attached'
+    && activeSession.attachStatus === 'attached'
+    && activeSession.backendCompatibilityState === 'compatible'
+    && activeSession.liveHash !== null;
+
+  return {
+    discoveryVersion: 'studio-running-project-discovery.v0',
+    workspaceHash: workspace?.workspaceHash ?? 'missing',
+    gameId: workspace?.gameId ?? 'missing',
+    endpoint: workspace?.attachEndpoint ?? null,
+    sessions,
+    activeSessionId: runtimeSessions?.activeSessionId ?? null,
+    canConnect: workspace !== null && !connected,
+    canDisconnect: connected,
+    canRefresh: workspace !== null,
+    diagnostics,
+    commandIds: {
+      refresh: 'project.refresh_sessions',
+      connect: 'project.connect_running',
+      disconnect: 'project.disconnect_running',
+    },
+    nonClaims: [
+      'not_network_scan',
+      'not_private_transport',
+      'not_runtime_authority',
+      'not_hardware_gpu_evidence',
+      'not_performance_evidence',
+    ],
+    discoveryHash: fnv1aHash('studio-running-project-discovery', {
+      workspaceHash: workspace?.workspaceHash ?? 'missing',
+      endpoint: workspace?.attachEndpoint ?? null,
+      activeSessionId: runtimeSessions?.activeSessionId ?? null,
+      sessions,
+      diagnostics,
+    }),
+  };
+}
 	
 export function buildStudioLiveDebugSessionIdentity(input: {
   readonly runtimeSessions: StudioRuntimeSessionListReadModel;
@@ -4535,6 +5005,21 @@ function studioWorkspaceOpenReadDiagnostic(
   };
 }
 
+function sceneFileDiagnostic(
+  code: StudioSceneFileDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
 function studioSceneAuthoringDiagnostic(
   code: StudioSceneAuthoringDiagnosticCode,
   message: string,
@@ -4767,6 +5252,21 @@ function studioRuntimeSessionDiagnostic(
 ): StudioDiagnostic {
   return {
     severity: code === 'runtime_session_reserved' ? 'info' : 'error',
+    code,
+    message,
+    source,
+    remediation,
+  };
+}
+
+function studioRunningProjectDiscoveryDiagnostic(
+  code: StudioRunningProjectDiscoveryDiagnosticCode,
+  message: string,
+  source: string | null,
+  remediation: string | null,
+): StudioDiagnostic {
+  return {
+    severity: code === 'running_project_not_attached' ? 'info' : 'error',
     code,
     message,
     source,
@@ -5469,6 +5969,121 @@ function buildInitialRenderables(): readonly StudioSceneRenderableReadModel[] {
       pickable: false,
     },
   ];
+}
+
+function parseStudioSceneFileSource(source: StudioSceneFileSourceInput): {
+  readonly sceneId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly catalogAssetIds: readonly string[];
+  readonly runtimeFixture: string | null;
+  readonly diagnostics: readonly StudioDiagnostic[];
+} {
+  const diagnostics: StudioDiagnostic[] = [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source.text);
+  } catch {
+    return {
+      sceneId: source.path,
+      name: source.path,
+      description: null,
+      catalogAssetIds: [],
+      runtimeFixture: null,
+      diagnostics: [sceneFileDiagnostic(
+        'scene_file_invalid_json',
+        `Scene source ${source.path} must be valid JSON.`,
+        source.path,
+        'Fix the scene JSON before opening it in Studio.',
+      )],
+    };
+  }
+
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    diagnostics.push(sceneFileDiagnostic(
+      'scene_file_unsupported_schema',
+      `Scene source ${source.path} must be a JSON object.`,
+      source.path,
+      'Use proof-scene-json.v1 scene source shape.',
+    ));
+  }
+  const record = (parsed ?? {}) as Record<string, unknown>;
+  if (record.schemaVersion !== 1) {
+    diagnostics.push(sceneFileDiagnostic(
+      'scene_file_unsupported_schema',
+      `Scene source ${source.path} uses unsupported schema.`,
+      source.path,
+      String(record.schemaVersion ?? 'missing'),
+    ));
+  }
+  if (typeof record.name !== 'string' || record.name.trim().length === 0) {
+    diagnostics.push(sceneFileDiagnostic(
+      'scene_file_missing_name',
+      `Scene source ${source.path} is missing a display name.`,
+      source.path,
+      'Set a non-empty name before opening the scene.',
+    ));
+  }
+  const catalogAssetIds = Array.isArray(record.catalogAssetIds)
+    ? record.catalogAssetIds.filter((assetId): assetId is string => typeof assetId === 'string')
+    : [];
+  if (catalogAssetIds.length === 0) {
+    diagnostics.push(sceneFileDiagnostic(
+      'scene_file_missing_catalog_assets',
+      `Scene source ${source.path} has no catalog assets to project.`,
+      source.path,
+      'Add at least one catalog asset id for Studio viewport projection.',
+    ));
+  }
+
+  return {
+    sceneId: String(record.sceneId ?? source.path),
+    name: typeof record.name === 'string' && record.name.trim().length > 0 ? record.name : source.path,
+    description: typeof record.description === 'string' ? record.description : null,
+    catalogAssetIds,
+    runtimeFixture: typeof record.runtimeFixture === 'string' ? record.runtimeFixture : null,
+    diagnostics,
+  };
+}
+
+function buildSceneFileRenderables(
+  sceneFile: StudioSceneFileReadModel,
+): readonly StudioSceneRenderableReadModel[] {
+  const grid: StudioSceneRenderableReadModel = {
+    renderableId: `scene-file-grid:${sceneFile.sceneId}`,
+    label: `${sceneFile.name} Grid`,
+    kind: 'voxel_grid',
+    sourceState: 'reference',
+    bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: Math.max(2, sceneFile.catalogAssetIds.length + 1), y: 2, z: 0.2 } },
+    meshRef: 'generated:scene-file-grid',
+    materialRef: 'material:grid-reference',
+    renderHash: fnv1aHash('scene-file-grid-render', {
+      path: sceneFile.path,
+      hash: sceneFile.hash,
+    }),
+    visible: true,
+    pickable: true,
+  };
+  const assets = sceneFile.catalogAssetIds.map((assetId, index): StudioSceneRenderableReadModel => {
+    const x = 0.65 + index * 1.15;
+    return {
+      renderableId: `scene-file-asset:${assetId}`,
+      label: assetId,
+      kind: assetId.startsWith('mesh.') ? 'static_mesh' : 'preview_ghost',
+      sourceState: 'reference',
+      bounds: { min: { x, y: 0.65, z: 0.2 }, max: { x: x + 0.75, y: 1.4, z: 0.95 } },
+      meshRef: assetId.startsWith('mesh.') ? `static-mesh:${assetId.replace(/^mesh\./, '')}` : `asset:${assetId}`,
+      materialRef: sceneFile.catalogAssetIds.find(id => id.startsWith('material.')) ?? 'material:scene-file-reference',
+      renderHash: fnv1aHash('scene-file-asset-render', {
+        path: sceneFile.path,
+        assetId,
+        index,
+      }),
+      visible: true,
+      pickable: true,
+    };
+  });
+  return [grid, ...assets];
 }
 
 function buildPlaceholderScenarioRenderables(): readonly StudioSceneRenderableReadModel[] {
@@ -6560,6 +7175,35 @@ export function createLoadReferenceAssetIntent(
   return {
     kind: 'load_reference_asset',
     assetId: 'static-mesh:reference-placeholder',
+    expectedTimelineSequence: readModel.timelineSequence,
+  };
+}
+
+export function createOpenSceneFileIntent(
+  readModel: StudioWorkspaceReadModel,
+  sceneFile: StudioSceneFileReadModel,
+): StudioIntent {
+  return {
+    kind: 'open_scene_file',
+    path: sceneFile.path,
+    expectedHash: sceneFile.hash,
+    expectedTimelineSequence: readModel.timelineSequence,
+  };
+}
+
+export function createSaveSceneFileIntent(
+  readModel: StudioWorkspaceReadModel,
+  options: {
+    readonly path: string;
+    readonly expectedPreviousHash: string | null;
+    readonly saveAs?: boolean;
+  },
+): StudioIntent {
+  return {
+    kind: 'save_scene_file',
+    path: options.path,
+    expectedPreviousHash: options.expectedPreviousHash,
+    saveAs: options.saveAs ?? false,
     expectedTimelineSequence: readModel.timelineSequence,
   };
 }

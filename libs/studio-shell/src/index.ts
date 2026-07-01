@@ -35,6 +35,13 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
           </button>
           <button
             type="button"
+            [class.is-active]="store.activeMenu() === 'project'"
+            (click)="toggleMenu('project')"
+          >
+            Project
+          </button>
+          <button
+            type="button"
             [class.is-active]="store.activeMenu() === 'preferences'"
             (click)="toggleMenu('preferences')"
           >
@@ -46,9 +53,49 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         @if (store.activeMenu() === 'file') {
           <section class="menu-popover menu-popover--file" aria-label="File menu">
             <button type="button" (click)="newWorkspace()">New</button>
-            <button type="button" (click)="saveWorkspace()">Save</button>
+            <button type="button" (click)="saveScene()">Save</button>
+            <label class="menu-popover__field">
+              <span>Save As</span>
+              <input
+                type="text"
+                [value]="store.saveAsPath()"
+                (input)="setSaveAsPath($any($event.target).value)"
+                (keydown.enter)="saveSceneAs()"
+              />
+            </label>
+            <button type="button" (click)="saveSceneAs()">Save As</button>
+            <div class="project-file-browser" aria-label="Project files">
+              <div class="project-file-browser__bar">
+                <button type="button" (click)="refreshProjectFiles()">Refresh</button>
+                <button type="button" (click)="openProjectParentDir()">Up</button>
+              </div>
+              <small>{{ store.projectFileDialog().message }}</small>
+              <small>{{ store.projectFileDialog().currentDir || '/' }}</small>
+              <div class="scene-file-list" aria-label="Open scene source">
+                @for (file of store.projectFileDialog().entries; track file.path) {
+                  <button
+                    type="button"
+                    [class.is-current]="store.projectFileDialog().selectedPath === file.path"
+                    (click)="selectProjectFile(file.path)"
+                  >
+                    <span>{{ file.kind === 'directory' ? '[] ' : '' }}{{ file.name }}</span>
+                    <small>{{ file.path }}</small>
+                  </button>
+                }
+              </div>
+              @if (store.projectFileDialog().selectedPath; as selectedPath) {
+                <button
+                  type="button"
+                  [disabled]="!selectedPath.endsWith('.scene.json')"
+                  (click)="openSelectedProjectFile()"
+                >
+                  Open {{ selectedPath }}
+                </button>
+              }
+            </div>
+            <button type="button" (click)="saveWorkspace()">Save Browser Slot</button>
             <button type="button" (click)="loadWorkspace()" [disabled]="store.savedWorkspace() === null">
-              Load
+              Load Browser Slot
             </button>
           </section>
         }
@@ -102,6 +149,60 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
               />
               Raycast Hit Debug
             </label>
+          </section>
+        }
+
+        @if (store.activeMenu() === 'project') {
+          <section class="menu-popover menu-popover--project" aria-label="Project menu">
+            <div class="project-connect" data-visual-id="studio-running-project-picker">
+              <strong>Running ASHA Project</strong>
+              <small>{{ store.runningProjectDiscovery().endpoint || 'No endpoint' }}</small>
+              <small>{{ store.runtimeConnectionMessage() }}</small>
+              <div class="project-connect__actions">
+                <button
+                  type="button"
+                  [disabled]="!store.runningProjectDiscovery().canRefresh"
+                  (click)="refreshRunningProjectSessions()"
+                >
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  [disabled]="!store.runningProjectDiscovery().canConnect"
+                  (click)="connectRunningProject()"
+                >
+                  Connect
+                </button>
+                <button
+                  type="button"
+                  [disabled]="!store.runningProjectDiscovery().canDisconnect"
+                  (click)="disconnectRunningProject()"
+                >
+                  Disconnect
+                </button>
+              </div>
+              <div class="project-session-list">
+                @for (session of store.runningProjectDiscovery().sessions; track session.sessionId) {
+                  <article
+                    [class.is-current]="session.sessionId === store.runningProjectDiscovery().activeSessionId"
+                    [attr.data-running-session-id]="session.sessionId"
+                    [attr.data-running-session-status]="session.status"
+                  >
+                    <span>{{ session.sessionType }} · {{ session.status }}</span>
+                    <strong>{{ session.backendMode }} · {{ session.backendCompatibilityState }}</strong>
+                    <small>{{ session.attachStatus }} · {{ session.liveHash || 'no live readback' }}</small>
+                    <small>{{ session.worldHash || 'no projection' }}</small>
+                  </article>
+                }
+              </div>
+              @if (store.runningProjectDiscovery().diagnostics.length > 0) {
+                <div class="project-connect__diagnostics">
+                  @for (diagnostic of store.runningProjectDiscovery().diagnostics; track diagnostic.code + diagnostic.source) {
+                    <small>{{ diagnostic.code }} · {{ diagnostic.message }}</small>
+                  }
+                </div>
+              }
+            </div>
           </section>
         }
 
@@ -267,6 +368,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 
       .menu-popover--file {
         left: 0.5rem;
+        min-width: 20rem;
       }
 
       .menu-popover--edit {
@@ -279,15 +381,24 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 
       .menu-popover--preferences {
         gap: 0.65rem;
-        left: 11.7rem;
+        left: 15.4rem;
         min-width: 17rem;
+      }
+
+      .menu-popover--project {
+        left: 11.3rem;
+        min-width: 24rem;
       }
 
       .menu-popover button {
         border-radius: 0;
-        height: 1.75rem;
+        min-height: 1.75rem;
         justify-content: flex-start;
         text-align: left;
+      }
+
+      .menu-popover button.is-current {
+        background: var(--asha-color-control-active);
       }
 
       .menu-popover label,
@@ -306,6 +417,114 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 
       .menu-popover input {
         accent-color: var(--asha-color-accent);
+      }
+
+      .menu-popover__field {
+        align-items: stretch;
+        display: grid;
+        gap: 0.25rem;
+        padding: 0.25rem 0.45rem;
+      }
+
+      .menu-popover__field input {
+        background: #0f1214;
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        font: inherit;
+        min-width: 0;
+        padding: 0.25rem 0.35rem;
+      }
+
+      .scene-file-list {
+        border-block: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.1rem;
+        margin-block: 0.2rem;
+        max-height: 9rem;
+        overflow: auto;
+        padding-block: 0.2rem;
+      }
+
+      .project-file-browser {
+        display: grid;
+        gap: 0.25rem;
+      }
+
+      .project-file-browser__bar {
+        display: grid;
+        gap: 0.25rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .project-file-browser small {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .project-connect,
+      .project-session-list {
+        display: grid;
+        gap: 0.35rem;
+      }
+
+      .project-connect small,
+      .project-session-list small {
+        color: var(--asha-color-muted);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .project-connect__actions {
+        display: grid;
+        gap: 0.25rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .project-session-list {
+        max-height: 12rem;
+        overflow: auto;
+      }
+
+      .project-session-list article {
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.1rem;
+        padding: 0.4rem;
+      }
+
+      .project-session-list article.is-current {
+        border-color: var(--asha-color-accent);
+      }
+
+      .project-connect__diagnostics {
+        border-top: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.2rem;
+        padding-top: 0.35rem;
+      }
+
+      .scene-file-list button {
+        display: grid;
+        gap: 0.1rem;
+      }
+
+      .scene-file-list span,
+      .scene-file-list small {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .scene-file-list small {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
       }
 
       .preferences-section {
@@ -369,7 +588,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 export class StudioShellComponent {
   readonly store = inject(StudioWorkspaceStore);
 
-  toggleMenu(menu: 'file' | 'edit' | 'view' | 'preferences'): void {
+  toggleMenu(menu: 'file' | 'edit' | 'view' | 'project' | 'preferences'): void {
     this.store.toggleActiveMenu(menu);
   }
 
@@ -380,6 +599,51 @@ export class StudioShellComponent {
 
   saveWorkspace(): void {
     this.store.saveWorkspaceToSlot();
+    this.store.setActiveMenu(null);
+  }
+
+  saveScene(): void {
+    this.store.saveSceneFile();
+    this.store.setActiveMenu(null);
+  }
+
+  saveSceneAs(): void {
+    this.store.saveSceneFileAs();
+    this.store.setActiveMenu(null);
+  }
+
+  setSaveAsPath(path: string): void {
+    this.store.setSaveAsPath(path);
+  }
+
+  refreshProjectFiles(): void {
+    void this.store.refreshProjectFiles();
+  }
+
+  openProjectParentDir(): void {
+    this.store.openProjectParentDir();
+  }
+
+  selectProjectFile(path: string): void {
+    this.store.selectProjectFile(path);
+  }
+
+  openSelectedProjectFile(): void {
+    this.store.openSelectedProjectFile();
+    this.store.setActiveMenu(null);
+  }
+
+  refreshRunningProjectSessions(): void {
+    void this.store.refreshRunningProjectSessions();
+  }
+
+  connectRunningProject(): void {
+    void this.store.connectRunningProject();
+    this.store.setActiveMenu(null);
+  }
+
+  disconnectRunningProject(): void {
+    this.store.disconnectRunningProject();
     this.store.setActiveMenu(null);
   }
 

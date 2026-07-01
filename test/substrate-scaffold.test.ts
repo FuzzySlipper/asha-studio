@@ -17,6 +17,8 @@ import {
   buildAssetBrowserCategories,
   buildInitialWorkspaceReadModel,
   buildStudioGameWorkspaceReadout,
+  buildStudioSceneFileList,
+  buildStudioSceneFileSaveReadback,
   buildStudioWorkspaceOpenReadModel,
   buildStudioSceneAuthoringOperation,
   buildStudioCatalogAuthoringOperation,
@@ -31,6 +33,7 @@ import {
   buildStudioLiveRuntimeTelemetryDebugInspector,
   buildStudioLiveSceneEntityDebugInspector,
   buildStudioRuntimeSessionList,
+  buildStudioRunningProjectDiscovery,
   buildStudioViewportHitReadModel,
   buildStudioPreferencesReadModel,
   buildStudioCompatibilityEvidence,
@@ -45,6 +48,8 @@ import {
   createStudioCompactAgentReadout,
   createLoadReferenceAssetIntent,
   createLoadScenarioIntent,
+  createOpenSceneFileIntent,
+  createSaveSceneFileIntent,
   createCreateSceneObjectRequest,
   applySceneObjectCommandReadModel,
   applyStudioCatalogAuthoringOperation,
@@ -59,6 +64,7 @@ import {
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
+  applyOpenSceneFileReadModel,
   loadScenarioReadModel,
   loadStudioAssetInventory,
   loadStudioGameWorkspaceManifest,
@@ -69,6 +75,7 @@ import {
   recordStudioWorkspaceUiCommand,
   refreshStudioGameWorkspaceLiveReadModel,
   restoreStudioWorkspaceArtifact,
+  serializeWorkspaceSceneSource,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
   studioSceneAuthoringBaseHash,
@@ -504,15 +511,136 @@ test('workspace open/read proof command emits bounded source evidence', () => {
   ));
   assert.equal(artifact.artifactKind, 'studio_workspace_open_read_proof');
   assert.equal(artifact.openRead.openReadVersion, 'studio-workspace-open-read.v0');
-  assert.deepEqual(artifact.openRead.sourceFiles.map((file: { path: string }) => file.path), [
-    'packages/game-catalogs/catalog.json',
-    'scenes/material-proof.scene.json',
-    'scenes/minimal.scene.json',
-  ]);
+  const sourcePaths = artifact.openRead.sourceFiles.map((file: { path: string }) => file.path);
+  assert.ok(sourcePaths.includes('packages/game-catalogs/catalog.json'));
+  assert.ok(sourcePaths.includes('scenes/material-proof.scene.json'));
+  assert.ok(sourcePaths.includes('scenes/minimal.scene.json'));
+  assert.ok(sourcePaths.every((path: string) => path === 'packages/game-catalogs/catalog.json' || path.endsWith('.scene.json')));
   assert.ok(artifact.validations.includes('negative_missing_manifest_failed_closed'));
   assert.ok(artifact.validations.includes('negative_private_repo_scan_failed_closed'));
   assert.ok(artifact.nonClaims.includes('not_repo_crawler'));
   assert.match(artifact.artifactHash, /^sha256:/);
+});
+
+test('scene file list and open command project bounded scene sources', () => {
+  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+
+  const sourcePath = 'scenes/material-proof.scene.json';
+  const sourceText = readFileSync(join(demoRoot, sourcePath), 'utf8');
+  const sceneFiles = buildStudioSceneFileList({
+    workspace: workspaceResult.workspace,
+    manifestPath: 'asha.game.toml',
+    manifestHash: sha256(manifestText),
+    sourceFiles: [{ path: sourcePath, text: sourceText, sha256: sha256(sourceText) }],
+  });
+
+  assert.equal(sceneFiles.ok, true);
+  assert.equal(sceneFiles.sceneFiles.commandIds.open, 'scene.open_source');
+  assert.equal(sceneFiles.sceneFiles.files.at(0)?.name, 'ASHA Demo Material Proof');
+  assert.deepEqual(sceneFiles.sceneFiles.files.at(0)?.catalogAssetIds, [
+    'mesh.demo-cube',
+    'material.demo-copper',
+    'texture.demo-checker',
+  ]);
+  assert.ok(sceneFiles.sceneFiles.nonClaims.includes('not_private_file_picker'));
+
+  const readModel = buildInitialWorkspaceReadModel();
+  const sceneFile = sceneFiles.sceneFiles.files[0];
+  const dispatchResult = mapStudioIntentToCommand(createOpenSceneFileIntent(readModel, sceneFile));
+  assert.equal(dispatchResult.accepted, true);
+  assert.equal(dispatchResult.proposal?.commandId, 'scene.open_source');
+  assert.equal(dispatchResult.proposal?.path, sourcePath);
+
+  const opened = applyOpenSceneFileReadModel(readModel, sceneFile);
+  assert.equal(opened.session.scenarioLabel, 'ASHA Demo Material Proof');
+  assert.equal(opened.timeline.at(-1)?.commandId, 'scene.open_source');
+  assert.ok(opened.scene.renderables.some(renderable => renderable.renderableId === 'scene-file-asset:mesh.demo-cube'));
+});
+
+test('scene file save and save-as commands validate bounded source readback', () => {
+  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
+  const workspaceResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(workspaceResult.ok, true);
+  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+
+  const readModel = buildInitialWorkspaceReadModel();
+  const payloadText = serializeWorkspaceSceneSource(readModel);
+  const payloadHash = sha256(payloadText);
+  const saveIntent = createSaveSceneFileIntent(readModel, {
+    path: 'scenes/studio-save-as.scene.json',
+    expectedPreviousHash: null,
+    saveAs: true,
+  });
+  const dispatchResult = mapStudioIntentToCommand(saveIntent);
+  assert.equal(dispatchResult.accepted, true);
+  assert.equal(dispatchResult.proposal?.commandId, 'scene.save_source_as');
+
+  const saveReadback = buildStudioSceneFileSaveReadback({
+    commandId: 'scene.save_source_as',
+    path: 'scenes/studio-save-as.scene.json',
+    previousHash: null,
+    expectedPreviousHash: null,
+    nextText: payloadText,
+    nextHash: payloadHash,
+    workspace: workspaceResult.workspace,
+  });
+  assert.equal(saveReadback.diagnostics.length, 0);
+  assert.equal(saveReadback.commandId, 'scene.save_source_as');
+  assert.match(saveReadback.sceneFileHash, /^studio-scene-file-/);
+  assert.ok(saveReadback.nonClaims.includes('not_private_file_write'));
+
+  const staleReadback = buildStudioSceneFileSaveReadback({
+    commandId: 'scene.save_source',
+    path: 'scenes/studio-save-as.scene.json',
+    previousHash: 'sha256:changed',
+    expectedPreviousHash: null,
+    nextText: payloadText,
+    nextHash: payloadHash,
+    workspace: workspaceResult.workspace,
+  });
+  assert.ok(staleReadback.diagnostics.some(diagnostic => diagnostic.code === 'scene_file_stale_hash'));
+});
+
+test('scene file menu browser proof captures structured open save workflow', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:scene-file-menu-workflow'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 120000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/scene-file-menu-workflow\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/scene-file-menu-workflow/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_scene_file_menu_browser_proof');
+  assert.deepEqual(artifact.readout.fileMenu.timelineCommandIds, [
+    'scene.open_source',
+    'scene.save_source_as',
+    'scene.save_source',
+  ]);
+  assert.ok(artifact.validations.includes('browser_dom_contains_structured_scene_file_readout'));
+  assert.ok(artifact.validations.includes('negative_marker_only_dom_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_private_file_picker'));
+  assert.match(artifact.browser.screenshotHash, /^sha256:/);
 });
 
 test('scene save roundtrip proof command writes validates reopens and cleans up', () => {
@@ -757,6 +885,69 @@ test('runtime session list turns attach and live evidence into an explicit sessi
   assert.equal(activeSession.nonClaims.includes('not_wasm_authority'), true);
   assert.match(activeSession.sessionHash, /^studio-runtime-session-/);
   assert.match(sessions.sessionListHash, /^studio-runtime-session-list-/);
+});
+
+test('running project discovery projects connect refresh disconnect affordances', async () => {
+  const referenceManifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8')
+    .replace('backend_mode = "native"', 'backend_mode = "reference"')
+    .replace('backend_profile = "native.napi.launcher.v1"', 'backend_profile = "reference"')
+    .replace('backend_proof_refs = ["proof:dev-authority-smoke"]', 'backend_proof_refs = []');
+  const result = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText: referenceManifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('asha-demo workspace should load');
+
+  const previewSessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
+  const previewDiscovery = buildStudioRunningProjectDiscovery({
+    workspace: result.workspace,
+    runtimeSessions: previewSessions,
+  });
+  assert.equal(previewDiscovery.canConnect, true);
+  assert.equal(previewDiscovery.canDisconnect, false);
+  assert.ok(previewDiscovery.diagnostics.some(diagnostic => diagnostic.code === 'running_project_not_attached'));
+  assert.ok(previewDiscovery.nonClaims.includes('not_network_scan'));
+
+  const transport = createDevtoolsFixtureEndpoint();
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error('devtools attach should succeed');
+  const live = await refreshStudioGameWorkspaceLiveReadModel(result.workspace, attached.attach, transport);
+  assert.equal(live.ok, true);
+  if (!live.ok) throw new Error('live readout should refresh');
+
+  const connectedSessions = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+    live: live.live,
+  });
+  const connectedDiscovery = buildStudioRunningProjectDiscovery({
+    workspace: result.workspace,
+    runtimeSessions: connectedSessions,
+  });
+  assert.equal(connectedDiscovery.discoveryVersion, 'studio-running-project-discovery.v0');
+  assert.equal(connectedDiscovery.canConnect, false);
+  assert.equal(connectedDiscovery.canDisconnect, true);
+  assert.equal(connectedDiscovery.commandIds.connect, 'project.connect_running');
+  assert.equal(connectedDiscovery.sessions.at(0)?.worldHash, 'world:demo:1');
+  assert.match(connectedDiscovery.discoveryHash, /^studio-running-project-discovery-/);
+
+  const staleSessions = buildStudioRuntimeSessionList({
+    workspace: result.workspace,
+    attach: attached.attach,
+  });
+  const staleDiscovery = buildStudioRunningProjectDiscovery({
+    workspace: result.workspace,
+    runtimeSessions: staleSessions,
+    attemptedPrivateTransport: true,
+  });
+  assert.ok(staleDiscovery.diagnostics.some(diagnostic => diagnostic.code === 'running_project_stale_live_readback'));
+  assert.ok(staleDiscovery.diagnostics.some(diagnostic => diagnostic.code === 'running_project_private_transport'));
 });
 
 test('live debug session identity records attached session freshness and child evidence', async () => {
@@ -3527,6 +3718,22 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-selected-backend-browser-smoke.ts'),
     'utf8',
   );
+  const sceneFileMenuWorkflowSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-scene-file-menu-workflow.ts'),
+    'utf8',
+  );
+  const projectFileServerSource = readFileSync(
+    join(repoRoot, 'scripts', 'studio-project-file-server.ts'),
+    'utf8',
+  );
+  const shellSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-shell', 'src', 'index.ts'),
+    'utf8',
+  );
+  const storeSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-store', 'src', 'index.ts'),
+    'utf8',
+  );
   const aggregateSource = readFileSync(
     join(repoRoot, 'scripts', 'proof-v2-live-backend-evidence.ts'),
     'utf8',
@@ -3591,6 +3798,10 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-live-gameplay-debug-m4.ts'),
     'utf8',
   );
+  const runningProjectConnectionSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-running-project-connection.ts'),
+    'utf8',
+  );
 
   assert.equal(
     packageJson.scripts['proof:selected-backend-attach'],
@@ -3603,6 +3814,14 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(
     packageJson.scripts['proof:selected-backend-browser-smoke'],
     'tsx scripts/proof-selected-backend-browser-smoke.ts',
+  );
+  assert.equal(
+    packageJson.scripts['proof:scene-file-menu-workflow'],
+    'tsx scripts/proof-scene-file-menu-workflow.ts',
+  );
+  assert.equal(
+    packageJson.scripts['dev:files'],
+    'tsx scripts/studio-project-file-server.ts',
   );
   assert.equal(
     packageJson.scripts['proof:v2-live-backend-evidence'],
@@ -3668,8 +3887,22 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     packageJson.scripts['proof:live-gameplay-debug-m4'],
     'tsx scripts/proof-live-gameplay-debug-m4.ts',
   );
+  assert.equal(
+    packageJson.scripts['proof:running-project-connection'],
+    'tsx scripts/proof-running-project-connection.ts',
+  );
   assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
+  assert.equal(sceneFileMenuWorkflowSource.includes("artifactKind: 'studio_scene_file_menu_browser_proof'"), true);
+  assert.equal(sceneFileMenuWorkflowSource.includes('structured scene file readout JSON is required'), true);
+  assert.equal(sceneFileMenuWorkflowSource.includes('negative_marker_only_dom_failed_closed'), true);
+  assert.equal(projectFileServerSource.includes('/api/project/list'), true);
+  assert.equal(projectFileServerSource.includes('/api/project/file'), true);
+  assert.equal(projectFileServerSource.includes('ASHA_STUDIO_PROJECT_ROOT'), true);
+  assert.equal(shellSource.includes('projectFileDialog()'), true);
+  assert.equal(shellSource.includes('Open {{ selectedPath }}'), true);
+  assert.equal(storeSource.includes('refreshProjectFiles'), true);
+  assert.equal(storeSource.includes('projectFileApiBase'), true);
   assert.equal(aggregateSource.includes("artifactKind: 'studio_v2_live_backend_evidence'"), true);
   assert.equal(aggregateSource.includes('stale source artifact hash'), true);
   assert.equal(aggregateSource.includes('browser smoke must consume the current command proof'), true);
@@ -3718,6 +3951,9 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(liveGameplayDebugM4Source.includes("artifactKind: 'studio_live_gameplay_debug_m4'"), true);
   assert.equal(liveGameplayDebugM4Source.includes('source_artifact_hashes_verified'), true);
   assert.equal(liveGameplayDebugM4Source.includes('stale_source_artifact_hash'), true);
+  assert.equal(runningProjectConnectionSource.includes("artifactKind: 'studio_running_project_connection_browser_proof'"), true);
+  assert.equal(runningProjectConnectionSource.includes('structured running project readout JSON is required'), true);
+  assert.equal(runningProjectConnectionSource.includes('negative_private_transport_failed_closed'), true);
 });
 
 test('live debug session identity proof command records freshness and child artifacts', () => {
@@ -3867,6 +4103,28 @@ test('live gameplay debug M4 aggregate proof gate records all child surfaces', (
   assert.equal(artifact.negativeSmokes.at(0)?.case, 'stale_source_artifact_hash');
   assert.equal(artifact.negativeSmokes.at(0)?.ok, false);
   assert.ok(artifact.nonClaims.includes('not_private_runtime_mutation'));
+});
+
+test('running project connection browser proof captures human connect readout', () => {
+  const result = spawnSync('pnpm', ['run', 'proof:running-project-connection'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 240000,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /artifacts\/running-project-connection\/latest\/index\.json/);
+
+  const artifact = JSON.parse(readFileSync(
+    join(repoRoot, 'artifacts/running-project-connection/latest/index.json'),
+    'utf8',
+  ));
+  assert.equal(artifact.artifactKind, 'studio_running_project_connection_browser_proof');
+  assert.equal(artifact.readout.discovery.canDisconnect, true);
+  assert.equal(artifact.readout.discovery.sessions[0].status, 'attached');
+  assert.ok(artifact.validations.includes('browser_dom_contains_structured_running_project_readout'));
+  assert.ok(artifact.validations.includes('negative_private_transport_failed_closed'));
+  assert.ok(artifact.nonClaims.includes('not_network_scan'));
+  assert.match(artifact.browser.screenshotHash, /^sha256:/);
 });
 
 test('Studio live gameplay debug M4 closeout doc points at aggregate proof gate', () => {

@@ -128,6 +128,29 @@ describe('StudioShellComponent', () => {
     expect(element.querySelector('[data-command-proposal-status="rejected"]')).not.toBeNull();
   });
 
+  it('renders the running project picker from the Project menu', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const projectButton = Array.from(element.querySelectorAll('button')).find(
+      button => button.textContent?.trim() === 'Project',
+    );
+    projectButton?.click();
+    fixture.detectChanges();
+
+    const picker = element.querySelector('[data-visual-id="studio-running-project-picker"]');
+    expect(picker?.textContent).toContain('Running ASHA Project');
+    expect(picker?.textContent).toContain('ws://127.0.0.1:7391');
+    expect(picker?.textContent).toContain('preview');
+    expect(picker?.textContent).toContain('Connect');
+    expect(element.querySelector('[data-running-session-status="available"]')).not.toBeNull();
+  });
+
   it('renders publish evidence status from the demo publish manifest in the Publish tab', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
