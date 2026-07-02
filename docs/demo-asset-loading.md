@@ -1,5 +1,10 @@
 # Demo asset loading (task asha#3215)
 
+Script status: `proof:asset-load`, `proof:browser`, and
+`proof:visual-capability` are historical or deferred proof command names, not
+current package scripts. Their status is tracked by
+`docs/script-reference-policy.json`.
+
 ASHA Studio loads a real demo asset package through public ASHA surfaces and projects it into
 the existing Three.js viewport as reference evidence. This is the first capability lane of the
 `asha-studio-asset-entity-editor-next-roadmap` series.

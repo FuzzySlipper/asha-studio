@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "documentationRoots": [
+    "README.md",
+    "AGENTS.md",
+    "docs"
+  ],
+  "allowedMissingScriptReferences": {
+    "proof:agora-compositor": {
+      "status": "deferred_optional_backend",
+      "note": "Historical optional compositor-capture proof name. It is not part of package.json or verify; keep references clearly marked as deferred until a live compositor harness is restored."
+    },
+    "proof:asset-load": {
+      "status": "retired_slice_proof",
+      "note": "Older demo-asset slice proof name. Current runnable catalog/asset coverage is through proof:catalog-workflow-m3 and package scripts."
+    },
+    "proof:browser": {
+      "status": "retired_visual_proof",
+      "note": "Older Chromium screenshot proof name retained in historical visual-evidence prose. It is not a current package script."
+    },
+    "proof:entity-browser": {
+      "status": "retired_slice_proof",
+      "note": "Older entity-browser slice proof name retained for feature-history docs; no package script currently exists."
+    },
+    "proof:gizmo": {
+      "status": "retired_slice_proof",
+      "note": "Older transform-gizmo slice proof name retained for feature-history docs; no package script currently exists."
+    },
+    "proof:inspector": {
+      "status": "retired_slice_proof",
+      "note": "Older selected-entity inspector slice proof name retained for feature-history docs; no package script currently exists."
+    },
+    "proof:v1": {
+      "status": "retired_milestone_proof",
+      "note": "Older V1 proof aggregator name. Current runnable proof commands are the package scripts in package.json."
+    },
+    "proof:visual-capability": {
+      "status": "retired_visual_proof",
+      "note": "Older consolidated visual-capability proof name retained in historical visual-evidence prose; no package script currently exists."
+    },
+    "proof:visual-contract": {
+      "status": "retired_visual_proof",
+      "note": "Older visual-contract proof name retained in historical visual-contract prose; no package script currently exists."
+    },
+    "smoke:static": {
+      "status": "retired_verification_command",
+      "note": "Older static smoke command name. Current verification uses check:boundaries, check:docs-scripts, lint, typecheck, test, and build."
+    }
+  }
+}

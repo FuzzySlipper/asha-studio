@@ -1,5 +1,9 @@
 # Agora compositor capture proof (optional visual backend)
 
+Script status: `proof:agora-compositor` and `proof:browser` are historical or
+deferred proof command names, not current package scripts. Their status is
+tracked by `docs/script-reference-policy.json`.
+
 Task `asha#3219`. Promotes Agora compositor capture from an ad-hoc/manual demo path into a formal,
 optional ASHA Studio visual proof backend with structured evidence classification and fail-closed
 diagnostics.

@@ -28,11 +28,8 @@ The app consumes `@asha/command-registry` through the package root and projects 
 ```bash
 pnpm install
 pnpm run dev
+pnpm run check:docs-scripts
 pnpm run verify
-pnpm run proof:v1
-pnpm run proof:browser
-pnpm run proof:visual-contract
-pnpm run proof:visual-capability
 pnpm run proof:v2-live-backend-evidence
 ```
 
@@ -42,9 +39,11 @@ The current local ASHA package linkage uses package-root links to `/home/dev/ash
 
 `boundary-policy.json` is the machine-readable import/dependency policy used by `pnpm run check:boundaries`.
 
-Current source imports may use only the public package roots approved in `boundary-policy.json`: `@asha/command-registry`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, and `@asha/runtime-bridge`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
+Current source imports may use only the public package roots approved in `boundary-policy.json`: `@asha/command-registry`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, and `@asha/runtime-bridge`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
+
+`docs/studio-limitations.md` records durable runtime/visual/non-claim limitations. `docs/script-reference-policy.json` records old proof command names that remain in historical docs as retired or deferred references; `pnpm run check:docs-scripts` rejects any new missing script reference without an explicit status.
 
 ## Compatibility metadata
 
@@ -133,15 +132,11 @@ Task `asha#3042` replaces the central dock's purely styled reference projection 
 
 The browser proof/readback now records a `viewport_3d_readback` artifact with canvas marker `studio-3d-webgl-canvas`, visible renderable count, selected target, preview ghost, applied renderable, and explicit non-claims. Task `asha#3043` adds a deterministic `viewport_camera_tool_interaction_proof` nested in the scene-view/readback: the shared timeline records a GUI frame-selected command (`inspection.editor_state`), an agent screen-point selection command, and a GUI preview-ghost command, while camera/tool before/after hashes and stale-readback guards fail closed if camera, selection, or preview evidence diverges. Task `asha#3044` adds `viewport_pick_hit_test_evidence`: the scene model records the expected pick contract, while `buildStudioViewport3dReadback` constructs the same Three.js scene/camera used by the browser host and runs `THREE.Raycaster` against the pickable renderables. The readback records the selected-target screen point, viewport dimensions/hash, camera pose/projection hash, raycast hit renderable/voxel/face/normal/world point, structured background no-hit result, selection/inspector/hierarchy/timeline cross-checks, and stale guards that fail closed if camera, viewport, selection, inspector, hierarchy, selected face/edit-anchor, or pick identity evidence changes without refreshed pick evidence. Task `asha#3045` extends `artifacts/browser-capture/latest/index.json` with `viewport_visual_delta_crop_proof`: same-region edit-anchor crops sourced from distinct `before` and `after` Studio viewport phase screenshots, crop rectangles in screenshot pixels, crop paths/hashes, linked source-state handles, voxel IDs, camera hash, command IDs, before/after scene hashes, and stale guards that fail closed on unchanged or mismatched crop/scene hashes or same-screenshot before/after sources. This is still browser projection evidence only: it does not claim native/WASM runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance.
 
-## Browser visual capture
+## Historical browser visual capture
 
-Task `asha#2739` adds a Chromium headless browser screenshot capture/readback path for the completed Studio V1 proof:
+Task `asha#2739` described a Chromium headless browser screenshot capture/readback path for the completed Studio V1 proof. The old `pnpm run proof:browser` name is now a retired historical script reference tracked in `docs/script-reference-policy.json`, not a current package script.
 
-```bash
-pnpm run proof:browser
-```
-
-The command first regenerates the full `proof:v1` artifact, then serves both the built Studio app route and generated V1 proof route over local HTTP. Chromium captures:
+That historical command first regenerated the full `proof:v1` artifact, then served both the built Studio app route and generated V1 proof route over local HTTP. Chromium captured:
 
 - `artifacts/browser-capture/latest/studio-app.png` — browser screenshot of the Studio app route with boundary, scenario, command catalog, readout, evidence/export, and command timeline markers.
 - `artifacts/browser-capture/latest/v1-proof-before-after.png` — browser screenshot of the generated V1 proof route with before/after evidence and all 9 proof steps.
@@ -149,13 +144,9 @@ The command first regenerates the full `proof:v1` artifact, then serves both the
 
 The browser capture is fail-closed: missing app/proof markers, missing timeline command IDs, missing linked artifact, unchanged before/after render hashes, or screenshot/hash readback mismatch fail the command. It is browser screenshot evidence via Chromium headless CLI; it still does not claim Agora compositor capture, native runtime bridge, hardware GPU, or performance evidence.
 
-## Visual-contract candidate proof
+## Historical visual-contract candidate proof
 
-Task `asha#3123` adds stable ASHA visual-contract markers to the current Studio DOM and a reproducible candidate-generation proof:
-
-```bash
-pnpm run proof:visual-contract
-```
+Task `asha#3123` added stable ASHA visual-contract markers to the Studio DOM and described a reproducible candidate-generation proof. The old `pnpm run proof:visual-contract` name is now a retired historical script reference tracked in `docs/script-reference-policy.json`, not a current package script.
 
 The proof route serves `dist/index.html?visualContract=1`, which keeps the current Studio shell vocabulary but compacts the page into the `1920x1080` visual-contract viewport used by the `asha#3130` target fixture. The browser evidence collector uses `[data-visual-id="asha_studio_shell"]` as the root, captures `viewport-clipped` evidence, converts it through the `visual-contract` service, and compares the generated current candidate against `fixtures/visual-contract/asha-studio-ui-test.target.contract.json`.
 
@@ -169,15 +160,11 @@ Generated checked-in handles:
 
 The candidate includes canonical `data-visual-id` / `data-visual-role` evidence for `scene_hierarchy`, `central_3d_viewport`, `selected_target_inspector`, `command_timeline`, `evidence_dock`, limitation labels, `selection_outline`, `preview_ghost`, `axis_gizmo`, and applied/preview state markers. The negative smoke removes `selected_target_inspector` and undersizes `central_3d_viewport`; readback requires the visual-contract report to fail closed with those diagnostics. This is browser layout/affordance evidence only and complements, but does not replace, scene/camera/pick/readback proof.
 
-## Visual capability proof
+## Historical visual capability proof
 
-Task `asha#3046` consolidates the prior browser, Three.js readback, pick, visual-delta, command/hash, and deployed visual-contract evidence into a single reviewer-facing proof:
+Task `asha#3046` consolidated the prior browser, Three.js readback, pick, visual-delta, command/hash, and deployed visual-contract evidence into a reviewer-facing proof. The old `pnpm run proof:visual-capability` name is now a retired historical script reference tracked in `docs/script-reference-policy.json`, not a current package script.
 
-```bash
-pnpm run proof:visual-capability
-```
-
-The command regenerates `proof:browser`, regenerates `proof:visual-contract` against the deployed service on `den-srv`, then writes:
+That historical command regenerated `proof:browser`, regenerated `proof:visual-contract` against the deployed service on `den-srv`, then wrote:
 
 - `artifacts/visual-capability/latest/index.json` — reproducible generated proof artifact;
 - `fixtures/studio-visual-capability-proof.sample.json` — checked-in sample readback used by tests.
@@ -192,15 +179,11 @@ Task `asha#3047` defines the exact gate for replacing browser/reference visual s
 
 The gate currently reports `deferred` for mock/reference workflows and `failed_closed` for `native`/`wasm` until all of the following exist through public package roots: `@asha/runtime-bridge` compatibility `runtime-bridge.v0`, typed scene snapshot DTOs, typed command-application results, replay/golden records, runtime render/readback evidence, a classified runtime error taxonomy, and visual-capability proof updates with runtime-specific negative smokes. Studio must still not import raw native/WASM transports or claim runtime authority from browser/Three.js evidence alone.
 
-## End-to-end V1 proof
+## Historical end-to-end V1 proof
 
-A reviewer can run the complete V1 visual edit proof with one command:
+The old `pnpm run proof:v1` name described the complete V1 visual edit proof. It is now a retired historical script reference tracked in `docs/script-reference-policy.json`, not a current package script.
 
-```bash
-pnpm run proof:v1
-```
-
-The proof command runs the normal verifier, serves the built `dist/` app over a local static HTTP server, checks required UI markers, verifies boundary policy, creates before/after SVG software-snapshot evidence, writes `artifacts/v1-proof/latest/index.json`, and runs `scripts/readback-v1-proof.mjs` against the generated artifact.
+That historical proof command ran the normal verifier, served the built `dist/` app over a local static HTTP server, checked required UI markers, verified boundary policy, created before/after SVG software-snapshot evidence, wrote `artifacts/v1-proof/latest/index.json`, and ran `scripts/readback-v1-proof.mjs` against the generated artifact.
 
 Expected success markers:
 
@@ -209,18 +192,16 @@ asha-studio V1 proof: OK (artifacts/v1-proof/latest/index.json)
 asha-studio V1 proof readback: OK (9 proof steps, 3 artifact file(s))
 ```
 
-Generated `artifacts/` output is intentionally git-ignored; rerun `pnpm run proof:v1` to reproduce the review artifact and visual evidence files.
+Generated `artifacts/` output remains intentionally git-ignored. Use current package scripts for runnable proof commands.
 
 ## Verification
 
 ```bash
 pnpm run check:boundaries
+pnpm run check:docs-scripts
 pnpm run test
 pnpm run build
-pnpm run smoke:static
-pnpm run proof:browser
-pnpm run proof:visual-contract
-pnpm run proof:visual-capability
+pnpm run proof:v2-live-backend-evidence
 git diff --check
 ```
 
@@ -230,3 +211,5 @@ git diff --check
 - Still reference/projection-only outside the selected-backend proof: durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, performance evidence, and WASM authority.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser/V2 proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.
+
+See `docs/studio-limitations.md` for durable limitations and non-claims.

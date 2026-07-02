@@ -106,6 +106,31 @@ function loadDemoPackageName(): string {
   return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).name;
 }
 
+function createStudioDevtoolsFixtureEndpoint(
+  options: Parameters<typeof createDevtoolsFixtureEndpoint>[0] = {},
+): ReturnType<typeof createDevtoolsFixtureEndpoint> {
+  const endpoint = createDevtoolsFixtureEndpoint(options);
+  return {
+    exchange(message) {
+      const response = endpoint.exchange(message);
+      if (message.type !== 'handshake.request'
+        || response.type !== 'handshake.response'
+        || !response.accepted) {
+        return response;
+      }
+
+      return {
+        ...response,
+        runtime: {
+          ...response.runtime,
+          gameId: message.requestedWorkspaceId,
+          workspaceId: message.requestedWorkspaceId,
+        },
+      };
+    },
+  };
+}
+
 function sha256(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex')}`;
 }
@@ -755,7 +780,7 @@ test('game workspace attach client performs typed devtools handshake', async () 
 
   const attached = await attachStudioGameWorkspaceDevtools(
     result.workspace,
-    createDevtoolsFixtureEndpoint(),
+    createStudioDevtoolsFixtureEndpoint(),
   );
 
   assert.equal(attached.ok, true);
@@ -790,7 +815,7 @@ test('game workspace attach client fails closed on incompatible protocol', async
   if (!result.ok) throw new Error('asha-testing workspace should load');
   const attached = await attachStudioGameWorkspaceDevtools(
     result.workspace,
-    createDevtoolsFixtureEndpoint({ forceProtocolVersion: 'devtools-protocol.v999' }),
+    createStudioDevtoolsFixtureEndpoint({ forceProtocolVersion: 'devtools-protocol.v999' }),
   );
 
   assert.equal(attached.ok, false);
@@ -810,7 +835,7 @@ test('game workspace live readout pulls projection render diff and telemetry thr
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -852,7 +877,7 @@ test('runtime session list turns attach and live evidence into an explicit sessi
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -914,7 +939,7 @@ test('running project discovery projects connect refresh disconnect affordances'
   assert.ok(previewDiscovery.diagnostics.some(diagnostic => diagnostic.code === 'running_project_not_attached'));
   assert.ok(previewDiscovery.nonClaims.includes('not_network_scan'));
 
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -966,7 +991,7 @@ test('live debug session identity records attached session freshness and child e
   });
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1018,7 +1043,7 @@ test('live debug session identity records attached session freshness and child e
   const fixtureOnly = buildStudioLiveDebugSessionIdentity({
     runtimeSessions: {
       ...sessions,
-      activeSessionId: 'runtime-fixture:asha-demo',
+      activeSessionId: `runtime-fixture:${loadDemoPackageName()}`,
     },
   });
   assert.equal(fixtureOnly.ok, false);
@@ -1225,7 +1250,7 @@ test('live runtime/telemetry debug inspector projects runtime and command metric
   });
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1278,7 +1303,7 @@ test('live debug command proposal surface bounds actions to shared command evide
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1381,7 +1406,7 @@ test('runtime session list fails closed when backend evidence is missing or inco
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1494,7 +1519,7 @@ test('game workspace live readout fails closed when telemetry is unavailable', a
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const fixture = createDevtoolsFixtureEndpoint();
+  const fixture = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, fixture);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1529,7 +1554,7 @@ test('game workspace command proposal flows through typed attach transport', asy
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1570,7 +1595,7 @@ test('game workspace command proposal records runtime rejections without private
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint({ commandProposalSupported: false });
+  const transport = createStudioDevtoolsFixtureEndpoint({ commandProposalSupported: false });
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
@@ -1606,7 +1631,7 @@ test('game workspace command proposal fails closed on missing command result evi
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
   const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
-  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, createDevtoolsFixtureEndpoint());
+  const attached = await attachStudioGameWorkspaceDevtools(result.workspace, createStudioDevtoolsFixtureEndpoint());
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');
   const missingResult = await proposeStudioGameWorkspaceCommand(
@@ -1627,7 +1652,7 @@ test('game workspace command proposal fails closed on missing command result evi
   const stale = await proposeStudioGameWorkspaceCommand(
     staleWorkspace,
     attached.attach,
-    createDevtoolsFixtureEndpoint(),
+    createStudioDevtoolsFixtureEndpoint(),
     { sequenceId: command.sequenceId, batch: command.batch },
   );
 
@@ -1708,7 +1733,7 @@ test('game workspace attach evidence artifact correlates attach live and command
 
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
-  const transport = createDevtoolsFixtureEndpoint();
+  const transport = createStudioDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
   if (!attached.ok) throw new Error('devtools attach should succeed');

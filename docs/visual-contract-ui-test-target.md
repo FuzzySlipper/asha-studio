@@ -1,5 +1,9 @@
 # ASHA Studio UI-test visual contract target
 
+Script status: `proof:visual-contract` is a historical proof command name, not a
+current package script. Its status is tracked by
+`docs/script-reference-policy.json`.
+
 Task: `asha#3130`
 
 This fixture set drafts the first ASHA Studio target visual contract from the mockup at

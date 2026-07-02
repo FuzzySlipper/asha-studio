@@ -1,5 +1,10 @@
 # Selected entity inspector read/edit surface (task asha#3217)
 
+Script status: `proof:inspector`, `proof:browser`, and
+`proof:visual-capability` are historical or deferred proof command names, not
+current package scripts. Their status is tracked by
+`docs/script-reference-policy.json`.
+
 The right dock selected entity inspector turns the inspector into a useful read/edit surface for the
 shared scene-view selected entity: structured identity/provenance/transform readback plus a typed,
 command/timeline-visible edit for one safe supported field. This is the third capability lane of the

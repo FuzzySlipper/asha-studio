@@ -1,5 +1,10 @@
 # Selection / transform gizmo manipulation (task asha#3218)
 
+Script status: `proof:gizmo`, `proof:browser`, and
+`proof:visual-capability` are historical or deferred proof command names, not
+current package scripts. Their status is tracked by
+`docs/script-reference-policy.json`.
+
 The viewport transform gizmo moves from pick proof to editor manipulation proof: it turns the shared
 scene-view selected entity into a transform gizmo read model with visible selection outline/handles
 and a single, constrained, command/timeline-visible transform (translate along one axis) with

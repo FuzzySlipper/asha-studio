@@ -1,5 +1,10 @@
 # Entity browser / hierarchy selection sync (task asha#3216)
 
+Script status: `proof:entity-browser`, `proof:browser`, and
+`proof:visual-capability` are historical or deferred proof command names, not
+current package scripts. Their status is tracked by
+`docs/script-reference-policy.json`.
+
 The left dock entity browser is a deterministic projection of the loaded scene/entity state, with
 selection synchronized to the viewport through the shared command/timeline path. This is the second
 capability lane of the `asha-studio-asset-entity-editor-next-roadmap` series.
