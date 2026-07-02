@@ -76,14 +76,17 @@ canonical selection hash, selected renderable, and preview ghost or report `fail
 
 Task `asha#3044` extends the readback with `viewport_pick_hit_test_evidence`.
 The scene-view model stores the expected pick contract; the viewport readback then
-builds the same Three.js scene/camera used by the browser host and runs
-`THREE.Raycaster` against pickable renderables. The resulting evidence records the
-selected target screen point, viewport dimensions/hash, camera pose/projection
-hash, raycast hit renderable/voxel/face/normal/world point, and a structured
-background no-hit proof. The browser readback cross-checks that pick evidence
-still matches the selected target, selected-target inspector voxel, hierarchy
-selected node, selection timeline command, canonical selection hash, current camera
-hash, current viewport hash, and the selected face/edit-anchor relationship. Any
+projects Studio renderables through the engine-owned `@asha/render-projection`
+retained model before the local Three.js binding builds the browser scene/camera
+and runs `THREE.Raycaster` against pickable renderables. Three.js remains the
+local browser implementation; renderer-neutral ASHA semantics come from the
+public engine package root. The resulting evidence records the selected target
+screen point, viewport dimensions/hash, camera pose/projection hash, raycast hit
+renderable/voxel/face/normal/world point, and a structured background no-hit
+proof. The browser readback cross-checks that pick evidence still matches the
+selected target, selected-target inspector voxel, hierarchy selected node,
+selection timeline command, canonical selection hash, current camera hash,
+current viewport hash, and the selected face/edit-anchor relationship. Any
 mismatch reports `failed_closed` rather than allowing stale pick evidence to
 remain ready.
 

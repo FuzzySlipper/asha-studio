@@ -7,6 +7,7 @@
     "@asha/devtools",
     "@asha/editor-tools",
     "@asha/game-workspace",
+    "@asha/render-projection",
     "@asha/runtime-bridge"
   ],
   "allowedLocalPackageLinks": {
@@ -15,6 +16,7 @@
     "@asha/devtools": "link:../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
     "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
+    "@asha/render-projection": "link:../asha/ts/packages/render-projection",
     "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
   },
   "requiredLocalPackageLinks": {
@@ -23,6 +25,7 @@
     "@asha/devtools": "link:../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
     "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
+    "@asha/render-projection": "link:../asha/ts/packages/render-projection",
     "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
   },
   "forbiddenPackages": [

@@ -44,6 +44,9 @@ importers:
       '@asha/game-workspace':
         specifier: link:../asha/ts/packages/game-workspace
         version: link:../asha/ts/packages/game-workspace
+      '@asha/render-projection':
+        specifier: link:../asha/ts/packages/render-projection
+        version: link:../asha/ts/packages/render-projection
       '@asha/runtime-bridge':
         specifier: link:../asha/ts/packages/runtime-bridge
         version: link:../asha/ts/packages/runtime-bridge
@@ -311,6 +314,9 @@ importers:
       '@asha-studio/store':
         specifier: workspace:*
         version: link:../studio-store
+      '@asha/render-projection':
+        specifier: link:../../../asha/ts/packages/render-projection
+        version: link:../../../asha/ts/packages/render-projection
       tslib:
         specifier: ^2.3.0
         version: 2.8.1

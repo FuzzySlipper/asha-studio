@@ -7,6 +7,18 @@ import {
 } from '@angular/core';
 import type { AfterViewInit, ElementRef, OnDestroy } from '@angular/core';
 import type {
+  Material,
+  RenderDiff,
+  RenderFrameDiff,
+  RenderNode,
+  Transform,
+} from '@asha/contracts';
+import { renderHandle } from '@asha/contracts';
+import { RenderProjection } from '@asha/render-projection';
+import type {
+  RenderProjectionNode,
+} from '@asha/render-projection';
+import type {
   StudioBounds,
   StudioEntitySourceState,
   StudioRenderableKind,
@@ -38,6 +50,14 @@ function size(bounds: StudioBounds): StudioVec3 {
 
 function toThreePosition(vector: StudioVec3): THREE.Vector3 {
   return new THREE.Vector3(vector.x, vector.z, vector.y);
+}
+
+function transformTranslationToThree(transform: Transform): THREE.Vector3 {
+  return new THREE.Vector3(
+    transform.translation[0],
+    transform.translation[2],
+    transform.translation[1],
+  );
 }
 
 function fromThreePosition(vector: THREE.Vector3): StudioVec3 {
@@ -88,6 +108,81 @@ function materialOpacity(renderable: StudioViewportRenderableAdapter): number {
     return 0.36;
   }
   return 0.9;
+}
+
+function renderableMaterial(
+  renderable: StudioViewportRenderableAdapter,
+  wireframeEnabled: boolean,
+): Material {
+  const color = new THREE.Color(
+    materialColor(renderable.kind, renderable.sourceState, renderable.selected),
+  );
+  return {
+    color: [
+      color.r,
+      color.g,
+      color.b,
+      materialOpacity(renderable),
+    ],
+    wireframe: wireframeEnabled || renderable.kind === 'preview_ghost',
+  };
+}
+
+function renderableTransform(renderable: StudioViewportRenderableAdapter): Transform {
+  const renderableCenter = center(renderable.bounds);
+  const renderableSize = size(renderable.bounds);
+  return {
+    translation: [
+      renderableCenter.x,
+      renderableCenter.y,
+      renderableCenter.z,
+    ],
+    rotation: [0, 0, 0, 1],
+    scale: [
+      renderableSize.x,
+      renderableSize.y,
+      renderable.kind === 'voxel_grid' ? 0.04 : renderableSize.z,
+    ],
+  };
+}
+
+function renderableNode(
+  renderable: StudioViewportRenderableAdapter,
+  wireframeEnabled: boolean,
+): RenderNode {
+  return {
+    geometry: { shape: 'cube' },
+    material: renderableMaterial(renderable, wireframeEnabled),
+    transform: renderableTransform(renderable),
+    visible: true,
+    layer: 'scene',
+    metadata: {
+      source: null,
+      tags: [],
+      label: renderable.renderableId,
+    },
+  };
+}
+
+function buildViewportProjectionFrame(adapter: StudioViewportAdapterReadModel): RenderFrameDiff {
+  const ops: RenderDiff[] = [];
+  let handle = 1;
+  for (const renderable of adapter.renderables) {
+    if (!renderable.visible) {
+      continue;
+    }
+    if (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost') {
+      continue;
+    }
+    ops.push({
+      op: 'create',
+      handle: renderHandle(handle),
+      parent: null,
+      node: renderableNode(renderable, adapter.renderSettings.wireframeEnabled),
+    });
+    handle += 1;
+  }
+  return { ops };
 }
 
 function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string {
@@ -476,14 +571,18 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     }
     this.renderableGroup.clear();
 
+    const projection = new RenderProjection();
+    projection.applyFrame(buildViewportProjectionFrame(adapter));
+    const projectionByRenderableId = new Map(
+      projection.snapshot().nodes.map(node => [node.metadata.label, node]),
+    );
+
     for (const renderable of adapter.renderables) {
-      if (!renderable.visible) {
+      const projectionNode = projectionByRenderableId.get(renderable.renderableId);
+      if (projectionNode === undefined) {
         continue;
       }
-      if (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost') {
-        continue;
-      }
-      const object = this.createRenderableObject(renderable, adapter.renderSettings.wireframeEnabled);
+      const object = this.createRenderableObject(renderable, projectionNode);
       this.renderableGroup.add(object);
     }
 
@@ -496,24 +595,32 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private createRenderableObject(
     renderable: StudioViewportRenderableAdapter,
-    wireframeEnabled: boolean,
+    projectionNode: RenderProjectionNode,
   ): THREE.Object3D {
-    const renderableCenter = center(renderable.bounds);
-    const renderableSize = size(renderable.bounds);
+    const scale = projectionNode.transform.scale;
+    const projectedMaterial = projectionNode.material;
     const geometry = new THREE.BoxGeometry(
-      renderableSize.x,
-      renderable.kind === 'voxel_grid' ? 0.04 : renderableSize.z,
-      renderableSize.y,
+      scale[0],
+      scale[2],
+      scale[1],
     );
+    const color = projectedMaterial === null
+      ? materialColor(renderable.kind, renderable.sourceState, renderable.selected)
+      : new THREE.Color(
+        projectedMaterial.color[0],
+        projectedMaterial.color[1],
+        projectedMaterial.color[2],
+      );
+    const opacity = projectedMaterial?.color[3] ?? materialOpacity(renderable);
     const material = new THREE.MeshStandardMaterial({
-      color: materialColor(renderable.kind, renderable.sourceState, renderable.selected),
-      opacity: materialOpacity(renderable),
+      color,
+      opacity,
       roughness: 0.72,
-      transparent: materialOpacity(renderable) < 1,
-      wireframe: wireframeEnabled || renderable.kind === 'preview_ghost',
+      transparent: opacity < 1,
+      wireframe: projectedMaterial?.wireframe ?? renderable.kind === 'preview_ghost',
     });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(toThreePosition(renderableCenter));
+    mesh.position.copy(transformTranslationToThree(projectionNode.transform));
     mesh.userData = { renderableId: renderable.renderableId };
 
     if (renderable.selected) {

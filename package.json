@@ -61,6 +61,7 @@
     "@asha/devtools": "link:../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
     "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
+    "@asha/render-projection": "link:../asha/ts/packages/render-projection",
     "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge",
     "rxjs": "~7.8.0",
     "three": "^0.184.0"
@@ -109,6 +110,7 @@
       "@asha/contracts",
       "@asha/editor-tools",
       "@asha/game-workspace",
+      "@asha/render-projection",
       "@asha/runtime-bridge"
     ],
     "deferredPublicPackages": [
