@@ -57,7 +57,7 @@ show workspace, runtime, and publish status.
      catalog asset ids.
    - Public inputs:
      - Scene files listed by `AshaGameManifest.workspace.sceneRoots`.
-     - Proof-scene evidence emitted by `asha-demo` `scene:proof`,
+     - Proof-scene evidence emitted by `asha-testing` `scene:proof`,
        `dev:smoke`, and `verify:assets-v1`, including
        `artifactKind: "asha_demo_assets_v1_verification"`.
      - Existing Studio evidence/readout fixtures for visual capability,
@@ -197,4 +197,3 @@ The follow-up tasks should land in this order:
 6. Publish/evidence status panel consuming publish V1 artifacts.
 7. Cockpit evidence export that records panel hashes, stale checks, and
    non-claims for agent review.
-

@@ -8,7 +8,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const outDir = join(repoRoot, 'artifacts/proper-demo-capstone-verifier/latest');
 const artifactPath = join(outDir, 'index.json');
 

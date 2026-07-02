@@ -13,7 +13,7 @@ import {
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry } from '@asha/game-workspace';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const catalogPath = 'packages/game-catalogs/catalog.json';
 const outDir = join(repoRoot, 'artifacts/catalog-entry-authoring-ui-proof/latest');
 const artifactPath = join(outDir, 'index.json');

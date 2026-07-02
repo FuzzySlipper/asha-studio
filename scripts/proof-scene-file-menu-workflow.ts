@@ -20,7 +20,7 @@ import {
 } from '@asha-studio/domain';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const outDir = join(repoRoot, 'artifacts/scene-file-menu-workflow/latest');
 const htmlPath = join(outDir, 'index.html');
 const domPath = join(outDir, 'dom.html');
@@ -82,7 +82,7 @@ const workspaceResult = loadStudioGameWorkspaceManifest({
   pathExists: path => existsSync(join(demoRoot, path)),
 });
 assert.equal(workspaceResult.ok, true);
-if (!workspaceResult.ok) throw new Error('asha-demo workspace failed to load');
+if (!workspaceResult.ok) throw new Error('asha-testing workspace failed to load');
 
 const sourceFiles = [
   readSourceFile('scenes/material-proof.scene.json'),

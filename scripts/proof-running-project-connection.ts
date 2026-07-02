@@ -69,7 +69,7 @@ assert.equal(attachArtifact.artifactKind, 'studio_selected_backend_attach_proof'
 const discovery = buildStudioRunningProjectDiscovery({
   workspace: {
     workspaceVersion: 'studio-game-workspace.v0',
-    workspaceRoot: '../asha-demo',
+    workspaceRoot: '../asha-testing',
     manifestPath: 'asha.game.toml',
     gameId: attachArtifact.workspace.gameId,
     manifest: {

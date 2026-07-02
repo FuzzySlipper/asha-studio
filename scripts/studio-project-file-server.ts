@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const projectRoot = resolve(process.env.ASHA_STUDIO_PROJECT_ROOT ?? join(repoRoot, '../asha-demo'));
+const projectRoot = resolve(process.env.ASHA_STUDIO_PROJECT_ROOT ?? join(repoRoot, '../asha-testing'));
 const host = process.env.ASHA_STUDIO_FILE_HOST ?? '0.0.0.0';
 const port = Number(process.env.ASHA_STUDIO_FILE_PORT ?? '4300');
 

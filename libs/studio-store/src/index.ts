@@ -482,7 +482,7 @@ const DEMO_PUBLISH_EVIDENCE = {
 
 function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
   return loadStudioGameWorkspaceManifest({
-    workspaceRoot: '../asha-demo',
+    workspaceRoot: '../asha-testing',
     manifestPath: 'asha.game.toml',
     gameId: 'asha-demo',
     manifestText: DEMO_GAME_WORKSPACE_MANIFEST,

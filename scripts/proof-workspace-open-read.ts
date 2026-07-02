@@ -12,7 +12,7 @@ import {
 } from '@asha-studio/domain';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const outDir = join(repoRoot, 'artifacts/workspace-open-read-proof/latest');
 const artifactPath = join(outDir, 'index.json');
 
@@ -61,7 +61,7 @@ const workspaceResult = loadStudioGameWorkspaceManifest({
   pathExists: path => existsSync(join(demoRoot, path)),
 });
 assert.equal(workspaceResult.ok, true);
-if (!workspaceResult.ok) throw new Error('asha-demo workspace failed to load');
+if (!workspaceResult.ok) throw new Error('asha-testing workspace failed to load');
 
 const sourceFiles = listBoundedWorkspaceSourceFiles(
   workspaceResult.workspace.sceneRoots,

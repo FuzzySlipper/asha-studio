@@ -108,7 +108,7 @@ const artifactBody = {
     milestoneCoverage: verifier.milestoneCoverage,
     sourceArtifactCount: sourceArtifacts.length,
     studioArtifactCount: sourceArtifacts.filter(source => source.path.startsWith('artifacts/')).length,
-    demoArtifactCount: sourceArtifacts.filter(source => source.path.startsWith('../asha-demo/')).length,
+    demoArtifactCount: sourceArtifacts.filter(source => source.path.startsWith('../asha-testing/')).length,
   },
   negativeSmokes: [
     {

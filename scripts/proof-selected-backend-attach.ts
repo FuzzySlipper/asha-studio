@@ -19,7 +19,7 @@ import {
 import type { DevtoolsAttachServerMessage } from '@asha/devtools';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const outDir = join(repoRoot, 'artifacts/selected-backend-attach-proof/latest');
 const artifactPath = join(outDir, 'index.json');
 
@@ -108,7 +108,7 @@ function loadDemoPackageScripts(): Record<string, string> {
 function waitForListening(runtime: ChildProcessWithoutNullStreams, logs: { stdout: string; stderr: string }) {
   return new Promise<{ endpoint: string; runtimeMode: string; launcherName: string }>((resolvePromise, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`asha-demo dev runtime did not start\nstdout:\n${logs.stdout}\nstderr:\n${logs.stderr}`));
+      reject(new Error(`asha-testing dev runtime did not start\nstdout:\n${logs.stdout}\nstderr:\n${logs.stderr}`));
     }, 8000);
 
     runtime.stdout.on('data', () => {
@@ -123,7 +123,7 @@ function waitForListening(runtime: ChildProcessWithoutNullStreams, logs: { stdou
     });
     runtime.on('exit', (code, signal) => {
       clearTimeout(timer);
-      reject(new Error(`asha-demo dev runtime exited before listening: code=${code} signal=${signal}`));
+      reject(new Error(`asha-testing dev runtime exited before listening: code=${code} signal=${signal}`));
     });
   });
 }
@@ -143,7 +143,7 @@ const workspaceResult = loadStudioGameWorkspaceManifest({
   pathExists: path => existsSync(join(demoRoot, path)),
 });
 assert.equal(workspaceResult.ok, true);
-if (!workspaceResult.ok) throw new Error('asha-demo workspace failed to load');
+if (!workspaceResult.ok) throw new Error('asha-testing workspace failed to load');
 
 const logs = { stdout: '', stderr: '' };
 const runtime = spawn(process.execPath, ['scripts/dev-runtime.mjs', '--port', '0'], {

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const outDir = join(repoRoot, 'artifacts/authored-browser-runtime-load/latest');
 const artifactPath = join(outDir, 'index.json');
 const fixturePath = join(repoRoot, 'fixtures/round-trip/studio-authored-content.fixture.json');

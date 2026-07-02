@@ -13,7 +13,7 @@ import {
 } from '@asha-studio/domain';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const outDir = join(repoRoot, 'artifacts/live-debug-session-identity-proof/latest');
 const artifactPath = join(outDir, 'index.json');
 
@@ -74,7 +74,7 @@ const childArtifacts: readonly StudioLiveDebugSessionChildArtifactRef[] = [
   },
   {
     kind: browser.artifact.artifactKind as string,
-    path: `../asha-demo/${browser.path}`,
+    path: `../asha-testing/${browser.path}`,
     artifactHash: browser.artifactHash,
     fileHash: browser.fileHash,
     expectedArtifactHash: browser.artifactHash,

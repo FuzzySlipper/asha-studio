@@ -7,7 +7,8 @@ ASHA Studio is a distinct frontend-heavy studio/reference app for composing ASHA
 This repo is intentionally separate from:
 
 - `asha` — backend-heavy engine substrate, Rust authority, generated contracts, public command/evidence packages.
-- `asha-demo` — narrow demo/playground/reference proofs.
+- `asha-testing` — synthetic proof, conformance, boundary, and reference-workspace harnesses.
+- `asha-demo` — human-facing demos and product-content experiments built on public ASHA surfaces.
 
 ## Current baseline
 

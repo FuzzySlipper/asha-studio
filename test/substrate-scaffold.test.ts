@@ -96,7 +96,7 @@ import {
 import generateStudioFeatureSlice from '../libs/studio-workspace-generators/src/generators/studio-feature-slice/generator';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = join(repoRoot, '../asha-demo');
+const demoRoot = join(repoRoot, '../asha-testing');
 
 function loadDemoPackageScripts(): Record<string, string> {
   return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).scripts;
@@ -349,7 +349,7 @@ test('scenario load fails closed for unknown scenario ids', () => {
   assert.equal(loaded.diagnostics.at(0)?.code, 'scenario_load_unknown');
 });
 
-test('game workspace loader opens the asha-demo manifest without path guessing', () => {
+test('game workspace loader opens the asha-testing manifest without path guessing', () => {
   const result = loadStudioGameWorkspaceManifest({
     workspaceRoot: demoRoot,
     manifestPath: 'asha.game.toml',
@@ -360,9 +360,9 @@ test('game workspace loader opens the asha-demo manifest without path guessing',
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   assert.equal(result.workspace.workspaceVersion, 'studio-game-workspace.v0');
-  assert.equal(result.workspace.gameId, 'asha-demo');
+  assert.equal(result.workspace.gameId, loadDemoPackageName());
   assert.equal(result.workspace.manifestPath, 'asha.game.toml');
   assert.equal(result.workspace.attachEndpoint, 'ws://127.0.0.1:7391');
   assert.equal(result.workspace.devCommand, 'npm run dev');
@@ -382,7 +382,7 @@ test('game workspace loader opens the asha-demo manifest without path guessing',
     openWorkspace: 'workspace.open_game_manifest',
     validateManifest: 'workspace.validate_game_manifest',
   });
-  assert.equal(readout.gameId, 'asha-demo');
+  assert.equal(readout.gameId, loadDemoPackageName());
   assert.equal(readout.compatibility.engineVersion, '0.1.0');
   assert.equal(readout.compatibility.contractsVersion, '0.1.0');
   assert.equal(readout.compatibility.runtimeBridgeVersion, '0.1.0');
@@ -421,7 +421,7 @@ test('workspace open/read model enumerates bounded scene and catalog refs', () =
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
 
   const sourcePaths = [
     'scenes/material-proof.scene.json',
@@ -477,7 +477,7 @@ test('workspace open/read model fails closed on missing manifest and unsupported
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
 
   const failed = buildStudioWorkspaceOpenReadModel({
     workspace: result.workspace,
@@ -534,7 +534,7 @@ test('scene file list and open command project bounded scene sources', () => {
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
 
   const sourcePath = 'scenes/material-proof.scene.json';
   const sourceText = readFileSync(join(demoRoot, sourcePath), 'utf8');
@@ -579,7 +579,7 @@ test('scene file save and save-as commands validate bounded source readback', ()
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
 
   const readModel = buildInitialWorkspaceReadModel();
   const payloadText = serializeWorkspaceSceneSource(readModel);
@@ -746,11 +746,11 @@ test('game workspace attach client performs typed devtools handshake', async () 
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const handshake = buildStudioGameWorkspaceHandshakeRequest(result.workspace);
   assert.equal(handshake.type, 'handshake.request');
   assert.equal(handshake.clientName, 'asha-studio');
-  assert.equal(handshake.requestedWorkspaceId, 'asha-demo');
+  assert.equal(handshake.requestedWorkspaceId, loadDemoPackageName());
   assert.equal(handshake.protocolVersion, result.workspace.manifest.asha.devtoolsProtocolVersion);
 
   const attached = await attachStudioGameWorkspaceDevtools(
@@ -763,8 +763,8 @@ test('game workspace attach client performs typed devtools handshake', async () 
   assert.equal(attached.attach.attachVersion, 'studio-game-workspace-attach.v0');
   assert.equal(attached.attach.status, 'attached');
   assert.equal(attached.attach.endpoint, 'ws://127.0.0.1:7391');
-  assert.equal(attached.attach.runtime.gameId, 'asha-demo');
-  assert.equal(attached.attach.runtime.workspaceId, 'asha-demo');
+  assert.equal(attached.attach.runtime.gameId, loadDemoPackageName());
+  assert.equal(attached.attach.runtime.workspaceId, loadDemoPackageName());
   assert.equal(attached.attach.runtimeBackendEvidence.source, 'devtools.handshake.runtime');
   assert.equal(attached.attach.runtimeBackendEvidence.backendMode, null);
   assert.deepEqual(attached.attach.runtimeBackendEvidence.backendProofRefs, []);
@@ -787,7 +787,7 @@ test('game workspace attach client fails closed on incompatible protocol', async
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const attached = await attachStudioGameWorkspaceDevtools(
     result.workspace,
     createDevtoolsFixtureEndpoint({ forceProtocolVersion: 'devtools-protocol.v999' }),
@@ -809,7 +809,7 @@ test('game workspace live readout pulls projection render diff and telemetry thr
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -851,7 +851,7 @@ test('runtime session list turns attach and live evidence into an explicit sessi
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -902,7 +902,7 @@ test('running project discovery projects connect refresh disconnect affordances'
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
 
   const previewSessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
   const previewDiscovery = buildStudioRunningProjectDiscovery({
@@ -965,7 +965,7 @@ test('live debug session identity records attached session freshness and child e
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1224,7 +1224,7 @@ test('live runtime/telemetry debug inspector projects runtime and command metric
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1277,7 +1277,7 @@ test('live debug command proposal surface bounds actions to shared command evide
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1380,7 +1380,7 @@ test('runtime session list fails closed when backend evidence is missing or inco
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1460,7 +1460,7 @@ test('runtime session list reserves fixture and replay sessions honestly before 
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const sessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
   const preview = sessions.sessions.find(session => session.sessionType === 'preview');
   const fixture = sessions.sessions.find(session => session.sessionType === 'fixture_reserved');
@@ -1493,7 +1493,7 @@ test('game workspace live readout fails closed when telemetry is unavailable', a
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const fixture = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, fixture);
   assert.equal(attached.ok, true);
@@ -1528,7 +1528,7 @@ test('game workspace command proposal flows through typed attach transport', asy
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1569,7 +1569,7 @@ test('game workspace command proposal records runtime rejections without private
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint({ commandProposalSupported: false });
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1604,7 +1604,7 @@ test('game workspace command proposal fails closed on missing command result evi
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, createDevtoolsFixtureEndpoint());
   assert.equal(attached.ok, true);
@@ -1647,7 +1647,7 @@ test('command proposal panel exposes known actions and accepted rejected evidenc
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const sessions = buildStudioRuntimeSessionList({ workspace: result.workspace });
   const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
   const accepted = buildStudioGameWorkspaceCommandProposalReadModel({
@@ -1707,7 +1707,7 @@ test('game workspace attach evidence artifact correlates attach live and command
   });
 
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error('asha-demo workspace should load');
+  if (!result.ok) throw new Error('asha-testing workspace should load');
   const transport = createDevtoolsFixtureEndpoint();
   const attached = await attachStudioGameWorkspaceDevtools(result.workspace, transport);
   assert.equal(attached.ok, true);
@@ -1734,12 +1734,12 @@ test('game workspace attach evidence artifact correlates attach live and command
 
   assert.equal(artifact.artifactKind, 'studio_game_workspace_attach_evidence');
   assert.equal(artifact.artifactVersion, 'studio-game-workspace-attach-evidence.v0');
-  assert.equal(artifact.workspace.gameId, 'asha-demo');
+  assert.equal(artifact.workspace.gameId, loadDemoPackageName());
   assert.equal(artifact.generatedFrom.workspaceHash, result.workspace.workspaceHash);
   assert.equal(artifact.generatedFrom.attachHash, attached.attach.attachHash);
   assert.equal(artifact.generatedFrom.liveHash, live.live.liveHash);
   assert.deepEqual(artifact.generatedFrom.commandProposalHashes, [proposal.proposal.proposalHash]);
-  assert.equal(artifact.attach.runtime.gameId, 'asha-demo');
+  assert.equal(artifact.attach.runtime.gameId, loadDemoPackageName());
   assert.equal(artifact.live?.projection.worldHash, 'world:demo:1');
   assert.equal(artifact.commandProposals.at(0)?.status, 'accepted');
   assert.deepEqual(artifact.nonClaims, [
@@ -3276,7 +3276,7 @@ test('publish evidence read model loads latest asha-demo publish proof status', 
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
   const evidencePath = 'harness/out/publish-evidence/latest/index.json';
   const evidence = JSON.parse(readFileSync(join(demoRoot, evidencePath), 'utf8')) as unknown;
 
@@ -3309,7 +3309,7 @@ test('publish evidence read model fails closed for stale or missing evidence', (
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
   const evidencePath = 'harness/out/publish-evidence/latest/index.json';
   const staleEvidence = JSON.parse(readFileSync(join(demoRoot, evidencePath), 'utf8')) as {
     publishArtifact: { artifactVersion: string };
@@ -3340,7 +3340,7 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
     pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
   });
   assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-demo workspace should load');
+  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
   const inventory = loadStudioAssetInventory(
     JSON.parse(readFileSync(join(demoRoot, 'harness/out/asset-inventory/latest/index.json'), 'utf8')),
   );

@@ -14,7 +14,7 @@ import {
 import type { AshaGameAssetCatalog } from '@asha/game-workspace';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const catalogPath = 'packages/game-catalogs/catalog.json';
 const identityArtifactPath = 'artifacts/live-debug-session-identity-proof/latest/index.json';
 const outDir = join(repoRoot, 'artifacts/live-asset-resource-debug-inspector-proof/latest');
@@ -139,7 +139,7 @@ const artifactBody = {
     },
     {
       kind: 'asha-demo-catalog',
-      path: `../asha-demo/${catalogPath}`,
+      path: `../asha-testing/${catalogPath}`,
       fileHash: sha256Text(catalogText),
     },
   ],

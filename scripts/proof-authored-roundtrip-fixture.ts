@@ -17,7 +17,7 @@ import {
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry } from '@asha/game-workspace';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const demoRoot = resolve(repoRoot, '../asha-demo');
+const demoRoot = resolve(repoRoot, '../asha-testing');
 const catalogPath = 'packages/game-catalogs/catalog.json';
 const fixtureDir = join(repoRoot, 'fixtures/round-trip');
 const fixturePath = join(fixtureDir, 'studio-authored-content.fixture.json');
