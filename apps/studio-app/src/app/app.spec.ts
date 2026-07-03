@@ -103,6 +103,57 @@ describe('StudioShellComponent', () => {
     expect(element.querySelector('[data-runtime-session-type="preview"]')).not.toBeNull();
   });
 
+  it('attaches the public RuntimeSession facade and renders live inspection readout', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const panel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
+    expect(panel?.textContent).toContain('definition_authoring');
+    expect(panel?.textContent).toContain('not_attached');
+
+    const attachButton = Array.from(panel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Attach',
+    );
+    attachButton?.click();
+    fixture.detectChanges();
+
+    expect(panel?.querySelector('[data-runtime-inspection="studio-mode"]')?.textContent).toContain(
+      'live_runtime_inspection',
+    );
+    expect(panel?.querySelector('[data-runtime-inspection="session-id"]')?.textContent).toContain(
+      'runtime-session:asha-demo:studio-reference',
+    );
+    expect(panel?.querySelector('[data-runtime-inspection="tick"]')?.textContent).toContain('tick 0');
+    expect(panel?.querySelector('[data-runtime-inspection="replay-count"]')?.textContent).toContain(
+      'records 1',
+    );
+    expect(
+      Array.from(panel?.querySelectorAll('button') ?? []).find(
+        button => button.textContent?.trim() === 'Pause',
+      )?.disabled,
+    ).toBe(true);
+
+    const tickButton = Array.from(panel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Tick',
+    );
+    tickButton?.click();
+    fixture.detectChanges();
+    expect(panel?.querySelector('[data-runtime-inspection="tick"]')?.textContent).toContain('tick 1');
+
+    const restartButton = Array.from(panel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Restart',
+    );
+    restartButton?.click();
+    fixture.detectChanges();
+    expect(panel?.querySelector('[data-runtime-inspection="tick"]')?.textContent).toContain('tick 0');
+    expect(panel?.textContent).toContain('restart');
+  });
+
   it('renders command proposal actions and accepted rejected evidence in the Commands tab', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],

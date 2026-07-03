@@ -39,10 +39,16 @@ import {
   type AshaGameManifest,
   type AshaGameRuntimeBackendMode,
 } from '@asha/game-workspace';
+import type {
+  RuntimeSessionProjectionSummary,
+  RuntimeSessionStateSummary,
+  RuntimeSessionTelemetrySummary,
+} from '@asha/runtime-bridge';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
 export type StudioCommandStatus = 'ok' | 'rejected' | 'failed';
+export type StudioMode = 'definition_authoring' | 'live_runtime_inspection';
 export type StudioEntitySourceState = 'authoritative' | 'reference' | 'pending';
 export type StudioRenderableKind = 'voxel_grid' | 'voxel_cell' | 'static_mesh' | 'preview_ghost';
 export type StudioEntityKind =
@@ -142,6 +148,7 @@ export type StudioGameWorkspaceCommandDiagnosticCode =
 export type StudioRuntimeSessionDiagnosticCode =
   | 'runtime_session_attach_mismatch'
   | 'runtime_session_live_mismatch'
+  | 'runtime_session_inspection_unavailable'
   | 'runtime_session_missing_backend_evidence'
   | 'runtime_session_backend_incompatible'
   | 'runtime_session_reserved';
@@ -351,7 +358,7 @@ export interface StudioWorkspaceOpenReadModel {
   readonly workspaceRoot: string;
   readonly manifestPath: string;
   readonly manifestHash: string;
-  readonly studioMode: 'definition_authoring';
+  readonly studioMode: Extract<StudioMode, 'definition_authoring'>;
   readonly runtimeSessionState: 'not_attached';
   readonly authoringPersistenceVersion: 'authoring-persistence.v0';
   readonly allowedSceneRoots: readonly string[];
@@ -895,6 +902,59 @@ export interface StudioRuntimeSessionListReadModel {
   readonly activeSessionId: string;
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly sessionListHash: string;
+}
+
+export interface StudioRuntimeSessionInspectionReadModel {
+  readonly inspectionVersion: 'studio-runtime-session-inspection.v0';
+  readonly studioMode: StudioMode;
+  readonly attachState: 'not_attached' | 'attached' | 'unavailable';
+  readonly sessionStatus: 'not_attached' | 'running' | 'paused' | 'unavailable';
+  readonly sessionId: string | null;
+  readonly workspaceHash: string;
+  readonly tick: number | null;
+  readonly sessionHash: string | null;
+  readonly projectionHash: string | null;
+  readonly replay: {
+    readonly recordCount: number;
+    readonly lastRecordKind: string | null;
+    readonly recordHashes: readonly string[];
+  };
+  readonly commandSummary: {
+    readonly acceptedCommandCount: number | null;
+    readonly rejectedCommandCount: number | null;
+  };
+  readonly projectionSummary: {
+    readonly renderDiffCount: number | null;
+    readonly entityCount: number;
+    readonly selectedEntity: {
+      readonly entityId: string;
+      readonly label: string;
+      readonly kind: StudioEntityKind;
+      readonly sourceState: StudioEntitySourceState;
+      readonly capabilitySummary: readonly string[];
+    } | null;
+  };
+  readonly controls: {
+    readonly pause: {
+      readonly available: false;
+      readonly disabledReason: 'runtime_session_pause_not_public';
+    };
+    readonly tick: {
+      readonly available: boolean;
+      readonly disabledReason: string | null;
+    };
+    readonly restart: {
+      readonly available: boolean;
+      readonly disabledReason: string | null;
+    };
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_transport',
+    'not_raw_state_store',
+  ];
+  readonly inspectionHash: string;
 }
 
 export interface StudioRunningProjectDiscoveryReadModel {
@@ -3245,6 +3305,126 @@ export function buildStudioRuntimeSessionList(input: {
     }),
 	  };
 	}
+
+export function buildStudioRuntimeSessionInspectionReadModel(input: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
+  readonly runtimeSessions: StudioRuntimeSessionListReadModel | null;
+  readonly state: RuntimeSessionStateSummary | null;
+  readonly projection: RuntimeSessionProjectionSummary | null;
+  readonly telemetry: RuntimeSessionTelemetrySummary | null;
+  readonly paused: boolean;
+}): StudioRuntimeSessionInspectionReadModel {
+  const diagnostics: StudioDiagnostic[] = [];
+  const activeSession = input.runtimeSessions === null
+    ? null
+    : input.runtimeSessions.sessions.find(
+        session => session.sessionId === input.runtimeSessions?.activeSessionId,
+      ) ?? null;
+  const attached = input.state !== null && input.telemetry !== null;
+
+  if (input.gameWorkspace === null) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_inspection_unavailable',
+      'RuntimeSession inspection requires an opened ASHA game workspace.',
+      null,
+      'Open a game workspace before attaching a runtime session.',
+    ));
+  }
+  if (!attached) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_inspection_unavailable',
+      'RuntimeSession inspection is not attached to the public facade yet.',
+      activeSession?.sessionId ?? null,
+      'Attach the public RuntimeSession facade.',
+    ));
+  }
+
+  const selectedEntity = input.workspace.selectedEntityId === null
+    ? null
+    : input.workspace.entities.find(entity => entity.id === input.workspace.selectedEntityId) ?? null;
+  const capabilitySummary = selectedEntity === null
+    ? []
+    : [
+        `badge:${selectedEntity.badge}`,
+        `source:${selectedEntity.sourceState}`,
+        selectedEntity.renderableId === null ? 'renderable:none' : `renderable:${selectedEntity.renderableId}`,
+        selectedEntity.sceneObjectId === null ? 'scene_object:none' : `scene_object:${selectedEntity.sceneObjectId}`,
+      ];
+  const recordHashes = input.telemetry?.replayRecords.map(record => record.recordHash) ?? [];
+  const tickAvailable = attached && !input.paused;
+  const restartAvailable = attached;
+  const studioMode: StudioMode = attached ? 'live_runtime_inspection' : 'definition_authoring';
+  const attachState: StudioRuntimeSessionInspectionReadModel['attachState'] = attached
+    ? 'attached'
+    : input.gameWorkspace === null ? 'unavailable' : 'not_attached';
+  const sessionStatus: StudioRuntimeSessionInspectionReadModel['sessionStatus'] = attached
+    ? input.paused ? 'paused' : 'running'
+    : input.gameWorkspace === null ? 'unavailable' : 'not_attached';
+
+  const body = {
+    studioMode,
+    attachState,
+    sessionStatus,
+    sessionId: input.state?.identity.sessionId ?? activeSession?.sessionId ?? null,
+    workspaceHash: input.gameWorkspace?.workspaceHash ?? input.workspace.workspaceId,
+    tick: input.telemetry?.tick ?? input.state?.tick ?? null,
+    sessionHash: input.telemetry?.sessionHash ?? input.state?.sessionHash ?? null,
+    projectionHash: input.projection?.projectionHash ?? null,
+    replay: {
+      recordCount: input.telemetry?.replayRecords.length ?? 0,
+      lastRecordKind: input.telemetry?.replayRecords.at(-1)?.kind ?? null,
+      recordHashes,
+    },
+    commandSummary: {
+      acceptedCommandCount: input.telemetry?.acceptedCommandCount ?? null,
+      rejectedCommandCount: input.telemetry?.rejectedCommandCount ?? null,
+    },
+    projectionSummary: {
+      renderDiffCount: input.projection?.renderDiffCount ?? null,
+      entityCount: input.workspace.entities.length,
+      selectedEntity: selectedEntity === null
+        ? null
+        : {
+            entityId: selectedEntity.id,
+            label: selectedEntity.label,
+            kind: selectedEntity.kind,
+            sourceState: selectedEntity.sourceState,
+            capabilitySummary,
+          },
+    },
+    controls: {
+      pause: {
+        available: false as const,
+        disabledReason: 'runtime_session_pause_not_public' as const,
+      },
+      tick: {
+        available: tickAvailable,
+        disabledReason: tickAvailable
+          ? null
+          : attached
+            ? 'runtime_session_paused'
+            : 'runtime_session_not_attached',
+      },
+      restart: {
+        available: restartAvailable,
+        disabledReason: restartAvailable ? null : 'runtime_session_not_attached',
+      },
+    },
+    diagnostics,
+  };
+
+  return {
+    inspectionVersion: 'studio-runtime-session-inspection.v0',
+    ...body,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_transport',
+      'not_raw_state_store',
+    ],
+    inspectionHash: fnv1aHash('studio-runtime-session-inspection', body),
+  };
+}
 
 export function buildStudioRunningProjectDiscovery(input: {
   readonly workspace: StudioGameWorkspaceReadModel | null;

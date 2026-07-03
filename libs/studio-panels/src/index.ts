@@ -163,6 +163,79 @@ function filteredHierarchyEntities(
           }
         </section>
       }
+
+      <section class="runtime-inspection" data-visual-id="studio-runtime-session-inspection">
+        <div class="runtime-inspection__identity">
+          <span>Mode</span>
+          <strong data-runtime-inspection="studio-mode">{{ store.runtimeSessionInspection().studioMode }}</strong>
+          <small data-runtime-inspection="session-status">
+            {{ store.runtimeSessionInspection().attachState }} · {{ store.runtimeSessionInspection().sessionStatus }}
+          </small>
+        </div>
+        <div class="runtime-inspection__cell">
+          <span>RuntimeSession</span>
+          <strong data-runtime-inspection="session-id">
+            {{ store.runtimeSessionInspection().sessionId || 'not attached' }}
+          </strong>
+          <small data-runtime-inspection="session-hash">
+            {{ store.runtimeSessionInspection().sessionHash || 'no session hash' }}
+          </small>
+        </div>
+        <div class="runtime-inspection__cell">
+          <span>Projection</span>
+          <strong data-runtime-inspection="tick">tick {{ store.runtimeSessionInspection().tick ?? 'n/a' }}</strong>
+          <small data-runtime-inspection="projection-hash">
+            {{ store.runtimeSessionInspection().projectionHash || 'no projection hash' }}
+          </small>
+        </div>
+        <div class="runtime-inspection__cell">
+          <span>Replay</span>
+          <strong data-runtime-inspection="replay-count">
+            records {{ store.runtimeSessionInspection().replay.recordCount }}
+          </strong>
+          <small>{{ store.runtimeSessionInspection().replay.lastRecordKind || 'no replay record' }}</small>
+        </div>
+        <div class="runtime-inspection__cell">
+          <span>Commands</span>
+          <strong data-runtime-inspection="command-summary">
+            {{ store.runtimeSessionInspection().commandSummary.acceptedCommandCount ?? 'n/a' }} accepted
+          </strong>
+          <small>
+            {{ store.runtimeSessionInspection().commandSummary.rejectedCommandCount ?? 'n/a' }} rejected
+          </small>
+        </div>
+        <div class="runtime-inspection__cell">
+          <span>Entity</span>
+          <strong data-runtime-inspection="entity-count">
+            {{ store.runtimeSessionInspection().projectionSummary.entityCount }} entities
+          </strong>
+          @if (store.runtimeSessionInspection().projectionSummary.selectedEntity; as selectedEntity) {
+            <small data-runtime-inspection="selected-entity">
+              {{ selectedEntity.label }} · {{ selectedEntity.capabilitySummary.join(' · ') }}
+            </small>
+          } @else {
+            <small data-runtime-inspection="selected-entity">no selection</small>
+          }
+        </div>
+        <div class="runtime-inspection__actions">
+          <button type="button" (click)="store.attachRuntimeSessionInspection()">Attach</button>
+          <button type="button" disabled>Pause</button>
+          <button
+            type="button"
+            [disabled]="!store.runtimeSessionInspection().controls.tick.available"
+            (click)="store.tickRuntimeSessionInspection()"
+          >
+            Tick
+          </button>
+          <button
+            type="button"
+            [disabled]="!store.runtimeSessionInspection().controls.restart.available"
+            (click)="store.restartRuntimeSessionInspection()"
+          >
+            Restart
+          </button>
+        </div>
+      </section>
     </section>
   `,
   styles: [
@@ -344,12 +417,84 @@ function filteredHierarchyEntities(
         white-space: nowrap;
       }
 
+      .runtime-inspection {
+        align-items: stretch;
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(8rem, 0.85fr) repeat(5, minmax(7rem, 1fr)) minmax(13rem, auto);
+        min-width: 0;
+      }
+
+      .runtime-inspection__identity,
+      .runtime-inspection__cell,
+      .runtime-inspection__actions {
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.08rem;
+        min-width: 0;
+        overflow: hidden;
+        padding: 0.26rem 0.36rem;
+      }
+
+      .runtime-inspection__identity span,
+      .runtime-inspection__cell span,
+      .runtime-inspection__identity small,
+      .runtime-inspection__cell small {
+        color: var(--asha-color-muted);
+        font-size: 0.58rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .runtime-inspection__identity strong,
+      .runtime-inspection__cell strong {
+        font-size: 0.64rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .runtime-inspection__identity span,
+      .runtime-inspection__cell span {
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .runtime-inspection__actions {
+        align-items: center;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .runtime-inspection__actions button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.62rem;
+        height: 1.55rem;
+        min-width: 0;
+        padding: 0 0.35rem;
+      }
+
+      .runtime-inspection__actions button:disabled {
+        color: #5b666c;
+        cursor: not-allowed;
+      }
+
       @media (max-width: 1100px) {
         .workspace-overview {
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
 
-        .runtime-session-strip {
+        .runtime-session-strip,
+        .runtime-inspection {
           grid-template-columns: 1fr;
         }
       }

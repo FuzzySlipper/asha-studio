@@ -14,6 +14,7 @@ import {
   buildStudioCatalogWorkflowReadModel,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioGameWorkspaceReadout,
+  buildStudioRuntimeSessionInspectionReadModel,
   buildStudioSceneFileList,
   buildStudioSceneFileSaveReadback,
   buildStudioRunningProjectDiscovery,
@@ -65,6 +66,7 @@ import {
   type StudioGameWorkspaceReadout,
   type StudioDevtoolsAttachTransport,
   type StudioRunningProjectDiscoveryReadModel,
+  type StudioRuntimeSessionInspectionReadModel,
   type StudioSceneFileListReadModel,
   type StudioSceneFileSourceInput,
   type StudioAssetInventoryEntryReadModel,
@@ -83,6 +85,14 @@ import {
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
+import {
+  createMockRuntimeSession,
+  type RuntimeSessionFacade,
+  type RuntimeSessionProjectionSummary,
+  type RuntimeSessionStateSummary,
+  type RuntimeSessionTelemetrySummary,
+  type WorldLoadRequest,
+} from '@asha/runtime-bridge';
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
 
@@ -161,6 +171,12 @@ const DEMO_GAME_WORKSPACE_PATHS = new Set([
   'packages/game-catalogs',
   'packages/game-policy',
 ]);
+
+const DEMO_RUNTIME_PROJECT_BUNDLE: WorldLoadRequest = {
+  bundleSchemaVersion: 1,
+  protocolVersion: 1,
+  sceneId: 1001,
+};
 
 const DEMO_ASSET_INVENTORY_ARTIFACT = {
   artifactKind: 'asha_demo_asset_inventory',
@@ -832,6 +848,11 @@ export class StudioWorkspaceStore {
   );
   private readonly runtimeAttachState = signal<StudioGameWorkspaceAttachReadModel | null>(null);
   private readonly runtimeLiveState = signal<StudioGameWorkspaceLiveReadModel | null>(null);
+  private readonly runtimeSessionFacadeState = signal<RuntimeSessionFacade | null>(null);
+  private readonly runtimeSessionStateSummaryState = signal<RuntimeSessionStateSummary | null>(null);
+  private readonly runtimeSessionProjectionState = signal<RuntimeSessionProjectionSummary | null>(null);
+  private readonly runtimeSessionTelemetryState = signal<RuntimeSessionTelemetrySummary | null>(null);
+  private readonly runtimeSessionPausedState = signal(false);
   private readonly runtimeConnectionMessageState = signal('No running project connected.');
   private readonly catalogPathState = signal('packages/game-catalogs/catalog.json');
   private readonly catalogSourceState = signal<AshaGameAssetCatalog>(catalogFromInventoryArtifact());
@@ -919,6 +940,17 @@ export class StudioWorkspaceStore {
           live: this.runtimeLiveState(),
         });
   });
+  readonly runtimeSessionInspection = computed<StudioRuntimeSessionInspectionReadModel>(() =>
+    buildStudioRuntimeSessionInspectionReadModel({
+      workspace: this.workspaceState(),
+      gameWorkspace: this.gameWorkspace(),
+      runtimeSessions: this.runtimeSessions(),
+      state: this.runtimeSessionStateSummaryState(),
+      projection: this.runtimeSessionProjectionState(),
+      telemetry: this.runtimeSessionTelemetryState(),
+      paused: this.runtimeSessionPausedState(),
+    }),
+  );
   readonly runningProjectDiscovery = computed<StudioRunningProjectDiscoveryReadModel>(() =>
     buildStudioRunningProjectDiscovery({
       workspace: this.gameWorkspace(),
@@ -1519,8 +1551,114 @@ export class StudioWorkspaceStore {
     this.selectedScenarioDraftIdState.set(scenarioId);
   }
 
+  attachRuntimeSessionInspection(): void {
+    const workspace = this.gameWorkspace();
+    if (workspace === null) {
+      this.runtimeConnectionMessageState.set('Open a game workspace before attaching RuntimeSession.');
+      return;
+    }
+
+    try {
+      const facade = createMockRuntimeSession();
+      const initialized = facade.initialize({
+        sessionId: `runtime-session:${workspace.gameId}:studio-reference`,
+        seed: 17,
+        project: {
+          gameId: workspace.gameId,
+          workspaceId: workspace.workspaceHash,
+        },
+        projectBundle: DEMO_RUNTIME_PROJECT_BUNDLE,
+      });
+      this.runtimeSessionFacadeState.set(facade);
+      this.runtimeSessionStateSummaryState.set(initialized);
+      this.runtimeSessionPausedState.set(false);
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.runtimeConnectionMessageState.set(`RuntimeSession attached: ${initialized.sessionHash}.`);
+      this.menuMessageState.set('Live Runtime Inspection attached.');
+    } catch (error) {
+      this.clearRuntimeSessionInspection();
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'RuntimeSession attach failed.',
+      );
+    }
+  }
+
+  tickRuntimeSessionInspection(): void {
+    const facade = this.runtimeSessionFacadeState();
+    if (facade === null) {
+      this.runtimeConnectionMessageState.set('Attach RuntimeSession before ticking.');
+      return;
+    }
+    if (this.runtimeSessionPausedState()) {
+      this.runtimeConnectionMessageState.set('RuntimeSession is paused; restart or resume is not public yet.');
+      return;
+    }
+
+    try {
+      const tick = facade.tick();
+      this.runtimeSessionStateSummaryState.update(state => state === null
+        ? state
+        : {
+            ...state,
+            composition: tick.composition,
+            sequenceId: tick.sequenceId,
+            tick: tick.tick,
+            sessionHash: tick.sessionHash,
+          });
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.runtimeConnectionMessageState.set(`RuntimeSession tick ${tick.tick}.`);
+      this.menuMessageState.set(`Live Runtime Inspection tick ${tick.tick}.`);
+    } catch (error) {
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'RuntimeSession tick failed.',
+      );
+    }
+  }
+
+  restartRuntimeSessionInspection(): void {
+    const facade = this.runtimeSessionFacadeState();
+    if (facade === null) {
+      this.runtimeConnectionMessageState.set('Attach RuntimeSession before restarting.');
+      return;
+    }
+
+    try {
+      const restarted = facade.restart();
+      this.runtimeSessionStateSummaryState.update(state => state === null
+        ? state
+        : {
+            ...state,
+            composition: restarted.composition,
+            sequenceId: restarted.sequenceId,
+            tick: restarted.tick,
+            sessionHash: restarted.sessionHash,
+          });
+      this.runtimeSessionPausedState.set(false);
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.runtimeConnectionMessageState.set(`RuntimeSession restarted: ${restarted.sessionHash}.`);
+      this.menuMessageState.set('Live Runtime Inspection restarted.');
+    } catch (error) {
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'RuntimeSession restart failed.',
+      );
+    }
+  }
+
   setHierarchyFilter(filter: string): void {
     this.hierarchyFilterState.set(filter);
+  }
+
+  private clearRuntimeSessionInspection(): void {
+    this.runtimeSessionFacadeState.set(null);
+    this.runtimeSessionStateSummaryState.set(null);
+    this.runtimeSessionProjectionState.set(null);
+    this.runtimeSessionTelemetryState.set(null);
+    this.runtimeSessionPausedState.set(false);
+  }
+
+  private refreshRuntimeSessionInspectionReadout(facade: RuntimeSessionFacade): void {
+    this.runtimeSessionProjectionState.set(facade.readProjection());
+    this.runtimeSessionTelemetryState.set(facade.readTelemetry());
   }
 
   async refreshRunningProjectSessions(): Promise<void> {
