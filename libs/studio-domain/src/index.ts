@@ -348,8 +348,11 @@ export interface StudioWorkspaceSourceFileReadModel {
 export interface StudioWorkspaceOpenReadModel {
   readonly openReadVersion: 'studio-workspace-open-read.v0';
   readonly workspaceHash: string;
+  readonly workspaceRoot: string;
   readonly manifestPath: string;
   readonly manifestHash: string;
+  readonly studioMode: 'definition_authoring';
+  readonly runtimeSessionState: 'not_attached';
   readonly authoringPersistenceVersion: 'authoring-persistence.v0';
   readonly allowedSceneRoots: readonly string[];
   readonly allowedCatalogRoots: readonly string[];
@@ -2253,6 +2256,7 @@ export function buildStudioGameWorkspaceReadout(
 
 export function buildStudioWorkspaceOpenReadModel(input: {
   readonly workspace: StudioGameWorkspaceReadModel | null;
+  readonly workspaceRoot?: string;
   readonly manifestPath: string;
   readonly manifestHash: string | null;
   readonly sourceFiles: readonly StudioWorkspaceSourceFileInput[];
@@ -2348,8 +2352,11 @@ export function buildStudioWorkspaceOpenReadModel(input: {
   const openRead: StudioWorkspaceOpenReadModel = {
     openReadVersion: 'studio-workspace-open-read.v0',
     workspaceHash: workspace?.workspaceHash ?? 'missing',
+    workspaceRoot: input.workspaceRoot ?? workspace?.workspaceRoot ?? 'missing',
     manifestPath: input.manifestPath,
     manifestHash: input.manifestHash ?? 'missing',
+    studioMode: 'definition_authoring',
+    runtimeSessionState: 'not_attached',
     authoringPersistenceVersion: 'authoring-persistence.v0',
     allowedSceneRoots,
     allowedCatalogRoots,
@@ -2363,8 +2370,11 @@ export function buildStudioWorkspaceOpenReadModel(input: {
     ],
     openReadHash: fnv1aHash('studio-workspace-open-read', {
       workspaceHash: workspace?.workspaceHash ?? 'missing',
+      workspaceRoot: input.workspaceRoot ?? workspace?.workspaceRoot ?? 'missing',
       manifestPath: input.manifestPath,
       manifestHash: input.manifestHash ?? 'missing',
+      studioMode: 'definition_authoring',
+      runtimeSessionState: 'not_attached',
       allowedSceneRoots,
       allowedCatalogRoots,
       sourceFiles,

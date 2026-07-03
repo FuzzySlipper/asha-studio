@@ -13,6 +13,7 @@ import {
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const demoRoot = resolve(repoRoot, '../asha-testing');
+const ashaDemoRoot = resolve(repoRoot, '../asha-demo');
 const outDir = join(repoRoot, 'artifacts/workspace-open-read-proof/latest');
 const artifactPath = join(outDir, 'index.json');
 
@@ -69,6 +70,7 @@ const sourceFiles = listBoundedWorkspaceSourceFiles(
 );
 const openReadResult = buildStudioWorkspaceOpenReadModel({
   workspace: workspaceResult.workspace,
+  workspaceRoot: demoRoot,
   manifestPath,
   manifestHash: sha256(manifestText),
   sourceFiles,
@@ -80,12 +82,14 @@ if (!openReadResult.ok) {
 
 const missingManifestNegative = buildStudioWorkspaceOpenReadModel({
   workspace: null,
+  workspaceRoot: demoRoot,
   manifestPath: 'missing/asha.game.toml',
   manifestHash: null,
   sourceFiles: [],
 });
 const unsupportedScanNegative = buildStudioWorkspaceOpenReadModel({
   workspace: workspaceResult.workspace,
+  workspaceRoot: demoRoot,
   manifestPath,
   manifestHash: sha256(manifestText),
   sourceFiles: [
@@ -96,6 +100,31 @@ const unsupportedScanNegative = buildStudioWorkspaceOpenReadModel({
 });
 assert.equal(missingManifestNegative.ok, false);
 assert.equal(unsupportedScanNegative.ok, false);
+
+const ashaDemoManifestPath = 'asha.game.toml';
+const ashaDemoManifestExists = existsSync(join(ashaDemoRoot, ashaDemoManifestPath));
+const ashaDemoReadoutManifestPath = ashaDemoManifestExists ? 'missing/asha.game.toml' : ashaDemoManifestPath;
+const ashaDemoRootEntries = readdirSync(ashaDemoRoot, { withFileTypes: true })
+  .map(entry => ({
+    name: entry.name,
+    kind: entry.isDirectory() ? 'directory' : 'file',
+  }))
+  .sort((left, right) => left.name.localeCompare(right.name));
+const ashaDemoMissingManifestReadout = buildStudioWorkspaceOpenReadModel({
+  workspace: null,
+  workspaceRoot: ashaDemoRoot,
+  manifestPath: ashaDemoReadoutManifestPath,
+  manifestHash: null,
+  sourceFiles: [],
+});
+assert.equal(ashaDemoMissingManifestReadout.ok, false);
+assert.equal(ashaDemoMissingManifestReadout.openRead.workspaceRoot, ashaDemoRoot);
+assert.equal(ashaDemoMissingManifestReadout.openRead.studioMode, 'definition_authoring');
+assert.equal(ashaDemoMissingManifestReadout.openRead.runtimeSessionState, 'not_attached');
+assert.equal(
+  ashaDemoMissingManifestReadout.diagnostics.some(diagnostic => diagnostic.code === 'missing_manifest'),
+  true,
+);
 
 const artifactBody = {
   artifactKind: 'studio_workspace_open_read_proof',
@@ -108,6 +137,15 @@ const artifactBody = {
     manifestHash: sha256(manifestText),
   },
   openRead: openReadResult.openRead,
+  ashaDemoWorkspace: {
+    cwd: relative(repoRoot, ashaDemoRoot),
+    manifestPath: ashaDemoManifestPath,
+    readoutManifestPath: ashaDemoReadoutManifestPath,
+    manifestExists: ashaDemoManifestExists,
+    rootEntries: ashaDemoRootEntries,
+    openRead: ashaDemoMissingManifestReadout.openRead,
+    diagnostics: ashaDemoMissingManifestReadout.diagnostics,
+  },
   negativeSmokes: [
     {
       name: 'missing manifest',
@@ -129,12 +167,17 @@ const artifactBody = {
     'negative_path_escape_failed_closed',
     'negative_private_repo_scan_failed_closed',
     'negative_unsupported_file_kind_failed_closed',
+    'asha_demo_root_bounded_authoring_readout',
+    'asha_demo_missing_manifest_diagnostic_recorded',
+    'asha_demo_live_runtime_not_attached',
   ],
   nonClaims: [
     'not_repo_crawler',
     'not_private_asset_database',
     'not_source_write',
     'not_runtime_authority',
+    'not_live_runtime_inspection',
+    'not_asha_demo_scaffold',
   ],
 };
 
