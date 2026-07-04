@@ -61,6 +61,7 @@
     "@angular/platform-browser": "~21.2.0",
     "@angular/router": "~21.2.0",
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
+    "@asha/catalog-core": "link:../asha/ts/packages/catalog-core",
     "@asha/contracts": "link:../asha/ts/packages/contracts",
     "@asha/devtools": "link:../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",

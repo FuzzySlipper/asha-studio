@@ -39,10 +39,22 @@ import {
   type AshaGameManifest,
   type AshaGameRuntimeBackendMode,
 } from '@asha/game-workspace';
+import {
+  readDefaultFpsGameplayPreset,
+  readFpsGameplayPresetCatalog,
+  validateFpsGameplayPreset,
+  type FpsGameplayPreset,
+  type FpsGameplayPresetCatalogReadout,
+  type FpsGameplayPresetReadout,
+  type FpsGameplayPresetValidationReport,
+} from '@asha/catalog-core';
 import type {
+  CombatFeedbackProjection,
+  EncounterDirectorReadout,
   GeneratedTunnelReadout,
   NavProjectionReadout,
   RuntimeSessionAutonomousPolicyTickReadout,
+  RuntimeSessionEncounterTransitionReceipt,
   RuntimeSessionGeneratedTunnelOperationReceipt,
   RuntimeSessionLifecycleRestartReceipt,
   RuntimeSessionLifecycleStatusReadout,
@@ -910,6 +922,175 @@ export interface StudioRuntimeSessionListReadModel {
   readonly sessionListHash: string;
 }
 
+export interface StudioFpsGameplayPresetDraft {
+  readonly displayName: string;
+  readonly moveSpeedUnitsPerSecond: number;
+  readonly lookSensitivityDegreesPerPixel: number;
+  readonly weaponDamage: number;
+  readonly weaponAmmo: number;
+  readonly enemyCount: number;
+  readonly desiredRangeUnits: number;
+}
+
+export type StudioFpsGameplayPresetDraftField = keyof StudioFpsGameplayPresetDraft;
+
+export interface StudioFpsGameplayPresetFieldReadModel {
+  readonly field: StudioFpsGameplayPresetDraftField;
+  readonly label: string;
+  readonly value: string;
+  readonly inputKind: 'text' | 'number';
+  readonly editable: boolean;
+  readonly validationStatus: 'valid' | 'invalid';
+  readonly validationMessage: string | null;
+}
+
+export interface StudioPlayableLoopDefinitionAuthoringReadModel {
+  readonly authoringVersion: 'studio-playable-loop-definition-authoring.v0';
+  readonly studioMode: Extract<StudioMode, 'definition_authoring'>;
+  readonly presetReadoutKind: FpsGameplayPresetReadout['kind'];
+  readonly catalogReadoutKind: FpsGameplayPresetCatalogReadout['kind'];
+  readonly presetId: string;
+  readonly catalogId: string;
+  readonly defaultPresetId: string;
+  readonly displayName: string;
+  readonly source: {
+    readonly projectId: string;
+    readonly presetPath: string;
+    readonly catalogPath: string;
+    readonly fixturePath: string;
+  };
+  readonly fields: readonly StudioFpsGameplayPresetFieldReadModel[];
+  readonly validation: {
+    readonly kind: FpsGameplayPresetValidationReport['kind'];
+    readonly status: 'valid' | 'invalid';
+    readonly diagnosticCount: number;
+    readonly diagnostics: readonly StudioDiagnostic[];
+  };
+  readonly hashes: {
+    readonly presetHash: string | null;
+    readonly tuningHash: string | null;
+    readonly referenceHash: string | null;
+    readonly catalogHash: string;
+    readonly rejectedHash: string | null;
+  };
+  readonly tuningSummary: {
+    readonly playerController: string;
+    readonly weapon: string;
+    readonly enemyBehavior: string;
+    readonly encounter: string;
+    readonly generator: string;
+  };
+  readonly ownership: {
+    readonly gameOwned: readonly string[];
+    readonly engineOwned: readonly string[];
+  };
+  readonly migration: FpsGameplayPresetReadout['migration'];
+  readonly boundary: {
+    readonly storedPresetEditing: true;
+    readonly validatesThroughPublicSchema: true;
+    readonly liveRuntimeMutation: false;
+    readonly runtimeToDefinitionExport: false;
+  };
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_arbitrary_json_catalog',
+    'not_runtime_to_definition_export',
+    'not_live_runtime_mutation_from_authoring',
+  ];
+}
+
+export interface StudioPlayableLoopLiveRuntimeInspectionReadModel {
+  readonly liveVersion: 'studio-playable-loop-live-runtime.v0';
+  readonly studioMode: Extract<StudioMode, 'definition_authoring' | 'live_runtime_inspection'>;
+  readonly attachState: StudioRuntimeSessionInspectionReadModel['attachState'];
+  readonly encounter: {
+    readonly kind: EncounterDirectorReadout['kind'] | null;
+    readonly presetId: string | null;
+    readonly status: string | null;
+    readonly revision: number | null;
+    readonly lastTransition: string | null;
+    readonly activeEnemyCount: number | null;
+    readonly pendingEnemyCount: number | null;
+    readonly defeatedEnemyCount: number | null;
+    readonly spawnedEnemyCount: number | null;
+    readonly configHash: string | null;
+    readonly spawnOrderHash: string | null;
+    readonly encounterHash: string | null;
+    readonly replayHash: string | null;
+    readonly spawns: readonly {
+      readonly instanceId: string;
+      readonly runtimeEntityId: number;
+      readonly status: string;
+      readonly markerId: string;
+      readonly world: readonly [number, number, number];
+      readonly capabilities: readonly string[];
+    }[];
+    readonly lastReceipt: {
+      readonly action: string;
+      readonly status: string;
+      readonly accepted: boolean;
+      readonly rejectionReason: string | null;
+      readonly beforeStatus: string;
+      readonly afterStatus: string;
+      readonly eventKind: string | null;
+      readonly transitionHash: string;
+    } | null;
+  };
+  readonly combatFeedback: {
+    readonly kind: CombatFeedbackProjection['kind'] | null;
+    readonly scenario: string | null;
+    readonly traceResult: string | null;
+    readonly markerTone: string | null;
+    readonly markerLabel: string | null;
+    readonly notificationTexts: readonly string[];
+    readonly hudStatusTexts: readonly string[];
+    readonly ammo: number | null;
+    readonly cooldownTicksRemaining: number | null;
+    readonly projectionHash: string | null;
+    readonly healthHash: string | null;
+  };
+  readonly lifecycle: {
+    readonly outcomeKind: string | null;
+    readonly label: string | null;
+    readonly terminal: boolean;
+    readonly playerHealth: string | null;
+    readonly enemyHealth: string | null;
+    readonly lifecycleHash: string | null;
+  };
+  readonly policy: {
+    readonly loopId: string | null;
+    readonly tickHash: string | null;
+    readonly acceptedProposalCount: number | null;
+    readonly unsupportedProposalCount: number | null;
+  };
+  readonly restart: {
+    readonly lastReceiptStatus: string | null;
+    readonly statusBefore: string | null;
+    readonly statusAfter: string | null;
+    readonly resetHash: string | null;
+  };
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_transport',
+    'not_demo_local_spawn_state',
+    'not_combat_authority',
+  ];
+}
+
+export interface StudioPlayableLoopTuningInspectionReadModel {
+  readonly inspectionVersion: 'studio-playable-loop-tuning-inspection.v0';
+  readonly definitionAuthoring: StudioPlayableLoopDefinitionAuthoringReadModel;
+  readonly liveInspection: StudioPlayableLoopLiveRuntimeInspectionReadModel;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_transport',
+    'not_local_gameplay_logic',
+    'not_runtime_to_definition_export',
+  ];
+  readonly inspectionHash: string;
+}
+
 export interface StudioPlayableLoopInspectionReadModel {
   readonly loopVersion: 'studio-playable-loop-inspection.v0';
   readonly studioMode: StudioMode;
@@ -1050,6 +1231,7 @@ export interface StudioRuntimeSessionInspectionReadModel {
     } | null;
   };
   readonly generatedLevel: StudioGeneratedLevelInspectionReadModel;
+  readonly playableLoopTuning: StudioPlayableLoopTuningInspectionReadModel;
   readonly playableLoop: StudioPlayableLoopInspectionReadModel;
   readonly controls: {
     readonly pause: {
@@ -3527,6 +3709,10 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
   readonly generatedTunnelReadout?: GeneratedTunnelReadout | null;
   readonly generatedTunnelRegenerateReceipt?: RuntimeSessionGeneratedTunnelOperationReceipt | null;
   readonly navProjection?: NavProjectionReadout | null;
+  readonly gameplayPresetDraft?: StudioFpsGameplayPresetDraft;
+  readonly encounterDirector?: EncounterDirectorReadout | null;
+  readonly encounterTransitionReceipt?: RuntimeSessionEncounterTransitionReceipt | null;
+  readonly combatFeedbackProjection?: CombatFeedbackProjection | null;
   readonly paused: boolean;
 }): StudioRuntimeSessionInspectionReadModel {
   const diagnostics: StudioDiagnostic[] = [];
@@ -3600,6 +3786,19 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
     lifecycleStatus: input.lifecycleStatus ?? null,
     restartReceipt: input.restartReceipt ?? null,
   });
+  const playableLoopTuning = buildStudioPlayableLoopTuningInspectionReadModel({
+    attached,
+    studioMode,
+    attachState,
+    gameWorkspace: input.gameWorkspace,
+    presetDraft: input.gameplayPresetDraft ?? buildDefaultStudioFpsGameplayPresetDraft(),
+    encounterDirector: input.encounterDirector ?? null,
+    encounterTransitionReceipt: input.encounterTransitionReceipt ?? null,
+    combatFeedbackProjection: input.combatFeedbackProjection ?? null,
+    lifecycleStatus: input.lifecycleStatus ?? null,
+    autonomousPolicyTick: input.autonomousPolicyTick ?? null,
+    restartReceipt: input.restartReceipt ?? null,
+  });
 
   const body = {
     studioMode,
@@ -3633,6 +3832,7 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
           },
     },
     generatedLevel,
+    playableLoopTuning,
     playableLoop,
     controls: {
       pause: {
@@ -3664,6 +3864,423 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
       'not_raw_state_store',
     ],
     inspectionHash: fnv1aHash('studio-runtime-session-inspection', body),
+  };
+}
+
+export function buildDefaultStudioFpsGameplayPresetDraft(): StudioFpsGameplayPresetDraft {
+  const readout = readDefaultFpsGameplayPreset();
+  return {
+    displayName: readout.preset.displayName,
+    moveSpeedUnitsPerSecond: readout.preset.playerController.moveSpeedUnitsPerSecond,
+    lookSensitivityDegreesPerPixel: readout.preset.playerController.lookSensitivityDegreesPerPixel,
+    weaponDamage: readout.preset.weapon.damage,
+    weaponAmmo: readout.preset.weapon.ammo,
+    enemyCount: readout.preset.encounter.enemyCount,
+    desiredRangeUnits: readout.preset.enemyBehavior.desiredRangeUnits,
+  };
+}
+
+export function buildStudioPlayableLoopTuningInspectionReadModel(input: {
+  readonly attached: boolean;
+  readonly studioMode: StudioMode;
+  readonly attachState: StudioRuntimeSessionInspectionReadModel['attachState'];
+  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
+  readonly presetDraft: StudioFpsGameplayPresetDraft;
+  readonly encounterDirector: EncounterDirectorReadout | null;
+  readonly encounterTransitionReceipt: RuntimeSessionEncounterTransitionReceipt | null;
+  readonly combatFeedbackProjection: CombatFeedbackProjection | null;
+  readonly lifecycleStatus: RuntimeSessionLifecycleStatusReadout | null;
+  readonly autonomousPolicyTick: RuntimeSessionAutonomousPolicyTickReadout | null;
+  readonly restartReceipt: RuntimeSessionLifecycleRestartReceipt | null;
+}): StudioPlayableLoopTuningInspectionReadModel {
+  const catalogReadout = readFpsGameplayPresetCatalog();
+  const defaultPresetReadout = catalogReadout.defaultPreset;
+  const candidatePreset = applyStudioGameplayPresetDraft(defaultPresetReadout.preset, input.presetDraft);
+  const validation = validateFpsGameplayPreset(candidatePreset);
+  const validatedPresetReadout = validation.readout ?? null;
+  const authoringDiagnostics = validation.diagnostics.map(diagnostic =>
+    studioGameplayPresetDiagnostic(diagnostic),
+  );
+  const diagnostics: StudioDiagnostic[] = [...authoringDiagnostics];
+
+  if (input.gameWorkspace === null) {
+    diagnostics.push({
+      severity: 'error',
+      code: 'playable_loop_tuning_missing_workspace',
+      message: 'Playable-loop tuning inspection requires an opened ASHA game workspace.',
+      source: null,
+      remediation: 'Open a project manifest before inspecting playable-loop tuning.',
+    });
+  }
+  if (!input.attached) {
+    diagnostics.push({
+      severity: 'info',
+      code: 'playable_loop_live_runtime_not_attached',
+      message: 'Live encounter/combat inspection is unavailable until RuntimeSession is attached.',
+      source: input.gameWorkspace?.runtimeEntry ?? null,
+      remediation: 'Attach the public RuntimeSession facade.',
+    });
+  }
+  if (input.attached && input.encounterDirector === null) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'playable_loop_encounter_readout_missing',
+      message: 'Attached RuntimeSession did not provide an encounter director readout.',
+      source: input.gameWorkspace?.gameId ?? null,
+      remediation: 'Use the public RuntimeSession encounter director surface.',
+    });
+  }
+  if (input.attached && input.combatFeedbackProjection === null) {
+    diagnostics.push({
+      severity: 'info',
+      code: 'playable_loop_combat_feedback_waiting',
+      message: 'Combat feedback projection will appear after the public policy/combat tick runs.',
+      source: input.gameWorkspace?.gameId ?? null,
+      remediation: 'Run Policy from the live playable-loop panel.',
+    });
+  }
+
+  const definitionAuthoring = buildPlayableLoopDefinitionAuthoring({
+    catalogReadout,
+    defaultPresetReadout,
+    candidatePreset,
+    validation,
+    presetDraft: input.presetDraft,
+    diagnostics: authoringDiagnostics,
+  });
+  const liveInspection = buildPlayableLoopLiveRuntimeInspection({
+    attached: input.attached,
+    studioMode: input.studioMode,
+    attachState: input.attachState,
+    encounterDirector: input.encounterDirector,
+    encounterTransitionReceipt: input.encounterTransitionReceipt,
+    combatFeedbackProjection: input.combatFeedbackProjection,
+    lifecycleStatus: input.lifecycleStatus,
+    autonomousPolicyTick: input.autonomousPolicyTick,
+    restartReceipt: input.restartReceipt,
+  });
+  const body = {
+    definitionAuthoring,
+    liveInspection,
+    diagnostics,
+  };
+
+  return {
+    inspectionVersion: 'studio-playable-loop-tuning-inspection.v0',
+    ...body,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_transport',
+      'not_local_gameplay_logic',
+      'not_runtime_to_definition_export',
+    ],
+    inspectionHash: fnv1aHash('studio-playable-loop-tuning-inspection', body),
+  };
+}
+
+function buildPlayableLoopDefinitionAuthoring(input: {
+  readonly catalogReadout: FpsGameplayPresetCatalogReadout;
+  readonly defaultPresetReadout: FpsGameplayPresetReadout;
+  readonly candidatePreset: FpsGameplayPreset;
+  readonly validation: FpsGameplayPresetValidationReport;
+  readonly presetDraft: StudioFpsGameplayPresetDraft;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}): StudioPlayableLoopDefinitionAuthoringReadModel {
+  const readout = input.validation.readout ?? null;
+  const presetHashes = readout?.hashes ?? null;
+  const migration = readout?.migration ?? input.defaultPresetReadout.migration;
+  const ownership = input.candidatePreset.ownership;
+
+  return {
+    authoringVersion: 'studio-playable-loop-definition-authoring.v0',
+    studioMode: 'definition_authoring',
+    presetReadoutKind: input.defaultPresetReadout.kind,
+    catalogReadoutKind: input.catalogReadout.kind,
+    presetId: input.candidatePreset.presetId,
+    catalogId: input.catalogReadout.catalog.catalogId,
+    defaultPresetId: input.catalogReadout.catalog.defaultPresetId,
+    displayName: input.candidatePreset.displayName,
+    source: {
+      projectId: input.candidatePreset.source.projectId,
+      presetPath: input.candidatePreset.source.path,
+      catalogPath: input.catalogReadout.catalog.source.path,
+      fixturePath: input.defaultPresetReadout.fixturePath,
+    },
+    fields: buildGameplayPresetFieldReadModels(input.presetDraft, input.validation),
+    validation: {
+      kind: input.validation.kind,
+      status: input.validation.valid ? 'valid' : 'invalid',
+      diagnosticCount: input.validation.diagnostics.length,
+      diagnostics: input.diagnostics,
+    },
+    hashes: {
+      presetHash: presetHashes?.presetHash ?? null,
+      tuningHash: presetHashes?.tuningHash ?? null,
+      referenceHash: presetHashes?.referenceHash ?? null,
+      catalogHash: input.catalogReadout.hashes.catalogHash,
+      rejectedHash: input.validation.rejectedHash,
+    },
+    tuningSummary: {
+      playerController:
+        `${input.candidatePreset.playerController.moveSpeedUnitsPerSecond} ups, look ${input.candidatePreset.playerController.lookSensitivityDegreesPerPixel}`,
+      weapon:
+        `${input.candidatePreset.weapon.action} ${input.candidatePreset.weapon.damage} dmg, ammo ${input.candidatePreset.weapon.ammo}`,
+      enemyBehavior:
+        `${input.candidatePreset.enemyBehavior.policyRef}, range ${input.candidatePreset.enemyBehavior.desiredRangeUnits}`,
+      encounter:
+        `${input.candidatePreset.encounter.presetId}, enemies ${input.candidatePreset.encounter.enemyCount}`,
+      generator:
+        `${input.candidatePreset.generator.presetId}, seed ${input.candidatePreset.generator.seed}`,
+    },
+    ownership: {
+      gameOwned: ownership.gameOwned,
+      engineOwned: ownership.engineOwned,
+    },
+    migration,
+    boundary: {
+      storedPresetEditing: true,
+      validatesThroughPublicSchema: true,
+      liveRuntimeMutation: false,
+      runtimeToDefinitionExport: false,
+    },
+    nonClaims: [
+      'not_runtime_authority',
+      'not_arbitrary_json_catalog',
+      'not_runtime_to_definition_export',
+      'not_live_runtime_mutation_from_authoring',
+    ],
+  };
+}
+
+function buildPlayableLoopLiveRuntimeInspection(input: {
+  readonly attached: boolean;
+  readonly studioMode: StudioMode;
+  readonly attachState: StudioRuntimeSessionInspectionReadModel['attachState'];
+  readonly encounterDirector: EncounterDirectorReadout | null;
+  readonly encounterTransitionReceipt: RuntimeSessionEncounterTransitionReceipt | null;
+  readonly combatFeedbackProjection: CombatFeedbackProjection | null;
+  readonly lifecycleStatus: RuntimeSessionLifecycleStatusReadout | null;
+  readonly autonomousPolicyTick: RuntimeSessionAutonomousPolicyTickReadout | null;
+  readonly restartReceipt: RuntimeSessionLifecycleRestartReceipt | null;
+}): StudioPlayableLoopLiveRuntimeInspectionReadModel {
+  const encounter = input.encounterDirector;
+  const feedback = input.combatFeedbackProjection;
+  const lifecycle = input.lifecycleStatus;
+  const policy = input.autonomousPolicyTick;
+  const receipt = input.encounterTransitionReceipt;
+  const liveMode: StudioPlayableLoopLiveRuntimeInspectionReadModel['studioMode'] =
+    input.attached ? 'live_runtime_inspection' : 'definition_authoring';
+
+  return {
+    liveVersion: 'studio-playable-loop-live-runtime.v0',
+    studioMode: liveMode,
+    attachState: input.attachState,
+    encounter: {
+      kind: encounter?.kind ?? null,
+      presetId: encounter?.presetId ?? null,
+      status: encounter?.state.status ?? null,
+      revision: encounter?.state.revision ?? null,
+      lastTransition: encounter?.state.lastTransition ?? null,
+      activeEnemyCount: encounter?.state.activeEnemyCount ?? null,
+      pendingEnemyCount: encounter?.state.pendingEnemyCount ?? null,
+      defeatedEnemyCount: encounter?.state.defeatedEnemyCount ?? null,
+      spawnedEnemyCount: encounter?.state.spawnedEnemyCount ?? null,
+      configHash: encounter?.config.configHash ?? null,
+      spawnOrderHash: encounter?.hashes.spawnOrderHash ?? null,
+      encounterHash: encounter?.hashes.encounterHash ?? null,
+      replayHash: encounter?.hashes.replayHash ?? null,
+      spawns: encounter?.spawns.map(spawn => ({
+        instanceId: spawn.instanceId,
+        runtimeEntityId: spawn.runtimeEntityId,
+        status: spawn.status,
+        markerId: spawn.spawnMarker.markerId,
+        world: spawn.spawnMarker.world,
+        capabilities: encounter.config.enemyDefinitions.find(
+          definition => definition.runtimeEntityId === spawn.runtimeEntityId,
+        )?.capabilities ?? [],
+      })) ?? [],
+      lastReceipt: receipt === null
+        ? null
+        : {
+            action: receipt.request.action,
+            status: receipt.status,
+            accepted: receipt.accepted,
+            rejectionReason: receipt.rejectionReason ?? null,
+            beforeStatus: receipt.before.state.status,
+            afterStatus: receipt.after.state.status,
+            eventKind: receipt.event?.kind ?? null,
+            transitionHash: receipt.hashes.transitionHash,
+          },
+    },
+    combatFeedback: {
+      kind: feedback?.kind ?? null,
+      scenario: feedback?.scenario ?? null,
+      traceResult: feedback?.trace.result ?? null,
+      markerTone: feedback?.marker.tone ?? null,
+      markerLabel: feedback?.marker.label ?? null,
+      notificationTexts: feedback?.notifications.map(notification => notification.text) ?? [],
+      hudStatusTexts: feedback?.hud.status.map(status => status.text) ?? [],
+      ammo: feedback?.hud.ammo ?? null,
+      cooldownTicksRemaining: feedback?.hud.cooldownTicksRemaining ?? null,
+      projectionHash: feedback?.hashes.projectionHash ?? null,
+      healthHash: feedback?.debug.healthHash ?? null,
+    },
+    lifecycle: {
+      outcomeKind: lifecycle?.outcome.kind ?? null,
+      label: lifecycle?.outcome.label ?? null,
+      terminal: lifecycle?.outcome.terminal ?? false,
+      playerHealth: lifecycle === null
+        ? null
+        : `${lifecycle.player.health.current}/${lifecycle.player.health.max}`,
+      enemyHealth: lifecycle === null
+        ? null
+        : `${lifecycle.enemy.health.current}/${lifecycle.enemy.health.max}`,
+      lifecycleHash: lifecycle?.hashes.lifecycleHash ?? null,
+    },
+    policy: {
+      loopId: policy?.loopId ?? null,
+      tickHash: policy?.tickHash ?? null,
+      acceptedProposalCount: policy?.proposalSummary.acceptedProposalCount ?? null,
+      unsupportedProposalCount: policy?.proposalSummary.unsupportedProposalCount ?? null,
+    },
+    restart: {
+      lastReceiptStatus: input.restartReceipt?.status ?? null,
+      statusBefore: input.restartReceipt?.statusBefore.outcome.kind ?? null,
+      statusAfter: input.restartReceipt?.statusAfter.outcome.kind ?? null,
+      resetHash: input.restartReceipt?.resetHash ?? null,
+    },
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_transport',
+      'not_demo_local_spawn_state',
+      'not_combat_authority',
+    ],
+  };
+}
+
+function applyStudioGameplayPresetDraft(
+  preset: FpsGameplayPreset,
+  draft: StudioFpsGameplayPresetDraft,
+): FpsGameplayPreset {
+  return {
+    ...preset,
+    displayName: draft.displayName,
+    playerController: {
+      ...preset.playerController,
+      moveSpeedUnitsPerSecond: draft.moveSpeedUnitsPerSecond,
+      lookSensitivityDegreesPerPixel: draft.lookSensitivityDegreesPerPixel,
+    },
+    weapon: {
+      ...preset.weapon,
+      damage: draft.weaponDamage,
+      ammo: draft.weaponAmmo,
+    },
+    enemyBehavior: {
+      ...preset.enemyBehavior,
+      desiredRangeUnits: draft.desiredRangeUnits,
+    },
+    encounter: {
+      ...preset.encounter,
+      enemyCount: draft.enemyCount,
+    },
+  };
+}
+
+function buildGameplayPresetFieldReadModels(
+  draft: StudioFpsGameplayPresetDraft,
+  validation: FpsGameplayPresetValidationReport,
+): readonly StudioFpsGameplayPresetFieldReadModel[] {
+  return [
+    gameplayPresetFieldReadModel({
+      field: 'displayName',
+      label: 'Display Name',
+      value: draft.displayName,
+      inputKind: 'text',
+      validation,
+      paths: ['displayName'],
+    }),
+    gameplayPresetFieldReadModel({
+      field: 'moveSpeedUnitsPerSecond',
+      label: 'Move Speed',
+      value: String(draft.moveSpeedUnitsPerSecond),
+      inputKind: 'number',
+      validation,
+      paths: ['playerController.moveSpeedUnitsPerSecond'],
+    }),
+    gameplayPresetFieldReadModel({
+      field: 'lookSensitivityDegreesPerPixel',
+      label: 'Look Sensitivity',
+      value: String(draft.lookSensitivityDegreesPerPixel),
+      inputKind: 'number',
+      validation,
+      paths: ['playerController.lookSensitivityDegreesPerPixel'],
+    }),
+    gameplayPresetFieldReadModel({
+      field: 'weaponDamage',
+      label: 'Damage',
+      value: String(draft.weaponDamage),
+      inputKind: 'number',
+      validation,
+      paths: ['weapon.damage'],
+    }),
+    gameplayPresetFieldReadModel({
+      field: 'weaponAmmo',
+      label: 'Ammo',
+      value: String(draft.weaponAmmo),
+      inputKind: 'number',
+      validation,
+      paths: ['weapon.ammo'],
+    }),
+    gameplayPresetFieldReadModel({
+      field: 'enemyCount',
+      label: 'Enemies',
+      value: String(draft.enemyCount),
+      inputKind: 'number',
+      validation,
+      paths: ['encounter.enemyCount'],
+    }),
+    gameplayPresetFieldReadModel({
+      field: 'desiredRangeUnits',
+      label: 'Enemy Range',
+      value: String(draft.desiredRangeUnits),
+      inputKind: 'number',
+      validation,
+      paths: ['enemyBehavior.desiredRangeUnits'],
+    }),
+  ];
+}
+
+function gameplayPresetFieldReadModel(input: {
+  readonly field: StudioFpsGameplayPresetDraftField;
+  readonly label: string;
+  readonly value: string;
+  readonly inputKind: StudioFpsGameplayPresetFieldReadModel['inputKind'];
+  readonly validation: FpsGameplayPresetValidationReport;
+  readonly paths: readonly string[];
+}): StudioFpsGameplayPresetFieldReadModel {
+  const diagnostic = input.validation.diagnostics.find(candidate =>
+    input.paths.some(path => candidate.path === path || candidate.path.startsWith(`${path}.`)),
+  );
+  return {
+    field: input.field,
+    label: input.label,
+    value: input.value,
+    inputKind: input.inputKind,
+    editable: true,
+    validationStatus: diagnostic === undefined ? 'valid' : 'invalid',
+    validationMessage: diagnostic?.detail ?? null,
+  };
+}
+
+function studioGameplayPresetDiagnostic(
+  diagnostic: FpsGameplayPresetValidationReport['diagnostics'][number],
+): StudioDiagnostic {
+  return {
+    severity: 'error',
+    code: `fps_gameplay_preset_${diagnostic.code}`,
+    message: diagnostic.detail,
+    source: diagnostic.path,
+    remediation: 'Adjust the bounded gameplay preset field and re-run public schema validation.',
   };
 }
 

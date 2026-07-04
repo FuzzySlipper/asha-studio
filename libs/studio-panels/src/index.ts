@@ -234,228 +234,379 @@ function filteredHierarchyEntities(
           >
             Restart
           </button>
+          <button
+            type="button"
+            [attr.aria-expanded]="playableLoopInspectorOpen()"
+            aria-controls="studio-playable-loop-popout"
+            data-runtime-inspection="loop-inspector-toggle"
+            (click)="togglePlayableLoopInspector()"
+          >
+            Inspector
+          </button>
         </div>
       </section>
 
-      <section class="generated-level-inspection" data-visual-id="studio-generated-level-inspection">
-        <div class="generated-level-inspection__cell generated-level-inspection__cell--authoring">
-          <span>Definition Authoring</span>
-          <strong data-generated-level="authoring-mode">
-            {{ store.runtimeSessionInspection().generatedLevel.definitionAuthoring.studioMode }}
-          </strong>
-          <small data-generated-level="mode-boundary">
-            stored preset · not live mutation · not runtime export
-          </small>
-        </div>
-        @for (field of store.runtimeSessionInspection().generatedLevel.definitionAuthoring.fields; track field.field) {
-          <label
-            class="generated-level-inspection__field"
-            [attr.data-generated-level-field]="field.field"
-            [attr.data-generated-level-validation]="field.validationStatus"
-          >
-            <span>{{ field.label }}</span>
-            @if (field.inputKind === 'readonly') {
-              <strong>{{ field.value }}</strong>
-            } @else if (field.inputKind === 'number') {
-              <input
-                type="number"
-                [value]="field.value"
-                (input)="store.setGeneratedLevelPresetField('seed', $any($event.target).value)"
-              />
-            } @else {
-              <select
-                [value]="field.value"
-                (change)="store.setGeneratedLevelPresetField('presetId', $any($event.target).value)"
-              >
-                @for (allowed of field.allowedValues; track allowed) {
-                  <option [value]="allowed">{{ allowed }}</option>
+      @if (playableLoopInspectorOpen()) {
+        <aside
+          id="studio-playable-loop-popout"
+          class="runtime-inspection-popout"
+          data-visual-id="studio-playable-loop-popout"
+          aria-label="Playable loop inspector"
+        >
+          <div class="runtime-inspection-popout__header">
+            <div>
+              <span>Runtime / Authoring</span>
+              <strong>Playable Loop Inspector</strong>
+            </div>
+            <button type="button" (click)="closePlayableLoopInspector()">Close</button>
+          </div>
+          <div class="runtime-inspection-popout__body">
+            <section class="generated-level-inspection" data-visual-id="studio-generated-level-inspection">
+              <div class="generated-level-inspection__cell generated-level-inspection__cell--authoring">
+                <span>Definition Authoring</span>
+                <strong data-generated-level="authoring-mode">
+                  {{ store.runtimeSessionInspection().generatedLevel.definitionAuthoring.studioMode }}
+                </strong>
+                <small data-generated-level="mode-boundary">
+                  stored preset · not live mutation · not runtime export
+                </small>
+              </div>
+              @for (field of store.runtimeSessionInspection().generatedLevel.definitionAuthoring.fields; track field.field) {
+                <label
+                  class="generated-level-inspection__field"
+                  [attr.data-generated-level-field]="field.field"
+                  [attr.data-generated-level-validation]="field.validationStatus"
+                >
+                  <span>{{ field.label }}</span>
+                  @if (field.inputKind === 'readonly') {
+                    <strong>{{ field.value }}</strong>
+                  } @else if (field.inputKind === 'number') {
+                    <input
+                      type="number"
+                      [value]="field.value"
+                      (input)="store.setGeneratedLevelPresetField('seed', $any($event.target).value)"
+                    />
+                  } @else {
+                    <select
+                      [value]="field.value"
+                      (change)="store.setGeneratedLevelPresetField('presetId', $any($event.target).value)"
+                    >
+                      @for (allowed of field.allowedValues; track allowed) {
+                        <option [value]="allowed">{{ allowed }}</option>
+                      }
+                    </select>
+                  }
+                  <small>{{ field.validationMessage || 'valid' }}</small>
+                </label>
+              }
+              <div class="generated-level-inspection__cell">
+                <span>Live Generated Level</span>
+                <strong data-generated-level="live-mode">
+                  {{ store.runtimeSessionInspection().generatedLevel.liveInspection.studioMode }}
+                </strong>
+                <small data-generated-level="attach-state">
+                  {{ store.runtimeSessionInspection().generatedLevel.liveInspection.attachState }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Generator</span>
+                <strong data-generated-level="preset-id">
+                  {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.presetId || 'no live preset' }}
+                </strong>
+                <small data-generated-level="generator-hashes">
+                  cfg {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.configHash || 'n/a' }}
+                  · out {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.outputHash || 'n/a' }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Volume</span>
+                <strong data-generated-level="volume">
+                  {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.tunnelDims?.join('×') || 'n/a' }}
+                </strong>
+                <small>
+                  solids {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.solidVoxels ?? 'n/a' }}
+                  · corridors {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.corridorCount ?? 'n/a' }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Projections</span>
+                <strong data-generated-level="render-collision-hash">
+                  {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.renderHash || 'no render' }}
+                </strong>
+                <small data-generated-level="nav-hash">
+                  collision {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.collisionHash || 'n/a' }}
+                  · nav {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.navProjectionHash || 'n/a' }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Spawn Markers</span>
+                <strong data-generated-level="spawn-markers">
+                  {{ store.runtimeSessionInspection().generatedLevel.liveInspection.spawnMarkers.length }} markers
+                </strong>
+                <small>
+                  @for (marker of store.runtimeSessionInspection().generatedLevel.liveInspection.spawnMarkers; track marker.id) {
+                    {{ marker.id }} {{ marker.voxel.join(',') }}
+                  }
+                </small>
+              </div>
+              <div class="generated-level-inspection__actions">
+                <button type="button" (click)="store.validateGeneratedLevelPreset()">Validate Preset</button>
+                <button
+                  type="button"
+                  [disabled]="!store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.available"
+                  (click)="store.requestGeneratedLevelRegenerate()"
+                >
+                  Regenerate
+                </button>
+                <small data-generated-level="regenerate-status">
+                  @if (store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.lastReceipt; as receipt) {
+                    {{ receipt.status }} · {{ receipt.reason || 'accepted' }}
+                  } @else {
+                    {{ store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.disabledReason || 'ready' }}
+                  }
+                </small>
+              </div>
+            </section>
+
+            <section class="generated-level-inspection" data-visual-id="studio-encounter-tuning-inspection">
+              <div class="generated-level-inspection__cell generated-level-inspection__cell--authoring">
+                <span>Definition Authoring</span>
+                <strong data-encounter-tuning="authoring-version">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.authoringVersion }}
+                </strong>
+                <small data-encounter-tuning="schema-kinds">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.presetReadoutKind }}
+                  · {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.catalogReadoutKind }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Preset</span>
+                <strong data-encounter-tuning="preset-id">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.presetId }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.displayName }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Hashes</span>
+                <strong data-encounter-tuning="preset-hash">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.hashes.presetHash || 'invalid draft' }}
+                </strong>
+                <small>
+                  catalog {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.hashes.catalogHash }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Validation</span>
+                <strong data-encounter-tuning="validation-status">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.validation.status }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.validation.diagnosticCount }} diagnostics
+                </small>
+              </div>
+              @for (field of store.runtimeSessionInspection().playableLoopTuning.definitionAuthoring.fields; track field.field) {
+                <label
+                  class="generated-level-inspection__field"
+                  [attr.data-gameplay-preset-field]="field.field"
+                  [attr.data-gameplay-preset-validation]="field.validationStatus"
+                >
+                  <span>{{ field.label }}</span>
+                  @if (field.inputKind === 'text') {
+                    <input
+                      type="text"
+                      [value]="field.value"
+                      (input)="store.setGameplayPresetField(field.field, $any($event.target).value)"
+                    />
+                  } @else {
+                    <input
+                      type="number"
+                      [value]="field.value"
+                      (input)="store.setGameplayPresetField(field.field, $any($event.target).value)"
+                    />
+                  }
+                  <small>{{ field.validationMessage || 'valid' }}</small>
+                </label>
+              }
+              <div class="generated-level-inspection__cell generated-level-inspection__cell--live">
+                <span>Live Runtime</span>
+                <strong data-encounter-tuning="live-mode">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.studioMode }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.attachState }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Encounter</span>
+                <strong data-encounter-tuning="encounter-status">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.status || 'not attached' }}
+                </strong>
+                <small>
+                  active {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.activeEnemyCount ?? 'n/a' }}
+                  · defeated {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.defeatedEnemyCount ?? 'n/a' }}
+                  · {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.lastTransition || 'no transition' }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Spawn</span>
+                <strong data-encounter-tuning="spawn-summary">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.spawns.length }} spawn
+                </strong>
+                <small>
+                  @for (spawn of store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.spawns; track spawn.instanceId) {
+                    {{ spawn.instanceId }} {{ spawn.status }} entity {{ spawn.runtimeEntityId }}
+                  }
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Combat Feedback</span>
+                <strong data-encounter-tuning="combat-feedback">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.combatFeedback.kind || 'waiting' }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.combatFeedback.traceResult || 'no trace' }}
+                  · {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.combatFeedback.markerTone || 'no marker' }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__cell">
+                <span>Lifecycle</span>
+                <strong data-encounter-tuning="lifecycle">
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.lifecycle.label || 'not attached' }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.lifecycle.enemyHealth || 'enemy n/a' }}
+                  · {{ store.runtimeSessionInspection().playableLoopTuning.liveInspection.lifecycle.outcomeKind || 'n/a' }}
+                </small>
+              </div>
+              <div class="generated-level-inspection__actions">
+                <button type="button" (click)="store.validateGameplayPreset()">Validate Tuning</button>
+                <small data-encounter-tuning="transition-receipt">
+                  @if (store.runtimeSessionInspection().playableLoopTuning.liveInspection.encounter.lastReceipt; as receipt) {
+                    {{ receipt.action }} · {{ receipt.status }} · {{ receipt.beforeStatus }} -> {{ receipt.afterStatus }}
+                  } @else {
+                    no encounter transition receipt
+                  }
+                </small>
+              </div>
+            </section>
+
+            <section class="playable-loop-inspection" data-visual-id="studio-playable-loop-inspection">
+              <div class="playable-loop-inspection__cell playable-loop-inspection__cell--identity">
+                <span>Playable Loop</span>
+                <strong data-playable-loop="version">
+                  {{ store.runtimeSessionInspection().playableLoop.loopVersion }}
+                </strong>
+                <small data-playable-loop="mode">
+                  {{ store.runtimeSessionInspection().playableLoop.studioMode }}
+                  · {{ store.runtimeSessionInspection().playableLoop.attachState }}
+                </small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Session</span>
+                <strong data-playable-loop="session">
+                  seed {{ store.runtimeSessionInspection().playableLoop.session.seed ?? 'n/a' }}
+                  · tick {{ store.runtimeSessionInspection().playableLoop.session.tick ?? 'n/a' }}
+                </strong>
+                <small>{{ store.runtimeSessionInspection().playableLoop.session.sessionHash || 'no session hash' }}</small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Generated Tunnel</span>
+                <strong data-playable-loop="generated-level">
+                  {{ store.runtimeSessionInspection().playableLoop.generatedLevel.presetId || 'no preset' }}
+                </strong>
+                <small>
+                  out {{ store.runtimeSessionInspection().playableLoop.generatedLevel.outputHash || 'n/a' }}
+                  · nav {{ store.runtimeSessionInspection().playableLoop.generatedLevel.navProjectionHash || 'n/a' }}
+                </small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Nav Path</span>
+                <strong data-playable-loop="nav-path">
+                  {{ store.runtimeSessionInspection().playableLoop.nav.pathHash || 'no path' }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoop.nav.outcome || 'n/a' }}
+                  · visited {{ store.runtimeSessionInspection().playableLoop.nav.visited ?? 'n/a' }}
+                  · len {{ store.runtimeSessionInspection().playableLoop.nav.pathLength ?? 'n/a' }}
+                </small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Policy</span>
+                <strong data-playable-loop="policy-summary">
+                  {{ store.runtimeSessionInspection().playableLoop.policy.acceptedProposalCount ?? 'n/a' }} accepted
+                  · {{ store.runtimeSessionInspection().playableLoop.policy.unsupportedProposalCount ?? 'n/a' }} unsupported
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoop.policy.loopId || 'not run' }}
+                  · {{ store.runtimeSessionInspection().playableLoop.policy.movementReason || 'movement ready' }}
+                </small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Combat</span>
+                <strong data-playable-loop="combat-health">
+                  @if (store.runtimeSessionInspection().playableLoop.selectedEntity?.health; as health) {
+                    Health {{ health.current }}/{{ health.max }} {{ health.dead ? 'defeated' : 'active' }}
+                  } @else {
+                    Health n/a
+                  }
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoop.combat.status || 'not run' }}
+                  · {{ store.runtimeSessionInspection().playableLoop.combat.outcomeKind || 'no outcome' }}
+                </small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Lifecycle</span>
+                <strong data-playable-loop="lifecycle">
+                  {{ store.runtimeSessionInspection().playableLoop.lifecycle.label || 'not attached' }}
+                </strong>
+                <small>
+                  {{ store.runtimeSessionInspection().playableLoop.lifecycle.outcomeKind || 'n/a' }}
+                  · {{ store.runtimeSessionInspection().playableLoop.lifecycle.eventKinds.join(', ') || 'no event' }}
+                </small>
+              </div>
+              <div class="playable-loop-inspection__cell">
+                <span>Selected Entity</span>
+                @if (store.runtimeSessionInspection().playableLoop.selectedEntity; as entity) {
+                  <strong data-playable-loop="selected-entity">{{ entity.label }}</strong>
+                  <small>
+                    {{ entity.pose.position?.join(',') || 'pose n/a' }}
+                    · next {{ entity.pose.nextWaypoint?.join(',') || 'n/a' }}
+                  </small>
+                } @else {
+                  <strong data-playable-loop="selected-entity">no runtime entity</strong>
+                  <small>Attach the public RuntimeSession facade.</small>
                 }
-              </select>
-            }
-            <small>{{ field.validationMessage || 'valid' }}</small>
-          </label>
-        }
-        <div class="generated-level-inspection__cell">
-          <span>Live Generated Level</span>
-          <strong data-generated-level="live-mode">
-            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.studioMode }}
-          </strong>
-          <small data-generated-level="attach-state">
-            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.attachState }}
-          </small>
-        </div>
-        <div class="generated-level-inspection__cell">
-          <span>Generator</span>
-          <strong data-generated-level="preset-id">
-            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.presetId || 'no live preset' }}
-          </strong>
-          <small data-generated-level="generator-hashes">
-            cfg {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.configHash || 'n/a' }}
-            · out {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.outputHash || 'n/a' }}
-          </small>
-        </div>
-        <div class="generated-level-inspection__cell">
-          <span>Volume</span>
-          <strong data-generated-level="volume">
-            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.tunnelDims?.join('×') || 'n/a' }}
-          </strong>
-          <small>
-            solids {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.solidVoxels ?? 'n/a' }}
-            · corridors {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.corridorCount ?? 'n/a' }}
-          </small>
-        </div>
-        <div class="generated-level-inspection__cell">
-          <span>Projections</span>
-          <strong data-generated-level="render-collision-hash">
-            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.renderHash || 'no render' }}
-          </strong>
-          <small data-generated-level="nav-hash">
-            collision {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.collisionHash || 'n/a' }}
-            · nav {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.navProjectionHash || 'n/a' }}
-          </small>
-        </div>
-        <div class="generated-level-inspection__cell">
-          <span>Spawn Markers</span>
-          <strong data-generated-level="spawn-markers">
-            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.spawnMarkers.length }} markers
-          </strong>
-          <small>
-            @for (marker of store.runtimeSessionInspection().generatedLevel.liveInspection.spawnMarkers; track marker.id) {
-              {{ marker.id }} {{ marker.voxel.join(',') }}
-            }
-          </small>
-        </div>
-        <div class="generated-level-inspection__actions">
-          <button type="button" (click)="store.validateGeneratedLevelPreset()">Validate Preset</button>
-          <button
-            type="button"
-            [disabled]="!store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.available"
-            (click)="store.requestGeneratedLevelRegenerate()"
-          >
-            Regenerate
-          </button>
-          <small data-generated-level="regenerate-status">
-            @if (store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.lastReceipt; as receipt) {
-              {{ receipt.status }} · {{ receipt.reason || 'accepted' }}
-            } @else {
-              {{ store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.disabledReason || 'ready' }}
-            }
-          </small>
-        </div>
-      </section>
-
-      <section class="playable-loop-inspection" data-visual-id="studio-playable-loop-inspection">
-        <div class="playable-loop-inspection__cell playable-loop-inspection__cell--identity">
-          <span>Playable Loop</span>
-          <strong data-playable-loop="version">
-            {{ store.runtimeSessionInspection().playableLoop.loopVersion }}
-          </strong>
-          <small data-playable-loop="mode">
-            {{ store.runtimeSessionInspection().playableLoop.studioMode }}
-            · {{ store.runtimeSessionInspection().playableLoop.attachState }}
-          </small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Session</span>
-          <strong data-playable-loop="session">
-            seed {{ store.runtimeSessionInspection().playableLoop.session.seed ?? 'n/a' }}
-            · tick {{ store.runtimeSessionInspection().playableLoop.session.tick ?? 'n/a' }}
-          </strong>
-          <small>{{ store.runtimeSessionInspection().playableLoop.session.sessionHash || 'no session hash' }}</small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Generated Tunnel</span>
-          <strong data-playable-loop="generated-level">
-            {{ store.runtimeSessionInspection().playableLoop.generatedLevel.presetId || 'no preset' }}
-          </strong>
-          <small>
-            out {{ store.runtimeSessionInspection().playableLoop.generatedLevel.outputHash || 'n/a' }}
-            · nav {{ store.runtimeSessionInspection().playableLoop.generatedLevel.navProjectionHash || 'n/a' }}
-          </small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Nav Path</span>
-          <strong data-playable-loop="nav-path">
-            {{ store.runtimeSessionInspection().playableLoop.nav.pathHash || 'no path' }}
-          </strong>
-          <small>
-            {{ store.runtimeSessionInspection().playableLoop.nav.outcome || 'n/a' }}
-            · visited {{ store.runtimeSessionInspection().playableLoop.nav.visited ?? 'n/a' }}
-            · len {{ store.runtimeSessionInspection().playableLoop.nav.pathLength ?? 'n/a' }}
-          </small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Policy</span>
-          <strong data-playable-loop="policy-summary">
-            {{ store.runtimeSessionInspection().playableLoop.policy.acceptedProposalCount ?? 'n/a' }} accepted
-            · {{ store.runtimeSessionInspection().playableLoop.policy.unsupportedProposalCount ?? 'n/a' }} unsupported
-          </strong>
-          <small>
-            {{ store.runtimeSessionInspection().playableLoop.policy.loopId || 'not run' }}
-            · {{ store.runtimeSessionInspection().playableLoop.policy.movementReason || 'movement ready' }}
-          </small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Combat</span>
-          <strong data-playable-loop="combat-health">
-            @if (store.runtimeSessionInspection().playableLoop.selectedEntity?.health; as health) {
-              Health {{ health.current }}/{{ health.max }} {{ health.dead ? 'defeated' : 'active' }}
-            } @else {
-              Health n/a
-            }
-          </strong>
-          <small>
-            {{ store.runtimeSessionInspection().playableLoop.combat.status || 'not run' }}
-            · {{ store.runtimeSessionInspection().playableLoop.combat.outcomeKind || 'no outcome' }}
-          </small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Lifecycle</span>
-          <strong data-playable-loop="lifecycle">
-            {{ store.runtimeSessionInspection().playableLoop.lifecycle.label || 'not attached' }}
-          </strong>
-          <small>
-            {{ store.runtimeSessionInspection().playableLoop.lifecycle.outcomeKind || 'n/a' }}
-            · {{ store.runtimeSessionInspection().playableLoop.lifecycle.eventKinds.join(', ') || 'no event' }}
-          </small>
-        </div>
-        <div class="playable-loop-inspection__cell">
-          <span>Selected Entity</span>
-          @if (store.runtimeSessionInspection().playableLoop.selectedEntity; as entity) {
-            <strong data-playable-loop="selected-entity">{{ entity.label }}</strong>
-            <small>
-              {{ entity.pose.position?.join(',') || 'pose n/a' }}
-              · next {{ entity.pose.nextWaypoint?.join(',') || 'n/a' }}
-            </small>
-          } @else {
-            <strong data-playable-loop="selected-entity">no runtime entity</strong>
-            <small>Attach the public RuntimeSession facade.</small>
-          }
-        </div>
-        <div class="playable-loop-inspection__actions">
-          <button
-            type="button"
-            [disabled]="!store.runtimeSessionInspection().playableLoop.controls.policyTick.available"
-            (click)="store.runPlayableLoopInspectionTick()"
-          >
-            Run Policy
-          </button>
-          <button
-            type="button"
-            [disabled]="!store.runtimeSessionInspection().playableLoop.controls.restart.available"
-            (click)="store.restartPlayableLoopInspection()"
-          >
-            Restart
-          </button>
-          <small data-playable-loop="restart-status">
-            @if (store.runtimeSessionInspection().playableLoop.restart.lastReceipt; as receipt) {
-              {{ receipt.status }} · {{ receipt.statusBefore }} -> {{ receipt.statusAfter }}
-            } @else {
-              {{ store.runtimeSessionInspection().playableLoop.restart.disabledReason || 'ready' }}
-            }
-          </small>
-        </div>
-      </section>
+              </div>
+              <div class="playable-loop-inspection__actions">
+                <button
+                  type="button"
+                  [disabled]="!store.runtimeSessionInspection().playableLoop.controls.policyTick.available"
+                  (click)="store.runPlayableLoopInspectionTick()"
+                >
+                  Run Policy
+                </button>
+                <button
+                  type="button"
+                  [disabled]="!store.runtimeSessionInspection().playableLoop.controls.restart.available"
+                  (click)="store.restartPlayableLoopInspection()"
+                >
+                  Restart
+                </button>
+                <small data-playable-loop="restart-status">
+                  @if (store.runtimeSessionInspection().playableLoop.restart.lastReceipt; as receipt) {
+                    {{ receipt.status }} · {{ receipt.statusBefore }} -> {{ receipt.statusAfter }}
+                  } @else {
+                    {{ store.runtimeSessionInspection().playableLoop.restart.disabledReason || 'ready' }}
+                  }
+                </small>
+              </div>
+            </section>
+          </div>
+        </aside>
+      }
     </section>
   `,
   styles: [
@@ -472,6 +623,7 @@ function filteredHierarchyEntities(
         height: 100%;
         min-width: 0;
         padding: 0.5rem 0.75rem;
+        position: relative;
       }
 
       .panel-kicker,
@@ -688,7 +840,7 @@ function filteredHierarchyEntities(
 
       .runtime-inspection__actions {
         align-items: center;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
       }
 
       .runtime-inspection__actions button {
@@ -708,6 +860,69 @@ function filteredHierarchyEntities(
         cursor: not-allowed;
       }
 
+      .runtime-inspection-popout {
+        background: var(--asha-color-chrome);
+        border: 1px solid var(--asha-color-accent);
+        box-shadow: 0 1.5rem 3.5rem rgba(0, 0, 0, 0.45);
+        box-sizing: border-box;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        inset: 4.75rem 1rem 1rem auto;
+        max-width: calc(100vw - 2rem);
+        min-height: 0;
+        overflow: hidden;
+        position: fixed;
+        width: min(78rem, calc(100vw - 2rem));
+        z-index: 50;
+      }
+
+      .runtime-inspection-popout__header {
+        align-items: center;
+        border-bottom: 1px solid var(--asha-color-border);
+        display: flex;
+        gap: 1rem;
+        justify-content: space-between;
+        min-width: 0;
+        padding: 0.65rem 0.75rem;
+      }
+
+      .runtime-inspection-popout__header div {
+        display: grid;
+        gap: 0.1rem;
+        min-width: 0;
+      }
+
+      .runtime-inspection-popout__header span {
+        color: var(--asha-color-muted);
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .runtime-inspection-popout__header strong {
+        font-size: 0.82rem;
+      }
+
+      .runtime-inspection-popout__header button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.68rem;
+        height: 1.65rem;
+        padding: 0 0.65rem;
+      }
+
+      .runtime-inspection-popout__body {
+        align-content: start;
+        display: grid;
+        gap: 0.65rem;
+        min-height: 0;
+        overflow: auto;
+        padding: 0.75rem;
+      }
+
       .generated-level-inspection {
         align-items: stretch;
         display: grid;
@@ -715,6 +930,12 @@ function filteredHierarchyEntities(
         grid-column: 1 / -1;
         grid-template-columns: minmax(8rem, 0.9fr) repeat(6, minmax(7rem, 1fr)) minmax(11rem, auto);
         min-width: 0;
+      }
+
+      .runtime-inspection-popout .generated-level-inspection {
+        border-bottom: 1px solid var(--asha-color-border);
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        padding-bottom: 0.65rem;
       }
 
       .generated-level-inspection__cell,
@@ -804,6 +1025,10 @@ function filteredHierarchyEntities(
         min-width: 0;
       }
 
+      .runtime-inspection-popout .playable-loop-inspection {
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+      }
+
       .playable-loop-inspection__cell,
       .playable-loop-inspection__actions {
         background: #10161b;
@@ -877,6 +1102,11 @@ function filteredHierarchyEntities(
         .playable-loop-inspection {
           grid-template-columns: 1fr;
         }
+
+        .runtime-inspection-popout {
+          inset: 3.5rem 0.5rem 0.5rem;
+          width: auto;
+        }
       }
     `,
   ],
@@ -884,9 +1114,18 @@ function filteredHierarchyEntities(
 })
 export class StudioSessionTopPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly playableLoopInspectorOpen = signal(false);
 
   loadSelectedScenario(): void {
     this.store.loadScenario(this.store.selectedScenarioDraftId());
+  }
+
+  togglePlayableLoopInspector(): void {
+    this.playableLoopInspectorOpen.update(open => !open);
+  }
+
+  closePlayableLoopInspector(): void {
+    this.playableLoopInspectorOpen.set(false);
   }
 }
 

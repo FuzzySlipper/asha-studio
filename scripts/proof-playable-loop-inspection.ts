@@ -151,17 +151,31 @@ let state = facade.initialize({
 });
 let generatedTunnelReadout = facade.readGeneratedTunnelReadout({ presetId: 'tiny-enclosed', seed: 17 });
 let navProjection = facade.readNavProjection();
+let encounterTransitionReceipt = facade.requestEncounterTransition({
+  kind: 'runtime_session.encounter_transition_request.v0',
+  presetId: 'generated-tunnel-small-encounter',
+  action: 'activate',
+});
 const camera = facade.createCamera(cameraRequest).snapshot.camera;
 const autonomousPolicyTick = facade.runAutonomousPolicyTick({
   targetCamera: camera,
   policySource: 'export const policy = (view) => view;',
 });
+const combatFeedbackProjection = facade.readCombatFeedbackProjection({
+  camera,
+  viewport: cameraRequest.viewport,
+});
+encounterTransitionReceipt = facade.requestEncounterTransition({
+  kind: 'runtime_session.encounter_transition_request.v0',
+  presetId: 'generated-tunnel-small-encounter',
+  action: 'sync_lifecycle',
+});
 state = {
   ...state,
   composition: autonomousPolicyTick.step.composition,
-  sequenceId: autonomousPolicyTick.sequenceIdAfter,
+  sequenceId: encounterTransitionReceipt.sequenceId,
   tick: autonomousPolicyTick.tick,
-  sessionHash: autonomousPolicyTick.sessionHashAfter,
+  sessionHash: encounterTransitionReceipt.hashes.sessionHashAfter,
 };
 let lifecycleStatus = facade.readLifecycleStatus();
 const loopReadout = buildStudioRuntimeSessionInspectionReadModel({
@@ -176,6 +190,9 @@ const loopReadout = buildStudioRuntimeSessionInspectionReadModel({
   generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
   generatedTunnelReadout,
   navProjection,
+  encounterDirector: facade.readEncounterDirector(),
+  encounterTransitionReceipt,
+  combatFeedbackProjection,
   paused: false,
 });
 
@@ -185,6 +202,12 @@ assert.equal(loopReadout.playableLoop.policy.unsupportedProposalCount, 1);
 assert.equal(loopReadout.playableLoop.nav.pathHash, 'e8e1ea7a09811ced');
 assert.equal(loopReadout.playableLoop.lifecycle.outcomeKind, 'won');
 assert.equal(loopReadout.playableLoop.selectedEntity?.health?.current, 0);
+assert.equal(loopReadout.playableLoopTuning.definitionAuthoring.validation.status, 'valid');
+assert.equal(loopReadout.playableLoopTuning.definitionAuthoring.presetReadoutKind, 'fps_gameplay_preset_readout.v0');
+assert.equal(loopReadout.playableLoopTuning.definitionAuthoring.catalogReadoutKind, 'fps_gameplay_preset_catalog_readout.v0');
+assert.equal(loopReadout.playableLoopTuning.liveInspection.encounter.status, 'cleared');
+assert.equal(loopReadout.playableLoopTuning.liveInspection.encounter.defeatedEnemyCount, 1);
+assert.equal(loopReadout.playableLoopTuning.liveInspection.combatFeedback.kind, 'combat_feedback_projection.v0');
 
 const restartReceipt = facade.requestSessionRestart({
   kind: 'runtime.restart_session_intent',
@@ -203,6 +226,7 @@ state = {
 lifecycleStatus = facade.readLifecycleStatus();
 generatedTunnelReadout = facade.readGeneratedTunnelReadout({ presetId: 'tiny-enclosed', seed: 17 });
 navProjection = facade.readNavProjection();
+const encounterAfterRestart = facade.readEncounterDirector();
 const restartReadout = buildStudioRuntimeSessionInspectionReadModel({
   workspace,
   gameWorkspace,
@@ -216,10 +240,14 @@ const restartReadout = buildStudioRuntimeSessionInspectionReadModel({
   generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
   generatedTunnelReadout,
   navProjection,
+  encounterDirector: encounterAfterRestart,
+  encounterTransitionReceipt: null,
+  combatFeedbackProjection: null,
   paused: false,
 });
 
 const playableLoop = loopReadout.playableLoop;
+const playableLoopTuning = loopReadout.playableLoopTuning;
 const restartLoop = restartReadout.playableLoop;
 assert.equal(restartLoop.restart.lastReceipt?.statusBefore, 'won');
 assert.equal(restartLoop.restart.lastReceipt?.statusAfter, 'in_progress');
@@ -228,15 +256,19 @@ const readout = {
   readoutKind: 'studio_playable_loop_inspection_browser_readout',
   readoutVersion: 'studio-playable-loop-inspection-browser.v0',
   runtimeSessionId: state.identity.sessionId,
+  playableLoopTuning,
   playableLoop,
   restart: restartLoop.restart,
   lifecycleAfterRestart: restartLoop.lifecycle,
   validations: [
     'public_runtime_session_policy_tick_was_used',
     'public_generated_tunnel_nav_projection_was_used',
+    'public_catalog_core_gameplay_preset_validation_was_used',
+    'public_encounter_director_transition_was_used',
+    'public_combat_feedback_projection_was_used',
     'public_combat_readout_updated_lifecycle',
     'typed_restart_intent_reset_terminal_lifecycle',
-    'browser_dom_contains_structured_playable_loop_panel',
+    'browser_dom_contains_structured_authoring_and_live_panels',
   ],
   nonClaims: playableLoop.nonClaims,
 };
@@ -246,6 +278,12 @@ const proposalKinds = playableLoop.policy.proposalKinds
   .join('');
 const lifecycleEvents = playableLoop.lifecycle.eventKinds
   .map(kind => `<span>${escapeHtml(kind)}</span>`)
+  .join('');
+const authoringFields = playableLoopTuning.definitionAuthoring.fields
+  .map(field => `<span>${escapeHtml(field.label)} ${escapeHtml(field.value)} ${escapeHtml(field.validationStatus)}</span>`)
+  .join('');
+const encounterSpawns = playableLoopTuning.liveInspection.encounter.spawns
+  .map(spawn => `<span>${escapeHtml(spawn.instanceId)} ${escapeHtml(spawn.status)} entity ${escapeHtml(spawn.runtimeEntityId)}</span>`)
   .join('');
 const health = playableLoop.selectedEntity?.health;
 const html = `<!doctype html>
@@ -277,6 +315,38 @@ const html = `<!doctype html>
         <p data-playable-loop="version">${escapeHtml(playableLoop.loopVersion)}</p>
         <p>${escapeHtml(playableLoop.inspectionHash)}</p>
       </header>
+      <div class="grid" data-visual-id="studio-encounter-tuning-inspection">
+        <section>
+          <h2>Definition Authoring</h2>
+          <dl>
+            <dt>preset readout</dt><dd>${escapeHtml(playableLoopTuning.definitionAuthoring.presetReadoutKind)}</dd>
+            <dt>catalog readout</dt><dd>${escapeHtml(playableLoopTuning.definitionAuthoring.catalogReadoutKind)}</dd>
+            <dt>preset</dt><dd data-encounter-tuning="preset-id">${escapeHtml(playableLoopTuning.definitionAuthoring.presetId)}</dd>
+            <dt>validation</dt><dd data-encounter-tuning="validation-status">${escapeHtml(playableLoopTuning.definitionAuthoring.validation.status)} · ${escapeHtml(playableLoopTuning.definitionAuthoring.validation.diagnosticCount)} diagnostics</dd>
+            <dt>fields</dt><dd class="chips">${authoringFields}</dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Encounter Runtime</h2>
+          <dl>
+            <dt>mode</dt><dd data-encounter-tuning="live-mode">${escapeHtml(playableLoopTuning.liveInspection.studioMode)}</dd>
+            <dt>status</dt><dd data-encounter-tuning="encounter-status">${escapeHtml(playableLoopTuning.liveInspection.encounter.status)}</dd>
+            <dt>counts</dt><dd>${escapeHtml(playableLoopTuning.liveInspection.encounter.activeEnemyCount)} active · ${escapeHtml(playableLoopTuning.liveInspection.encounter.defeatedEnemyCount)} defeated</dd>
+            <dt>spawns</dt><dd class="chips" data-encounter-tuning="spawn-summary">${encounterSpawns}</dd>
+            <dt>transition</dt><dd data-encounter-tuning="transition-receipt">${escapeHtml(playableLoopTuning.liveInspection.encounter.lastReceipt?.action)} · ${escapeHtml(playableLoopTuning.liveInspection.encounter.lastReceipt?.status)} · ${escapeHtml(playableLoopTuning.liveInspection.encounter.lastReceipt?.beforeStatus)} -> ${escapeHtml(playableLoopTuning.liveInspection.encounter.lastReceipt?.afterStatus)}</dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Combat Feedback</h2>
+          <dl>
+            <dt>projection</dt><dd data-encounter-tuning="combat-feedback">${escapeHtml(playableLoopTuning.liveInspection.combatFeedback.kind)}</dd>
+            <dt>trace</dt><dd>${escapeHtml(playableLoopTuning.liveInspection.combatFeedback.traceResult)} · ${escapeHtml(playableLoopTuning.liveInspection.combatFeedback.markerTone)}</dd>
+            <dt>notifications</dt><dd class="chips">${playableLoopTuning.liveInspection.combatFeedback.notificationTexts.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</dd>
+            <dt>lifecycle</dt><dd data-encounter-tuning="lifecycle">${escapeHtml(playableLoopTuning.liveInspection.lifecycle.label)} · ${escapeHtml(playableLoopTuning.liveInspection.lifecycle.enemyHealth)}</dd>
+            <dt>hash</dt><dd>${escapeHtml(playableLoopTuning.liveInspection.combatFeedback.projectionHash)}</dd>
+          </dl>
+        </section>
+      </div>
       <div class="grid" data-visual-id="studio-playable-loop-inspection">
         <section>
           <h2>Session</h2>
@@ -361,6 +431,12 @@ await writeFile(domPath, dumpedDom);
 
 assert.equal(dumpedDom.includes('studio-playable-loop-inspection-browser-proof'), true);
 assert.equal(dumpedDom.includes('studio-playable-loop-inspection.v0'), true);
+assert.equal(dumpedDom.includes('studio-encounter-tuning-inspection'), true);
+assert.equal(dumpedDom.includes('fps_gameplay_preset_readout.v0'), true);
+assert.equal(dumpedDom.includes('fps_gameplay_preset_catalog_readout.v0'), true);
+assert.equal(dumpedDom.includes('combat_feedback_projection.v0'), true);
+assert.equal(dumpedDom.includes('sync_lifecycle'), true);
+assert.equal(dumpedDom.includes('active -&gt; cleared') || dumpedDom.includes('active -> cleared'), true);
 assert.equal(dumpedDom.includes('generated_tunnel_enemy_policy_loop.v0'), true);
 assert.equal(dumpedDom.includes('movement_authority_not_wired'), true);
 assert.equal(dumpedDom.includes('Health 0/40 defeated'), true);

@@ -12,6 +12,7 @@ import {
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
   buildStudioCatalogWorkflowReadModel,
+  buildDefaultStudioFpsGameplayPresetDraft,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioGameWorkspaceReadout,
   buildStudioRuntimeSessionInspectionReadModel,
@@ -65,6 +66,8 @@ import {
   type StudioGameWorkspaceReadModel,
   type StudioGameWorkspaceReadout,
   type StudioDevtoolsAttachTransport,
+  type StudioFpsGameplayPresetDraft,
+  type StudioFpsGameplayPresetDraftField,
   type StudioGeneratedLevelPresetDraft,
   type StudioRunningProjectDiscoveryReadModel,
   type StudioRuntimeSessionInspectionReadModel,
@@ -89,9 +92,12 @@ import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind
 import {
   createMockRuntimeSession,
   type CameraCreateRequest,
+  type CombatFeedbackProjection,
+  type EncounterDirectorReadout,
   type GeneratedTunnelReadout,
   type NavProjectionReadout,
   type RuntimeSessionAutonomousPolicyTickReadout,
+  type RuntimeSessionEncounterTransitionReceipt,
   type RuntimeSessionFacade,
   type RuntimeSessionGeneratedTunnelOperationReceipt,
   type RuntimeSessionLifecycleRestartReceipt,
@@ -887,6 +893,12 @@ export class StudioWorkspaceStore {
   private readonly generatedTunnelReadoutState = signal<GeneratedTunnelReadout | null>(null);
   private readonly generatedTunnelRegenerateReceiptState = signal<RuntimeSessionGeneratedTunnelOperationReceipt | null>(null);
   private readonly generatedTunnelNavProjectionState = signal<NavProjectionReadout | null>(null);
+  private readonly gameplayPresetDraftState = signal<StudioFpsGameplayPresetDraft>(
+    buildDefaultStudioFpsGameplayPresetDraft(),
+  );
+  private readonly playableLoopEncounterDirectorState = signal<EncounterDirectorReadout | null>(null);
+  private readonly playableLoopEncounterTransitionReceiptState = signal<RuntimeSessionEncounterTransitionReceipt | null>(null);
+  private readonly playableLoopCombatFeedbackProjectionState = signal<CombatFeedbackProjection | null>(null);
   private readonly playableLoopPolicyTickState = signal<RuntimeSessionAutonomousPolicyTickReadout | null>(null);
   private readonly playableLoopLifecycleState = signal<RuntimeSessionLifecycleStatusReadout | null>(null);
   private readonly playableLoopRestartReceiptState = signal<RuntimeSessionLifecycleRestartReceipt | null>(null);
@@ -992,6 +1004,10 @@ export class StudioWorkspaceStore {
       generatedTunnelReadout: this.generatedTunnelReadoutState(),
       generatedTunnelRegenerateReceipt: this.generatedTunnelRegenerateReceiptState(),
       navProjection: this.generatedTunnelNavProjectionState(),
+      gameplayPresetDraft: this.gameplayPresetDraftState(),
+      encounterDirector: this.playableLoopEncounterDirectorState(),
+      encounterTransitionReceipt: this.playableLoopEncounterTransitionReceiptState(),
+      combatFeedbackProjection: this.playableLoopCombatFeedbackProjectionState(),
       paused: this.runtimeSessionPausedState(),
     }),
   );
@@ -1618,6 +1634,8 @@ export class StudioWorkspaceStore {
       this.runtimeSessionPausedState.set(false);
       this.playableLoopPolicyTickState.set(null);
       this.playableLoopRestartReceiptState.set(null);
+      this.playableLoopEncounterTransitionReceiptState.set(null);
+      this.playableLoopCombatFeedbackProjectionState.set(null);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(`RuntimeSession attached: ${initialized.sessionHash}.`);
       this.menuMessageState.set('Live Runtime Inspection attached.');
@@ -1682,6 +1700,8 @@ export class StudioWorkspaceStore {
       this.runtimeSessionPausedState.set(false);
       this.playableLoopPolicyTickState.set(null);
       this.playableLoopRestartReceiptState.set(null);
+      this.playableLoopEncounterTransitionReceiptState.set(null);
+      this.playableLoopCombatFeedbackProjectionState.set(null);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(`RuntimeSession restarted: ${restarted.sessionHash}.`);
       this.menuMessageState.set('Live Runtime Inspection restarted.');
@@ -1704,21 +1724,41 @@ export class StudioWorkspaceStore {
     }
 
     try {
+      const encounterBefore = facade.readEncounterDirector();
+      let encounterTransitionReceipt: RuntimeSessionEncounterTransitionReceipt | null = null;
+      if (encounterBefore.state.status === 'pending') {
+        encounterTransitionReceipt = facade.requestEncounterTransition({
+          kind: 'runtime_session.encounter_transition_request.v0',
+          presetId: 'generated-tunnel-small-encounter',
+          action: 'activate',
+        });
+      }
       const camera = facade.createCamera(STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST).snapshot.camera;
       const readout = facade.runAutonomousPolicyTick({
         targetCamera: camera,
         policySource: STUDIO_PLAYABLE_LOOP_POLICY_SOURCE,
       });
+      const feedbackProjection = facade.readCombatFeedbackProjection({
+        camera,
+        viewport: STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST.viewport,
+      });
+      encounterTransitionReceipt = facade.requestEncounterTransition({
+        kind: 'runtime_session.encounter_transition_request.v0',
+        presetId: 'generated-tunnel-small-encounter',
+        action: 'sync_lifecycle',
+      });
       this.playableLoopPolicyTickState.set(readout);
       this.playableLoopRestartReceiptState.set(null);
+      this.playableLoopCombatFeedbackProjectionState.set(feedbackProjection);
+      this.playableLoopEncounterTransitionReceiptState.set(encounterTransitionReceipt);
       this.runtimeSessionStateSummaryState.update(state => state === null
         ? state
         : {
             ...state,
             composition: readout.step.composition,
-            sequenceId: readout.sequenceIdAfter,
+            sequenceId: encounterTransitionReceipt?.sequenceId ?? readout.sequenceIdAfter,
             tick: readout.tick,
-            sessionHash: readout.sessionHashAfter,
+            sessionHash: encounterTransitionReceipt?.hashes.sessionHashAfter ?? readout.sessionHashAfter,
           });
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(
@@ -1750,6 +1790,8 @@ export class StudioWorkspaceStore {
       this.playableLoopRestartReceiptState.set(receipt);
       if (receipt.accepted) {
         this.playableLoopPolicyTickState.set(null);
+        this.playableLoopCombatFeedbackProjectionState.set(null);
+        this.playableLoopEncounterTransitionReceiptState.set(null);
       }
       const telemetry = facade.readTelemetry();
       this.runtimeSessionStateSummaryState.update(state => state === null
@@ -1797,6 +1839,37 @@ export class StudioWorkspaceStore {
       generatedLevel.definitionAuthoring.validationStatus === 'valid'
         ? 'Generated-level preset draft validates against the public readout surface.'
         : generatedLevel.definitionAuthoring.validationErrors.join(' '),
+    );
+  }
+
+  setGameplayPresetField(field: StudioFpsGameplayPresetDraftField, value: string): void {
+    this.gameplayPresetDraftState.update(draft => {
+      switch (field) {
+        case 'displayName':
+          return { ...draft, displayName: value };
+        case 'moveSpeedUnitsPerSecond':
+          return { ...draft, moveSpeedUnitsPerSecond: Number(value) };
+        case 'lookSensitivityDegreesPerPixel':
+          return { ...draft, lookSensitivityDegreesPerPixel: Number(value) };
+        case 'weaponDamage':
+          return { ...draft, weaponDamage: Number(value) };
+        case 'weaponAmmo':
+          return { ...draft, weaponAmmo: Number(value) };
+        case 'enemyCount':
+          return { ...draft, enemyCount: Number(value) };
+        case 'desiredRangeUnits':
+          return { ...draft, desiredRangeUnits: Number(value) };
+      }
+    });
+    this.menuMessageState.set('Gameplay preset draft updated in Definition Authoring.');
+  }
+
+  validateGameplayPreset(): void {
+    const authoring = this.runtimeSessionInspection().playableLoopTuning.definitionAuthoring;
+    this.menuMessageState.set(
+      authoring.validation.status === 'valid'
+        ? 'Gameplay preset draft validates through the public catalog-core schema.'
+        : `${authoring.validation.diagnosticCount} gameplay preset diagnostic(s).`,
     );
   }
 
@@ -1849,6 +1922,9 @@ export class StudioWorkspaceStore {
     this.generatedTunnelReadoutState.set(null);
     this.generatedTunnelRegenerateReceiptState.set(null);
     this.generatedTunnelNavProjectionState.set(null);
+    this.playableLoopEncounterDirectorState.set(null);
+    this.playableLoopEncounterTransitionReceiptState.set(null);
+    this.playableLoopCombatFeedbackProjectionState.set(null);
     this.playableLoopPolicyTickState.set(null);
     this.playableLoopLifecycleState.set(null);
     this.playableLoopRestartReceiptState.set(null);
@@ -1858,6 +1934,7 @@ export class StudioWorkspaceStore {
     this.runtimeSessionProjectionState.set(facade.readProjection());
     this.runtimeSessionTelemetryState.set(facade.readTelemetry());
     this.playableLoopLifecycleState.set(facade.readLifecycleStatus());
+    this.playableLoopEncounterDirectorState.set(facade.readEncounterDirector());
     const draft = this.generatedLevelPresetDraftState();
     try {
       if (draft.presetId !== 'tiny-enclosed' || draft.seed !== 17) {

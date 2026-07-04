@@ -6,6 +6,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
+    "@asha/catalog-core": "link:../../../asha/ts/packages/catalog-core",
     "@asha/contracts": "link:../../../asha/ts/packages/contracts",
     "@asha/devtools": "link:../../../asha/ts/packages/devtools",
     "@asha/editor-tools": "link:../../../asha/ts/packages/editor-tools",

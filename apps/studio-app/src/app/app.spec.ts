@@ -1,6 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { StudioShellComponent } from '@asha-studio/shell';
 
+function openPlayableLoopInspector(element: HTMLElement): void {
+  const inspectorButton = element.querySelector(
+    '[data-runtime-inspection="loop-inspector-toggle"]',
+  ) as HTMLButtonElement | null;
+  expect(inspectorButton).not.toBeNull();
+  inspectorButton?.click();
+}
+
 describe('StudioShellComponent', () => {
   it('renders the scaffold readback marker', async () => {
     await TestBed.configureTestingModule({
@@ -154,6 +162,30 @@ describe('StudioShellComponent', () => {
     expect(panel?.textContent).toContain('restart');
   });
 
+  it('keeps live authoring inspectors in a scrollable popout instead of the top strip', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const topPanel = element.querySelector('[data-visual-id="studio-top-panel"]');
+    expect(topPanel).not.toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-playable-loop-popout"]')).toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-generated-level-inspection"]')).toBeNull();
+
+    openPlayableLoopInspector(element);
+    fixture.detectChanges();
+
+    const popout = element.querySelector('[data-visual-id="studio-playable-loop-popout"]');
+    expect(popout?.textContent).toContain('Playable Loop Inspector');
+    expect(popout?.querySelector('[data-visual-id="studio-generated-level-inspection"]')).not.toBeNull();
+    expect(popout?.querySelector('[data-visual-id="studio-encounter-tuning-inspection"]')).not.toBeNull();
+    expect(popout?.querySelector('[data-visual-id="studio-playable-loop-inspection"]')).not.toBeNull();
+  });
+
   it('renders generated-level preset authoring and live metadata without crossing the mode boundary', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
@@ -163,6 +195,9 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
+    openPlayableLoopInspector(element);
+    fixture.detectChanges();
+
     const generatedPanel = element.querySelector('[data-visual-id="studio-generated-level-inspection"]');
     expect(generatedPanel?.textContent).toContain('Definition Authoring');
     expect(generatedPanel?.textContent).toContain('stored preset');
@@ -227,6 +262,104 @@ describe('StudioShellComponent', () => {
     );
   });
 
+  it('renders encounter tuning authoring and live runtime inspection from public surfaces', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    openPlayableLoopInspector(element);
+    fixture.detectChanges();
+
+    const tuningPanel = element.querySelector('[data-visual-id="studio-encounter-tuning-inspection"]');
+    expect(tuningPanel?.textContent).toContain('Definition Authoring');
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="schema-kinds"]')?.textContent).toContain(
+      'fps_gameplay_preset_readout.v0',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="schema-kinds"]')?.textContent).toContain(
+      'fps_gameplay_preset_catalog_readout.v0',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="preset-id"]')?.textContent).toContain(
+      'asha.generated_tunnel.default_fps.v0',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="validation-status"]')?.textContent).toContain(
+      'valid',
+    );
+
+    const damageInput = tuningPanel?.querySelector(
+      '[data-gameplay-preset-field="weaponDamage"] input',
+    ) as HTMLInputElement | null;
+    expect(damageInput).not.toBeNull();
+    if (damageInput !== null) {
+      damageInput.value = '80';
+      damageInput.dispatchEvent(new Event('input'));
+    }
+    fixture.detectChanges();
+
+    const updatedDamageInput = tuningPanel?.querySelector(
+      '[data-gameplay-preset-field="weaponDamage"] input',
+    ) as HTMLInputElement | null;
+    expect(updatedDamageInput?.value).toBe('80');
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="validation-status"]')?.textContent).toContain(
+      'valid',
+    );
+
+    const validateButton = Array.from(tuningPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Validate Tuning',
+    );
+    validateButton?.click();
+    fixture.detectChanges();
+
+    const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
+    const attachButton = Array.from(runtimePanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Attach',
+    );
+    attachButton?.click();
+    fixture.detectChanges();
+
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="live-mode"]')?.textContent).toContain(
+      'live_runtime_inspection',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="encounter-status"]')?.textContent).toContain(
+      'pending',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="spawn-summary"]')?.textContent).toContain(
+      'pending entity 20',
+    );
+
+    const loopPanel = element.querySelector('[data-visual-id="studio-playable-loop-inspection"]');
+    const runPolicyButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Run Policy',
+    );
+    runPolicyButton?.click();
+    fixture.detectChanges();
+
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="encounter-status"]')?.textContent).toContain(
+      'cleared',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="spawn-summary"]')?.textContent).toContain(
+      'defeated entity 20',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="combat-feedback"]')?.textContent).toContain(
+      'combat_feedback_projection.v0',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="combat-feedback"]')?.textContent).toContain(
+      'hit',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="lifecycle"]')?.textContent).toContain(
+      'Enemy defeated',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="transition-receipt"]')?.textContent).toContain(
+      'sync_lifecycle',
+    );
+    expect(tuningPanel?.querySelector('[data-encounter-tuning="transition-receipt"]')?.textContent).toContain(
+      'active -> cleared',
+    );
+  });
+
   it('renders live playable-loop inspection from public runtime readouts and controls', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
@@ -236,6 +369,9 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
+    openPlayableLoopInspector(element);
+    fixture.detectChanges();
+
     const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
     const loopPanel = element.querySelector('[data-visual-id="studio-playable-loop-inspection"]');
     expect(loopPanel?.querySelector('[data-playable-loop="version"]')?.textContent).toContain(
