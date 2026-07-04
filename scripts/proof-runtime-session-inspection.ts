@@ -121,6 +121,8 @@ state = {
 };
 let projection: RuntimeSessionProjectionSummary = facade.readProjection();
 let telemetry: RuntimeSessionTelemetrySummary = facade.readTelemetry();
+let generatedTunnelReadout = facade.readGeneratedTunnelReadout({ presetId: 'tiny-enclosed', seed: 17 });
+let navProjection = facade.readNavProjection();
 
 const liveReadout = buildStudioRuntimeSessionInspectionReadModel({
   workspace,
@@ -129,6 +131,9 @@ const liveReadout = buildStudioRuntimeSessionInspectionReadModel({
   state,
   projection,
   telemetry,
+  generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
+  generatedTunnelReadout,
+  navProjection,
   paused: false,
 });
 
@@ -143,6 +148,53 @@ assert.equal(liveReadout.controls.pause.available, false);
 assert.equal(liveReadout.controls.tick.available, true);
 assert.equal(liveReadout.controls.restart.available, true);
 assert.ok(liveReadout.projectionHash?.startsWith('fnv1a64:'));
+assert.equal(liveReadout.generatedLevel.definitionAuthoring.studioMode, 'definition_authoring');
+assert.equal(liveReadout.generatedLevel.definitionAuthoring.validationStatus, 'valid');
+assert.equal(liveReadout.generatedLevel.definitionAuthoring.boundary.liveRuntimeMutation, false);
+assert.equal(liveReadout.generatedLevel.liveInspection.studioMode, 'live_runtime_inspection');
+assert.equal(liveReadout.generatedLevel.liveInspection.generator.presetId, 'tiny-enclosed');
+assert.equal(liveReadout.generatedLevel.liveInspection.generator.configHash, 'e1d156c6b55137a7');
+assert.equal(liveReadout.generatedLevel.liveInspection.generator.outputHash, 'a9b504096397f5b4');
+assert.equal(liveReadout.generatedLevel.liveInspection.generator.replayHash, 'fnv1a64:0821a0c2aea17dff');
+assert.deepEqual(liveReadout.generatedLevel.liveInspection.volume.tunnelDims, [5, 4, 9]);
+assert.equal(liveReadout.generatedLevel.liveInspection.projections.renderHash, 'fnv1a64:21eb8696f6f3b5c4');
+assert.equal(liveReadout.generatedLevel.liveInspection.projections.collisionHash, 'fnv1a64:78b242163cf67524');
+assert.equal(liveReadout.generatedLevel.liveInspection.projections.navProjectionHash, 'd1f6ac3e051d6b6e');
+assert.equal(liveReadout.generatedLevel.liveInspection.spawnMarkers.length, 2);
+assert.equal(liveReadout.generatedLevel.liveInspection.regenerate.available, true);
+assert.ok(liveReadout.generatedLevel.inspectionHash.startsWith('studio-generated-level-inspection-'));
+
+const regenerateReceipt = facade.requestGeneratedTunnelOperation({
+  operation: 'regenerate',
+  presetId: 'tiny-enclosed',
+  seed: 17,
+});
+projection = facade.readProjection();
+telemetry = facade.readTelemetry();
+
+const regenerateReadout = buildStudioRuntimeSessionInspectionReadModel({
+  workspace,
+  gameWorkspace,
+  runtimeSessions: null,
+  state: {
+    ...state,
+    sequenceId: regenerateReceipt.sequenceId,
+    sessionHash: regenerateReceipt.sessionHashAfter,
+  },
+  projection,
+  telemetry,
+  generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
+  generatedTunnelReadout,
+  generatedTunnelRegenerateReceipt: regenerateReceipt,
+  navProjection,
+  paused: false,
+});
+
+assert.equal(regenerateReadout.generatedLevel.liveInspection.regenerate.lastReceipt?.status, 'unsupported');
+assert.equal(
+  regenerateReadout.generatedLevel.liveInspection.regenerate.lastReceipt?.reason,
+  'generated_tunnel_operation_not_wired',
+);
 
 const restarted = facade.restart();
 state = {
@@ -154,6 +206,8 @@ state = {
 };
 projection = facade.readProjection();
 telemetry = facade.readTelemetry();
+generatedTunnelReadout = facade.readGeneratedTunnelReadout({ presetId: 'tiny-enclosed', seed: 17 });
+navProjection = facade.readNavProjection();
 
 const restartedReadout = buildStudioRuntimeSessionInspectionReadModel({
   workspace,
@@ -162,6 +216,9 @@ const restartedReadout = buildStudioRuntimeSessionInspectionReadModel({
   state,
   projection,
   telemetry,
+  generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
+  generatedTunnelReadout,
+  navProjection,
   paused: false,
 });
 
@@ -173,6 +230,8 @@ console.log(JSON.stringify({
   proof: 'studio-runtime-session-inspection.v0',
   status: 'ok',
   liveInspectionHash: liveReadout.inspectionHash,
+  generatedLevelInspectionHash: liveReadout.generatedLevel.inspectionHash,
+  regenerateStatus: regenerateReadout.generatedLevel.liveInspection.regenerate.lastReceipt?.status,
   restartedInspectionHash: restartedReadout.inspectionHash,
   pauseControl: restartedReadout.controls.pause.disabledReason,
 }, null, 2));

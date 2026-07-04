@@ -154,6 +154,79 @@ describe('StudioShellComponent', () => {
     expect(panel?.textContent).toContain('restart');
   });
 
+  it('renders generated-level preset authoring and live metadata without crossing the mode boundary', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const generatedPanel = element.querySelector('[data-visual-id="studio-generated-level-inspection"]');
+    expect(generatedPanel?.textContent).toContain('Definition Authoring');
+    expect(generatedPanel?.textContent).toContain('stored preset');
+    expect(generatedPanel?.textContent).toContain('not live mutation');
+    expect(generatedPanel?.querySelector('[data-generated-level="authoring-mode"]')?.textContent).toContain(
+      'definition_authoring',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level-field="presetId"]')?.textContent).toContain(
+      'tiny-enclosed',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level-field="seed"]')?.textContent).toContain('17');
+    expect(generatedPanel?.querySelector('[data-generated-level="attach-state"]')?.textContent).toContain(
+      'not_attached',
+    );
+
+    const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
+    const attachButton = Array.from(runtimePanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Attach',
+    );
+    attachButton?.click();
+    fixture.detectChanges();
+
+    expect(generatedPanel?.querySelector('[data-generated-level="live-mode"]')?.textContent).toContain(
+      'live_runtime_inspection',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="attach-state"]')?.textContent).toContain(
+      'attached',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="preset-id"]')?.textContent).toContain(
+      'tiny-enclosed',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="generator-hashes"]')?.textContent).toContain(
+      'e1d156c6b55137a7',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="generator-hashes"]')?.textContent).toContain(
+      'a9b504096397f5b4',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="volume"]')?.textContent).toContain('5×4×9');
+    expect(generatedPanel?.querySelector('[data-generated-level="render-collision-hash"]')?.textContent).toContain(
+      'fnv1a64:21eb8696f6f3b5c4',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="nav-hash"]')?.textContent).toContain(
+      'd1f6ac3e051d6b6e',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="spawn-markers"]')?.textContent).toContain('2 markers');
+
+    const regenerateButton = Array.from(generatedPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Regenerate',
+    );
+    expect(regenerateButton?.disabled).toBe(false);
+    regenerateButton?.click();
+    fixture.detectChanges();
+
+    expect(generatedPanel?.querySelector('[data-generated-level="regenerate-status"]')?.textContent).toContain(
+      'unsupported',
+    );
+    expect(generatedPanel?.querySelector('[data-generated-level="regenerate-status"]')?.textContent).toContain(
+      'generated_tunnel_operation_not_wired',
+    );
+    expect(runtimePanel?.querySelector('[data-runtime-inspection="replay-count"]')?.textContent).toContain(
+      'records 2',
+    );
+  });
+
   it('renders command proposal actions and accepted rejected evidence in the Commands tab', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],

@@ -40,6 +40,9 @@ import {
   type AshaGameRuntimeBackendMode,
 } from '@asha/game-workspace';
 import type {
+  GeneratedTunnelReadout,
+  NavProjectionReadout,
+  RuntimeSessionGeneratedTunnelOperationReceipt,
   RuntimeSessionProjectionSummary,
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
@@ -934,6 +937,7 @@ export interface StudioRuntimeSessionInspectionReadModel {
       readonly capabilitySummary: readonly string[];
     } | null;
   };
+  readonly generatedLevel: StudioGeneratedLevelInspectionReadModel;
   readonly controls: {
     readonly pause: {
       readonly available: false;
@@ -953,6 +957,96 @@ export interface StudioRuntimeSessionInspectionReadModel {
     'not_runtime_authority',
     'not_private_transport',
     'not_raw_state_store',
+  ];
+  readonly inspectionHash: string;
+}
+
+export interface StudioGeneratedLevelPresetDraft {
+  readonly presetId: string;
+  readonly seed: number;
+}
+
+export interface StudioGeneratedLevelPresetFieldReadModel {
+  readonly field: 'generatorId' | 'presetId' | 'seed';
+  readonly label: string;
+  readonly value: string;
+  readonly editable: boolean;
+  readonly inputKind: 'readonly' | 'select' | 'number';
+  readonly allowedValues: readonly string[];
+  readonly validationStatus: 'valid' | 'invalid';
+  readonly validationMessage: string | null;
+}
+
+export interface StudioGeneratedLevelPresetAuthoringReadModel {
+  readonly authoringVersion: 'studio-generated-level-preset-authoring.v0';
+  readonly studioMode: Extract<StudioMode, 'definition_authoring'>;
+  readonly presetPath: string;
+  readonly generatorId: string;
+  readonly fields: readonly StudioGeneratedLevelPresetFieldReadModel[];
+  readonly validationStatus: 'valid' | 'invalid';
+  readonly validationErrors: readonly string[];
+  readonly boundary: {
+    readonly storedPresetEditing: true;
+    readonly liveRuntimeMutation: false;
+    readonly runtimeToDefinitionExport: false;
+  };
+}
+
+export interface StudioGeneratedLevelLiveReadModel {
+  readonly liveVersion: 'studio-generated-level-live.v0';
+  readonly studioMode: Extract<StudioMode, 'definition_authoring' | 'live_runtime_inspection'>;
+  readonly attachState: 'not_attached' | 'attached' | 'unavailable';
+  readonly readoutAvailable: boolean;
+  readonly generator: {
+    readonly generatorId: string | null;
+    readonly presetId: string | null;
+    readonly seed: number | null;
+    readonly configHash: string | null;
+    readonly outputHash: string | null;
+    readonly replayHash: string | null;
+  };
+  readonly volume: {
+    readonly tunnelDims: readonly [number, number, number] | null;
+    readonly solidVoxels: number | null;
+    readonly corridorCount: number | null;
+    readonly roomCount: number | null;
+  };
+  readonly projections: {
+    readonly renderHash: string | null;
+    readonly collisionHash: string | null;
+    readonly navAvailable: boolean;
+    readonly navProjectionHash: string | null;
+  };
+  readonly spawnMarkers: readonly {
+    readonly id: string;
+    readonly kind: string;
+    readonly voxel: readonly [number, number, number];
+    readonly world: readonly [number, number, number];
+  }[];
+  readonly regenerate: {
+    readonly commandId: 'runtime.generated_tunnel.regenerate';
+    readonly available: boolean;
+    readonly disabledReason: string | null;
+    readonly lastReceipt: {
+      readonly operation: 'regenerate' | 'apply_to_runtime_world';
+      readonly status: 'accepted' | 'unsupported';
+      readonly reason: string | null;
+      readonly sequenceId: number;
+      readonly sessionHashAfter: string;
+    } | null;
+  };
+}
+
+export interface StudioGeneratedLevelInspectionReadModel {
+  readonly inspectionVersion: 'studio-generated-level-inspection.v0';
+  readonly definitionAuthoring: StudioGeneratedLevelPresetAuthoringReadModel;
+  readonly liveInspection: StudioGeneratedLevelLiveReadModel;
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_local_generation_algorithm',
+    'not_runtime_authority',
+    'not_runtime_to_definition_export',
+    'not_live_runtime_mutation_from_authoring',
   ];
   readonly inspectionHash: string;
 }
@@ -3313,6 +3407,10 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
   readonly state: RuntimeSessionStateSummary | null;
   readonly projection: RuntimeSessionProjectionSummary | null;
   readonly telemetry: RuntimeSessionTelemetrySummary | null;
+  readonly generatedLevelPreset?: StudioGeneratedLevelPresetDraft;
+  readonly generatedTunnelReadout?: GeneratedTunnelReadout | null;
+  readonly generatedTunnelRegenerateReceipt?: RuntimeSessionGeneratedTunnelOperationReceipt | null;
+  readonly navProjection?: NavProjectionReadout | null;
   readonly paused: boolean;
 }): StudioRuntimeSessionInspectionReadModel {
   const diagnostics: StudioDiagnostic[] = [];
@@ -3361,6 +3459,17 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
   const sessionStatus: StudioRuntimeSessionInspectionReadModel['sessionStatus'] = attached
     ? input.paused ? 'paused' : 'running'
     : input.gameWorkspace === null ? 'unavailable' : 'not_attached';
+  const generatedLevel = buildStudioGeneratedLevelInspectionReadModel({
+    attached,
+    gameWorkspace: input.gameWorkspace,
+    presetDraft: input.generatedLevelPreset ?? {
+      presetId: input.generatedTunnelReadout?.generator.presetId ?? 'tiny-enclosed',
+      seed: input.generatedTunnelReadout?.generator.seed ?? 17,
+    },
+    liveReadout: input.generatedTunnelReadout ?? null,
+    regenerateReceipt: input.generatedTunnelRegenerateReceipt ?? null,
+    navProjection: input.navProjection ?? null,
+  });
 
   const body = {
     studioMode,
@@ -3393,6 +3502,7 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
             capabilitySummary,
           },
     },
+    generatedLevel,
     controls: {
       pause: {
         available: false as const,
@@ -3423,6 +3533,177 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
       'not_raw_state_store',
     ],
     inspectionHash: fnv1aHash('studio-runtime-session-inspection', body),
+  };
+}
+
+export function buildStudioGeneratedLevelInspectionReadModel(input: {
+  readonly attached: boolean;
+  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
+  readonly presetDraft: StudioGeneratedLevelPresetDraft;
+  readonly liveReadout: GeneratedTunnelReadout | null;
+  readonly regenerateReceipt: RuntimeSessionGeneratedTunnelOperationReceipt | null;
+  readonly navProjection: NavProjectionReadout | null;
+}): StudioGeneratedLevelInspectionReadModel {
+  const validationErrors: string[] = [];
+  if (input.presetDraft.presetId !== 'tiny-enclosed') {
+    validationErrors.push('Only the public tiny-enclosed generator preset is available in this Studio slice.');
+  }
+  if (!Number.isSafeInteger(input.presetDraft.seed) || input.presetDraft.seed !== 17) {
+    validationErrors.push('Only deterministic seed 17 is available through the public generated tunnel fixture.');
+  }
+  const validationStatus: StudioGeneratedLevelPresetAuthoringReadModel['validationStatus'] =
+    validationErrors.length === 0 ? 'valid' : 'invalid';
+  const diagnostics: StudioDiagnostic[] = validationErrors.map((message, index) => ({
+    severity: 'error',
+    code: index === 0 && input.presetDraft.presetId !== 'tiny-enclosed'
+      ? 'generated_level_unsupported_preset'
+      : 'generated_level_unsupported_seed',
+    message,
+    source: 'definition_authoring.generated_level_preset',
+    remediation: 'Use the public generated tunnel preset exposed by @asha/runtime-bridge.',
+  }));
+
+  if (input.gameWorkspace === null) {
+    diagnostics.push({
+      severity: 'error',
+      code: 'generated_level_missing_workspace',
+      message: 'Generated-level metadata requires an opened ASHA game workspace.',
+      source: null,
+      remediation: 'Open a project manifest before inspecting generated-level metadata.',
+    });
+  }
+  if (!input.attached || input.liveReadout === null) {
+    diagnostics.push({
+      severity: 'info',
+      code: 'generated_level_live_not_attached',
+      message: 'Live generated-level metadata is unavailable until RuntimeSession is attached.',
+      source: input.gameWorkspace?.runtimeEntry ?? null,
+      remediation: 'Attach the public RuntimeSession facade.',
+    });
+  }
+
+  const definitionAuthoring: StudioGeneratedLevelPresetAuthoringReadModel = {
+    authoringVersion: 'studio-generated-level-preset-authoring.v0',
+    studioMode: 'definition_authoring',
+    presetPath: 'definition-authoring/generated-level-presets/tiny-enclosed.json',
+    generatorId: input.liveReadout?.generator.generatorId ?? 'asha.tunnel.enclosed.v1',
+    fields: [
+      {
+        field: 'generatorId',
+        label: 'Generator',
+        value: input.liveReadout?.generator.generatorId ?? 'asha.tunnel.enclosed.v1',
+        editable: false,
+        inputKind: 'readonly',
+        allowedValues: ['asha.tunnel.enclosed.v1'],
+        validationStatus: 'valid',
+        validationMessage: null,
+      },
+      {
+        field: 'presetId',
+        label: 'Preset',
+        value: input.presetDraft.presetId,
+        editable: true,
+        inputKind: 'select',
+        allowedValues: ['tiny-enclosed'],
+        validationStatus: input.presetDraft.presetId === 'tiny-enclosed' ? 'valid' : 'invalid',
+        validationMessage: input.presetDraft.presetId === 'tiny-enclosed'
+          ? null
+          : 'Unsupported preset for the public generated tunnel readout.',
+      },
+      {
+        field: 'seed',
+        label: 'Seed',
+        value: String(input.presetDraft.seed),
+        editable: true,
+        inputKind: 'number',
+        allowedValues: ['17'],
+        validationStatus: Number.isSafeInteger(input.presetDraft.seed) && input.presetDraft.seed === 17
+          ? 'valid'
+          : 'invalid',
+        validationMessage: Number.isSafeInteger(input.presetDraft.seed) && input.presetDraft.seed === 17
+          ? null
+          : 'Unsupported seed for the public generated tunnel readout.',
+      },
+    ],
+    validationStatus,
+    validationErrors,
+    boundary: {
+      storedPresetEditing: true,
+      liveRuntimeMutation: false,
+      runtimeToDefinitionExport: false,
+    },
+  };
+
+  const regenerateAvailable = input.attached && validationStatus === 'valid';
+  const liveInspection: StudioGeneratedLevelLiveReadModel = {
+    liveVersion: 'studio-generated-level-live.v0',
+    studioMode: input.attached ? 'live_runtime_inspection' : 'definition_authoring',
+    attachState: input.gameWorkspace === null ? 'unavailable' : input.attached ? 'attached' : 'not_attached',
+    readoutAvailable: input.liveReadout !== null,
+    generator: {
+      generatorId: input.liveReadout?.generator.generatorId ?? null,
+      presetId: input.liveReadout?.generator.presetId ?? null,
+      seed: input.liveReadout?.generator.seed ?? null,
+      configHash: input.liveReadout?.generator.configHash ?? null,
+      outputHash: input.liveReadout?.generator.outputHash ?? null,
+      replayHash: input.liveReadout?.replayHash ?? null,
+    },
+    volume: {
+      tunnelDims: input.liveReadout?.volume.tunnelDims ?? null,
+      solidVoxels: input.liveReadout?.volume.solidVoxels ?? null,
+      corridorCount: input.liveReadout?.corridors.count ?? null,
+      roomCount: input.liveReadout?.rooms.count ?? null,
+    },
+    projections: {
+      renderHash: input.liveReadout?.renderProjection.hash ?? null,
+      collisionHash: input.liveReadout?.collisionProjection.hash ?? null,
+      navAvailable: input.navProjection?.available ?? false,
+      navProjectionHash: input.navProjection?.projectionHash ?? null,
+    },
+    spawnMarkers: input.liveReadout?.spawnMarkers.map(marker => ({
+      id: marker.id,
+      kind: marker.kind,
+      voxel: marker.voxel,
+      world: marker.world,
+    })) ?? [],
+    regenerate: {
+      commandId: 'runtime.generated_tunnel.regenerate',
+      available: regenerateAvailable,
+      disabledReason: regenerateAvailable
+        ? null
+        : input.gameWorkspace === null
+          ? 'workspace_not_open'
+          : input.attached
+            ? 'preset_validation_failed'
+            : 'runtime_session_not_attached',
+      lastReceipt: input.regenerateReceipt === null
+        ? null
+        : {
+            operation: input.regenerateReceipt.operation,
+            status: input.regenerateReceipt.status,
+            reason: input.regenerateReceipt.reason,
+            sequenceId: input.regenerateReceipt.sequenceId,
+            sessionHashAfter: input.regenerateReceipt.sessionHashAfter,
+          },
+    },
+  };
+
+  const body = {
+    definitionAuthoring,
+    liveInspection,
+    diagnostics,
+  };
+
+  return {
+    inspectionVersion: 'studio-generated-level-inspection.v0',
+    ...body,
+    nonClaims: [
+      'not_local_generation_algorithm',
+      'not_runtime_authority',
+      'not_runtime_to_definition_export',
+      'not_live_runtime_mutation_from_authoring',
+    ],
+    inspectionHash: fnv1aHash('studio-generated-level-inspection', body),
   };
 }
 

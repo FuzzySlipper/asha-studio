@@ -65,6 +65,7 @@ import {
   type StudioGameWorkspaceReadModel,
   type StudioGameWorkspaceReadout,
   type StudioDevtoolsAttachTransport,
+  type StudioGeneratedLevelPresetDraft,
   type StudioRunningProjectDiscoveryReadModel,
   type StudioRuntimeSessionInspectionReadModel,
   type StudioSceneFileListReadModel,
@@ -87,7 +88,10 @@ import type { SceneObjectId } from '@asha/editor-tools';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import {
   createMockRuntimeSession,
+  type GeneratedTunnelReadout,
+  type NavProjectionReadout,
   type RuntimeSessionFacade,
+  type RuntimeSessionGeneratedTunnelOperationReceipt,
   type RuntimeSessionProjectionSummary,
   type RuntimeSessionStateSummary,
   type RuntimeSessionTelemetrySummary,
@@ -853,6 +857,13 @@ export class StudioWorkspaceStore {
   private readonly runtimeSessionProjectionState = signal<RuntimeSessionProjectionSummary | null>(null);
   private readonly runtimeSessionTelemetryState = signal<RuntimeSessionTelemetrySummary | null>(null);
   private readonly runtimeSessionPausedState = signal(false);
+  private readonly generatedLevelPresetDraftState = signal<StudioGeneratedLevelPresetDraft>({
+    presetId: 'tiny-enclosed',
+    seed: 17,
+  });
+  private readonly generatedTunnelReadoutState = signal<GeneratedTunnelReadout | null>(null);
+  private readonly generatedTunnelRegenerateReceiptState = signal<RuntimeSessionGeneratedTunnelOperationReceipt | null>(null);
+  private readonly generatedTunnelNavProjectionState = signal<NavProjectionReadout | null>(null);
   private readonly runtimeConnectionMessageState = signal('No running project connected.');
   private readonly catalogPathState = signal('packages/game-catalogs/catalog.json');
   private readonly catalogSourceState = signal<AshaGameAssetCatalog>(catalogFromInventoryArtifact());
@@ -948,6 +959,10 @@ export class StudioWorkspaceStore {
       state: this.runtimeSessionStateSummaryState(),
       projection: this.runtimeSessionProjectionState(),
       telemetry: this.runtimeSessionTelemetryState(),
+      generatedLevelPreset: this.generatedLevelPresetDraftState(),
+      generatedTunnelReadout: this.generatedTunnelReadoutState(),
+      generatedTunnelRegenerateReceipt: this.generatedTunnelRegenerateReceiptState(),
+      navProjection: this.generatedTunnelNavProjectionState(),
       paused: this.runtimeSessionPausedState(),
     }),
   );
@@ -1644,6 +1659,68 @@ export class StudioWorkspaceStore {
     }
   }
 
+  setGeneratedLevelPresetField(field: 'presetId' | 'seed', value: string): void {
+    this.generatedLevelPresetDraftState.update(draft => {
+      if (field === 'seed') {
+        return {
+          ...draft,
+          seed: Number(value),
+        };
+      }
+      return {
+        ...draft,
+        presetId: value,
+      };
+    });
+    this.generatedTunnelRegenerateReceiptState.set(null);
+    this.menuMessageState.set('Generated-level preset draft updated in Definition Authoring.');
+  }
+
+  validateGeneratedLevelPreset(): void {
+    const generatedLevel = this.runtimeSessionInspection().generatedLevel;
+    this.menuMessageState.set(
+      generatedLevel.definitionAuthoring.validationStatus === 'valid'
+        ? 'Generated-level preset draft validates against the public readout surface.'
+        : generatedLevel.definitionAuthoring.validationErrors.join(' '),
+    );
+  }
+
+  requestGeneratedLevelRegenerate(): void {
+    const facade = this.runtimeSessionFacadeState();
+    const draft = this.generatedLevelPresetDraftState();
+    if (facade === null) {
+      this.runtimeConnectionMessageState.set('Attach RuntimeSession before requesting generated-level regenerate.');
+      return;
+    }
+    if (draft.presetId !== 'tiny-enclosed' || draft.seed !== 17) {
+      this.runtimeConnectionMessageState.set('Generated-level preset draft must validate before regenerate.');
+      return;
+    }
+
+    try {
+      const receipt = facade.requestGeneratedTunnelOperation({
+        operation: 'regenerate',
+        presetId: draft.presetId,
+        seed: draft.seed,
+      });
+      this.generatedTunnelRegenerateReceiptState.set(receipt);
+      this.runtimeSessionStateSummaryState.update(state => state === null
+        ? state
+        : {
+            ...state,
+            sequenceId: receipt.sequenceId,
+            sessionHash: receipt.sessionHashAfter,
+          });
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.runtimeConnectionMessageState.set(`Generated-level regenerate ${receipt.status}: ${receipt.reason}.`);
+      this.menuMessageState.set('Generated-level regenerate used typed public RuntimeSession control.');
+    } catch (error) {
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'Generated-level regenerate request failed.',
+      );
+    }
+  }
+
   setHierarchyFilter(filter: string): void {
     this.hierarchyFilterState.set(filter);
   }
@@ -1654,11 +1731,28 @@ export class StudioWorkspaceStore {
     this.runtimeSessionProjectionState.set(null);
     this.runtimeSessionTelemetryState.set(null);
     this.runtimeSessionPausedState.set(false);
+    this.generatedTunnelReadoutState.set(null);
+    this.generatedTunnelRegenerateReceiptState.set(null);
+    this.generatedTunnelNavProjectionState.set(null);
   }
 
   private refreshRuntimeSessionInspectionReadout(facade: RuntimeSessionFacade): void {
     this.runtimeSessionProjectionState.set(facade.readProjection());
     this.runtimeSessionTelemetryState.set(facade.readTelemetry());
+    const draft = this.generatedLevelPresetDraftState();
+    try {
+      if (draft.presetId !== 'tiny-enclosed' || draft.seed !== 17) {
+        throw new Error('Generated-level preset draft is outside the public fixture surface.');
+      }
+      this.generatedTunnelReadoutState.set(facade.readGeneratedTunnelReadout({
+        presetId: 'tiny-enclosed',
+        seed: 17,
+      }));
+      this.generatedTunnelNavProjectionState.set(facade.readNavProjection());
+    } catch {
+      this.generatedTunnelReadoutState.set(null);
+      this.generatedTunnelNavProjectionState.set(null);
+    }
   }
 
   async refreshRunningProjectSessions(): Promise<void> {

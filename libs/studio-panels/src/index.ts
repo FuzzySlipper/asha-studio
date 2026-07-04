@@ -236,6 +236,113 @@ function filteredHierarchyEntities(
           </button>
         </div>
       </section>
+
+      <section class="generated-level-inspection" data-visual-id="studio-generated-level-inspection">
+        <div class="generated-level-inspection__cell generated-level-inspection__cell--authoring">
+          <span>Definition Authoring</span>
+          <strong data-generated-level="authoring-mode">
+            {{ store.runtimeSessionInspection().generatedLevel.definitionAuthoring.studioMode }}
+          </strong>
+          <small data-generated-level="mode-boundary">
+            stored preset · not live mutation · not runtime export
+          </small>
+        </div>
+        @for (field of store.runtimeSessionInspection().generatedLevel.definitionAuthoring.fields; track field.field) {
+          <label
+            class="generated-level-inspection__field"
+            [attr.data-generated-level-field]="field.field"
+            [attr.data-generated-level-validation]="field.validationStatus"
+          >
+            <span>{{ field.label }}</span>
+            @if (field.inputKind === 'readonly') {
+              <strong>{{ field.value }}</strong>
+            } @else if (field.inputKind === 'number') {
+              <input
+                type="number"
+                [value]="field.value"
+                (input)="store.setGeneratedLevelPresetField('seed', $any($event.target).value)"
+              />
+            } @else {
+              <select
+                [value]="field.value"
+                (change)="store.setGeneratedLevelPresetField('presetId', $any($event.target).value)"
+              >
+                @for (allowed of field.allowedValues; track allowed) {
+                  <option [value]="allowed">{{ allowed }}</option>
+                }
+              </select>
+            }
+            <small>{{ field.validationMessage || 'valid' }}</small>
+          </label>
+        }
+        <div class="generated-level-inspection__cell">
+          <span>Live Generated Level</span>
+          <strong data-generated-level="live-mode">
+            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.studioMode }}
+          </strong>
+          <small data-generated-level="attach-state">
+            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.attachState }}
+          </small>
+        </div>
+        <div class="generated-level-inspection__cell">
+          <span>Generator</span>
+          <strong data-generated-level="preset-id">
+            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.presetId || 'no live preset' }}
+          </strong>
+          <small data-generated-level="generator-hashes">
+            cfg {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.configHash || 'n/a' }}
+            · out {{ store.runtimeSessionInspection().generatedLevel.liveInspection.generator.outputHash || 'n/a' }}
+          </small>
+        </div>
+        <div class="generated-level-inspection__cell">
+          <span>Volume</span>
+          <strong data-generated-level="volume">
+            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.tunnelDims?.join('×') || 'n/a' }}
+          </strong>
+          <small>
+            solids {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.solidVoxels ?? 'n/a' }}
+            · corridors {{ store.runtimeSessionInspection().generatedLevel.liveInspection.volume.corridorCount ?? 'n/a' }}
+          </small>
+        </div>
+        <div class="generated-level-inspection__cell">
+          <span>Projections</span>
+          <strong data-generated-level="render-collision-hash">
+            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.renderHash || 'no render' }}
+          </strong>
+          <small data-generated-level="nav-hash">
+            collision {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.collisionHash || 'n/a' }}
+            · nav {{ store.runtimeSessionInspection().generatedLevel.liveInspection.projections.navProjectionHash || 'n/a' }}
+          </small>
+        </div>
+        <div class="generated-level-inspection__cell">
+          <span>Spawn Markers</span>
+          <strong data-generated-level="spawn-markers">
+            {{ store.runtimeSessionInspection().generatedLevel.liveInspection.spawnMarkers.length }} markers
+          </strong>
+          <small>
+            @for (marker of store.runtimeSessionInspection().generatedLevel.liveInspection.spawnMarkers; track marker.id) {
+              {{ marker.id }} {{ marker.voxel.join(',') }}
+            }
+          </small>
+        </div>
+        <div class="generated-level-inspection__actions">
+          <button type="button" (click)="store.validateGeneratedLevelPreset()">Validate Preset</button>
+          <button
+            type="button"
+            [disabled]="!store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.available"
+            (click)="store.requestGeneratedLevelRegenerate()"
+          >
+            Regenerate
+          </button>
+          <small data-generated-level="regenerate-status">
+            @if (store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.lastReceipt; as receipt) {
+              {{ receipt.status }} · {{ receipt.reason || 'accepted' }}
+            } @else {
+              {{ store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.disabledReason || 'ready' }}
+            }
+          </small>
+        </div>
+      </section>
     </section>
   `,
   styles: [
@@ -488,13 +595,101 @@ function filteredHierarchyEntities(
         cursor: not-allowed;
       }
 
+      .generated-level-inspection {
+        align-items: stretch;
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(8rem, 0.9fr) repeat(6, minmax(7rem, 1fr)) minmax(11rem, auto);
+        min-width: 0;
+      }
+
+      .generated-level-inspection__cell,
+      .generated-level-inspection__field,
+      .generated-level-inspection__actions {
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.08rem;
+        min-width: 0;
+        overflow: hidden;
+        padding: 0.26rem 0.36rem;
+      }
+
+      .generated-level-inspection__cell span,
+      .generated-level-inspection__cell small,
+      .generated-level-inspection__field span,
+      .generated-level-inspection__field small,
+      .generated-level-inspection__actions small {
+        color: var(--asha-color-muted);
+        font-size: 0.56rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .generated-level-inspection__cell strong,
+      .generated-level-inspection__field strong {
+        font-size: 0.62rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .generated-level-inspection__cell span,
+      .generated-level-inspection__field span {
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .generated-level-inspection__field input,
+      .generated-level-inspection__field select {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        font: inherit;
+        font-size: 0.62rem;
+        height: 1.45rem;
+        min-width: 0;
+      }
+
+      .generated-level-inspection__actions {
+        align-items: center;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .generated-level-inspection__actions small {
+        grid-column: 1 / -1;
+      }
+
+      .generated-level-inspection__actions button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.62rem;
+        height: 1.45rem;
+        min-width: 0;
+        padding: 0 0.35rem;
+      }
+
+      .generated-level-inspection__actions button:disabled {
+        color: #5b666c;
+        cursor: not-allowed;
+      }
+
       @media (max-width: 1100px) {
         .workspace-overview {
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
 
         .runtime-session-strip,
-        .runtime-inspection {
+        .runtime-inspection,
+        .generated-level-inspection {
           grid-template-columns: 1fr;
         }
       }
