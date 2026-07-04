@@ -7,6 +7,7 @@ import {
 } from '@asha-studio/domain';
 import {
   createMockRuntimeSession,
+  type CameraCreateRequest,
   type CommandBatch,
   type RuntimeSessionProjectionSummary,
   type RuntimeSessionStateSummary,
@@ -83,6 +84,23 @@ const projectBundle: WorldLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
   sceneId: 1001,
+};
+
+const cameraRequest: CameraCreateRequest = {
+  initialPose: {
+    position: [1, 1.5, 1],
+    yawDegrees: 180,
+    pitchDegrees: 0,
+  },
+  projection: {
+    fovYDegrees: 60,
+    near: 0.1,
+    far: 100,
+  },
+  viewport: {
+    width: 1280,
+    height: 720,
+  },
 };
 
 const facade = createMockRuntimeSession();
@@ -164,6 +182,96 @@ assert.equal(liveReadout.generatedLevel.liveInspection.spawnMarkers.length, 2);
 assert.equal(liveReadout.generatedLevel.liveInspection.regenerate.available, true);
 assert.ok(liveReadout.generatedLevel.inspectionHash.startsWith('studio-generated-level-inspection-'));
 
+const camera = facade.createCamera(cameraRequest).snapshot.camera;
+const autonomousPolicyTick = facade.runAutonomousPolicyTick({
+  targetCamera: camera,
+  policySource: 'export const policy = (view) => view;',
+});
+state = {
+  ...state,
+  composition: autonomousPolicyTick.step.composition,
+  sequenceId: autonomousPolicyTick.sequenceIdAfter,
+  tick: autonomousPolicyTick.tick,
+  sessionHash: autonomousPolicyTick.sessionHashAfter,
+};
+projection = facade.readProjection();
+telemetry = facade.readTelemetry();
+const lifecycleStatus = facade.readLifecycleStatus();
+
+const playableLoopReadout = buildStudioRuntimeSessionInspectionReadModel({
+  workspace,
+  gameWorkspace,
+  runtimeSessions: null,
+  state,
+  projection,
+  telemetry,
+  autonomousPolicyTick,
+  lifecycleStatus,
+  generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
+  generatedTunnelReadout,
+  navProjection,
+  paused: false,
+});
+
+assert.equal(playableLoopReadout.playableLoop.loopVersion, 'studio-playable-loop-inspection.v0');
+assert.equal(playableLoopReadout.playableLoop.policy.status, 'ran');
+assert.equal(playableLoopReadout.playableLoop.policy.loopId, 'generated_tunnel_enemy_policy_loop.v0');
+assert.equal(playableLoopReadout.playableLoop.policy.acceptedProposalCount, 1);
+assert.equal(playableLoopReadout.playableLoop.policy.unsupportedProposalCount, 1);
+assert.equal(playableLoopReadout.playableLoop.policy.movementReason, 'movement_authority_not_wired');
+assert.equal(playableLoopReadout.playableLoop.nav.pathHash, 'e8e1ea7a09811ced');
+assert.equal(playableLoopReadout.playableLoop.nav.pathLength, 9);
+assert.equal(playableLoopReadout.playableLoop.combat.status, 'accepted');
+assert.equal(playableLoopReadout.playableLoop.combat.outcomeKind, 'hit');
+assert.equal(playableLoopReadout.playableLoop.lifecycle.outcomeKind, 'won');
+assert.equal(playableLoopReadout.playableLoop.lifecycle.label, 'Enemy defeated');
+assert.equal(playableLoopReadout.playableLoop.lifecycle.eventKinds[0], 'runtime_lifecycle.enemy_defeated.v0');
+assert.equal(playableLoopReadout.playableLoop.selectedEntity?.health?.current, 0);
+assert.equal(playableLoopReadout.playableLoop.selectedEntity?.health?.dead, true);
+assert.equal(playableLoopReadout.playableLoop.controls.restart.available, true);
+
+const lifecycleRestartReceipt = facade.requestSessionRestart({
+  kind: 'runtime.restart_session_intent',
+  source: 'programmatic',
+  requireTerminal: true,
+  expectedSessionHash: lifecycleStatus.sessionHash,
+});
+assert.equal(lifecycleRestartReceipt.accepted, true);
+assert.equal(lifecycleRestartReceipt.statusBefore.outcome.kind, 'won');
+assert.equal(lifecycleRestartReceipt.statusAfter.outcome.kind, 'in_progress');
+state = {
+  ...state,
+  composition: lifecycleRestartReceipt.restart?.composition ?? state.composition,
+  sequenceId: lifecycleRestartReceipt.sequenceId,
+  tick: lifecycleRestartReceipt.restart?.tick ?? state.tick,
+  sessionHash: lifecycleRestartReceipt.sessionHashAfter,
+};
+projection = facade.readProjection();
+telemetry = facade.readTelemetry();
+generatedTunnelReadout = facade.readGeneratedTunnelReadout({ presetId: 'tiny-enclosed', seed: 17 });
+navProjection = facade.readNavProjection();
+
+const playableLoopRestartReadout = buildStudioRuntimeSessionInspectionReadModel({
+  workspace,
+  gameWorkspace,
+  runtimeSessions: null,
+  state,
+  projection,
+  telemetry,
+  autonomousPolicyTick,
+  lifecycleStatus: lifecycleRestartReceipt.statusAfter,
+  restartReceipt: lifecycleRestartReceipt,
+  generatedLevelPreset: { presetId: 'tiny-enclosed', seed: 17 },
+  generatedTunnelReadout,
+  navProjection,
+  paused: false,
+});
+
+assert.equal(playableLoopRestartReadout.playableLoop.restart.lastReceipt?.status, 'accepted');
+assert.equal(playableLoopRestartReadout.playableLoop.restart.lastReceipt?.statusBefore, 'won');
+assert.equal(playableLoopRestartReadout.playableLoop.restart.lastReceipt?.statusAfter, 'in_progress');
+assert.equal(playableLoopRestartReadout.playableLoop.lifecycle.outcomeKind, 'in_progress');
+
 const regenerateReceipt = facade.requestGeneratedTunnelOperation({
   operation: 'regenerate',
   presetId: 'tiny-enclosed',
@@ -231,6 +339,8 @@ console.log(JSON.stringify({
   status: 'ok',
   liveInspectionHash: liveReadout.inspectionHash,
   generatedLevelInspectionHash: liveReadout.generatedLevel.inspectionHash,
+  playableLoopInspectionHash: playableLoopReadout.playableLoop.inspectionHash,
+  playableLoopRestartStatus: playableLoopRestartReadout.playableLoop.restart.lastReceipt?.status,
   regenerateStatus: regenerateReadout.generatedLevel.liveInspection.regenerate.lastReceipt?.status,
   restartedInspectionHash: restartedReadout.inspectionHash,
   pauseControl: restartedReadout.controls.pause.disabledReason,

@@ -42,7 +42,10 @@ import {
 import type {
   GeneratedTunnelReadout,
   NavProjectionReadout,
+  RuntimeSessionAutonomousPolicyTickReadout,
   RuntimeSessionGeneratedTunnelOperationReceipt,
+  RuntimeSessionLifecycleRestartReceipt,
+  RuntimeSessionLifecycleStatusReadout,
   RuntimeSessionProjectionSummary,
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
@@ -907,6 +910,115 @@ export interface StudioRuntimeSessionListReadModel {
   readonly sessionListHash: string;
 }
 
+export interface StudioPlayableLoopInspectionReadModel {
+  readonly loopVersion: 'studio-playable-loop-inspection.v0';
+  readonly studioMode: StudioMode;
+  readonly attachState: 'not_attached' | 'attached' | 'unavailable';
+  readonly session: {
+    readonly sessionId: string | null;
+    readonly seed: number | null;
+    readonly tick: number | null;
+    readonly sessionHash: string | null;
+    readonly replayHash: string | null;
+    readonly replayRecordCount: number;
+    readonly lastRecordKind: string | null;
+  };
+  readonly generatedLevel: {
+    readonly presetId: string | null;
+    readonly configHash: string | null;
+    readonly outputHash: string | null;
+    readonly navProjectionHash: string | null;
+  };
+  readonly selectedEntity: {
+    readonly entityId: string;
+    readonly label: string;
+    readonly pose: {
+      readonly position: readonly [number, number, number] | null;
+      readonly nextWaypoint: readonly [number, number, number] | null;
+    };
+    readonly health: {
+      readonly current: number;
+      readonly max: number;
+      readonly dead: boolean;
+      readonly healthHash: string;
+    } | null;
+    readonly capabilitySummary: readonly string[];
+  } | null;
+  readonly policy: {
+    readonly status: 'not_run' | 'ran' | 'unavailable';
+    readonly loopId: string | null;
+    readonly tick: number | null;
+    readonly fixtureKind: string | null;
+    readonly proposalHash: string | null;
+    readonly proposalKinds: readonly string[];
+    readonly sourceChecked: boolean;
+    readonly sourceDiagnosticCount: number;
+    readonly acceptedProposalCount: number | null;
+    readonly rejectedProposalCount: number | null;
+    readonly unsupportedProposalCount: number | null;
+    readonly movementStatus: string | null;
+    readonly movementReason: string | null;
+    readonly tickHash: string | null;
+  };
+  readonly nav: {
+    readonly available: boolean;
+    readonly projectionHash: string | null;
+    readonly pathHash: string | null;
+    readonly outcome: string | null;
+    readonly visited: number | null;
+    readonly pathLength: number | null;
+  };
+  readonly combat: {
+    readonly status: string | null;
+    readonly outcomeKind: string | null;
+    readonly healthHash: string | null;
+    readonly replayHash: string | null;
+  };
+  readonly lifecycle: {
+    readonly kind: string | null;
+    readonly scenario: string | null;
+    readonly outcomeKind: string | null;
+    readonly label: string | null;
+    readonly terminal: boolean;
+    readonly playerHealth: string | null;
+    readonly enemyHealth: string | null;
+    readonly lifecycleHash: string | null;
+    readonly eventKinds: readonly string[];
+  };
+  readonly restart: {
+    readonly commandId: 'runtime.restart_session_intent';
+    readonly available: boolean;
+    readonly disabledReason: string | null;
+    readonly lastReceipt: {
+      readonly status: 'accepted' | 'rejected';
+      readonly accepted: boolean;
+      readonly source: string;
+      readonly rejectionReason: string | null;
+      readonly statusBefore: string;
+      readonly statusAfter: string;
+      readonly resetHash: string;
+    } | null;
+  };
+  readonly controls: {
+    readonly policyTick: {
+      readonly available: boolean;
+      readonly disabledReason: string | null;
+    };
+    readonly restart: {
+      readonly available: boolean;
+      readonly disabledReason: string | null;
+    };
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_transport',
+    'not_policy_runtime',
+    'not_ui_authority',
+  ];
+  readonly inspectionHash: string;
+}
+
 export interface StudioRuntimeSessionInspectionReadModel {
   readonly inspectionVersion: 'studio-runtime-session-inspection.v0';
   readonly studioMode: StudioMode;
@@ -938,6 +1050,7 @@ export interface StudioRuntimeSessionInspectionReadModel {
     } | null;
   };
   readonly generatedLevel: StudioGeneratedLevelInspectionReadModel;
+  readonly playableLoop: StudioPlayableLoopInspectionReadModel;
   readonly controls: {
     readonly pause: {
       readonly available: false;
@@ -3407,6 +3520,9 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
   readonly state: RuntimeSessionStateSummary | null;
   readonly projection: RuntimeSessionProjectionSummary | null;
   readonly telemetry: RuntimeSessionTelemetrySummary | null;
+  readonly autonomousPolicyTick?: RuntimeSessionAutonomousPolicyTickReadout | null;
+  readonly lifecycleStatus?: RuntimeSessionLifecycleStatusReadout | null;
+  readonly restartReceipt?: RuntimeSessionLifecycleRestartReceipt | null;
   readonly generatedLevelPreset?: StudioGeneratedLevelPresetDraft;
   readonly generatedTunnelReadout?: GeneratedTunnelReadout | null;
   readonly generatedTunnelRegenerateReceipt?: RuntimeSessionGeneratedTunnelOperationReceipt | null;
@@ -3470,6 +3586,20 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
     regenerateReceipt: input.generatedTunnelRegenerateReceipt ?? null,
     navProjection: input.navProjection ?? null,
   });
+  const playableLoop = buildStudioPlayableLoopInspectionReadModel({
+    attached,
+    studioMode,
+    attachState,
+    sessionId: input.state?.identity.sessionId ?? activeSession?.sessionId ?? null,
+    state: input.state,
+    telemetry: input.telemetry,
+    selectedEntity,
+    generatedTunnelReadout: input.generatedTunnelReadout ?? null,
+    navProjection: input.navProjection ?? null,
+    autonomousPolicyTick: input.autonomousPolicyTick ?? null,
+    lifecycleStatus: input.lifecycleStatus ?? null,
+    restartReceipt: input.restartReceipt ?? null,
+  });
 
   const body = {
     studioMode,
@@ -3503,6 +3633,7 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
           },
     },
     generatedLevel,
+    playableLoop,
     controls: {
       pause: {
         available: false as const,
@@ -3533,6 +3664,190 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
       'not_raw_state_store',
     ],
     inspectionHash: fnv1aHash('studio-runtime-session-inspection', body),
+  };
+}
+
+function buildStudioPlayableLoopInspectionReadModel(input: {
+  readonly attached: boolean;
+  readonly studioMode: StudioMode;
+  readonly attachState: StudioRuntimeSessionInspectionReadModel['attachState'];
+  readonly sessionId: string | null;
+  readonly state: RuntimeSessionStateSummary | null;
+  readonly telemetry: RuntimeSessionTelemetrySummary | null;
+  readonly selectedEntity: StudioEntityReadModel | null;
+  readonly generatedTunnelReadout: GeneratedTunnelReadout | null;
+  readonly navProjection: NavProjectionReadout | null;
+  readonly autonomousPolicyTick: RuntimeSessionAutonomousPolicyTickReadout | null;
+  readonly lifecycleStatus: RuntimeSessionLifecycleStatusReadout | null;
+  readonly restartReceipt: RuntimeSessionLifecycleRestartReceipt | null;
+}): StudioPlayableLoopInspectionReadModel {
+  const tick = input.autonomousPolicyTick;
+  const lifecycle = input.lifecycleStatus;
+  const enemyHealth = lifecycle?.enemy.health ?? null;
+  const movement = tick?.movementSummary ?? null;
+  const policyActor = tick?.proposalReceipts.find(receipt => receipt.actor.length > 0)?.actor ?? null;
+  const policyTarget = tick?.proposalReceipts.find(receipt => receipt.target.length > 0)?.target ?? null;
+  const selectedEntity = input.attached
+    ? {
+        entityId: policyActor ?? input.selectedEntity?.id ?? 'generated-tunnel.enemy.1',
+        label: policyActor ?? input.selectedEntity?.label ?? 'generated tunnel enemy',
+        pose: {
+          position: movement?.from ?? null,
+          nextWaypoint: movement?.nextWaypoint ?? null,
+        },
+        health: enemyHealth === null
+          ? null
+          : {
+              current: enemyHealth.current,
+              max: enemyHealth.max,
+              dead: enemyHealth.dead,
+              healthHash: enemyHealth.healthHash,
+            },
+        capabilitySummary: [
+          input.navProjection === null ? 'nav_projection:none' : `nav_projection:${input.navProjection.projectionHash}`,
+          tick === null ? 'policy_tick:not_run' : `policy_tick:${tick.loopId}`,
+          policyTarget === null ? 'target:none' : `target:${policyTarget}`,
+          lifecycle === null ? 'lifecycle:none' : `lifecycle:${lifecycle.outcome.kind}`,
+          tick?.combatSummary === null || tick?.combatSummary === undefined
+            ? 'combat:none'
+            : `combat:${tick.combatSummary.status}`,
+        ],
+      }
+    : null;
+  const lifecycleEventKinds = lifecycle?.events.map(event => event.kind) ?? [];
+  const restartAvailable = input.attached && lifecycle?.outcome.terminal === true;
+  const policyTickAvailable = input.attached;
+  const diagnostics: StudioDiagnostic[] = [];
+  if (!input.attached) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_inspection_unavailable',
+      'Playable-loop inspection is unavailable until RuntimeSession is attached.',
+      input.sessionId,
+      'Attach the public RuntimeSession facade.',
+    ));
+  }
+  if (input.attached && tick === null) {
+    diagnostics.push(studioRuntimeSessionDiagnostic(
+      'runtime_session_inspection_unavailable',
+      'Playable-loop policy tick has not run in this Studio session yet.',
+      input.sessionId,
+      'Run the public autonomous policy tick control.',
+    ));
+  }
+  const policyStatus: StudioPlayableLoopInspectionReadModel['policy']['status'] =
+    input.attached ? tick === null ? 'not_run' : 'ran' : 'unavailable';
+
+  const body = {
+    studioMode: input.studioMode,
+    attachState: input.attachState,
+    session: {
+      sessionId: input.sessionId,
+      seed: input.state?.identity.seed ?? null,
+      tick: input.telemetry?.tick ?? input.state?.tick ?? null,
+      sessionHash: input.telemetry?.sessionHash ?? input.state?.sessionHash ?? null,
+      replayHash: lifecycle?.hashes.replayHash ?? tick?.combatSummary?.replayHash ?? null,
+      replayRecordCount: input.telemetry?.replayRecords.length ?? 0,
+      lastRecordKind: input.telemetry?.replayRecords.at(-1)?.kind ?? null,
+    },
+    generatedLevel: {
+      presetId: input.generatedTunnelReadout?.generator.presetId ?? null,
+      configHash: input.generatedTunnelReadout?.generator.configHash ?? null,
+      outputHash: input.generatedTunnelReadout?.generator.outputHash ?? null,
+      navProjectionHash: input.navProjection?.projectionHash ?? null,
+    },
+    selectedEntity,
+    policy: {
+      status: policyStatus,
+      loopId: tick?.loopId ?? null,
+      tick: tick?.tick ?? null,
+      fixtureKind: tick?.policy.fixtureKind ?? null,
+      proposalHash: tick?.policy.proposalFrame.proposalHash ?? null,
+      proposalKinds: tick?.policy.proposalFrame.proposals.map(proposal => proposal.kind) ?? [],
+      sourceChecked: tick?.policy.sourceChecked ?? false,
+      sourceDiagnosticCount: tick?.policy.sourceDiagnostics.length ?? 0,
+      acceptedProposalCount: tick?.proposalSummary.acceptedProposalCount ?? null,
+      rejectedProposalCount: tick?.proposalSummary.rejectedProposalCount ?? null,
+      unsupportedProposalCount: tick?.proposalSummary.unsupportedProposalCount ?? null,
+      movementStatus: tick?.movementSummary?.status ?? null,
+      movementReason: tick?.movementSummary?.reason ?? null,
+      tickHash: tick?.tickHash ?? null,
+    },
+    nav: {
+      available: input.navProjection?.available ?? false,
+      projectionHash: tick?.nav.projectionHash ?? input.navProjection?.projectionHash ?? null,
+      pathHash: tick?.nav.pathHash ?? null,
+      outcome: tick?.nav.outcome ?? null,
+      visited: tick?.nav.visited ?? null,
+      pathLength: tick?.nav.pathLength ?? null,
+    },
+    combat: {
+      status: tick?.combatSummary?.status ?? null,
+      outcomeKind: tick?.combatSummary?.outcome?.kind ?? null,
+      healthHash: tick?.combatSummary?.healthHash ?? lifecycle?.hashes.enemyHealthHash ?? null,
+      replayHash: tick?.combatSummary?.replayHash ?? null,
+    },
+    lifecycle: {
+      kind: lifecycle?.kind ?? null,
+      scenario: lifecycle?.scenario ?? null,
+      outcomeKind: lifecycle?.outcome.kind ?? null,
+      label: lifecycle?.outcome.label ?? null,
+      terminal: lifecycle?.outcome.terminal ?? false,
+      playerHealth: lifecycle === null
+        ? null
+        : `${lifecycle.player.health.current}/${lifecycle.player.health.max}`,
+      enemyHealth: lifecycle === null
+        ? null
+        : `${lifecycle.enemy.health.current}/${lifecycle.enemy.health.max}`,
+      lifecycleHash: lifecycle?.hashes.lifecycleHash ?? null,
+      eventKinds: lifecycleEventKinds,
+    },
+    restart: {
+      commandId: 'runtime.restart_session_intent' as const,
+      available: restartAvailable,
+      disabledReason: restartAvailable
+        ? null
+        : input.attached
+          ? 'lifecycle_not_terminal'
+          : 'runtime_session_not_attached',
+      lastReceipt: input.restartReceipt === null
+        ? null
+        : {
+            status: input.restartReceipt.status,
+            accepted: input.restartReceipt.accepted,
+            source: input.restartReceipt.intent.source,
+            rejectionReason: input.restartReceipt.rejection?.reason ?? null,
+            statusBefore: input.restartReceipt.statusBefore.outcome.kind,
+            statusAfter: input.restartReceipt.statusAfter.outcome.kind,
+            resetHash: input.restartReceipt.resetHash,
+          },
+    },
+    controls: {
+      policyTick: {
+        available: policyTickAvailable,
+        disabledReason: policyTickAvailable ? null : 'runtime_session_not_attached',
+      },
+      restart: {
+        available: restartAvailable,
+        disabledReason: restartAvailable
+          ? null
+          : input.attached
+            ? 'lifecycle_not_terminal'
+            : 'runtime_session_not_attached',
+      },
+    },
+    diagnostics,
+  };
+
+  return {
+    loopVersion: 'studio-playable-loop-inspection.v0',
+    ...body,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_transport',
+      'not_policy_runtime',
+      'not_ui_authority',
+    ],
+    inspectionHash: fnv1aHash('studio-playable-loop-inspection', body),
   };
 }
 

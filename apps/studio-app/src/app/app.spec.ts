@@ -227,6 +227,77 @@ describe('StudioShellComponent', () => {
     );
   });
 
+  it('renders live playable-loop inspection from public runtime readouts and controls', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
+    const loopPanel = element.querySelector('[data-visual-id="studio-playable-loop-inspection"]');
+    expect(loopPanel?.querySelector('[data-playable-loop="version"]')?.textContent).toContain(
+      'studio-playable-loop-inspection.v0',
+    );
+    expect(loopPanel?.querySelector('[data-playable-loop="mode"]')?.textContent).toContain('not_attached');
+    expect(loopPanel?.querySelector('[data-playable-loop="restart-status"]')?.textContent).toContain(
+      'runtime_session_not_attached',
+    );
+
+    const attachButton = Array.from(runtimePanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Attach',
+    );
+    attachButton?.click();
+    fixture.detectChanges();
+
+    expect(loopPanel?.querySelector('[data-playable-loop="mode"]')?.textContent).toContain(
+      'live_runtime_inspection',
+    );
+    expect(loopPanel?.querySelector('[data-playable-loop="session"]')?.textContent).toContain('seed 17');
+    expect(loopPanel?.querySelector('[data-playable-loop="generated-level"]')?.textContent).toContain(
+      'tiny-enclosed',
+    );
+    expect(loopPanel?.querySelector('[data-playable-loop="lifecycle"]')?.textContent).toContain('In progress');
+
+    const runPolicyButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Run Policy',
+    );
+    expect(runPolicyButton?.disabled).toBe(false);
+    runPolicyButton?.click();
+    fixture.detectChanges();
+
+    expect(loopPanel?.querySelector('[data-playable-loop="policy-summary"]')?.textContent).toContain('1 accepted');
+    expect(loopPanel?.querySelector('[data-playable-loop="policy-summary"]')?.textContent).toContain('1 unsupported');
+    expect(loopPanel?.textContent).toContain('movement_authority_not_wired');
+    expect(loopPanel?.querySelector('[data-playable-loop="nav-path"]')?.textContent).toContain('e8e1ea7a09811ced');
+    expect(loopPanel?.querySelector('[data-playable-loop="combat-health"]')?.textContent).toContain(
+      'Health 0/40 defeated',
+    );
+    expect(loopPanel?.querySelector('[data-playable-loop="lifecycle"]')?.textContent).toContain('Enemy defeated');
+    expect(loopPanel?.textContent).toContain('runtime_lifecycle.enemy_defeated.v0');
+    expect(loopPanel?.querySelector('[data-playable-loop="selected-entity"]')?.textContent).toContain(
+      'generated-tunnel.enemy.1',
+    );
+
+    const restartButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Restart',
+    );
+    expect(restartButton?.disabled).toBe(false);
+    restartButton?.click();
+    fixture.detectChanges();
+
+    expect(loopPanel?.querySelector('[data-playable-loop="restart-status"]')?.textContent).toContain('accepted');
+    expect(loopPanel?.querySelector('[data-playable-loop="restart-status"]')?.textContent).toContain(
+      'won -> in_progress',
+    );
+    expect(loopPanel?.querySelector('[data-playable-loop="lifecycle"]')?.textContent).toContain('In progress');
+    expect(loopPanel?.querySelector('[data-playable-loop="combat-health"]')?.textContent).toContain(
+      'Health 40/40 active',
+    );
+  });
+
   it('renders command proposal actions and accepted rejected evidence in the Commands tab', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],

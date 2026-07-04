@@ -88,10 +88,14 @@ import type { SceneObjectId } from '@asha/editor-tools';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import {
   createMockRuntimeSession,
+  type CameraCreateRequest,
   type GeneratedTunnelReadout,
   type NavProjectionReadout,
+  type RuntimeSessionAutonomousPolicyTickReadout,
   type RuntimeSessionFacade,
   type RuntimeSessionGeneratedTunnelOperationReceipt,
+  type RuntimeSessionLifecycleRestartReceipt,
+  type RuntimeSessionLifecycleStatusReadout,
   type RuntimeSessionProjectionSummary,
   type RuntimeSessionStateSummary,
   type RuntimeSessionTelemetrySummary,
@@ -180,6 +184,25 @@ const DEMO_RUNTIME_PROJECT_BUNDLE: WorldLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
   sceneId: 1001,
+};
+
+const STUDIO_PLAYABLE_LOOP_POLICY_SOURCE = 'export const policy = (view) => view;';
+
+const STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST: CameraCreateRequest = {
+  initialPose: {
+    position: [1, 1.5, 1],
+    yawDegrees: 180,
+    pitchDegrees: 0,
+  },
+  projection: {
+    fovYDegrees: 60,
+    near: 0.1,
+    far: 100,
+  },
+  viewport: {
+    width: 1280,
+    height: 720,
+  },
 };
 
 const DEMO_ASSET_INVENTORY_ARTIFACT = {
@@ -864,6 +887,9 @@ export class StudioWorkspaceStore {
   private readonly generatedTunnelReadoutState = signal<GeneratedTunnelReadout | null>(null);
   private readonly generatedTunnelRegenerateReceiptState = signal<RuntimeSessionGeneratedTunnelOperationReceipt | null>(null);
   private readonly generatedTunnelNavProjectionState = signal<NavProjectionReadout | null>(null);
+  private readonly playableLoopPolicyTickState = signal<RuntimeSessionAutonomousPolicyTickReadout | null>(null);
+  private readonly playableLoopLifecycleState = signal<RuntimeSessionLifecycleStatusReadout | null>(null);
+  private readonly playableLoopRestartReceiptState = signal<RuntimeSessionLifecycleRestartReceipt | null>(null);
   private readonly runtimeConnectionMessageState = signal('No running project connected.');
   private readonly catalogPathState = signal('packages/game-catalogs/catalog.json');
   private readonly catalogSourceState = signal<AshaGameAssetCatalog>(catalogFromInventoryArtifact());
@@ -959,6 +985,9 @@ export class StudioWorkspaceStore {
       state: this.runtimeSessionStateSummaryState(),
       projection: this.runtimeSessionProjectionState(),
       telemetry: this.runtimeSessionTelemetryState(),
+      autonomousPolicyTick: this.playableLoopPolicyTickState(),
+      lifecycleStatus: this.playableLoopLifecycleState(),
+      restartReceipt: this.playableLoopRestartReceiptState(),
       generatedLevelPreset: this.generatedLevelPresetDraftState(),
       generatedTunnelReadout: this.generatedTunnelReadoutState(),
       generatedTunnelRegenerateReceipt: this.generatedTunnelRegenerateReceiptState(),
@@ -1587,6 +1616,8 @@ export class StudioWorkspaceStore {
       this.runtimeSessionFacadeState.set(facade);
       this.runtimeSessionStateSummaryState.set(initialized);
       this.runtimeSessionPausedState.set(false);
+      this.playableLoopPolicyTickState.set(null);
+      this.playableLoopRestartReceiptState.set(null);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(`RuntimeSession attached: ${initialized.sessionHash}.`);
       this.menuMessageState.set('Live Runtime Inspection attached.');
@@ -1649,12 +1680,96 @@ export class StudioWorkspaceStore {
             sessionHash: restarted.sessionHash,
           });
       this.runtimeSessionPausedState.set(false);
+      this.playableLoopPolicyTickState.set(null);
+      this.playableLoopRestartReceiptState.set(null);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(`RuntimeSession restarted: ${restarted.sessionHash}.`);
       this.menuMessageState.set('Live Runtime Inspection restarted.');
     } catch (error) {
       this.runtimeConnectionMessageState.set(
         error instanceof Error ? error.message : 'RuntimeSession restart failed.',
+      );
+    }
+  }
+
+  runPlayableLoopInspectionTick(): void {
+    const facade = this.runtimeSessionFacadeState();
+    if (facade === null) {
+      this.runtimeConnectionMessageState.set('Attach RuntimeSession before running the playable loop.');
+      return;
+    }
+    if (this.runtimeSessionPausedState()) {
+      this.runtimeConnectionMessageState.set('RuntimeSession is paused; playable-loop tick is unavailable.');
+      return;
+    }
+
+    try {
+      const camera = facade.createCamera(STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST).snapshot.camera;
+      const readout = facade.runAutonomousPolicyTick({
+        targetCamera: camera,
+        policySource: STUDIO_PLAYABLE_LOOP_POLICY_SOURCE,
+      });
+      this.playableLoopPolicyTickState.set(readout);
+      this.playableLoopRestartReceiptState.set(null);
+      this.runtimeSessionStateSummaryState.update(state => state === null
+        ? state
+        : {
+            ...state,
+            composition: readout.step.composition,
+            sequenceId: readout.sequenceIdAfter,
+            tick: readout.tick,
+            sessionHash: readout.sessionHashAfter,
+          });
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.runtimeConnectionMessageState.set(
+        `Playable loop tick ${readout.tick}: ${readout.proposalSummary.acceptedProposalCount} accepted, ${readout.proposalSummary.unsupportedProposalCount} unsupported.`,
+      );
+      this.menuMessageState.set('Live playable-loop inspection used public RuntimeSession policy/combat/lifecycle surfaces.');
+    } catch (error) {
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'Playable-loop policy tick failed.',
+      );
+    }
+  }
+
+  restartPlayableLoopInspection(): void {
+    const facade = this.runtimeSessionFacadeState();
+    const lifecycle = this.playableLoopLifecycleState();
+    if (facade === null || lifecycle === null) {
+      this.runtimeConnectionMessageState.set('Attach RuntimeSession before restarting the playable loop.');
+      return;
+    }
+
+    try {
+      const receipt = facade.requestSessionRestart({
+        kind: 'runtime.restart_session_intent',
+        source: 'programmatic',
+        requireTerminal: true,
+        expectedSessionHash: lifecycle.sessionHash,
+      });
+      this.playableLoopRestartReceiptState.set(receipt);
+      if (receipt.accepted) {
+        this.playableLoopPolicyTickState.set(null);
+      }
+      const telemetry = facade.readTelemetry();
+      this.runtimeSessionStateSummaryState.update(state => state === null
+        ? state
+        : {
+            ...state,
+            composition: telemetry.composition,
+            sequenceId: telemetry.sequenceId,
+            tick: telemetry.tick,
+            sessionHash: telemetry.sessionHash,
+          });
+      this.runtimeSessionPausedState.set(false);
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.runtimeConnectionMessageState.set(
+        `Playable-loop restart ${receipt.status}: ${receipt.statusBefore.outcome.kind} -> ${receipt.statusAfter.outcome.kind}.`,
+      );
+      this.menuMessageState.set('Live playable-loop restart used the public typed lifecycle intent.');
+    } catch (error) {
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'Playable-loop restart failed.',
       );
     }
   }
@@ -1734,11 +1849,15 @@ export class StudioWorkspaceStore {
     this.generatedTunnelReadoutState.set(null);
     this.generatedTunnelRegenerateReceiptState.set(null);
     this.generatedTunnelNavProjectionState.set(null);
+    this.playableLoopPolicyTickState.set(null);
+    this.playableLoopLifecycleState.set(null);
+    this.playableLoopRestartReceiptState.set(null);
   }
 
   private refreshRuntimeSessionInspectionReadout(facade: RuntimeSessionFacade): void {
     this.runtimeSessionProjectionState.set(facade.readProjection());
     this.runtimeSessionTelemetryState.set(facade.readTelemetry());
+    this.playableLoopLifecycleState.set(facade.readLifecycleStatus());
     const draft = this.generatedLevelPresetDraftState();
     try {
       if (draft.presetId !== 'tiny-enclosed' || draft.seed !== 17) {

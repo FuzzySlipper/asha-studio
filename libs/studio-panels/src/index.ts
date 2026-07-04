@@ -343,6 +343,119 @@ function filteredHierarchyEntities(
           </small>
         </div>
       </section>
+
+      <section class="playable-loop-inspection" data-visual-id="studio-playable-loop-inspection">
+        <div class="playable-loop-inspection__cell playable-loop-inspection__cell--identity">
+          <span>Playable Loop</span>
+          <strong data-playable-loop="version">
+            {{ store.runtimeSessionInspection().playableLoop.loopVersion }}
+          </strong>
+          <small data-playable-loop="mode">
+            {{ store.runtimeSessionInspection().playableLoop.studioMode }}
+            · {{ store.runtimeSessionInspection().playableLoop.attachState }}
+          </small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Session</span>
+          <strong data-playable-loop="session">
+            seed {{ store.runtimeSessionInspection().playableLoop.session.seed ?? 'n/a' }}
+            · tick {{ store.runtimeSessionInspection().playableLoop.session.tick ?? 'n/a' }}
+          </strong>
+          <small>{{ store.runtimeSessionInspection().playableLoop.session.sessionHash || 'no session hash' }}</small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Generated Tunnel</span>
+          <strong data-playable-loop="generated-level">
+            {{ store.runtimeSessionInspection().playableLoop.generatedLevel.presetId || 'no preset' }}
+          </strong>
+          <small>
+            out {{ store.runtimeSessionInspection().playableLoop.generatedLevel.outputHash || 'n/a' }}
+            · nav {{ store.runtimeSessionInspection().playableLoop.generatedLevel.navProjectionHash || 'n/a' }}
+          </small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Nav Path</span>
+          <strong data-playable-loop="nav-path">
+            {{ store.runtimeSessionInspection().playableLoop.nav.pathHash || 'no path' }}
+          </strong>
+          <small>
+            {{ store.runtimeSessionInspection().playableLoop.nav.outcome || 'n/a' }}
+            · visited {{ store.runtimeSessionInspection().playableLoop.nav.visited ?? 'n/a' }}
+            · len {{ store.runtimeSessionInspection().playableLoop.nav.pathLength ?? 'n/a' }}
+          </small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Policy</span>
+          <strong data-playable-loop="policy-summary">
+            {{ store.runtimeSessionInspection().playableLoop.policy.acceptedProposalCount ?? 'n/a' }} accepted
+            · {{ store.runtimeSessionInspection().playableLoop.policy.unsupportedProposalCount ?? 'n/a' }} unsupported
+          </strong>
+          <small>
+            {{ store.runtimeSessionInspection().playableLoop.policy.loopId || 'not run' }}
+            · {{ store.runtimeSessionInspection().playableLoop.policy.movementReason || 'movement ready' }}
+          </small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Combat</span>
+          <strong data-playable-loop="combat-health">
+            @if (store.runtimeSessionInspection().playableLoop.selectedEntity?.health; as health) {
+              Health {{ health.current }}/{{ health.max }} {{ health.dead ? 'defeated' : 'active' }}
+            } @else {
+              Health n/a
+            }
+          </strong>
+          <small>
+            {{ store.runtimeSessionInspection().playableLoop.combat.status || 'not run' }}
+            · {{ store.runtimeSessionInspection().playableLoop.combat.outcomeKind || 'no outcome' }}
+          </small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Lifecycle</span>
+          <strong data-playable-loop="lifecycle">
+            {{ store.runtimeSessionInspection().playableLoop.lifecycle.label || 'not attached' }}
+          </strong>
+          <small>
+            {{ store.runtimeSessionInspection().playableLoop.lifecycle.outcomeKind || 'n/a' }}
+            · {{ store.runtimeSessionInspection().playableLoop.lifecycle.eventKinds.join(', ') || 'no event' }}
+          </small>
+        </div>
+        <div class="playable-loop-inspection__cell">
+          <span>Selected Entity</span>
+          @if (store.runtimeSessionInspection().playableLoop.selectedEntity; as entity) {
+            <strong data-playable-loop="selected-entity">{{ entity.label }}</strong>
+            <small>
+              {{ entity.pose.position?.join(',') || 'pose n/a' }}
+              · next {{ entity.pose.nextWaypoint?.join(',') || 'n/a' }}
+            </small>
+          } @else {
+            <strong data-playable-loop="selected-entity">no runtime entity</strong>
+            <small>Attach the public RuntimeSession facade.</small>
+          }
+        </div>
+        <div class="playable-loop-inspection__actions">
+          <button
+            type="button"
+            [disabled]="!store.runtimeSessionInspection().playableLoop.controls.policyTick.available"
+            (click)="store.runPlayableLoopInspectionTick()"
+          >
+            Run Policy
+          </button>
+          <button
+            type="button"
+            [disabled]="!store.runtimeSessionInspection().playableLoop.controls.restart.available"
+            (click)="store.restartPlayableLoopInspection()"
+          >
+            Restart
+          </button>
+          <small data-playable-loop="restart-status">
+            @if (store.runtimeSessionInspection().playableLoop.restart.lastReceipt; as receipt) {
+              {{ receipt.status }} · {{ receipt.statusBefore }} -> {{ receipt.statusAfter }}
+            } @else {
+              {{ store.runtimeSessionInspection().playableLoop.restart.disabledReason || 'ready' }}
+            }
+          </small>
+        </div>
+      </section>
     </section>
   `,
   styles: [
@@ -682,6 +795,77 @@ function filteredHierarchyEntities(
         cursor: not-allowed;
       }
 
+      .playable-loop-inspection {
+        align-items: stretch;
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(8rem, 0.95fr) repeat(7, minmax(6.5rem, 1fr)) minmax(10rem, auto);
+        min-width: 0;
+      }
+
+      .playable-loop-inspection__cell,
+      .playable-loop-inspection__actions {
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.08rem;
+        min-width: 0;
+        overflow: hidden;
+        padding: 0.26rem 0.36rem;
+      }
+
+      .playable-loop-inspection__cell span,
+      .playable-loop-inspection__cell small,
+      .playable-loop-inspection__actions small {
+        color: var(--asha-color-muted);
+        font-size: 0.56rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .playable-loop-inspection__cell strong {
+        font-size: 0.62rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .playable-loop-inspection__cell span {
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .playable-loop-inspection__actions {
+        align-items: center;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .playable-loop-inspection__actions small {
+        grid-column: 1 / -1;
+      }
+
+      .playable-loop-inspection__actions button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.62rem;
+        height: 1.45rem;
+        min-width: 0;
+        padding: 0 0.35rem;
+      }
+
+      .playable-loop-inspection__actions button:disabled {
+        color: #5b666c;
+        cursor: not-allowed;
+      }
+
       @media (max-width: 1100px) {
         .workspace-overview {
           grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -689,7 +873,8 @@ function filteredHierarchyEntities(
 
         .runtime-session-strip,
         .runtime-inspection,
-        .generated-level-inspection {
+        .generated-level-inspection,
+        .playable-loop-inspection {
           grid-template-columns: 1fr;
         }
       }

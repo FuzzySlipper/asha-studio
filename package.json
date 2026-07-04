@@ -18,6 +18,7 @@
     "proof:selected-backend-attach": "tsx scripts/proof-selected-backend-attach.ts",
     "proof:workspace-open-read": "tsx scripts/proof-workspace-open-read.ts",
     "proof:runtime-session-inspection": "tsx scripts/proof-runtime-session-inspection.ts",
+    "proof:playable-loop-inspection": "tsx scripts/proof-playable-loop-inspection.ts",
     "proof:generated-level-metadata": "tsx scripts/proof-generated-level-metadata.ts",
     "proof:scene-save-roundtrip": "tsx scripts/proof-scene-save-roundtrip.ts",
     "proof:scene-file-menu-workflow": "tsx scripts/proof-scene-file-menu-workflow.ts",
