@@ -54,7 +54,7 @@ function sourceHashMatches(source: { readonly hash?: string }, expectedHash: str
   return source.hash === expectedHash;
 }
 
-const debugRun = run('pnpm', ['run', 'proof:authored-studio-debug-readback']);
+const debugRun = run('pnpm', ['run', 'evidence', '--', 'authored-studio-debug-readback']);
 const typecheckRun = run('pnpm', ['exec', 'nx', 'typecheck', 'studio-domain']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
@@ -104,7 +104,7 @@ const artifactBody = {
   artifactKind: 'studio_author_runtime_roundtrip_evidence_index',
   artifactVersion: 'studio-author-runtime-roundtrip-evidence-index.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:author-runtime-roundtrip-index',
+  command: 'pnpm run evidence -- author-runtime-roundtrip-index',
   commandRuns: [debugRun, typecheckRun, boundaryRun],
   authoredRefs: {
     objectId,

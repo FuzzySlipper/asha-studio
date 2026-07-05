@@ -137,7 +137,7 @@ const artifactBody = {
   artifactKind: 'studio_catalog_entry_authoring_ui_proof',
   artifactVersion: 'studio-catalog-entry-authoring-ui-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:catalog-entry-authoring-ui',
+  command: 'pnpm run evidence -- catalog-entry-authoring-ui',
   fileHashes: {
     beforeCatalogHash: sha256(originalText),
     afterCatalogHash: applied?.catalogHash ?? 'missing',

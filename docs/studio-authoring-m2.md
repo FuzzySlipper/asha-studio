@@ -4,15 +4,15 @@ This milestone closes the first bounded Studio asset/scene authoring workflow. I
 
 ## Scope
 
-- Scene object create authoring is covered by `pnpm run proof:scene-object-create-authoring`.
-- Scene object edit authoring is covered by `pnpm run proof:scene-object-edit-authoring`.
-- Catalog entry authoring UI persistence is covered by `pnpm run proof:catalog-entry-authoring-ui`.
-- Saved authored state panel reflection is covered by `pnpm run proof:authored-state-panel-reflection`.
-- The milestone aggregate gate is `pnpm run proof:authoring-ux-m2`.
+- Scene object create authoring is covered by `pnpm run evidence -- scene-object-create-authoring`.
+- Scene object edit authoring is covered by `pnpm run evidence -- scene-object-edit-authoring`.
+- Catalog entry authoring UI persistence is covered by `pnpm run evidence -- catalog-entry-authoring-ui`.
+- Saved authored state panel reflection is covered by `pnpm run evidence -- authored-state-panel-reflection`.
+- The milestone aggregate gate is `pnpm run evidence -- authoring-ux-m2`.
 
 ## Reviewer Artifact
 
-`pnpm run proof:authoring-ux-m2` regenerates:
+`pnpm run evidence -- authoring-ux-m2` regenerates:
 
 `artifacts/authoring-ux-m2-proof/latest/index.json`
 

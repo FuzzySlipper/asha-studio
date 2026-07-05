@@ -64,7 +64,7 @@ const artifactBody = {
   artifactKind: 'studio_scene_object_create_authoring_proof',
   artifactVersion: 'studio-scene-object-create-authoring-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:scene-object-create-authoring',
+  command: 'pnpm run evidence -- scene-object-create-authoring',
   operation: operation.operation,
   fileHashes: {
     beforeDocumentHash: sha256(before.flatSceneDocument),

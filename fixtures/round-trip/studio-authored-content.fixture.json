@@ -2,7 +2,7 @@
   "fixtureKind": "studio_authored_roundtrip_fixture",
   "fixtureVersion": "studio-authored-roundtrip-fixture.v0",
   "generatedAt": "deterministic-as-structure-only",
-  "producedBy": "pnpm run proof:authored-roundtrip-fixture",
+  "producedBy": "pnpm run evidence -- authored-roundtrip-fixture",
   "workspace": {
     "sceneId": "scene-view:voxel-basic:v1",
     "selectedEntityId": "scene-node:9401",
@@ -821,5 +821,5 @@
     "not_private_asset_database",
     "not_source_write_to_asha_demo"
   ],
-  "fixtureHash": "sha256:caa1c5c02804aa2b8a2748b602b55c921df27c3d711275e9f89bd79e4871e436"
+  "fixtureHash": "sha256:aae86a6b6ed1402555d27c27f699bd54cd237683eabc73f240c9b27e0d689ffb"
 }

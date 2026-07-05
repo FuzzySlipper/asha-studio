@@ -9,9 +9,9 @@ runtime behavior.
 
 ## Proof Commands
 
-- Capstone verifier: `pnpm run proof:proper-demo-capstone-verifier`
-- Final evidence index: `pnpm run proof:proper-demo-evidence-index`
-- Boundary and non-claim guard: `pnpm run proof:proper-demo-capstone-guard`
+- Capstone verifier: `pnpm run evidence -- proper-demo-capstone-verifier`
+- Final evidence index: `pnpm run evidence -- proper-demo-evidence-index`
+- Boundary and non-claim guard: `pnpm run evidence -- proper-demo-capstone-guard`
 
 The verifier is the expensive command. It regenerates the M1 through M5 proof
 gates, the demo browser interaction proof, and boundary checks before writing:
@@ -56,13 +56,13 @@ freeform command hatch or raw native/WASM transport import is allowed.
 For a full proof refresh, run:
 
 ```bash
-pnpm run proof:proper-demo-capstone-verifier
-pnpm run proof:proper-demo-evidence-index
-pnpm run proof:proper-demo-capstone-guard
+pnpm run evidence -- proper-demo-capstone-verifier
+pnpm run evidence -- proper-demo-evidence-index
+pnpm run evidence -- proper-demo-capstone-guard
 ```
 
 For a quick guard after artifacts are current, run:
 
 ```bash
-pnpm run proof:proper-demo-capstone-guard
+pnpm run evidence -- proper-demo-capstone-guard
 ```

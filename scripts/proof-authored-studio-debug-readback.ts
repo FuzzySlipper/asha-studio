@@ -42,8 +42,8 @@ function verifyHashedObject(value: any, hashKey: string): boolean {
   return recordedHash === sha256Json(withoutHash);
 }
 
-const interactionRun = run('pnpm', ['run', 'proof:authored-browser-interaction']);
-const liveDebugRun = run('pnpm', ['run', 'proof:live-gameplay-debug-m4']);
+const interactionRun = run('pnpm', ['run', 'evidence', '--', 'authored-browser-interaction']);
+const liveDebugRun = run('pnpm', ['run', 'evidence', '--', 'live-gameplay-debug-m4']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
 const fixtureText = readFileSync(fixturePath, 'utf8');
@@ -96,7 +96,7 @@ const artifactBody = {
   artifactKind: 'studio_authored_studio_debug_readback_proof',
   artifactVersion: 'studio-authored-studio-debug-readback-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:authored-studio-debug-readback',
+  command: 'pnpm run evidence -- authored-studio-debug-readback',
   commandRuns: [interactionRun, liveDebugRun, boundaryRun],
   sourceArtifacts: [
     {

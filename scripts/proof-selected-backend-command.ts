@@ -242,7 +242,7 @@ try {
     artifactKind: 'studio_selected_backend_command_proof',
     artifactVersion: 'studio-selected-backend-command-proof.v0',
     generatedAt: 'deterministic-as-structure-only',
-    command: 'pnpm run proof:selected-backend-command',
+    command: 'pnpm run evidence -- selected-backend-command',
     backend: attached.attach.runtimeBackendEvidence,
     workspace: {
       gameId: proofWorkspace.gameId,

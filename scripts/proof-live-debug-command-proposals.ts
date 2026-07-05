@@ -57,10 +57,10 @@ function loadDemoPackageScripts(): Record<string, string> {
   return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).scripts;
 }
 
-const identityRun = run('pnpm', ['run', 'proof:live-debug-session-identity']);
-const sceneRun = run('pnpm', ['run', 'proof:live-scene-entity-debug-inspector']);
-const runtimeRun = run('pnpm', ['run', 'proof:live-runtime-telemetry-debug-inspector']);
-const commandRun = run('pnpm', ['run', 'proof:selected-backend-command']);
+const identityRun = run('pnpm', ['run', 'evidence', '--', 'live-debug-session-identity']);
+const sceneRun = run('pnpm', ['run', 'evidence', '--', 'live-scene-entity-debug-inspector']);
+const runtimeRun = run('pnpm', ['run', 'evidence', '--', 'live-runtime-telemetry-debug-inspector']);
+const commandRun = run('pnpm', ['run', 'evidence', '--', 'selected-backend-command']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
 const workspaceResult = loadStudioGameWorkspaceManifest({
@@ -202,7 +202,7 @@ const artifact = {
   artifactKind: 'studio_live_debug_command_proposals',
   artifactVersion: 'studio-live-debug-command-proposals-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:live-debug-command-proposals',
+  command: 'pnpm run evidence -- live-debug-command-proposals',
   generatedFrom: {
     liveDebugSessionIdentityArtifactHash: identityArtifact.artifactHash,
     sceneEntityInspectorArtifactHash: sceneArtifact.artifactHash,

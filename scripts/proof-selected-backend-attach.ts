@@ -207,7 +207,7 @@ try {
     artifactKind: 'studio_selected_backend_attach_proof',
     artifactVersion: 'studio-selected-backend-attach-proof.v0',
     generatedAt: 'deterministic-as-structure-only',
-    command: 'pnpm run proof:selected-backend-attach',
+    command: 'pnpm run evidence -- selected-backend-attach',
     demoRuntime: {
       cwd: relative(repoRoot, demoRoot),
       endpoint: listening.endpoint,

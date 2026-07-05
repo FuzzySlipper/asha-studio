@@ -12,7 +12,7 @@
     },
     "proof:asset-load": {
       "status": "retired_slice_proof",
-      "note": "Older demo-asset slice proof name. Current runnable catalog/asset coverage is through proof:catalog-workflow-m3 and package scripts."
+      "note": "Older demo-asset slice proof name. Current runnable catalog/asset coverage is through pnpm run evidence -- catalog-workflow-m3 and package scripts."
     },
     "proof:browser": {
       "status": "retired_visual_proof",

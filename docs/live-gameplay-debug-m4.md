@@ -8,16 +8,16 @@ into runtime authority or adding private command hatches.
 
 ## Scope
 
-- Live session identity and freshness metadata: `pnpm run proof:live-debug-session-identity`
-- Live scene/entity debug inspector: `pnpm run proof:live-scene-entity-debug-inspector`
-- Live asset/resource debug inspector: `pnpm run proof:live-asset-resource-debug-inspector`
-- Live runtime/telemetry debug inspector: `pnpm run proof:live-runtime-telemetry-debug-inspector`
-- Bounded live debug command proposals: `pnpm run proof:live-debug-command-proposals`
-- Milestone aggregate gate: `pnpm run proof:live-gameplay-debug-m4`
+- Live session identity and freshness metadata: `pnpm run evidence -- live-debug-session-identity`
+- Live scene/entity debug inspector: `pnpm run evidence -- live-scene-entity-debug-inspector`
+- Live asset/resource debug inspector: `pnpm run evidence -- live-asset-resource-debug-inspector`
+- Live runtime/telemetry debug inspector: `pnpm run evidence -- live-runtime-telemetry-debug-inspector`
+- Bounded live debug command proposals: `pnpm run evidence -- live-debug-command-proposals`
+- Milestone aggregate gate: `pnpm run evidence -- live-gameplay-debug-m4`
 
 ## Reviewer Artifact
 
-`pnpm run proof:live-gameplay-debug-m4` regenerates:
+`pnpm run evidence -- live-gameplay-debug-m4` regenerates:
 
 `artifacts/live-gameplay-debug-m4/latest/index.json`
 

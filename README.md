@@ -30,16 +30,21 @@ pnpm install
 pnpm run dev
 pnpm run check:docs-scripts
 pnpm run verify
-pnpm run proof:v2-live-backend-evidence
+pnpm run evidence:v2-live-backend
 ```
 
-The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
+See `docs/studio-scripts.md` for the product/evidence script split. Product
+workflow commands (`dev`, `build`, `check`, `verify`) are the normal Studio
+surface; evidence generators run through `pnpm run evidence -- <name>` or a
+small number of explicit evidence aliases.
+
+The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker reads ASHA's public-surface manifest at `/home/dev/asha/harness/public-surface/ts-packages.json` for the `asha-studio` consumer role, then allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
 
 ## Boundary policy
 
-`boundary-policy.json` is the machine-readable import/dependency policy used by `pnpm run check:boundaries`.
+`boundary-policy.json` is the local boundary configuration used by `pnpm run check:boundaries`; ASHA package allow/deny policy comes from the engine manifest it references.
 
-Current source imports may use only the public package roots approved in `boundary-policy.json`: `@asha/command-registry`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, and `@asha/runtime-bridge`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
+Current source imports may use only the public package roots approved for `asha-studio` in the ASHA manifest: `@asha/command-registry`, `@asha/catalog-core`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, `@asha/runtime-bridge`, and `@asha/ui-dom`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
 
@@ -201,13 +206,13 @@ pnpm run check:boundaries
 pnpm run check:docs-scripts
 pnpm run test
 pnpm run build
-pnpm run proof:v2-live-backend-evidence
+pnpm run evidence:v2-live-backend
 git diff --check
 ```
 
 ## Known limitations
 
-- Real in V2 selected-backend path: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; runtime bridge readiness gate; shared GUI/agent command timeline; visible viewport/editor proof surfaces; public `@asha/runtime-bridge`/`@asha/devtools` selected-backend attach evidence; accepted/rejected native command proposal readback; replay/evidence refs; and `pnpm run proof:v2-live-backend-evidence` as the closeout proof command.
+- Real in V2 selected-backend path: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; runtime bridge readiness gate; shared GUI/agent command timeline; visible viewport/editor proof surfaces; public `@asha/runtime-bridge`/`@asha/devtools` selected-backend attach evidence; accepted/rejected native command proposal readback; replay/evidence refs; and `pnpm run evidence -- v2-live-backend-evidence` as the closeout proof command.
 - Still reference/projection-only outside the selected-backend proof: durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, performance evidence, and WASM authority.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser/V2 proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.

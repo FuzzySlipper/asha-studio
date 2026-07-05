@@ -35,7 +35,7 @@ function verifyArtifactHash(artifact: any): boolean {
   return artifactHash === sha256Json(withoutHash);
 }
 
-const indexRun = run('pnpm', ['run', 'proof:author-runtime-roundtrip-index']);
+const indexRun = run('pnpm', ['run', 'evidence', '--', 'author-runtime-roundtrip-index']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
 const absoluteIndexPath = join(repoRoot, indexPath);
@@ -72,7 +72,7 @@ const artifactBody = {
   artifactKind: 'studio_author_runtime_roundtrip_m5',
   artifactVersion: 'studio-author-runtime-roundtrip-m5.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:author-runtime-roundtrip-m5',
+  command: 'pnpm run evidence -- author-runtime-roundtrip-m5',
   commandRuns: [indexRun, boundaryRun],
   milestone: {
     parentTask: 'asha#3733',

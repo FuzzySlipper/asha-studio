@@ -42,8 +42,8 @@ function readArtifact(path: string): any {
   return artifact;
 }
 
-run('pnpm', ['run', 'proof:selected-backend-attach']);
-run('pnpm', ['run', 'proof:selected-backend-browser-smoke']);
+run('pnpm', ['run', 'evidence', '--', 'selected-backend-attach']);
+run('pnpm', ['run', 'evidence', '--', 'selected-backend-browser-smoke']);
 
 const attach = readArtifact(sourcePaths.attach);
 const command = readArtifact(sourcePaths.command);
@@ -78,7 +78,7 @@ const diagnostics = [
 const aggregate = {
   artifactKind: 'studio_v2_live_backend_evidence',
   artifactVersion: 'studio-v2-live-backend-evidence.v0',
-  command: 'pnpm run proof:v2-live-backend-evidence',
+  command: 'pnpm run evidence -- v2-live-backend-evidence',
   generatedAt: 'deterministic-as-structure-only',
   workspace: {
     gameId: command.workspace.gameId,

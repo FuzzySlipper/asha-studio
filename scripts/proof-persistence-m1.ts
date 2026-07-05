@@ -45,9 +45,9 @@ function loadArtifact(path: string, expectedKind: string): {
   return { path, artifact, fileHash: sha256(text), artifactHash: artifact.artifactHash as string };
 }
 
-const openRun = run('pnpm', ['run', 'proof:workspace-open-read']);
-const sceneRun = run('pnpm', ['run', 'proof:scene-save-roundtrip']);
-const catalogRun = run('pnpm', ['run', 'proof:catalog-save-roundtrip']);
+const openRun = run('pnpm', ['run', 'evidence', '--', 'workspace-open-read']);
+const sceneRun = run('pnpm', ['run', 'evidence', '--', 'scene-save-roundtrip']);
+const catalogRun = run('pnpm', ['run', 'evidence', '--', 'catalog-save-roundtrip']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
 const open = loadArtifact('artifacts/workspace-open-read-proof/latest/index.json', 'studio_workspace_open_read_proof');
@@ -62,7 +62,7 @@ const artifactBody = {
   artifactKind: 'studio_persistence_m1_proof',
   artifactVersion: 'studio-persistence-m1-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:persistence-m1',
+  command: 'pnpm run evidence -- persistence-m1',
   childArtifacts: [
     { kind: open.artifact.artifactKind, path: open.path, fileHash: open.fileHash, artifactHash: open.artifactHash },
     { kind: scene.artifact.artifactKind, path: scene.path, fileHash: scene.fileHash, artifactHash: scene.artifactHash },

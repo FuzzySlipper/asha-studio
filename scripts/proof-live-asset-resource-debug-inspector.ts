@@ -86,7 +86,7 @@ function inventoryFromCatalog(catalog: AshaGameAssetCatalog, catalogHash: string
   return loaded.inventory;
 }
 
-const identityRun = run('pnpm', ['run', 'proof:live-debug-session-identity']);
+const identityRun = run('pnpm', ['run', 'evidence', '--', 'live-debug-session-identity']);
 const identityText = readFileSync(join(repoRoot, identityArtifactPath), 'utf8');
 const identityArtifact = JSON.parse(identityText);
 assert.equal(identityArtifact.artifactKind, 'studio_live_debug_session_identity_proof');
@@ -126,7 +126,7 @@ const artifactBody = {
   artifactKind: 'studio_live_asset_resource_debug_inspector_proof',
   artifactVersion: 'studio-live-asset-resource-debug-inspector-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:live-asset-resource-debug-inspector',
+  command: 'pnpm run evidence -- live-asset-resource-debug-inspector',
   commandOutputs: [
     { command: identityRun.command, stdout: identityRun.stdout, stderr: identityRun.stderr },
   ],

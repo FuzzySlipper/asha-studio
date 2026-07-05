@@ -46,7 +46,7 @@ function run(command: string, args: readonly string[]): string {
   return result.stdout;
 }
 
-run('pnpm', ['run', 'proof:selected-backend-command']);
+run('pnpm', ['run', 'evidence', '--', 'selected-backend-command']);
 assert.equal(existsSync(commandProofPath), true, 'selected backend command proof must exist');
 
 const commandProof = readJson(commandProofPath);
@@ -289,7 +289,7 @@ assert.ok(statSync(screenshotPath).size > 1024, 'browser screenshot must be non-
 const browserSmokeArtifact = {
   artifactKind: 'studio_live_backend_browser_smoke',
   artifactVersion: 'studio-live-backend-browser-smoke.v0',
-  command: 'pnpm run proof:selected-backend-browser-smoke',
+  command: 'pnpm run evidence -- selected-backend-browser-smoke',
   generatedAt: 'deterministic-as-structure-only',
   sourceArtifact: {
     path: 'artifacts/selected-backend-command-proof/latest/index.json',

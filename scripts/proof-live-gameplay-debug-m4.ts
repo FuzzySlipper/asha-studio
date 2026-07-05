@@ -50,11 +50,11 @@ function readArtifact(path: string): any {
 }
 
 const commandRuns = [
-  run('pnpm', ['run', 'proof:live-debug-session-identity']),
-  run('pnpm', ['run', 'proof:live-scene-entity-debug-inspector']),
-  run('pnpm', ['run', 'proof:live-asset-resource-debug-inspector']),
-  run('pnpm', ['run', 'proof:live-runtime-telemetry-debug-inspector']),
-  run('pnpm', ['run', 'proof:live-debug-command-proposals']),
+  run('pnpm', ['run', 'evidence', '--', 'live-debug-session-identity']),
+  run('pnpm', ['run', 'evidence', '--', 'live-scene-entity-debug-inspector']),
+  run('pnpm', ['run', 'evidence', '--', 'live-asset-resource-debug-inspector']),
+  run('pnpm', ['run', 'evidence', '--', 'live-runtime-telemetry-debug-inspector']),
+  run('pnpm', ['run', 'evidence', '--', 'live-debug-command-proposals']),
   run('pnpm', ['run', 'check:boundaries']),
 ];
 
@@ -127,7 +127,7 @@ const sourceArtifacts = [
 const aggregate = {
   artifactKind: 'studio_live_gameplay_debug_m4',
   artifactVersion: 'studio-live-gameplay-debug-m4.v0',
-  command: 'pnpm run proof:live-gameplay-debug-m4',
+  command: 'pnpm run evidence -- live-gameplay-debug-m4',
   generatedAt: 'deterministic-as-structure-only',
   commandRuns,
   liveSession: {

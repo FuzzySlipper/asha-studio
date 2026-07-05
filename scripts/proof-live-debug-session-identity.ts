@@ -54,7 +54,7 @@ function readArtifact(path: string, root = repoRoot): {
   return { path, text, artifact, fileHash: sha256Text(text), artifactHash: artifact.artifactHash as string };
 }
 
-const attachRun = run('pnpm', ['run', 'proof:selected-backend-attach']);
+const attachRun = run('pnpm', ['run', 'evidence', '--', 'selected-backend-attach']);
 const browserRun = run('npm', ['run', 'browser:interactive-proof'], demoRoot);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
@@ -115,7 +115,7 @@ const artifactBody = {
   artifactKind: 'studio_live_debug_session_identity_proof',
   artifactVersion: 'studio-live-debug-session-identity-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:live-debug-session-identity',
+  command: 'pnpm run evidence -- live-debug-session-identity',
   commandOutputs: [
     { command: attachRun.command, stdout: attachRun.stdout, stderr: attachRun.stderr },
     { command: browserRun.command, stdout: browserRun.stdout, stderr: browserRun.stderr },

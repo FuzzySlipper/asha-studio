@@ -81,7 +81,7 @@ const artifactBody = {
   artifactKind: 'studio_proper_demo_evidence_index',
   artifactVersion: 'studio-proper-demo-evidence-index.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:proper-demo-evidence-index',
+  command: 'pnpm run evidence -- proper-demo-evidence-index',
   sourceArtifacts: [
     {
       kind: verifier.artifactKind,

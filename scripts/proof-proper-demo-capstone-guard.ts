@@ -41,7 +41,7 @@ function verifyArtifactHash(artifact: any): boolean {
   return artifactHash === sha256Json(withoutHash);
 }
 
-const indexRun = run('pnpm', ['run', 'proof:proper-demo-evidence-index']);
+const indexRun = run('pnpm', ['run', 'evidence', '--', 'proper-demo-evidence-index']);
 const studioBoundaryRun = run('pnpm', ['run', 'check:boundaries']);
 const demoBoundaryRun = run('npm', ['run', 'check:boundary'], demoRoot);
 
@@ -103,7 +103,7 @@ const artifactBody = {
   artifactKind: 'studio_proper_demo_capstone_guard',
   artifactVersion: 'studio-proper-demo-capstone-guard.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:proper-demo-capstone-guard',
+  command: 'pnpm run evidence -- proper-demo-capstone-guard',
   commandRuns: [indexRun, studioBoundaryRun, demoBoundaryRun],
   sourceArtifacts: [
     {

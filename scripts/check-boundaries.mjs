@@ -5,6 +5,8 @@ const workspaceRoot = process.cwd();
 const boundaryPolicy = JSON.parse(
   readFileSync(join(workspaceRoot, 'boundary-policy.json'), 'utf8'),
 );
+const packageJson = JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8'));
+const publicSurfacePolicy = loadPublicSurfacePolicy();
 
 const sourceRoots = ['apps', 'libs', 'scripts', 'test'];
 const skippedDirectories = new Set([
@@ -72,7 +74,84 @@ function readSourceFiles() {
 }
 
 function isAllowedAshaImport(importPath) {
-  return boundaryPolicy.allowedSourceImports.includes(importPath);
+  return publicSurfacePolicy.approvedSpecifiers.has(importPath);
+}
+
+function ashaPackageRoot(specifier) {
+  return specifier.split('/').slice(0, 2).join('/');
+}
+
+function globFragmentToRegExp(fragment) {
+  const escaped = fragment
+    .split('*')
+    .map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+    .join('[^\\n"\']*');
+  return new RegExp(escaped);
+}
+
+function loadPublicSurfacePolicy() {
+  const consumerRole = boundaryPolicy.consumerRole ?? 'asha-studio';
+  const manifestPath = join(workspaceRoot, boundaryPolicy.publicSurfaceManifest ?? '../asha/harness/public-surface/ts-packages.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const consumerPolicy = (manifest.consumerPolicies ?? []).find((entry) => entry.consumerRole === consumerRole);
+  if (consumerPolicy === undefined) {
+    throw new Error(`ASHA public-surface manifest ${manifestPath} has no consumer policy for ${consumerRole}`);
+  }
+  const approvedPackageRoots = new Set(consumerPolicy.approvedPackageRoots ?? []);
+  const approvedSpecifiers = new Set(approvedPackageRoots);
+  for (const specifier of consumerPolicy.approvedPackageSubpaths ?? []) {
+    if (typeof specifier === 'string') {
+      approvedSpecifiers.add(specifier);
+    }
+  }
+  return {
+    approvedPackageRoots,
+    approvedSpecifiers,
+    forbiddenPackageRoots: new Set(consumerPolicy.forbiddenPackageRoots ?? []),
+    forbiddenSpecifierPatterns: consumerPolicy.forbiddenSpecifierPatterns ?? [],
+  };
+}
+
+function dependencySections() {
+  return [
+    packageJson.dependencies ?? {},
+    packageJson.devDependencies ?? {},
+    packageJson.peerDependencies ?? {},
+    packageJson.optionalDependencies ?? {},
+  ];
+}
+
+function findDependencyViolations() {
+  const violations = [];
+  const allowedLinks = boundaryPolicy.allowedLocalPackageLinks ?? {};
+  const requiredLinks = boundaryPolicy.requiredLocalPackageLinks ?? {};
+
+  for (const [packageName, expectedLink] of Object.entries(requiredLinks)) {
+    const actual = dependencySections()
+      .map(section => section[packageName])
+      .find(value => value !== undefined);
+    if (actual !== expectedLink) {
+      violations.push(`${packageName} must use approved local package link ${expectedLink}, got ${actual ?? 'missing'}`);
+    }
+  }
+
+  for (const section of dependencySections()) {
+    for (const [packageName, spec] of Object.entries(section)) {
+      if (!packageName.startsWith('@asha/')) {
+        continue;
+      }
+      if (!publicSurfacePolicy.approvedPackageRoots.has(packageName)) {
+        violations.push(`non-approved ASHA package dependency for ${boundaryPolicy.consumerRole}: ${packageName}`);
+        continue;
+      }
+      const expectedLink = allowedLinks[packageName] ?? `link:../asha/ts/packages/${packageName.replace('@asha/', '')}`;
+      if (spec !== expectedLink) {
+        violations.push(`${packageName} must use approved local package link ${expectedLink}, got ${spec}`);
+      }
+    }
+  }
+
+  return violations;
 }
 
 function findImportViolations(filePath, fileText) {
@@ -83,7 +162,12 @@ function findImportViolations(filePath, fileText) {
   while (match !== null) {
     const importPath = match[1] ?? match[2];
     if (!isAllowedAshaImport(importPath)) {
-      violations.push(`forbidden ASHA package import: ${importPath}`);
+      const packageRoot = ashaPackageRoot(importPath);
+      if (publicSurfacePolicy.forbiddenPackageRoots.has(packageRoot)) {
+        violations.push(`forbidden ASHA package import: ${importPath}`);
+      } else {
+        violations.push(`non-approved ASHA package import for ${boundaryPolicy.consumerRole}: ${importPath}`);
+      }
     }
     match = importPattern.exec(fileText);
   }
@@ -100,6 +184,13 @@ function findTextViolations(fileText) {
     }
   }
 
+  for (const pattern of publicSurfacePolicy.forbiddenSpecifierPatterns) {
+    const regex = globFragmentToRegExp(pattern);
+    if (regex.test(fileText)) {
+      violations.push(`forbidden ASHA public-surface pattern: ${pattern}`);
+    }
+  }
+
   for (const forbiddenPackage of boundaryPolicy.forbiddenPackages) {
     if (fileText.includes(forbiddenPackage)) {
       violations.push(`forbidden package reference: ${forbiddenPackage}`);
@@ -110,6 +201,10 @@ function findTextViolations(fileText) {
 }
 
 const violations = [];
+
+for (const violation of findDependencyViolations()) {
+  violations.push(`package.json: ${violation}`);
+}
 
 for (const filePath of readSourceFiles()) {
   const relativePath = relative(workspaceRoot, filePath);

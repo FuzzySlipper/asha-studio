@@ -114,7 +114,7 @@ const fixtureBody = {
   fixtureKind: 'studio_authored_roundtrip_fixture',
   fixtureVersion: 'studio-authored-roundtrip-fixture.v0',
   generatedAt: 'deterministic-as-structure-only',
-  producedBy: 'pnpm run proof:authored-roundtrip-fixture',
+  producedBy: 'pnpm run evidence -- authored-roundtrip-fixture',
   workspace: {
     sceneId: appliedScene.workspace.scene.sceneId,
     selectedEntityId: appliedScene.workspace.selectedEntityId,
@@ -164,7 +164,7 @@ const artifactBody = {
   artifactKind: 'studio_authored_roundtrip_fixture_proof',
   artifactVersion: 'studio-authored-roundtrip-fixture-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:authored-roundtrip-fixture',
+  command: 'pnpm run evidence -- authored-roundtrip-fixture',
   fixture: {
     path: relative(repoRoot, fixturePath),
     fixtureHash: fixture.fixtureHash,

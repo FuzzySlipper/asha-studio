@@ -130,7 +130,7 @@ const artifactBody = {
   artifactKind: 'studio_workspace_open_read_proof',
   artifactVersion: 'studio-workspace-open-read-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:workspace-open-read',
+  command: 'pnpm run evidence -- workspace-open-read',
   demoWorkspace: {
     cwd: relative(repoRoot, demoRoot),
     manifestPath,

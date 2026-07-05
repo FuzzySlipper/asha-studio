@@ -83,11 +83,11 @@ function allStrings(value: unknown): string {
 }
 
 const commandRuns = [
-  run('pnpm', ['run', 'proof:persistence-m1']),
-  run('pnpm', ['run', 'proof:authoring-ux-m2']),
+  run('pnpm', ['run', 'evidence', '--', 'persistence-m1']),
+  run('pnpm', ['run', 'evidence', '--', 'authoring-ux-m2']),
   run('npm', ['run', 'browser:interactive-proof'], demoRoot),
-  run('pnpm', ['run', 'proof:live-gameplay-debug-m4']),
-  run('pnpm', ['run', 'proof:author-runtime-roundtrip-m5']),
+  run('pnpm', ['run', 'evidence', '--', 'live-gameplay-debug-m4']),
+  run('pnpm', ['run', 'evidence', '--', 'author-runtime-roundtrip-m5']),
   run('pnpm', ['run', 'check:boundaries']),
   run('npm', ['run', 'check:boundary'], demoRoot),
 ];
@@ -200,7 +200,7 @@ const artifactBody = {
   artifactKind: 'studio_proper_demo_capstone_verifier',
   artifactVersion: 'studio-proper-demo-capstone-verifier.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:proper-demo-capstone-verifier',
+  command: 'pnpm run evidence -- proper-demo-capstone-verifier',
   commandRuns,
   campaign: {
     projectId: 'asha',

@@ -39,7 +39,7 @@ function run(command: string, args: readonly string[]): {
   return { command: [command, ...args].join(' '), stdout: result.stdout.trim(), stderr: result.stderr.trim() };
 }
 
-const identityRun = run('pnpm', ['run', 'proof:live-debug-session-identity']);
+const identityRun = run('pnpm', ['run', 'evidence', '--', 'live-debug-session-identity']);
 const identityText = readFileSync(join(repoRoot, identityArtifactPath), 'utf8');
 const identityArtifact = JSON.parse(identityText);
 assert.equal(identityArtifact.artifactKind, 'studio_live_debug_session_identity_proof');
@@ -75,7 +75,7 @@ const artifactBody = {
   artifactKind: 'studio_live_scene_entity_debug_inspector_proof',
   artifactVersion: 'studio-live-scene-entity-debug-inspector-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:live-scene-entity-debug-inspector',
+  command: 'pnpm run evidence -- live-scene-entity-debug-inspector',
   commandOutputs: [
     { command: identityRun.command, stdout: identityRun.stdout, stderr: identityRun.stderr },
   ],

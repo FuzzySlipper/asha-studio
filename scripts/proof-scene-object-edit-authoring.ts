@@ -96,7 +96,7 @@ const artifactBody = {
   artifactKind: 'studio_scene_object_edit_authoring_proof',
   artifactVersion: 'studio-scene-object-edit-authoring-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:scene-object-edit-authoring',
+  command: 'pnpm run evidence -- scene-object-edit-authoring',
   target: {
     objectId: targetId,
     beforeLabel: beforeNode.label,

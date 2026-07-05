@@ -268,7 +268,7 @@ const artifact = {
   artifactKind: 'studio_catalog_workflow_m3_browser_proof',
   artifactVersion: 'studio-catalog-workflow-m3-browser-proof.v0',
   generatedAt: new Date().toISOString(),
-  command: 'pnpm run proof:catalog-workflow-m3',
+  command: 'pnpm run evidence -- catalog-workflow-m3',
   readout,
   browser: {
     htmlPath: 'artifacts/catalog-workflow-m3/latest/index.html',

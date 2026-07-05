@@ -41,7 +41,7 @@ function verifyHashedObject(value: any, hashKey: string): boolean {
   return recordedHash === sha256Json(withoutHash);
 }
 
-const fixtureRun = run('pnpm', ['run', 'proof:authored-roundtrip-fixture'], repoRoot);
+const fixtureRun = run('pnpm', ['run', 'evidence', '--', 'authored-roundtrip-fixture'], repoRoot);
 const demoRun = run('npm', ['run', 'roundtrip:runtime-load'], demoRoot);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries'], repoRoot);
 
@@ -73,7 +73,7 @@ const artifactBody = {
   artifactKind: 'studio_authored_browser_runtime_load_proof',
   artifactVersion: 'studio-authored-browser-runtime-load-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:authored-browser-runtime-load',
+  command: 'pnpm run evidence -- authored-browser-runtime-load',
   commandRuns: [
     fixtureRun.command,
     demoRun.command,

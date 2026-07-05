@@ -268,7 +268,7 @@ const artifactBody = {
   artifactKind: 'studio_catalog_save_roundtrip_proof',
   artifactVersion: 'studio-catalog-save-roundtrip-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:catalog-save-roundtrip',
+  command: 'pnpm run evidence -- catalog-save-roundtrip',
   demoWorkspace: {
     cwd: relative(repoRoot, demoRoot),
     manifestPath,

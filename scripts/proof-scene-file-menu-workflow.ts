@@ -371,7 +371,7 @@ const artifactBody = {
   artifactKind: 'studio_scene_file_menu_browser_proof',
   artifactVersion: 'studio-scene-file-menu-browser-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:scene-file-menu-workflow',
+  command: 'pnpm run evidence -- scene-file-menu-workflow',
   browser: {
     executable: '/usr/bin/chromium',
     mode: 'headless',

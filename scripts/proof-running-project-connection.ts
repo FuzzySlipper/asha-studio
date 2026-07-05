@@ -54,7 +54,7 @@ function run(command: string, args: readonly string[]): {
   return { command: [command, ...args].join(' '), stdout: result.stdout.trim(), stderr: result.stderr.trim() };
 }
 
-const attachRun = run('pnpm', ['run', 'proof:selected-backend-attach']);
+const attachRun = run('pnpm', ['run', 'evidence', '--', 'selected-backend-attach']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 assert.equal(existsSync(attachPath), true);
 const attachText = readFileSync(attachPath, 'utf8');
@@ -281,7 +281,7 @@ const artifactBody = {
   artifactKind: 'studio_running_project_connection_browser_proof',
   artifactVersion: 'studio-running-project-connection-browser-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:running-project-connection',
+  command: 'pnpm run evidence -- running-project-connection',
   commandOutputs: [attachRun, boundaryRun],
   browser: {
     executable: '/usr/bin/chromium',

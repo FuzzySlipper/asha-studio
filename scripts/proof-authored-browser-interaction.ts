@@ -32,7 +32,7 @@ function run(command: string, args: readonly string[], cwd: string) {
   return `${command} ${args.join(' ')}`;
 }
 
-const loadRun = run('pnpm', ['run', 'proof:authored-browser-runtime-load'], repoRoot);
+const loadRun = run('pnpm', ['run', 'evidence', '--', 'authored-browser-runtime-load'], repoRoot);
 const interactionRun = run('npm', ['run', 'roundtrip:browser-interaction'], demoRoot);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries'], repoRoot);
 
@@ -64,7 +64,7 @@ const artifactBody = {
   artifactKind: 'studio_authored_browser_interaction_proof',
   artifactVersion: 'studio-authored-browser-interaction-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:authored-browser-interaction',
+  command: 'pnpm run evidence -- authored-browser-interaction',
   commandRuns: [loadRun, interactionRun, boundaryRun],
   sourceArtifacts: [
     {

@@ -10,16 +10,16 @@ freeform command hatches.
 
 ## Scope
 
-- Studio-authored scene/catalog fixture: `pnpm run proof:authored-roundtrip-fixture`
-- Browser runtime load of authored content: `pnpm run proof:authored-browser-runtime-load`
-- Browser interaction with authored content: `pnpm run proof:authored-browser-interaction`
-- Studio debug readback of browser-mutated authored content: `pnpm run proof:authored-studio-debug-readback`
-- Evidence index over the child proof chain: `pnpm run proof:author-runtime-roundtrip-index`
-- Milestone aggregate gate: `pnpm run proof:author-runtime-roundtrip-m5`
+- Studio-authored scene/catalog fixture: `pnpm run evidence -- authored-roundtrip-fixture`
+- Browser runtime load of authored content: `pnpm run evidence -- authored-browser-runtime-load`
+- Browser interaction with authored content: `pnpm run evidence -- authored-browser-interaction`
+- Studio debug readback of browser-mutated authored content: `pnpm run evidence -- authored-studio-debug-readback`
+- Evidence index over the child proof chain: `pnpm run evidence -- author-runtime-roundtrip-index`
+- Milestone aggregate gate: `pnpm run evidence -- author-runtime-roundtrip-m5`
 
 ## Reviewer Artifact
 
-`pnpm run proof:author-runtime-roundtrip-m5` regenerates:
+`pnpm run evidence -- author-runtime-roundtrip-m5` regenerates:
 
 `artifacts/author-runtime-roundtrip-m5/latest/index.json`
 

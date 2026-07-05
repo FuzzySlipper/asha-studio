@@ -171,7 +171,7 @@ const artifactBody = {
   artifactKind: 'studio_authored_state_panel_reflection_proof',
   artifactVersion: 'studio-authored-state-panel-reflection-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:authored-state-panel-reflection',
+  command: 'pnpm run evidence -- authored-state-panel-reflection',
   scene: {
     objectId: targetId,
     savedDocumentHash: sha256Json(transformed.workspace.flatSceneDocument),

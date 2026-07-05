@@ -523,7 +523,7 @@ test('workspace open/read model fails closed on missing manifest and unsupported
 });
 
 test('workspace open/read proof command emits bounded source evidence', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:workspace-open-read'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'workspace-open-read'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -645,7 +645,7 @@ test('scene file save and save-as commands validate bounded source readback', ()
 });
 
 test('scene file menu browser proof captures structured open save workflow', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:scene-file-menu-workflow'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-file-menu-workflow'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -670,7 +670,7 @@ test('scene file menu browser proof captures structured open save workflow', () 
 });
 
 test('scene save roundtrip proof command writes validates reopens and cleans up', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:scene-save-roundtrip'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-save-roundtrip'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -700,7 +700,7 @@ test('scene save roundtrip proof command writes validates reopens and cleans up'
 
 test('catalog save roundtrip proof command writes validates reopens and restores', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
-  const result = spawnSync('pnpm', ['run', 'proof:catalog-save-roundtrip'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-save-roundtrip'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -728,7 +728,7 @@ test('catalog save roundtrip proof command writes validates reopens and restores
 });
 
 test('persistence M1 proof command aggregates workspace scene and catalog gates', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:persistence-m1'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'persistence-m1'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -2002,7 +2002,7 @@ test('scene object create authoring workflow rejects duplicate and stale creatio
 });
 
 test('scene object create authoring proof command records operation and readout hashes', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:scene-object-create-authoring'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-object-create-authoring'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -2046,7 +2046,7 @@ test('scene object edit authoring workflow rejects unsupported fields', () => {
 });
 
 test('scene object edit authoring proof command records edit hashes and diagnostics', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:scene-object-edit-authoring'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-object-edit-authoring'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -2570,7 +2570,7 @@ test('authored state panel reflection proves saved scene and catalog readouts ar
 
 test('catalog entry authoring UI proof command records persisted readout and negatives', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
-  const result = spawnSync('pnpm', ['run', 'proof:catalog-entry-authoring-ui'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-entry-authoring-ui'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -2596,7 +2596,7 @@ test('catalog entry authoring UI proof command records persisted readout and neg
 
 test('authored state panel reflection proof command records visible saved panel readouts', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
-  const result = spawnSync('pnpm', ['run', 'proof:authored-state-panel-reflection'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-state-panel-reflection'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -2621,7 +2621,7 @@ test('authored state panel reflection proof command records visible saved panel 
 
 test('authoring UX M2 aggregate proof gate records child evidence and guards', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
-  const result = spawnSync('pnpm', ['run', 'proof:authoring-ux-m2'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authoring-ux-m2'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -2646,14 +2646,14 @@ test('authoring UX M2 aggregate proof gate records child evidence and guards', (
 
 test('Studio authoring M2 closeout doc points at the aggregate proof gate', () => {
   const doc = readFileSync(join(repoRoot, 'docs/studio-authoring-m2.md'), 'utf8');
-  assert.match(doc, /pnpm run proof:authoring-ux-m2/);
+  assert.match(doc, /pnpm run evidence -- authoring-ux-m2/);
   assert.match(doc, /artifacts\/authoring-ux-m2-proof\/latest\/index\.json/);
   assert.match(doc, /not claim runtime authority/);
 });
 
 test('authored round-trip fixture proof writes deterministic scene and catalog fixture', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
-  const result = spawnSync('pnpm', ['run', 'proof:authored-roundtrip-fixture'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-roundtrip-fixture'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -2685,7 +2685,7 @@ test('authored round-trip fixture proof writes deterministic scene and catalog f
 });
 
 test('authored browser runtime load proof consumes demo browser readback', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:authored-browser-runtime-load'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-browser-runtime-load'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 300000,
@@ -2710,7 +2710,7 @@ test('authored browser runtime load proof consumes demo browser readback', () =>
 });
 
 test('authored browser interaction proof records DOM input against loaded content', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:authored-browser-interaction'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-browser-interaction'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 360000,
@@ -2812,7 +2812,7 @@ test('authored browser debug read model projects browser selection into Studio d
 });
 
 test('authored Studio debug readback proof inspects browser-mutated authored content', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:authored-studio-debug-readback'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-studio-debug-readback'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 480000,
@@ -2839,7 +2839,7 @@ test('authored Studio debug readback proof inspects browser-mutated authored con
 });
 
 test('author-to-runtime round-trip evidence index records current child proof chain', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:author-runtime-roundtrip-index'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'author-runtime-roundtrip-index'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 600000,
@@ -2866,7 +2866,7 @@ test('author-to-runtime round-trip evidence index records current child proof ch
 });
 
 test('author-to-runtime round-trip M5 aggregate proof gate records milestone coverage', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:author-runtime-roundtrip-m5'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'author-runtime-roundtrip-m5'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 660000,
@@ -2895,7 +2895,7 @@ test('author-to-runtime round-trip M5 aggregate proof gate records milestone cov
 test('Author-to-runtime M5 closeout doc points at aggregate proof gate', () => {
   const doc = readFileSync(join(repoRoot, 'docs/author-runtime-roundtrip-m5.md'), 'utf8');
   assert.match(doc, /Task: `asha#3733`/);
-  assert.match(doc, /pnpm run proof:author-runtime-roundtrip-m5/);
+  assert.match(doc, /pnpm run evidence -- author-runtime-roundtrip-m5/);
   assert.match(doc, /artifacts\/author-runtime-roundtrip-m5\/latest\/index\.json/);
   assert.match(doc, /artifacts\/author-runtime-roundtrip-index\/latest\/index\.json/);
   assert.match(doc, /does not claim Studio runtime authority/);
@@ -2903,7 +2903,7 @@ test('Author-to-runtime M5 closeout doc points at aggregate proof gate', () => {
 });
 
 test('proper demo capstone verifier records end-to-end milestone coverage', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:proper-demo-capstone-verifier'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-capstone-verifier'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 720000,
@@ -2933,14 +2933,14 @@ test('proper demo capstone verifier records end-to-end milestone coverage', () =
 });
 
 test('proper demo evidence index records final capstone source artifact graph', () => {
-  const verifier = spawnSync('pnpm', ['run', 'proof:proper-demo-capstone-verifier'], {
+  const verifier = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-capstone-verifier'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 720000,
   });
   assert.equal(verifier.status, 0, verifier.stdout + verifier.stderr);
 
-  const result = spawnSync('pnpm', ['run', 'proof:proper-demo-evidence-index'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-evidence-index'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
@@ -2965,14 +2965,14 @@ test('proper demo evidence index records final capstone source artifact graph', 
 });
 
 test('proper demo capstone guard enforces final boundary and non-claim checks', () => {
-  const index = spawnSync('pnpm', ['run', 'proof:proper-demo-evidence-index'], {
+  const index = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-evidence-index'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 120000,
   });
   assert.equal(index.status, 0, index.stdout + index.stderr);
 
-  const result = spawnSync('pnpm', ['run', 'proof:proper-demo-capstone-guard'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-capstone-guard'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 180000,
@@ -3000,9 +3000,9 @@ test('proper demo capstone guard enforces final boundary and non-claim checks', 
 test('proper demo M6 workflow doc points at capstone proof commands', () => {
   const doc = readFileSync(join(repoRoot, 'docs/proper-demo-proof-m6.md'), 'utf8');
   assert.match(doc, /Task: `asha#3734`/);
-  assert.match(doc, /pnpm run proof:proper-demo-capstone-verifier/);
-  assert.match(doc, /pnpm run proof:proper-demo-evidence-index/);
-  assert.match(doc, /pnpm run proof:proper-demo-capstone-guard/);
+  assert.match(doc, /pnpm run evidence -- proper-demo-capstone-verifier/);
+  assert.match(doc, /pnpm run evidence -- proper-demo-evidence-index/);
+  assert.match(doc, /pnpm run evidence -- proper-demo-capstone-guard/);
   assert.match(doc, /artifacts\/proper-demo-capstone-verifier\/latest\/index\.json/);
   assert.match(doc, /artifacts\/proper-demo-evidence-index\/latest\/index\.json/);
   assert.match(doc, /artifacts\/proper-demo-capstone-guard\/latest\/index\.json/);
@@ -3776,7 +3776,7 @@ test('catalog bottom panel exposes human catalog workflow without preview overcl
   assert.equal(panelSource.includes('data-catalog-source-exists'), true);
   assert.equal(doc.includes('Previewable Now'), true);
   assert.equal(doc.includes('not_mesh_material_texture_preview'), true);
-  assert.equal(doc.includes('pnpm run proof:catalog-workflow-m3'), true);
+  assert.equal(doc.includes('pnpm run evidence -- catalog-workflow-m3'), true);
 });
 
 test('viewport raycast debug draws temporary hit markers from view render setting', () => {
@@ -3905,98 +3905,45 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'utf8',
   );
 
+  assert.equal(Object.keys(packageJson.scripts).some(scriptName => scriptName.startsWith('proof:')), false);
+  assert.equal(packageJson.scripts.evidence, 'node scripts/studio-evidence.mjs run');
+  assert.equal(packageJson.scripts['evidence:list'], 'node scripts/studio-evidence.mjs list');
   assert.equal(
-    packageJson.scripts['proof:selected-backend-attach'],
-    'tsx scripts/proof-selected-backend-attach.ts',
+    packageJson.scripts['evidence:v2-live-backend'],
+    'node scripts/studio-evidence.mjs run v2-live-backend-evidence',
   );
-  assert.equal(
-    packageJson.scripts['proof:selected-backend-command'],
-    'tsx scripts/proof-selected-backend-command.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:selected-backend-browser-smoke'],
-    'tsx scripts/proof-selected-backend-browser-smoke.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:scene-file-menu-workflow'],
-    'tsx scripts/proof-scene-file-menu-workflow.ts',
-  );
+  assert.equal(packageJson.scripts['studio:dev'], 'pnpm run dev');
+  assert.equal(packageJson.scripts.check, 'pnpm run lint && pnpm run typecheck && pnpm run test');
   assert.equal(
     packageJson.scripts['dev:files'],
     'tsx scripts/studio-project-file-server.ts',
   );
-  assert.equal(
-    packageJson.scripts['proof:v2-live-backend-evidence'],
-    'tsx scripts/proof-v2-live-backend-evidence.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:authored-roundtrip-fixture'],
-    'tsx scripts/proof-authored-roundtrip-fixture.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:authored-browser-runtime-load'],
-    'tsx scripts/proof-authored-browser-runtime-load.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:authored-browser-interaction'],
-    'tsx scripts/proof-authored-browser-interaction.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:authored-studio-debug-readback'],
-    'tsx scripts/proof-authored-studio-debug-readback.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:author-runtime-roundtrip-index'],
-    'tsx scripts/proof-author-runtime-roundtrip-index.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:author-runtime-roundtrip-m5'],
-    'tsx scripts/proof-author-runtime-roundtrip-m5.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:proper-demo-capstone-verifier'],
-    'tsx scripts/proof-proper-demo-capstone-verifier.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:proper-demo-evidence-index'],
-    'tsx scripts/proof-proper-demo-evidence-index.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:proper-demo-capstone-guard'],
-    'tsx scripts/proof-proper-demo-capstone-guard.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:live-debug-session-identity'],
-    'tsx scripts/proof-live-debug-session-identity.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:live-scene-entity-debug-inspector'],
-    'tsx scripts/proof-live-scene-entity-debug-inspector.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:live-asset-resource-debug-inspector'],
-    'tsx scripts/proof-live-asset-resource-debug-inspector.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:live-runtime-telemetry-debug-inspector'],
-    'tsx scripts/proof-live-runtime-telemetry-debug-inspector.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:live-debug-command-proposals'],
-    'tsx scripts/proof-live-debug-command-proposals.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:live-gameplay-debug-m4'],
-    'tsx scripts/proof-live-gameplay-debug-m4.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:running-project-connection'],
-    'tsx scripts/proof-running-project-connection.ts',
-  );
-  assert.equal(
-    packageJson.scripts['proof:catalog-workflow-m3'],
-    'tsx scripts/proof-catalog-workflow-m3.ts',
-  );
+  for (const evidenceName of [
+    'selected-backend-attach',
+    'selected-backend-command',
+    'selected-backend-browser-smoke',
+    'scene-file-menu-workflow',
+    'v2-live-backend-evidence',
+    'authored-roundtrip-fixture',
+    'authored-browser-runtime-load',
+    'authored-browser-interaction',
+    'authored-studio-debug-readback',
+    'author-runtime-roundtrip-index',
+    'author-runtime-roundtrip-m5',
+    'proper-demo-capstone-verifier',
+    'proper-demo-evidence-index',
+    'proper-demo-capstone-guard',
+    'live-debug-session-identity',
+    'live-scene-entity-debug-inspector',
+    'live-asset-resource-debug-inspector',
+    'live-runtime-telemetry-debug-inspector',
+    'live-debug-command-proposals',
+    'live-gameplay-debug-m4',
+    'running-project-connection',
+    'catalog-workflow-m3',
+  ]) {
+    assert.equal(existsSync(join(repoRoot, 'scripts', `proof-${evidenceName}.ts`)), true);
+  }
   assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
   assert.equal(sceneFileMenuWorkflowSource.includes("artifactKind: 'studio_scene_file_menu_browser_proof'"), true);
@@ -4022,16 +3969,16 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(authoredBrowserInteractionSource.includes('roundtrip:browser-interaction'), true);
   assert.equal(authoredBrowserInteractionSource.includes('authored_selection_readback_matches_runtime_load'), true);
   assert.equal(authoredStudioDebugReadbackSource.includes("artifactKind: 'studio_authored_studio_debug_readback_proof'"), true);
-  assert.equal(authoredStudioDebugReadbackSource.includes('proof:live-gameplay-debug-m4'), true);
+  assert.equal(authoredStudioDebugReadbackSource.includes("'evidence', '--', 'live-gameplay-debug-m4'"), true);
   assert.equal(authoredStudioDebugReadbackSource.includes('browser_selected_authored_object_projected_to_studio_debug'), true);
   assert.equal(authorRuntimeRoundtripIndexSource.includes("artifactKind: 'studio_author_runtime_roundtrip_evidence_index'"), true);
   assert.equal(authorRuntimeRoundtripIndexSource.includes('source_artifact_chain_current'), true);
   assert.equal(authorRuntimeRoundtripIndexSource.includes('stale_source_artifact_hash'), true);
   assert.equal(authorRuntimeRoundtripM5Source.includes("artifactKind: 'studio_author_runtime_roundtrip_m5'"), true);
-  assert.equal(authorRuntimeRoundtripM5Source.includes('proof:author-runtime-roundtrip-index'), true);
+  assert.equal(authorRuntimeRoundtripM5Source.includes("'evidence', '--', 'author-runtime-roundtrip-index'"), true);
   assert.equal(authorRuntimeRoundtripM5Source.includes('authored_object_round_trips_from_studio_to_browser_back_to_studio_debug'), true);
   assert.equal(properDemoCapstoneVerifierSource.includes("artifactKind: 'studio_proper_demo_capstone_verifier'"), true);
-  assert.equal(properDemoCapstoneVerifierSource.includes('proof:proper-demo-capstone-verifier'), true);
+  assert.equal(properDemoCapstoneVerifierSource.includes('pnpm run evidence -- proper-demo-capstone-verifier'), true);
   assert.equal(properDemoCapstoneVerifierSource.includes('negative_marker_only_browser_interaction_failed_closed'), true);
   assert.equal(properDemoEvidenceIndexSource.includes("artifactKind: 'studio_proper_demo_evidence_index'"), true);
   assert.equal(properDemoEvidenceIndexSource.includes('m1_through_m5_evidence_kinds_indexed'), true);
@@ -4066,7 +4013,7 @@ test('selected backend attach proof command has a stable reviewer artifact path'
 });
 
 test('live debug session identity proof command records freshness and child artifacts', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:live-debug-session-identity'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-debug-session-identity'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -4090,7 +4037,7 @@ test('live debug session identity proof command records freshness and child arti
 });
 
 test('live scene/entity debug inspector proof command records selected scene readback', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:live-scene-entity-debug-inspector'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-scene-entity-debug-inspector'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -4113,7 +4060,7 @@ test('live scene/entity debug inspector proof command records selected scene rea
 });
 
 test('live asset/resource debug inspector proof command records selected asset readback', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:live-asset-resource-debug-inspector'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-asset-resource-debug-inspector'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -4137,7 +4084,7 @@ test('live asset/resource debug inspector proof command records selected asset r
 });
 
 test('live runtime/telemetry debug inspector proof command records live metrics', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:live-runtime-telemetry-debug-inspector'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-runtime-telemetry-debug-inspector'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -4160,7 +4107,7 @@ test('live runtime/telemetry debug inspector proof command records live metrics'
 });
 
 test('live debug command proposals proof command records bounded shared command evidence', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:live-debug-command-proposals'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-debug-command-proposals'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 300000,
@@ -4189,7 +4136,7 @@ test('live debug command proposals proof command records bounded shared command 
 });
 
 test('live gameplay debug M4 aggregate proof gate records all child surfaces', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:live-gameplay-debug-m4'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-gameplay-debug-m4'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 420000,
@@ -4215,7 +4162,7 @@ test('live gameplay debug M4 aggregate proof gate records all child surfaces', (
 });
 
 test('running project connection browser proof captures human connect readout', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:running-project-connection'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'running-project-connection'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -4237,7 +4184,7 @@ test('running project connection browser proof captures human connect readout', 
 });
 
 test('catalog workflow M3 browser proof captures human catalog readout', () => {
-  const result = spawnSync('pnpm', ['run', 'proof:catalog-workflow-m3'], {
+  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-workflow-m3'], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 240000,
@@ -4260,10 +4207,10 @@ test('catalog workflow M3 browser proof captures human catalog readout', () => {
 test('Studio live gameplay debug M4 closeout doc points at aggregate proof gate', () => {
   const doc = readFileSync(join(repoRoot, 'docs', 'live-gameplay-debug-m4.md'), 'utf8');
 
-  assert.match(doc, /pnpm run proof:live-gameplay-debug-m4/);
+  assert.match(doc, /pnpm run evidence -- live-gameplay-debug-m4/);
   assert.match(doc, /artifacts\/live-gameplay-debug-m4\/latest\/index\.json/);
-  assert.match(doc, /proof:live-debug-session-identity/);
-  assert.match(doc, /proof:live-debug-command-proposals/);
+  assert.match(doc, /evidence -- live-debug-session-identity/);
+  assert.match(doc, /evidence -- live-debug-command-proposals/);
   assert.match(doc, /no `call\(methodName, json\)` path/);
 });
 

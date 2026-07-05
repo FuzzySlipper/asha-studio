@@ -209,7 +209,7 @@ const artifactBody = {
   artifactKind: 'studio_scene_save_roundtrip_proof',
   artifactVersion: 'studio-scene-save-roundtrip-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:scene-save-roundtrip',
+  command: 'pnpm run evidence -- scene-save-roundtrip',
   demoWorkspace: {
     cwd: relative(repoRoot, demoRoot),
     manifestPath,

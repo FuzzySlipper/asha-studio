@@ -50,10 +50,10 @@ function loadArtifact(path: string, expectedKind: string): {
   return { path, artifact, fileHash: sha256(text), artifactHash: artifact.artifactHash as string };
 }
 
-const createRun = run('pnpm', ['run', 'proof:scene-object-create-authoring']);
-const editRun = run('pnpm', ['run', 'proof:scene-object-edit-authoring']);
-const catalogRun = run('pnpm', ['run', 'proof:catalog-entry-authoring-ui']);
-const reflectionRun = run('pnpm', ['run', 'proof:authored-state-panel-reflection']);
+const createRun = run('pnpm', ['run', 'evidence', '--', 'scene-object-create-authoring']);
+const editRun = run('pnpm', ['run', 'evidence', '--', 'scene-object-edit-authoring']);
+const catalogRun = run('pnpm', ['run', 'evidence', '--', 'catalog-entry-authoring-ui']);
+const reflectionRun = run('pnpm', ['run', 'evidence', '--', 'authored-state-panel-reflection']);
 const typecheckRun = run('pnpm', ['exec', 'nx', 'typecheck', 'studio-domain']);
 const boundaryRun = run('pnpm', ['run', 'check:boundaries']);
 
@@ -88,7 +88,7 @@ const artifactBody = {
   artifactKind: 'studio_authoring_ux_m2_proof',
   artifactVersion: 'studio-authoring-ux-m2-proof.v0',
   generatedAt: 'deterministic-as-structure-only',
-  command: 'pnpm run proof:authoring-ux-m2',
+  command: 'pnpm run evidence -- authoring-ux-m2',
   childArtifacts: [
     { kind: create.artifact.artifactKind, path: create.path, fileHash: create.fileHash, artifactHash: create.artifactHash },
     { kind: edit.artifact.artifactKind, path: edit.path, fileHash: edit.fileHash, artifactHash: edit.artifactHash },

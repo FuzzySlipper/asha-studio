@@ -1,16 +1,8 @@
 {
   "schemaVersion": 1,
   "summary": "ASHA Studio may consume approved public ASHA package roots only. Request new public ASHA surfaces in ASHA instead of importing internals or raw transports.",
-  "allowedSourceImports": [
-    "@asha/command-registry",
-    "@asha/catalog-core",
-    "@asha/contracts",
-    "@asha/devtools",
-    "@asha/editor-tools",
-    "@asha/game-workspace",
-    "@asha/render-projection",
-    "@asha/runtime-bridge"
-  ],
+  "consumerRole": "asha-studio",
+  "publicSurfaceManifest": "../asha/harness/public-surface/ts-packages.json",
   "allowedLocalPackageLinks": {
     "@asha/command-registry": "link:../asha/ts/packages/command-registry",
     "@asha/catalog-core": "link:../asha/ts/packages/catalog-core",
