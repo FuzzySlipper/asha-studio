@@ -8,7 +8,15 @@ import { fileURLToPath } from 'node:url';
 import {
   STUDIO_VOXEL_CONVERSION_OPERATION_BOUNDARIES,
   buildStudioVoxelConversionBoundaryReadout,
+  buildStudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
+import type {
+  VoxelConversionEvidenceRef,
+  VoxelConversionPlan,
+  VoxelConversionSettings,
+  VoxelConversionSourceRef,
+  VoxelConversionTargetRef,
+} from '@asha/contracts';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const boundaryScript = join(repoRoot, 'scripts/check-boundaries.mjs');
@@ -95,6 +103,79 @@ function writeProbeWorkspace(importSpecifier: string): string {
   return workspaceRoot;
 }
 
+function sampleSource(overrides: Partial<VoxelConversionSourceRef> = {}): VoxelConversionSourceRef {
+  return {
+    assetId: 'mesh.preview-cube',
+    assetKind: 'static_mesh',
+    assetVersion: 1,
+    sourceHash: 'sha256:source-v1',
+    meshPrimitive: 'primitive-0',
+    ...overrides,
+  };
+}
+
+function sampleTarget(overrides: Partial<VoxelConversionTargetRef> = {}): VoxelConversionTargetRef {
+  return {
+    grid: 1,
+    volumeAssetId: 'volume.preview-cube',
+    origin: [0, 0, 0],
+    ...overrides,
+  };
+}
+
+function sampleSettings(overrides: Partial<VoxelConversionSettings> = {}): VoxelConversionSettings {
+  return {
+    mode: 'solid',
+    fitPolicy: 'contain',
+    originPolicy: 'target_min',
+    resolution: [8, 8, 8],
+    voxelSize: 0.25,
+    maxOutputVoxels: 1024,
+    transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    materialMap: {
+      defaultVoxelMaterial: 1,
+      entries: [
+        {
+          sourceMaterialSlot: 0,
+          sourceMaterialId: 'material.copper',
+          voxelMaterial: 1,
+        },
+      ],
+    },
+    ...overrides,
+  };
+}
+
+function sampleEvidence(kind: VoxelConversionEvidenceRef['kind']): VoxelConversionEvidenceRef {
+  return {
+    kind,
+    uri: `asha://voxel-conversion/${kind}`,
+    contentHash: `sha256:${kind}`,
+  };
+}
+
+function samplePlan(
+  source: VoxelConversionSourceRef = sampleSource(),
+  settings: VoxelConversionSettings = sampleSettings(),
+): VoxelConversionPlan {
+  return {
+    planId: 'plan-preview-cube',
+    source,
+    target: sampleTarget(),
+    settings,
+    authorityVersion: 'voxel-conversion-authority.v0',
+    expectedSourceHash: source.sourceHash,
+    settingsHash: 'sha256:settings',
+    estimatedOutputVoxels: 512,
+    estimatedBounds: {
+      min: [0, 0, 0],
+      max: [7, 7, 7],
+    },
+    diagnostics: [],
+    evidence: [sampleEvidence('plan')],
+  };
+}
+
 test('voxel conversion scaffold resolves upstream command metadata through approved roots', () => {
   const readout = buildStudioVoxelConversionBoundaryReadout();
 
@@ -147,4 +228,113 @@ test('studio boundary check rejects forbidden voxel conversion import shapes', (
       rmSync(workspaceRoot, { recursive: true, force: true });
     }
   }
+});
+
+test('voxel conversion workspace read model marks valid inputs plan-ready', () => {
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  assert.equal(readout.status, 'ready');
+  assert.equal(readout.source.status, 'selected');
+  assert.equal(readout.settings.status, 'valid');
+  assert.equal(readout.settings.requestedOutputVoxels, 512);
+  assert.equal(readout.operations.plan.status, 'ready');
+  assert.equal(readout.operations.preview.status, 'blocked');
+  assert.match(readout.readoutHash, /^voxel-conversion-readout-/);
+  assert.ok(readout.nonClaims.includes('not_mesh_voxelizer'));
+});
+
+test('voxel conversion workspace read model fails closed without a source', () => {
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source: null,
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  assert.equal(readout.status, 'incomplete');
+  assert.equal(readout.source.status, 'missing');
+  assert.equal(readout.operations.plan.status, 'blocked');
+  assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'missing_source'));
+});
+
+test('voxel conversion workspace read model detects stale source hash readback', () => {
+  const plannedSource = sampleSource({ sourceHash: 'sha256:source-v1' });
+  const currentSource = sampleSource({ sourceHash: 'sha256:source-v2' });
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source: currentSource,
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: samplePlan(plannedSource),
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  assert.equal(readout.status, 'stale');
+  assert.equal(readout.source.status, 'stale');
+  assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'source_hash_mismatch'));
+});
+
+test('voxel conversion workspace read model rejects invalid material maps', () => {
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings({
+      materialMap: {
+        defaultVoxelMaterial: null,
+        entries: [
+          {
+            sourceMaterialSlot: 0,
+            sourceMaterialId: 'material.copper',
+            voxelMaterial: 1,
+          },
+          {
+            sourceMaterialSlot: 0,
+            sourceMaterialId: 'material.tin',
+            voxelMaterial: 2,
+          },
+        ],
+      },
+    }),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  assert.equal(readout.status, 'invalid');
+  assert.equal(readout.settings.status, 'invalid');
+  assert.equal(readout.operations.plan.status, 'blocked');
+  assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'invalid_material_map'));
+});
+
+test('voxel conversion workspace read model rejects oversized output preflight', () => {
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings({
+      resolution: [32, 32, 32],
+      maxOutputVoxels: 512,
+    }),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  assert.equal(readout.status, 'limit_exceeded');
+  assert.equal(readout.settings.status, 'limit_exceeded');
+  assert.equal(readout.settings.requestedOutputVoxels, 32768);
+  assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'output_limit_exceeded'));
 });
