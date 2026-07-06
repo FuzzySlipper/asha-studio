@@ -332,6 +332,7 @@ test('studio boundary check rejects require and dynamic import bypass shapes', (
   const nativeBridgeSpecifier = ['@asha', 'native-bridge'].join('/');
   const generatedSpecifierPrefix = ['@asha', 'contracts', 'src'].join('/');
   const generatedSpecifierSuffix = ['generated', 'voxelConversion'].join('/');
+  const privateSpecifier = ['@asha', 'contracts', 'private'].join('/');
   const requireProbe = [
     'export const bridge = ',
     'require',
@@ -342,6 +343,13 @@ test('studio boundary check rejects require and dynamic import bypass shapes', (
     'import',
     `('${generatedSpecifierPrefix}/' + '${generatedSpecifierSuffix}');`,
   ].join('');
+  const templateImportProbe = [
+    'export const privateContracts = ',
+    'import',
+    '(`',
+    privateSpecifier,
+    '`);',
+  ].join('');
   try {
     writeFileSync(
       join(workspaceRoot, 'libs/probe/src/index.ts'),
@@ -349,12 +357,14 @@ test('studio boundary check rejects require and dynamic import bypass shapes', (
         "declare const require: (specifier: string) => unknown;",
         requireProbe,
         dynamicProbe,
+        templateImportProbe,
       ].join('\n'),
     );
     const result = runBoundaryCheck(workspaceRoot);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, new RegExp(`forbidden import specifier: ${nativeBridgeSpecifier}`));
     assert.match(result.stderr, new RegExp(['forbidden import pattern @asha', '[*]', 'src', '[*]'].join('/')));
+    assert.match(result.stderr, new RegExp(`non-approved ASHA package import for asha-studio: ${privateSpecifier}`));
   } finally {
     rmSync(workspaceRoot, { recursive: true, force: true });
   }
@@ -363,6 +373,8 @@ test('studio boundary check rejects require and dynamic import bypass shapes', (
 test('studio boundary check rejects dependency and config path indirection', () => {
   const workspaceRoot = writeProbeWorkspace('@asha/contracts');
   const generatedContractPath = ['..', 'asha', 'ts', 'packages', 'contracts', generatedSourceFragment, 'voxelConversion.ts'].join('/');
+  const generatedNodeModulesPath = ['node_modules', '@asha', 'contracts', generatedSourceFragment, 'voxelConversion.ts'].join('/');
+  const runtimeBridgePackage = ['@asha', 'runtime-bridge'].join('/');
   try {
     writeFileSync(
       join(workspaceRoot, 'package.json'),
@@ -381,11 +393,22 @@ test('studio boundary check rejects dependency and config path indirection', () 
       }),
     );
     writeFileSync(
+      join(workspaceRoot, 'pnpm-workspace.yaml'),
+      [
+        'packages:',
+        "  - 'libs/*'",
+        'pnpm:',
+        '  overrides:',
+        `    '${runtimeBridgePackage}': npm:@evil/runtime-bridge@1.0.0`,
+      ].join('\n'),
+    );
+    writeFileSync(
       join(workspaceRoot, 'tsconfig.json'),
       JSON.stringify({
         compilerOptions: {
           paths: {
             '@asha/contracts/generated': [generatedContractPath],
+            '#generatedContracts': [generatedNodeModulesPath],
           },
         },
       }),
@@ -393,7 +416,9 @@ test('studio boundary check rejects dependency and config path indirection', () 
     const result = runBoundaryCheck(workspaceRoot);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /pnpm\.overrides\.@asha\/runtime-bridge must use approved local package link/);
+    assert.match(result.stderr, /pnpm-workspace\.yaml: pnpm\.overrides\.@asha\/runtime-bridge must use approved local package link/);
     assert.match(result.stderr, /tsconfig\.json: forbidden config path fragment/);
+    assert.match(result.stderr, /tsconfig\.json: forbidden text: src\/generated/);
   } finally {
     rmSync(workspaceRoot, { recursive: true, force: true });
   }
@@ -988,7 +1013,7 @@ test('voxel conversion Phase 2 golden consumer proof is inspectable without succ
       evidenceExpectations: proposal.proposal?.evidenceExpectations,
     },
     boundary: {
-      forbiddenProbeCount: 8,
+      forbiddenProbeCount: 11,
     },
   };
   const golden = JSON.parse(

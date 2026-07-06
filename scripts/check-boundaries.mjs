@@ -153,9 +153,27 @@ function dependencySections() {
     .filter(section => section.dependencies !== undefined);
 }
 
+function expectedAshaPackageLink(packageName) {
+  const allowedLinks = boundaryPolicy.allowedLocalPackageLinks ?? {};
+  return allowedLinks[packageName] ?? `link:../asha/ts/packages/${packageName.replace('@asha/', '')}`;
+}
+
+function validateAshaDependency(sectionPath, packageName, spec) {
+  if (!packageName.startsWith('@asha/')) {
+    return null;
+  }
+  if (!publicSurfacePolicy.approvedPackageRoots.has(packageName)) {
+    return `non-approved ASHA package dependency in ${sectionPath} for ${boundaryPolicy.consumerRole}: ${packageName}`;
+  }
+  const expectedLink = expectedAshaPackageLink(packageName);
+  if (spec !== expectedLink) {
+    return `${sectionPath}.${packageName} must use approved local package link ${expectedLink}, got ${spec}`;
+  }
+  return null;
+}
+
 function findDependencyViolations() {
   const violations = [];
-  const allowedLinks = boundaryPolicy.allowedLocalPackageLinks ?? {};
   const requiredLinks = boundaryPolicy.requiredLocalPackageLinks ?? {};
 
   for (const [packageName, expectedLink] of Object.entries(requiredLinks)) {
@@ -174,16 +192,9 @@ function findDependencyViolations() {
     }
 
     for (const [packageName, spec] of Object.entries(section.dependencies)) {
-      if (!packageName.startsWith('@asha/')) {
-        continue;
-      }
-      if (!publicSurfacePolicy.approvedPackageRoots.has(packageName)) {
-        violations.push(`non-approved ASHA package dependency in ${section.sectionPath} for ${boundaryPolicy.consumerRole}: ${packageName}`);
-        continue;
-      }
-      const expectedLink = allowedLinks[packageName] ?? `link:../asha/ts/packages/${packageName.replace('@asha/', '')}`;
-      if (spec !== expectedLink) {
-        violations.push(`${section.sectionPath}.${packageName} must use approved local package link ${expectedLink}, got ${spec}`);
+      const violation = validateAshaDependency(section.sectionPath, packageName, spec);
+      if (violation !== null) {
+        violations.push(violation);
       }
     }
   }
@@ -191,14 +202,89 @@ function findDependencyViolations() {
   return violations;
 }
 
+function unquoteScalar(value) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function yamlDependencyEntries(fileText) {
+  const entries = [];
+  const dependencySectionSet = new Set(boundaryPolicy.dependencySections ?? []);
+  const stack = [];
+
+  for (const rawLine of fileText.split(/\r?\n/)) {
+    const withoutComment = rawLine.replace(/\s+#.*$/, '');
+    if (withoutComment.trim().length === 0 || withoutComment.trimStart().startsWith('-')) {
+      continue;
+    }
+
+    const match = /^(\s*)(?:"([^"]+)"|'([^']+)'|([^:#]+?))\s*:\s*(.*)$/.exec(withoutComment);
+    if (match === null) {
+      continue;
+    }
+
+    const indent = match[1].length;
+    const key = (match[2] ?? match[3] ?? match[4]).trim();
+    const value = unquoteScalar(match[5]);
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+      stack.pop();
+    }
+
+    const keySegments = key.split('.');
+    const pathSegments = [
+      ...stack.map(entry => entry.key),
+      ...keySegments,
+    ];
+    if (value.length === 0) {
+      for (const segment of keySegments) {
+        stack.push({ indent, key: segment });
+      }
+      continue;
+    }
+
+    const packageName = pathSegments[pathSegments.length - 1];
+    const sectionPath = pathSegments.slice(0, -1).join('.');
+    if (dependencySectionSet.has(sectionPath) && packageName?.startsWith('@asha/')) {
+      entries.push({
+        sectionPath,
+        packageName,
+        spec: value,
+      });
+    }
+  }
+
+  return entries;
+}
+
+function findConfigDependencyViolations(relativePath, fileText) {
+  if (!relativePath.endsWith('.yaml') && !relativePath.endsWith('.yml')) {
+    return [];
+  }
+
+  const violations = [];
+  for (const entry of yamlDependencyEntries(fileText)) {
+    const violation = validateAshaDependency(entry.sectionPath, entry.packageName, entry.spec);
+    if (violation !== null) {
+      violations.push(violation);
+    }
+  }
+  return violations;
+}
+
 function findImportSpecifiers(fileText) {
   const specifiers = [];
   const importPattern =
-    /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+    /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|import\s*\(\s*`([^`$]*)`\s*\)/g;
   let match = importPattern.exec(fileText);
 
   while (match !== null) {
-    specifiers.push(match[1] ?? match[2]);
+    specifiers.push(match[1] ?? match[2] ?? match[3]);
     match = importPattern.exec(fileText);
   }
 
@@ -288,9 +374,7 @@ function findTextViolations(relativePath, fileText) {
 
 function findConfigPathViolations(relativePath, fileText) {
   const violations = [];
-  const allowedFiles = new Set(boundaryPolicy.allowedConfigPathFiles ?? []);
-  const docsOnlyFiles = new Set(boundaryPolicy.docsOnlyFiles ?? []);
-  if (allowedFiles.has(relativePath) || docsOnlyFiles.has(relativePath)) {
+  if (isAllowedConfigPathFile(relativePath)) {
     return violations;
   }
 
@@ -301,6 +385,12 @@ function findConfigPathViolations(relativePath, fileText) {
   }
 
   return violations;
+}
+
+function isAllowedConfigPathFile(relativePath) {
+  const allowedFiles = new Set(boundaryPolicy.allowedConfigPathFiles ?? []);
+  const docsOnlyFiles = new Set(boundaryPolicy.docsOnlyFiles ?? []);
+  return allowedFiles.has(relativePath) || docsOnlyFiles.has(relativePath);
 }
 
 const violations = [];
@@ -325,7 +415,12 @@ for (const filePath of readSourceFiles()) {
 for (const filePath of readRootConfigFiles()) {
   const relativePath = relative(workspaceRoot, filePath);
   const fileText = readFileSync(filePath, 'utf8');
-  for (const violation of findConfigPathViolations(relativePath, fileText)) {
+  const configViolations = [
+    ...findConfigPathViolations(relativePath, fileText),
+    ...findConfigDependencyViolations(relativePath, fileText),
+    ...(isAllowedConfigPathFile(relativePath) ? [] : findTextViolations(relativePath, fileText)),
+  ];
+  for (const violation of configViolations) {
     violations.push(`${relativePath}: ${violation}`);
   }
 }
