@@ -1304,7 +1304,7 @@ export interface StudioAshaDemoProductPathReadModel {
     readonly attach: {
       readonly commandId: 'runtime_session.attach_public_facade';
       readonly available: boolean;
-      readonly publicSurface: '@asha/runtime-bridge/reference:createMockRuntimeSession';
+      readonly publicSurface: '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)';
     };
     readonly runPolicy: {
       readonly commandId: 'runtime_session.run_autonomous_policy_tick';
@@ -4066,7 +4066,7 @@ export function buildStudioAshaDemoProductPathReadModel(input: {
       attach: {
         commandId: 'runtime_session.attach_public_facade' as const,
         available: workspace !== null,
-        publicSurface: '@asha/runtime-bridge/reference:createMockRuntimeSession' as const,
+        publicSurface: '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)' as const,
       },
       runPolicy: {
         commandId: 'runtime_session.run_autonomous_policy_tick' as const,
@@ -4083,7 +4083,7 @@ export function buildStudioAshaDemoProductPathReadModel(input: {
     },
     publicSurfacesUsed: [
       '@asha/game-workspace:parseAshaGameManifestToml',
-      '@asha/runtime-bridge/reference:createMockRuntimeSession',
+      '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)',
       '@asha/runtime-bridge:RuntimeSessionFacade.initialize',
       '@asha/runtime-bridge:RuntimeSessionFacade.readGeneratedTunnelReadout',
       '@asha/runtime-bridge:RuntimeSessionFacade.readLifecycleStatus',

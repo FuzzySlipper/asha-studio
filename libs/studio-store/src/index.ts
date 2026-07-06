@@ -91,13 +91,15 @@ import {
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
-import { createMockRuntimeSession } from '@asha/runtime-bridge/reference';
 import {
+  RuntimeBridgeError,
+  createRuntimeSessionFacade,
   type CameraCreateRequest,
   type CombatFeedbackProjection,
   type EncounterDirectorReadout,
   type GeneratedTunnelReadout,
   type NavProjectionReadout,
+  type RuntimeBridge,
   type RuntimeSessionAutonomousPolicyTickReadout,
   type RuntimeSessionEncounterTransitionReceipt,
   type RuntimeSessionFacade,
@@ -149,8 +151,8 @@ policy_packages = []
 dev_command = "npm run dev"
 devtools_endpoint = "ws://127.0.0.1:7391"
 wasm_or_native_entry = "dist/runtime/index.js"
-backend_mode = "reference"
-backend_profile = "reference"
+backend_mode = "native"
+backend_profile = "native.napi.launcher.v1"
 backend_proof_refs = ["artifacts/4217/generated-tunnel-room.png"]
 
 [studio]
@@ -1623,7 +1625,7 @@ export class StudioWorkspaceStore {
     this.selectedScenarioDraftIdState.set(scenarioId);
   }
 
-  attachRuntimeSessionInspection(): void {
+  async attachRuntimeSessionInspection(): Promise<void> {
     const workspace = this.gameWorkspace();
     if (workspace === null) {
       this.runtimeConnectionMessageState.set('Open a game workspace before attaching RuntimeSession.');
@@ -1631,9 +1633,9 @@ export class StudioWorkspaceStore {
     }
 
     try {
-      const facade = createMockRuntimeSession();
+      const facade = await createStudioRustRuntimeSessionFacade();
       const initialized = facade.initialize({
-        sessionId: `runtime-session:${workspace.gameId}:studio-reference`,
+        sessionId: `runtime-session:${workspace.gameId}:studio-rust`,
         seed: 17,
         project: {
           gameId: workspace.gameId,
@@ -1649,8 +1651,8 @@ export class StudioWorkspaceStore {
       this.playableLoopEncounterTransitionReceiptState.set(null);
       this.playableLoopCombatFeedbackProjectionState.set(null);
       this.refreshRuntimeSessionInspectionReadout(facade);
-      this.runtimeConnectionMessageState.set(`RuntimeSession attached: ${initialized.sessionHash}.`);
-      this.menuMessageState.set('Live Runtime Inspection attached.');
+      this.runtimeConnectionMessageState.set(`Rust RuntimeSession attached: ${initialized.sessionHash}.`);
+      this.menuMessageState.set('Live Runtime Inspection attached through the public Rust backend.');
     } catch (error) {
       this.clearRuntimeSessionInspection();
       this.runtimeConnectionMessageState.set(
@@ -2467,4 +2469,83 @@ export class StudioWorkspaceStore {
     }
     return false;
   }
+}
+
+type StudioRuntimeBridgeProvider =
+  | RuntimeBridge
+  | Promise<RuntimeBridge>
+  | (() => RuntimeBridge | Promise<RuntimeBridge>)
+  | {
+      readonly bridge?: RuntimeBridge | Promise<RuntimeBridge>;
+      createRuntimeBridge?: () => RuntimeBridge | Promise<RuntimeBridge>;
+    };
+
+type StudioRuntimeBridgeGlobal = typeof globalThis & {
+  readonly ashaStudioRuntimeBridge?: StudioRuntimeBridgeProvider;
+  readonly ashaRuntimeBridge?: StudioRuntimeBridgeProvider;
+};
+
+interface StudioRuntimeBridgeFactoryProvider {
+  readonly bridge?: RuntimeBridge | Promise<RuntimeBridge>;
+  createRuntimeBridge?: () => RuntimeBridge | Promise<RuntimeBridge>;
+}
+
+async function createStudioRustRuntimeSessionFacade(): Promise<RuntimeSessionFacade> {
+  const bridge = await readInjectedStudioRuntimeBridge();
+  if (bridge === null) {
+    throw new RuntimeBridgeError(
+      'native_unavailable',
+      'Studio live RuntimeSession inspection requires globalThis.ashaStudioRuntimeBridge with the public RuntimeBridge interface; reference/mock RuntimeSession is not used for live attach.',
+    );
+  }
+  return createRuntimeSessionFacade({ bridge, mode: 'rust' });
+}
+
+async function readInjectedStudioRuntimeBridge(): Promise<RuntimeBridge | null> {
+  const runtimeGlobal = globalThis as StudioRuntimeBridgeGlobal;
+  const provider = runtimeGlobal.ashaStudioRuntimeBridge ?? runtimeGlobal.ashaRuntimeBridge ?? null;
+  if (provider === null) {
+    return null;
+  }
+
+  const candidate = readRuntimeBridgeProviderValue(provider);
+  const bridge = await candidate;
+  if (isRuntimeBridge(bridge)) {
+    return bridge;
+  }
+  throw new RuntimeBridgeError(
+    'invalid_input',
+    'globalThis.ashaStudioRuntimeBridge must provide the public RuntimeBridge interface',
+  );
+}
+
+function readRuntimeBridgeProviderValue(
+  provider: StudioRuntimeBridgeProvider,
+): RuntimeBridge | Promise<RuntimeBridge> {
+  if (typeof provider === 'function') {
+    return provider();
+  }
+  if (isRuntimeBridge(provider)) {
+    return provider;
+  }
+  const factoryProvider = provider as StudioRuntimeBridgeFactoryProvider;
+  if (typeof factoryProvider.createRuntimeBridge === 'function') {
+    return factoryProvider.createRuntimeBridge();
+  }
+  if (factoryProvider.bridge !== undefined) {
+    return factoryProvider.bridge;
+  }
+  return provider as RuntimeBridge | Promise<RuntimeBridge>;
+}
+
+function isRuntimeBridge(value: unknown): value is RuntimeBridge {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Partial<Record<keyof RuntimeBridge, unknown>>;
+  return typeof candidate.initializeEngine === 'function'
+    && typeof candidate.loadWorldBundle === 'function'
+    && typeof candidate.loadFpsRuntimeSession === 'function'
+    && typeof candidate.applyFpsPrimaryFire === 'function'
+    && typeof candidate.restartFpsRuntimeSession === 'function';
 }

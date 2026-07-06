@@ -175,7 +175,7 @@ function findImportViolations(filePath, fileText) {
   return violations;
 }
 
-function findTextViolations(fileText) {
+function findTextViolations(relativePath, fileText) {
   const violations = [];
 
   for (const forbiddenText of boundaryPolicy.forbiddenText) {
@@ -197,6 +197,14 @@ function findTextViolations(fileText) {
     }
   }
 
+  const liveSource = relativePath.startsWith('apps/') || relativePath.startsWith('libs/');
+  if (liveSource && fileText.includes('@asha/runtime-bridge/reference')) {
+    violations.push('live Studio app/libs must not import the reference RuntimeSession subpath');
+  }
+  if (liveSource && fileText.includes('createMockRuntimeSession')) {
+    violations.push('live Studio app/libs must not create a reference/mock RuntimeSession');
+  }
+
   return violations;
 }
 
@@ -211,7 +219,7 @@ for (const filePath of readSourceFiles()) {
   const fileText = readFileSync(filePath, 'utf8');
   const fileViolations = [
     ...findImportViolations(filePath, fileText),
-    ...findTextViolations(fileText),
+    ...findTextViolations(relativePath, fileText),
   ];
 
   for (const violation of fileViolations) {
