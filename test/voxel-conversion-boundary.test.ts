@@ -12,12 +12,14 @@ import {
   buildStudioVoxelConversionEvidenceExportProposal,
   buildStudioVoxelConversionPlanProposal,
   buildStudioVoxelConversionPreviewProposal,
+  buildStudioVoxelConversionReadoutModel,
   buildStudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
 import type {
   VoxelConversionEvidenceRef,
   VoxelConversionPlan,
   VoxelConversionPreview,
+  VoxelConversionReceipt,
   VoxelConversionSettings,
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
@@ -198,6 +200,21 @@ function samplePreview(plan: VoxelConversionPlan = samplePlan()): VoxelConversio
     ],
     diagnostics: [],
     evidence: [sampleEvidence('preview')],
+  };
+}
+
+function sampleReceipt(plan: VoxelConversionPlan = samplePlan()): VoxelConversionReceipt {
+  return {
+    planId: plan.planId,
+    applied: true,
+    outputHash: 'sha256:applied-output',
+    outputVoxelCount: 512,
+    outputBounds: {
+      min: [0, 0, 0],
+      max: [7, 7, 7],
+    },
+    diagnostics: [],
+    evidence: [sampleEvidence('apply_receipt')],
   };
 }
 
@@ -529,4 +546,169 @@ test('voxel conversion proposal builders reject unsupported source assets', () =
   assert.equal(proposal.accepted, false);
   assert.equal(proposal.proposal, null);
   assert.ok(proposal.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_source_asset'));
+});
+
+test('voxel conversion readout fails closed when runtime operations are unavailable', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: {},
+  });
+
+  assert.equal(readout.status, 'failed_closed');
+  assert.equal(readout.authorityPosture, 'failed_closed');
+  assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'runtime_facade_unavailable'));
+});
+
+test('voxel conversion readout preserves upstream operation-unimplemented diagnostics', () => {
+  const plan = {
+    ...samplePlan(),
+    diagnostics: [
+      {
+        code: 'operation_unimplemented' as const,
+        severity: 'error' as const,
+        reference: 'runtime.planVoxelConversion',
+        message: 'Runtime operation is not implemented.',
+      },
+    ],
+  };
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+
+  assert.equal(readout.status, 'degraded');
+  assert.ok(readout.diagnostics.some(
+    diagnostic => diagnostic.source === 'upstream' && diagnostic.code === 'operation_unimplemented',
+  ));
+});
+
+test('voxel conversion readout normalizes invalid material map diagnostics', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings({
+      materialMap: {
+        defaultVoxelMaterial: 0,
+        entries: [],
+      },
+    }),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+
+  assert.equal(readout.status, 'degraded');
+  assert.ok(readout.diagnostics.some(
+    diagnostic => diagnostic.source === 'studio' && diagnostic.code === 'invalid_material_map',
+  ));
+});
+
+test('voxel conversion readout normalizes unsupported source and oversized output diagnostics', () => {
+  const unsupportedWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource({ assetKind: 'skinned_mesh' }),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const oversizedWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings({
+      resolution: [64, 64, 64],
+      maxOutputVoxels: 2048,
+    }),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  const unsupportedReadout = buildStudioVoxelConversionReadoutModel({ workspace: unsupportedWorkspace });
+  const oversizedReadout = buildStudioVoxelConversionReadoutModel({ workspace: oversizedWorkspace });
+
+  assert.ok(unsupportedReadout.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_source_asset'));
+  assert.ok(oversizedReadout.diagnostics.some(diagnostic => diagnostic.code === 'output_limit_exceeded'));
+});
+
+test('voxel conversion readout preserves stale authority snapshot diagnostics', () => {
+  const plan = samplePlan();
+  const preview = samplePreview(plan);
+  const receipt = {
+    ...sampleReceipt(plan),
+    diagnostics: [
+      {
+        code: 'stale_authority_snapshot' as const,
+        severity: 'error' as const,
+        reference: 'authority.snapshot',
+        message: 'Authority snapshot changed before apply.',
+      },
+    ],
+  };
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan,
+    preview,
+    receipt,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+
+  assert.equal(readout.receipt.applied, true);
+  assert.ok(readout.diagnostics.some(
+    diagnostic => diagnostic.source === 'upstream' && diagnostic.code === 'stale_authority_snapshot',
+  ));
+});
+
+test('voxel conversion readout preserves conversion replay mismatch diagnostics and evidence refs', () => {
+  const plan = samplePlan();
+  const preview = samplePreview(plan);
+  const receipt = {
+    ...sampleReceipt(plan),
+    diagnostics: [
+      {
+        code: 'conversion_replay_mismatch' as const,
+        severity: 'error' as const,
+        reference: 'replay.outputHash',
+        message: 'Replay output hash did not match apply receipt.',
+      },
+    ],
+  };
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan,
+    preview,
+    receipt,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+
+  assert.equal(readout.authorityPosture, 'authority_backed');
+  assert.ok(readout.evidence.some(evidence => evidence.kind === 'apply_receipt'));
+  assert.ok(readout.diagnostics.some(
+    diagnostic => diagnostic.source === 'upstream' && diagnostic.code === 'conversion_replay_mismatch',
+  ));
 });

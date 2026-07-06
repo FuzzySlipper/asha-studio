@@ -8,6 +8,7 @@ import type {
 import type {
   VoxelConversionApplyRequest,
   VoxelConversionDiagnostic,
+  VoxelConversionDiagnosticCode,
   VoxelConversionEvidenceRef,
   VoxelConversionMaterialMap,
   VoxelConversionPlan,
@@ -78,6 +79,18 @@ export type StudioVoxelConversionProposalDiagnosticCode =
   | StudioVoxelConversionBoundaryDiagnosticCode
   | 'missing_plan_hash'
   | 'missing_preview_hash';
+
+export type StudioVoxelConversionAuthorityPosture =
+  | 'authority_backed'
+  | 'projection_only'
+  | 'reference_only'
+  | 'unavailable'
+  | 'failed_closed';
+
+export type StudioVoxelConversionNormalizedDiagnosticCode =
+  | StudioVoxelConversionWorkspaceDiagnosticCode
+  | StudioVoxelConversionBoundaryDiagnosticCode
+  | VoxelConversionDiagnosticCode;
 
 export interface StudioVoxelConversionOperationBoundary {
   readonly commandId: StudioVoxelConversionCommandId;
@@ -199,6 +212,48 @@ export interface StudioVoxelConversionProposalOptions {
   readonly workspace: StudioVoxelConversionWorkspaceReadModel;
   readonly expectedTimelineSequence: number;
   readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, StudioVoxelConversionRuntimeMethod>> | null;
+}
+
+export interface StudioVoxelConversionReadoutOptions {
+  readonly workspace: StudioVoxelConversionWorkspaceReadModel;
+  readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, StudioVoxelConversionRuntimeMethod>> | null;
+  readonly authorityPosture?: Exclude<StudioVoxelConversionAuthorityPosture, 'failed_closed' | 'unavailable'>;
+}
+
+export interface StudioVoxelConversionNormalizedDiagnostic {
+  readonly severity: 'info' | 'warning' | 'error' | 'fatal';
+  readonly code: StudioVoxelConversionNormalizedDiagnosticCode;
+  readonly source: 'studio' | 'upstream' | 'readiness';
+  readonly operation: StudioVoxelConversionCommandId | 'workspace';
+  readonly reference: string;
+  readonly message: string;
+}
+
+export interface StudioVoxelConversionEvidenceReadout {
+  readonly source: 'plan' | 'preview' | 'apply' | 'export';
+  readonly kind: VoxelConversionEvidenceRef['kind'];
+  readonly uri: string;
+  readonly contentHash: string;
+}
+
+export interface StudioVoxelConversionReceiptReadout {
+  readonly planId: string | null;
+  readonly planHash: string | null;
+  readonly previewHash: string | null;
+  readonly applied: boolean | null;
+  readonly outputHash: string | null;
+  readonly outputVoxelCount: number | null;
+}
+
+export interface StudioVoxelConversionReadoutModel {
+  readonly readiness: StudioVoxelConversionBoundaryReadout;
+  readonly authorityPosture: StudioVoxelConversionAuthorityPosture;
+  readonly diagnostics: readonly StudioVoxelConversionNormalizedDiagnostic[];
+  readonly evidence: readonly StudioVoxelConversionEvidenceReadout[];
+  readonly receipt: StudioVoxelConversionReceiptReadout;
+  readonly status: 'ready' | 'degraded' | 'failed_closed';
+  readonly readoutHash: string;
+  readonly nonClaims: readonly StudioVoxelConversionNonClaim[];
 }
 
 export type StudioVoxelConversionNonClaim =
@@ -470,6 +525,15 @@ function stableReadoutHash(readout: Omit<StudioVoxelConversionWorkspaceReadModel
     hash = ((hash * 31) + text.charCodeAt(index)) >>> 0;
   }
   return `voxel-conversion-readout-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function stableHash(prefix: string, value: unknown): string {
+  const text = JSON.stringify(value);
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash * 31) + text.charCodeAt(index)) >>> 0;
+  }
+  return `${prefix}-${hash.toString(16).padStart(8, '0')}`;
 }
 
 function operationReadModel(
@@ -1035,6 +1099,171 @@ export function buildStudioVoxelConversionEvidenceExportProposal(
     },
     options.expectedTimelineSequence,
   );
+}
+
+function normalizeWorkspaceDiagnostics(
+  workspace: StudioVoxelConversionWorkspaceReadModel,
+): readonly StudioVoxelConversionNormalizedDiagnostic[] {
+  return workspace.diagnostics.map(diagnostic => ({
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    source: 'studio' as const,
+    operation: diagnostic.operation,
+    reference: diagnostic.reference,
+    message: diagnostic.message,
+  }));
+}
+
+function isFailureSeverity(
+  diagnostic: Pick<StudioVoxelConversionNormalizedDiagnostic, 'severity'>,
+): boolean {
+  return diagnostic.severity === 'error' || diagnostic.severity === 'fatal';
+}
+
+function normalizeBoundaryDiagnostics(
+  readiness: StudioVoxelConversionBoundaryReadout,
+): readonly StudioVoxelConversionNormalizedDiagnostic[] {
+  return readiness.diagnostics.map(diagnostic => ({
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    source: 'readiness' as const,
+    operation: diagnostic.commandId,
+    reference: diagnostic.commandId,
+    message: diagnostic.message,
+  }));
+}
+
+function normalizeAuthorityDiagnostics(
+  workspace: StudioVoxelConversionWorkspaceReadModel,
+): readonly StudioVoxelConversionNormalizedDiagnostic[] {
+  const upstreamDiagnostics: Array<{
+    readonly operation: StudioVoxelConversionCommandId;
+    readonly diagnostics: readonly VoxelConversionDiagnostic[];
+  }> = [
+    {
+      operation: 'voxel_conversion.plan',
+      diagnostics: workspace.plan?.diagnostics ?? [],
+    },
+    {
+      operation: 'voxel_conversion.preview',
+      diagnostics: workspace.preview?.diagnostics ?? [],
+    },
+    {
+      operation: 'voxel_conversion.apply',
+      diagnostics: workspace.receipt?.diagnostics ?? [],
+    },
+  ];
+
+  return upstreamDiagnostics.flatMap(entry =>
+    entry.diagnostics.map(diagnostic => ({
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      source: 'upstream' as const,
+      operation: entry.operation,
+      reference: diagnostic.reference,
+      message: diagnostic.message,
+    })),
+  );
+}
+
+function evidenceReadouts(
+  workspace: StudioVoxelConversionWorkspaceReadModel,
+): readonly StudioVoxelConversionEvidenceReadout[] {
+  const planEvidence = (workspace.plan?.evidence ?? []).map(ref => ({
+    source: 'plan' as const,
+    kind: ref.kind,
+    uri: ref.uri,
+    contentHash: ref.contentHash,
+  }));
+  const previewEvidence = (workspace.preview?.evidence ?? []).map(ref => ({
+    source: 'preview' as const,
+    kind: ref.kind,
+    uri: ref.uri,
+    contentHash: ref.contentHash,
+  }));
+  const applyEvidence = (workspace.receipt?.evidence ?? []).map(ref => ({
+    source: 'apply' as const,
+    kind: ref.kind,
+    uri: ref.uri,
+    contentHash: ref.contentHash,
+  }));
+  const exportEvidence = workspace.operations.exportEvidence.evidence.map(ref => ({
+    source: 'export' as const,
+    kind: ref.kind,
+    uri: ref.uri,
+    contentHash: ref.contentHash,
+  }));
+  return [
+    ...planEvidence,
+    ...previewEvidence,
+    ...applyEvidence,
+    ...exportEvidence,
+  ];
+}
+
+function resolveAuthorityPosture(
+  workspace: StudioVoxelConversionWorkspaceReadModel,
+  readiness: StudioVoxelConversionBoundaryReadout,
+  requestedPosture: StudioVoxelConversionReadoutOptions['authorityPosture'],
+): StudioVoxelConversionAuthorityPosture {
+  if (readiness.status === 'failed_closed') {
+    return 'failed_closed';
+  }
+  if (workspace.status === 'incomplete' && workspace.source.status === 'missing') {
+    return 'unavailable';
+  }
+  if (requestedPosture !== undefined) {
+    return requestedPosture;
+  }
+  if (workspace.plan !== null || workspace.preview !== null || workspace.receipt !== null) {
+    return 'authority_backed';
+  }
+  return 'projection_only';
+}
+
+export function buildStudioVoxelConversionReadoutModel(
+  options: StudioVoxelConversionReadoutOptions,
+): StudioVoxelConversionReadoutModel {
+  const readiness = buildStudioVoxelConversionBoundaryReadout(options.runtimeSession);
+  const diagnostics = [
+    ...normalizeBoundaryDiagnostics(readiness),
+    ...normalizeWorkspaceDiagnostics(options.workspace),
+    ...normalizeAuthorityDiagnostics(options.workspace),
+  ];
+  const authorityPosture = resolveAuthorityPosture(
+    options.workspace,
+    readiness,
+    options.authorityPosture,
+  );
+  const status: StudioVoxelConversionReadoutModel['status'] = readiness.status === 'failed_closed'
+    ? 'failed_closed'
+    : diagnostics.some(isFailureSeverity)
+      ? 'degraded'
+      : 'ready';
+
+  const readoutWithoutHash: Omit<StudioVoxelConversionReadoutModel, 'readoutHash'> = {
+    readiness,
+    authorityPosture,
+    diagnostics,
+    evidence: evidenceReadouts(options.workspace),
+    receipt: {
+      planId: options.workspace.plan?.planId ?? options.workspace.receipt?.planId ?? null,
+      planHash: options.workspace.plan?.settingsHash ?? null,
+      previewHash: options.workspace.preview?.outputHash ?? null,
+      applied: options.workspace.receipt?.applied ?? null,
+      outputHash: options.workspace.receipt?.outputHash ?? options.workspace.preview?.outputHash ?? null,
+      outputVoxelCount: options.workspace.receipt?.outputVoxelCount
+        ?? options.workspace.preview?.outputVoxelCount
+        ?? null,
+    },
+    status,
+    nonClaims: options.workspace.nonClaims,
+  };
+
+  return {
+    ...readoutWithoutHash,
+    readoutHash: stableHash('voxel-conversion-readiness', readoutWithoutHash),
+  };
 }
 
 export function buildStudioVoxelConversionBoundaryReadout(
