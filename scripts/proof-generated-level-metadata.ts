@@ -11,7 +11,7 @@ import {
   buildStudioRuntimeSessionInspectionReadModel,
   type StudioGameWorkspaceReadModel,
 } from '@asha-studio/domain';
-import { createMockRuntimeSession, type WorldLoadRequest } from '@asha/runtime-bridge';
+import { createMockRuntimeSession, type WorldLoadRequest } from '@asha/runtime-bridge/reference';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const outDir = join(repoRoot, 'artifacts/generated-level-metadata/latest');

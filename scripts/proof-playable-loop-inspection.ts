@@ -15,7 +15,7 @@ import {
   createMockRuntimeSession,
   type CameraCreateRequest,
   type WorldLoadRequest,
-} from '@asha/runtime-bridge';
+} from '@asha/runtime-bridge/reference';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const outDir = join(repoRoot, 'artifacts/playable-loop-inspection/latest');
@@ -161,6 +161,26 @@ const autonomousPolicyTick = facade.runAutonomousPolicyTick({
   targetCamera: camera,
   policySource: 'export const policy = (view) => view;',
 });
+let lifecycleStatus = facade.readLifecycleStatus();
+for (let fireTick = 2; lifecycleStatus.outcome.kind !== 'won' && fireTick <= 12; fireTick += 1) {
+  const fireReceipt = facade.submitRuntimeActionIntent({
+    kind: 'runtime_action_intent.v0',
+    action: 'primary_fire',
+    phase: 'pressed',
+    camera,
+    tick: fireTick,
+    source: 'programmatic',
+    pressed: true,
+  });
+  assert.equal(fireReceipt.accepted, true);
+  state = {
+    ...state,
+    sequenceId: fireReceipt.sequenceId,
+    sessionHash: fireReceipt.sessionHashAfter,
+  };
+  lifecycleStatus = facade.readLifecycleStatus();
+}
+assert.equal(lifecycleStatus.outcome.kind, 'won');
 const combatFeedbackProjection = facade.readCombatFeedbackProjection({
   camera,
   viewport: cameraRequest.viewport,
@@ -177,7 +197,7 @@ state = {
   tick: autonomousPolicyTick.tick,
   sessionHash: encounterTransitionReceipt.hashes.sessionHashAfter,
 };
-let lifecycleStatus = facade.readLifecycleStatus();
+lifecycleStatus = facade.readLifecycleStatus();
 const loopReadout = buildStudioRuntimeSessionInspectionReadModel({
   workspace,
   gameWorkspace,
@@ -197,8 +217,8 @@ const loopReadout = buildStudioRuntimeSessionInspectionReadModel({
 });
 
 assert.equal(loopReadout.playableLoop.policy.loopId, 'generated_tunnel_enemy_policy_loop.v0');
-assert.equal(loopReadout.playableLoop.policy.acceptedProposalCount, 1);
-assert.equal(loopReadout.playableLoop.policy.unsupportedProposalCount, 1);
+assert.equal(loopReadout.playableLoop.policy.acceptedProposalCount, 2);
+assert.equal(loopReadout.playableLoop.policy.unsupportedProposalCount, 0);
 assert.equal(loopReadout.playableLoop.nav.pathHash, 'e8e1ea7a09811ced');
 assert.equal(loopReadout.playableLoop.lifecycle.outcomeKind, 'won');
 assert.equal(loopReadout.playableLoop.selectedEntity?.health?.current, 0);
@@ -438,7 +458,7 @@ assert.equal(dumpedDom.includes('combat_feedback_projection.v0'), true);
 assert.equal(dumpedDom.includes('sync_lifecycle'), true);
 assert.equal(dumpedDom.includes('active -&gt; cleared') || dumpedDom.includes('active -> cleared'), true);
 assert.equal(dumpedDom.includes('generated_tunnel_enemy_policy_loop.v0'), true);
-assert.equal(dumpedDom.includes('movement_authority_not_wired'), true);
+assert.equal(dumpedDom.includes('2 accepted - 0 unsupported'), true);
 assert.equal(dumpedDom.includes('Health 0/40 defeated'), true);
 assert.equal(dumpedDom.includes('Enemy defeated'), true);
 assert.equal(dumpedDom.includes('accepted - won -&gt; in_progress') || dumpedDom.includes('accepted - won -> in_progress'), true);

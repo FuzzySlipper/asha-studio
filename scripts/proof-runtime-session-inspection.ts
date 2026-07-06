@@ -13,7 +13,7 @@ import {
   type RuntimeSessionStateSummary,
   type RuntimeSessionTelemetrySummary,
   type WorldLoadRequest,
-} from '@asha/runtime-bridge';
+} from '@asha/runtime-bridge/reference';
 
 const workspace = buildInitialWorkspaceReadModel();
 const gameWorkspace: StudioGameWorkspaceReadModel = {
@@ -194,9 +194,28 @@ state = {
   tick: autonomousPolicyTick.tick,
   sessionHash: autonomousPolicyTick.sessionHashAfter,
 };
+let lifecycleStatus = facade.readLifecycleStatus();
+for (let fireTick = 2; lifecycleStatus.outcome.kind !== 'won' && fireTick <= 12; fireTick += 1) {
+  const fireReceipt = facade.submitRuntimeActionIntent({
+    kind: 'runtime_action_intent.v0',
+    action: 'primary_fire',
+    phase: 'pressed',
+    camera,
+    tick: fireTick,
+    source: 'programmatic',
+    pressed: true,
+  });
+  assert.equal(fireReceipt.accepted, true);
+  state = {
+    ...state,
+    sequenceId: fireReceipt.sequenceId,
+    sessionHash: fireReceipt.sessionHashAfter,
+  };
+  lifecycleStatus = facade.readLifecycleStatus();
+}
+assert.equal(lifecycleStatus.outcome.kind, 'won');
 projection = facade.readProjection();
 telemetry = facade.readTelemetry();
-const lifecycleStatus = facade.readLifecycleStatus();
 
 const playableLoopReadout = buildStudioRuntimeSessionInspectionReadModel({
   workspace,
@@ -216,9 +235,9 @@ const playableLoopReadout = buildStudioRuntimeSessionInspectionReadModel({
 assert.equal(playableLoopReadout.playableLoop.loopVersion, 'studio-playable-loop-inspection.v0');
 assert.equal(playableLoopReadout.playableLoop.policy.status, 'ran');
 assert.equal(playableLoopReadout.playableLoop.policy.loopId, 'generated_tunnel_enemy_policy_loop.v0');
-assert.equal(playableLoopReadout.playableLoop.policy.acceptedProposalCount, 1);
-assert.equal(playableLoopReadout.playableLoop.policy.unsupportedProposalCount, 1);
-assert.equal(playableLoopReadout.playableLoop.policy.movementReason, 'movement_authority_not_wired');
+assert.equal(playableLoopReadout.playableLoop.policy.acceptedProposalCount, 2);
+assert.equal(playableLoopReadout.playableLoop.policy.unsupportedProposalCount, 0);
+assert.equal(playableLoopReadout.playableLoop.policy.movementReason, null);
 assert.equal(playableLoopReadout.playableLoop.nav.pathHash, 'e8e1ea7a09811ced');
 assert.equal(playableLoopReadout.playableLoop.nav.pathLength, 9);
 assert.equal(playableLoopReadout.playableLoop.combat.status, 'accepted');
