@@ -38,10 +38,16 @@ import and local-link policy.
 ## Proof Commands And Historical Names
 
 - Runnable commands live in `package.json` scripts.
+- Supported evidence generators are classified in
+  `scripts/studio-evidence-catalog.json`; `scripts/proof-*.ts` files are not
+  auto-discovered as supported Studio checks.
 - `docs/script-reference-policy.json` records old proof command names that remain
   in historical docs as retired or deferred references.
 - `pnpm run check:docs-scripts` fails when docs cite a missing command without
   that explicit status record.
+- `pnpm run check:evidence-catalog` fails when a proof implementation file is
+  uncategorized, points at a missing script, or duplicates another evidence
+  entry.
 
 ## Deferred Public Surfaces
 

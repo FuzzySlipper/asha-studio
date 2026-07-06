@@ -36,7 +36,10 @@ pnpm run evidence:v2-live-backend
 See `docs/studio-scripts.md` for the product/evidence script split. Product
 workflow commands (`dev`, `build`, `check`, `verify`) are the normal Studio
 surface; evidence generators run through `pnpm run evidence -- <name>` or a
-small number of explicit evidence aliases.
+small number of explicit evidence aliases. `pnpm run evidence:list` shows only
+current product evidence by default. Historical milestone and delegated proof
+scripts are classified in `scripts/studio-evidence-catalog.json`; they are not
+auto-discovered from `scripts/proof-*.ts`.
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker reads ASHA's public-surface manifest at `/home/dev/asha/harness/public-surface/ts-packages.json` for the `asha-studio` consumer role, then allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
 
@@ -48,7 +51,7 @@ Current source imports may use only the public package roots approved for `asha-
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
 
-`docs/studio-limitations.md` records durable runtime/visual/non-claim limitations. `docs/script-reference-policy.json` records old proof command names that remain in historical docs as retired or deferred references; `pnpm run check:docs-scripts` rejects any new missing script reference without an explicit status.
+`docs/studio-limitations.md` records durable runtime/visual/non-claim limitations. `docs/script-reference-policy.json` records old proof command names that remain in historical docs as retired or deferred references; `pnpm run check:docs-scripts` rejects any new missing script reference without an explicit status. `pnpm run check:evidence-catalog` rejects uncategorized `scripts/proof-*.ts` files so synthetic proof scripts cannot silently become the supported Studio path.
 
 ## Compatibility metadata
 

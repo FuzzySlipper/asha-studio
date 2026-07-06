@@ -27,15 +27,24 @@ evidence generators are retained for review artifacts and milestone gates.
 | --- | --- |
 | `pnpm run check:boundaries` | Enforce Studio's public ASHA package boundary. |
 | `pnpm run check:docs-scripts` | Reject undocumented stale script references in docs. |
+| `pnpm run check:evidence-catalog` | Ensure every `scripts/proof-*.ts` file is explicitly classified. |
 
 ## Evidence Generators
 
 Evidence generators are not the normal product workflow. They are review and
-milestone artifact producers backed by the `scripts/proof-*.ts` files.
+milestone artifact producers backed by explicitly cataloged implementation
+files.
+
+The catalog lives at `scripts/studio-evidence-catalog.json` and is the source of
+truth for whether an evidence generator is current product evidence, retained
+milestone evidence, delegated to a consumer/testing repo, or retired. The
+`scripts/proof-*.ts` filenames are implementation details; adding a file there
+does not make it part of the supported Studio path.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm run evidence:list` | List available evidence generator names. |
+| `pnpm run evidence:list` | List current product evidence generator names. |
+| `pnpm run evidence:list -- --all` | List current, milestone, delegated, and retired catalog entries. |
 | `pnpm run evidence -- <name>` | Run one evidence generator by name. |
 | `pnpm run evidence:v2-live-backend` | Convenience alias for the current V2 selected-backend evidence aggregate. |
 
@@ -46,6 +55,22 @@ Use the same suffix with the evidence dispatcher instead:
 pnpm run evidence -- selected-backend-attach
 pnpm run evidence -- authoring-ux-m2
 pnpm run evidence -- v2-live-backend-evidence
+```
+
+Delegated or retired entries are blocked by default. They can be reproduced only
+with `--allow-retired`, and only when a task explicitly asks for historical
+artifact archaeology:
+
+```bash
+pnpm run evidence -- runtime-session-inspection --allow-retired
+```
+
+Normal `pnpm run test` validates the evidence catalog and script contracts
+without launching process-heavy evidence generators. To run those process-level
+tests intentionally, opt in:
+
+```bash
+ASHA_STUDIO_RUN_EVIDENCE_PROCESS_TESTS=1 pnpm run test
 ```
 
 Historical docs may still mention retired or deferred `proof:*` command names;

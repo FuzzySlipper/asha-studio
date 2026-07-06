@@ -97,6 +97,12 @@ import generateStudioFeatureSlice from '../libs/studio-workspace-generators/src/
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const demoRoot = join(repoRoot, '../asha-testing');
+const runEvidenceProcessTests = process.env.ASHA_STUDIO_RUN_EVIDENCE_PROCESS_TESTS === '1';
+const evidenceProcessSkipReason = 'process-level evidence generators are opt-in; set ASHA_STUDIO_RUN_EVIDENCE_PROCESS_TESTS=1';
+
+function evidenceProcessTest(name: string, fn: () => void): void {
+  test(name, { skip: runEvidenceProcessTests ? false : evidenceProcessSkipReason }, fn);
+}
 
 function loadDemoPackageScripts(): Record<string, string> {
   return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).scripts;
@@ -522,7 +528,7 @@ test('workspace open/read model fails closed on missing manifest and unsupported
   assert.ok(failed.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_file_kind'));
 });
 
-test('workspace open/read proof command emits bounded source evidence', () => {
+evidenceProcessTest('workspace open/read proof command emits bounded source evidence', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'workspace-open-read'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -644,7 +650,7 @@ test('scene file save and save-as commands validate bounded source readback', ()
   assert.ok(staleReadback.diagnostics.some(diagnostic => diagnostic.code === 'scene_file_stale_hash'));
 });
 
-test('scene file menu browser proof captures structured open save workflow', () => {
+evidenceProcessTest('scene file menu browser proof captures structured open save workflow', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-file-menu-workflow'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -669,7 +675,7 @@ test('scene file menu browser proof captures structured open save workflow', () 
   assert.match(artifact.browser.screenshotHash, /^sha256:/);
 });
 
-test('scene save roundtrip proof command writes validates reopens and cleans up', () => {
+evidenceProcessTest('scene save roundtrip proof command writes validates reopens and cleans up', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-save-roundtrip'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -698,7 +704,7 @@ test('scene save roundtrip proof command writes validates reopens and cleans up'
   assert.equal(existsSync(join(demoRoot, 'scenes/studio-roundtrip.scene.json')), false);
 });
 
-test('catalog save roundtrip proof command writes validates reopens and restores', () => {
+evidenceProcessTest('catalog save roundtrip proof command writes validates reopens and restores', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-save-roundtrip'], {
     cwd: repoRoot,
@@ -727,7 +733,7 @@ test('catalog save roundtrip proof command writes validates reopens and restores
   assert.ok(artifact.validations.includes('negative_disallowed_path_failed_closed'));
 });
 
-test('persistence M1 proof command aggregates workspace scene and catalog gates', () => {
+evidenceProcessTest('persistence M1 proof command aggregates workspace scene and catalog gates', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'persistence-m1'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2001,7 +2007,7 @@ test('scene object create authoring workflow rejects duplicate and stale creatio
   assert.equal(duplicateResult.result.rejection?.code, 'duplicate-scene-object');
 });
 
-test('scene object create authoring proof command records operation and readout hashes', () => {
+evidenceProcessTest('scene object create authoring proof command records operation and readout hashes', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-object-create-authoring'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2045,7 +2051,7 @@ test('scene object edit authoring workflow rejects unsupported fields', () => {
   assert.ok(result.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_scene_authoring_field'));
 });
 
-test('scene object edit authoring proof command records edit hashes and diagnostics', () => {
+evidenceProcessTest('scene object edit authoring proof command records edit hashes and diagnostics', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-object-edit-authoring'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2568,7 +2574,7 @@ test('authored state panel reflection proves saved scene and catalog readouts ar
   assert.ok(stale.diagnostics.some(diagnostic => diagnostic.code === 'authored_panel_marker_missing'));
 });
 
-test('catalog entry authoring UI proof command records persisted readout and negatives', () => {
+evidenceProcessTest('catalog entry authoring UI proof command records persisted readout and negatives', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-entry-authoring-ui'], {
     cwd: repoRoot,
@@ -2594,7 +2600,7 @@ test('catalog entry authoring UI proof command records persisted readout and neg
   assert.ok(artifact.validations.includes('negative_invalid_dependency_failed_closed'));
 });
 
-test('authored state panel reflection proof command records visible saved panel readouts', () => {
+evidenceProcessTest('authored state panel reflection proof command records visible saved panel readouts', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-state-panel-reflection'], {
     cwd: repoRoot,
@@ -2619,7 +2625,7 @@ test('authored state panel reflection proof command records visible saved panel 
   assert.ok(artifact.validations.includes('negative_missing_asset_failed_closed'));
 });
 
-test('authoring UX M2 aggregate proof gate records child evidence and guards', () => {
+evidenceProcessTest('authoring UX M2 aggregate proof gate records child evidence and guards', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authoring-ux-m2'], {
     cwd: repoRoot,
@@ -2651,7 +2657,7 @@ test('Studio authoring M2 closeout doc points at the aggregate proof gate', () =
   assert.match(doc, /not claim runtime authority/);
 });
 
-test('authored round-trip fixture proof writes deterministic scene and catalog fixture', () => {
+evidenceProcessTest('authored round-trip fixture proof writes deterministic scene and catalog fixture', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-roundtrip-fixture'], {
     cwd: repoRoot,
@@ -2684,7 +2690,7 @@ test('authored round-trip fixture proof writes deterministic scene and catalog f
   assert.equal(artifact.negativeSmokes.at(1)?.ok, false);
 });
 
-test('authored browser runtime load proof consumes demo browser readback', () => {
+evidenceProcessTest('authored browser runtime load proof consumes demo browser readback', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-browser-runtime-load'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2709,7 +2715,7 @@ test('authored browser runtime load proof consumes demo browser readback', () =>
   assert.ok(artifact.nonClaims.includes('not_browser_interaction_evidence'));
 });
 
-test('authored browser interaction proof records DOM input against loaded content', () => {
+evidenceProcessTest('authored browser interaction proof records DOM input against loaded content', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-browser-interaction'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2811,7 +2817,7 @@ test('authored browser debug read model projects browser selection into Studio d
   assert.equal(missingEvidence.diagnostics.at(0)?.code, 'missing_studio_debug_evidence');
 });
 
-test('authored Studio debug readback proof inspects browser-mutated authored content', () => {
+evidenceProcessTest('authored Studio debug readback proof inspects browser-mutated authored content', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'authored-studio-debug-readback'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2838,7 +2844,7 @@ test('authored Studio debug readback proof inspects browser-mutated authored con
   assert.ok(artifact.nonClaims.includes('not_private_runtime_transport'));
 });
 
-test('author-to-runtime round-trip evidence index records current child proof chain', () => {
+evidenceProcessTest('author-to-runtime round-trip evidence index records current child proof chain', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'author-runtime-roundtrip-index'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2865,7 +2871,7 @@ test('author-to-runtime round-trip evidence index records current child proof ch
   assert.ok(artifact.nonClaims.includes('not_publish_readiness'));
 });
 
-test('author-to-runtime round-trip M5 aggregate proof gate records milestone coverage', () => {
+evidenceProcessTest('author-to-runtime round-trip M5 aggregate proof gate records milestone coverage', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'author-runtime-roundtrip-m5'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2902,7 +2908,7 @@ test('Author-to-runtime M5 closeout doc points at aggregate proof gate', () => {
   assert.match(doc, /private runtime mutation/);
 });
 
-test('proper demo capstone verifier records end-to-end milestone coverage', () => {
+evidenceProcessTest('proper demo capstone verifier records end-to-end milestone coverage', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-capstone-verifier'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2932,7 +2938,7 @@ test('proper demo capstone verifier records end-to-end milestone coverage', () =
   assert.ok(artifact.nonClaims.includes('not_runtime_den_dependency'));
 });
 
-test('proper demo evidence index records final capstone source artifact graph', () => {
+evidenceProcessTest('proper demo evidence index records final capstone source artifact graph', () => {
   const verifier = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-capstone-verifier'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -2964,7 +2970,7 @@ test('proper demo evidence index records final capstone source artifact graph', 
   assert.ok(artifact.nonClaims.includes('not_product_readiness'));
 });
 
-test('proper demo capstone guard enforces final boundary and non-claim checks', () => {
+evidenceProcessTest('proper demo capstone guard enforces final boundary and non-claim checks', () => {
   const index = spawnSync('pnpm', ['run', 'evidence', '--', 'proper-demo-evidence-index'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -3812,6 +3818,18 @@ test('verification tiers document keeps proof escalation secondary', () => {
 
 test('selected backend attach proof command has a stable reviewer artifact path', () => {
   const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+  const evidenceCatalog = JSON.parse(readFileSync(join(repoRoot, 'scripts/studio-evidence-catalog.json'), 'utf8')) as {
+    defaultListStatuses: readonly string[];
+    runnableStatuses: readonly string[];
+    retiredStatuses: readonly string[];
+    entries: readonly {
+      name: string;
+      status: string;
+      lane: string;
+      scriptPath: string;
+      replacement?: string;
+    }[];
+  };
   const browserSmokeSource = readFileSync(
     join(repoRoot, 'scripts', 'proof-selected-backend-browser-smoke.ts'),
     'utf8',
@@ -3908,6 +3926,8 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(Object.keys(packageJson.scripts).some(scriptName => scriptName.startsWith('proof:')), false);
   assert.equal(packageJson.scripts.evidence, 'node scripts/studio-evidence.mjs run');
   assert.equal(packageJson.scripts['evidence:list'], 'node scripts/studio-evidence.mjs list');
+  assert.equal(packageJson.scripts['check:evidence-catalog'], 'node scripts/check-evidence-catalog.mjs');
+  assert.equal(packageJson.scripts.verify.includes('pnpm run check:evidence-catalog'), true);
   assert.equal(
     packageJson.scripts['evidence:v2-live-backend'],
     'node scripts/studio-evidence.mjs run v2-live-backend-evidence',
@@ -3944,6 +3964,17 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   ]) {
     assert.equal(existsSync(join(repoRoot, 'scripts', `proof-${evidenceName}.ts`)), true);
   }
+  const catalogEntries = new Map(evidenceCatalog.entries.map(entry => [entry.name, entry]));
+  assert.deepEqual(evidenceCatalog.defaultListStatuses, ['current_product']);
+  assert.deepEqual(evidenceCatalog.runnableStatuses, ['current_product', 'current_milestone']);
+  assert.deepEqual(evidenceCatalog.retiredStatuses, ['delegated_to_testing', 'legacy_retired']);
+  assert.equal(catalogEntries.get('v2-live-backend-evidence')?.status, 'current_product');
+  assert.equal(catalogEntries.get('live-debug-session-identity')?.lane, 'studio_live_inspection');
+  assert.equal(catalogEntries.get('catalog-workflow-m3')?.lane, 'studio_authoring');
+  assert.equal(catalogEntries.get('authoring-ux-m2')?.status, 'current_milestone');
+  assert.equal(catalogEntries.get('runtime-session-inspection')?.status, 'legacy_retired');
+  assert.equal(catalogEntries.get('playable-loop-inspection')?.status, 'delegated_to_testing');
+  assert.match(catalogEntries.get('playable-loop-inspection')?.replacement ?? '', /asha-demo playable loop/);
   assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
   assert.equal(sceneFileMenuWorkflowSource.includes("artifactKind: 'studio_scene_file_menu_browser_proof'"), true);
@@ -4012,7 +4043,7 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(catalogWorkflowM3Source.includes('negative_private_catalog_path_failed_closed'), true);
 });
 
-test('live debug session identity proof command records freshness and child artifacts', () => {
+evidenceProcessTest('live debug session identity proof command records freshness and child artifacts', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-debug-session-identity'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4036,7 +4067,7 @@ test('live debug session identity proof command records freshness and child arti
   assert.ok(artifact.nonClaims.includes('not_private_transport'));
 });
 
-test('live scene/entity debug inspector proof command records selected scene readback', () => {
+evidenceProcessTest('live scene/entity debug inspector proof command records selected scene readback', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-scene-entity-debug-inspector'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4059,7 +4090,7 @@ test('live scene/entity debug inspector proof command records selected scene rea
   assert.ok(artifact.nonClaims.includes('not_private_ecs_read'));
 });
 
-test('live asset/resource debug inspector proof command records selected asset readback', () => {
+evidenceProcessTest('live asset/resource debug inspector proof command records selected asset readback', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-asset-resource-debug-inspector'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4083,7 +4114,7 @@ test('live asset/resource debug inspector proof command records selected asset r
   assert.ok(artifact.nonClaims.includes('not_private_asset_database'));
 });
 
-test('live runtime/telemetry debug inspector proof command records live metrics', () => {
+evidenceProcessTest('live runtime/telemetry debug inspector proof command records live metrics', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-runtime-telemetry-debug-inspector'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4106,7 +4137,7 @@ test('live runtime/telemetry debug inspector proof command records live metrics'
   assert.ok(artifact.nonClaims.includes('not_performance_evidence'));
 });
 
-test('live debug command proposals proof command records bounded shared command evidence', () => {
+evidenceProcessTest('live debug command proposals proof command records bounded shared command evidence', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-debug-command-proposals'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4135,7 +4166,7 @@ test('live debug command proposals proof command records bounded shared command 
   assert.equal(artifact.negativeSmokes.at(2)?.diagnostics.at(0)?.code, 'debug_command_scope_mismatch');
 });
 
-test('live gameplay debug M4 aggregate proof gate records all child surfaces', () => {
+evidenceProcessTest('live gameplay debug M4 aggregate proof gate records all child surfaces', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'live-gameplay-debug-m4'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4161,7 +4192,7 @@ test('live gameplay debug M4 aggregate proof gate records all child surfaces', (
   assert.ok(artifact.nonClaims.includes('not_private_runtime_mutation'));
 });
 
-test('running project connection browser proof captures human connect readout', () => {
+evidenceProcessTest('running project connection browser proof captures human connect readout', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'running-project-connection'], {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -4183,7 +4214,7 @@ test('running project connection browser proof captures human connect readout', 
   assert.match(artifact.browser.screenshotHash, /^sha256:/);
 });
 
-test('catalog workflow M3 browser proof captures human catalog readout', () => {
+evidenceProcessTest('catalog workflow M3 browser proof captures human catalog readout', () => {
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-workflow-m3'], {
     cwd: repoRoot,
     encoding: 'utf8',

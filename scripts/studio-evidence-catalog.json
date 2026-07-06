@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "defaultListStatuses": [
+    "current_product"
+  ],
+  "runnableStatuses": [
+    "current_product",
+    "current_milestone"
+  ],
+  "retiredStatuses": [
+    "delegated_to_testing",
+    "legacy_retired"
+  ],
+  "entries": [
+    {
+      "name": "catalog-workflow-m3",
+      "scriptPath": "scripts/proof-catalog-workflow-m3.ts",
+      "status": "current_product",
+      "lane": "studio_authoring",
+      "summary": "Human-facing catalog workflow evidence for create/load/link/validate affordances."
+    },
+    {
+      "name": "live-asset-resource-debug-inspector",
+      "scriptPath": "scripts/proof-live-asset-resource-debug-inspector.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Live asset/resource debug inspector readout over the selected backend attach path."
+    },
+    {
+      "name": "live-debug-command-proposals",
+      "scriptPath": "scripts/proof-live-debug-command-proposals.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Accepted/rejected command proposal evidence through public runtime/devtools surfaces."
+    },
+    {
+      "name": "live-debug-session-identity",
+      "scriptPath": "scripts/proof-live-debug-session-identity.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Live session identity and freshness evidence rooted in selected backend attach."
+    },
+    {
+      "name": "live-gameplay-debug-m4",
+      "scriptPath": "scripts/proof-live-gameplay-debug-m4.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Aggregate live gameplay debug panel evidence for the current product path."
+    },
+    {
+      "name": "live-runtime-telemetry-debug-inspector",
+      "scriptPath": "scripts/proof-live-runtime-telemetry-debug-inspector.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Live runtime telemetry inspector evidence from selected backend metadata."
+    },
+    {
+      "name": "live-scene-entity-debug-inspector",
+      "scriptPath": "scripts/proof-live-scene-entity-debug-inspector.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Live scene/entity debug inspector readout for Studio operator panels."
+    },
+    {
+      "name": "running-project-connection",
+      "scriptPath": "scripts/proof-running-project-connection.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Browser-facing running-project connection evidence over selected backend attach."
+    },
+    {
+      "name": "scene-file-menu-workflow",
+      "scriptPath": "scripts/proof-scene-file-menu-workflow.ts",
+      "status": "current_product",
+      "lane": "studio_authoring",
+      "summary": "Human-facing scene file menu workflow evidence."
+    },
+    {
+      "name": "selected-backend-attach",
+      "scriptPath": "scripts/proof-selected-backend-attach.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Selected public backend attach evidence with backend provenance."
+    },
+    {
+      "name": "selected-backend-browser-smoke",
+      "scriptPath": "scripts/proof-selected-backend-browser-smoke.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Browser smoke that projects current selected-backend command evidence."
+    },
+    {
+      "name": "selected-backend-command",
+      "scriptPath": "scripts/proof-selected-backend-command.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Selected backend command proposal and replay/evidence-ref readout."
+    },
+    {
+      "name": "v2-live-backend-evidence",
+      "scriptPath": "scripts/proof-v2-live-backend-evidence.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Current aggregate live backend evidence path for Studio."
+    },
+    {
+      "name": "author-runtime-roundtrip-index",
+      "scriptPath": "scripts/proof-author-runtime-roundtrip-index.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M5 authored runtime round-trip source artifact index.",
+      "note": "Retained for milestone reproduction; not part of normal Studio verification."
+    },
+    {
+      "name": "author-runtime-roundtrip-m5",
+      "scriptPath": "scripts/proof-author-runtime-roundtrip-m5.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M5 authored runtime round-trip aggregate evidence.",
+      "note": "Retained for milestone reproduction; not part of normal Studio verification."
+    },
+    {
+      "name": "authored-browser-interaction",
+      "scriptPath": "scripts/proof-authored-browser-interaction.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M5 browser interaction child artifact over authored content."
+    },
+    {
+      "name": "authored-browser-runtime-load",
+      "scriptPath": "scripts/proof-authored-browser-runtime-load.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M5 browser runtime load child artifact over authored content."
+    },
+    {
+      "name": "authored-roundtrip-fixture",
+      "scriptPath": "scripts/proof-authored-roundtrip-fixture.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M5 authored fixture generator for round-trip reproduction."
+    },
+    {
+      "name": "authored-state-panel-reflection",
+      "scriptPath": "scripts/proof-authored-state-panel-reflection.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M2 authored state panel reflection child evidence."
+    },
+    {
+      "name": "authored-studio-debug-readback",
+      "scriptPath": "scripts/proof-authored-studio-debug-readback.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M5 Studio debug readback child artifact."
+    },
+    {
+      "name": "authoring-ux-m2",
+      "scriptPath": "scripts/proof-authoring-ux-m2.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M2 authoring UX aggregate evidence."
+    },
+    {
+      "name": "catalog-entry-authoring-ui",
+      "scriptPath": "scripts/proof-catalog-entry-authoring-ui.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M2 catalog-entry authoring child evidence."
+    },
+    {
+      "name": "catalog-save-roundtrip",
+      "scriptPath": "scripts/proof-catalog-save-roundtrip.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M1 catalog save round-trip child evidence."
+    },
+    {
+      "name": "persistence-m1",
+      "scriptPath": "scripts/proof-persistence-m1.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M1 workspace persistence aggregate evidence."
+    },
+    {
+      "name": "proper-demo-capstone-guard",
+      "scriptPath": "scripts/proof-proper-demo-capstone-guard.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "Historical proper-demo capstone guard.",
+      "note": "Retained only for milestone reproduction; ASHA product/demo authority evidence now lives in the engine, demo, and testing lanes."
+    },
+    {
+      "name": "proper-demo-capstone-verifier",
+      "scriptPath": "scripts/proof-proper-demo-capstone-verifier.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "Historical proper-demo capstone verifier.",
+      "note": "Retained only for milestone reproduction; not part of normal Studio verification."
+    },
+    {
+      "name": "proper-demo-evidence-index",
+      "scriptPath": "scripts/proof-proper-demo-evidence-index.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "Historical proper-demo evidence index.",
+      "note": "Retained only for milestone reproduction; not part of normal Studio verification."
+    },
+    {
+      "name": "scene-object-create-authoring",
+      "scriptPath": "scripts/proof-scene-object-create-authoring.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M2 scene object create child evidence."
+    },
+    {
+      "name": "scene-object-edit-authoring",
+      "scriptPath": "scripts/proof-scene-object-edit-authoring.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M2 scene object edit child evidence."
+    },
+    {
+      "name": "scene-save-roundtrip",
+      "scriptPath": "scripts/proof-scene-save-roundtrip.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M1 scene save round-trip child evidence."
+    },
+    {
+      "name": "workspace-open-read",
+      "scriptPath": "scripts/proof-workspace-open-read.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "M1 workspace open/read child evidence."
+    },
+    {
+      "name": "asha-demo-product-path",
+      "scriptPath": "scripts/proof-asha-demo-product-path.ts",
+      "status": "delegated_to_testing",
+      "lane": "external_consumer",
+      "summary": "Old Studio-side asha-demo product-path artifact.",
+      "replacement": "Use asha-demo product checks and ASHA engine evidence lanes; Studio should not own demo product-path proof."
+    },
+    {
+      "name": "generated-level-metadata",
+      "scriptPath": "scripts/proof-generated-level-metadata.ts",
+      "status": "delegated_to_testing",
+      "lane": "external_consumer",
+      "summary": "Generated-level metadata browser proof.",
+      "replacement": "Use ASHA runtime/level-generation evidence or asha-testing conformance when generated-level proof is required."
+    },
+    {
+      "name": "playable-loop-inspection",
+      "scriptPath": "scripts/proof-playable-loop-inspection.ts",
+      "status": "delegated_to_testing",
+      "lane": "external_consumer",
+      "summary": "Old playable-loop browser inspection proof.",
+      "replacement": "Use asha-demo playable loop evidence for human-facing demo behavior and ASHA engine evidence for runtime authority."
+    },
+    {
+      "name": "runtime-session-inspection",
+      "scriptPath": "scripts/proof-runtime-session-inspection.ts",
+      "status": "legacy_retired",
+      "lane": "synthetic_fixture",
+      "summary": "Synthetic RuntimeSession inspection readout fixture.",
+      "replacement": "Use selected-backend-attach, selected-backend-command, and v2-live-backend-evidence for the live Studio path."
+    }
+  ]
+}
