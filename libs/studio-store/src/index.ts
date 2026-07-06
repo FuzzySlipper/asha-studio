@@ -91,8 +91,8 @@ import {
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
+import { createMockRuntimeSession } from '@asha/runtime-bridge/reference';
 import {
-  createMockRuntimeSession,
   type CameraCreateRequest,
   type CombatFeedbackProjection,
   type EncounterDirectorReadout,

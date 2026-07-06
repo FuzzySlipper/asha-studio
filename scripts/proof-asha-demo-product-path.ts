@@ -10,11 +10,11 @@ import {
   loadStudioGameWorkspaceManifest,
 } from '@asha-studio/domain';
 import {
-  createMockRuntimeSession,
   type CameraCreateRequest,
   type RuntimeSessionStateSummary,
   type WorldLoadRequest,
 } from '@asha/runtime-bridge';
+import { createMockRuntimeSession } from '@asha/runtime-bridge/reference';
 
 const repoRoot = process.cwd();
 const demoRoot = join(repoRoot, '..', 'asha-demo');
