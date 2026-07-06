@@ -291,6 +291,35 @@ test('voxel conversion scaffold fails closed when runtime facade operations are 
   );
 });
 
+test('studio voxel conversion workspace shell registers visible fail-closed regions', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+  const shellSource = readFileSync(join(repoRoot, 'libs/studio-shell/src/index.ts'), 'utf8');
+
+  assert.match(storeSource, /voxelConversionWorkspaceShell/);
+  assert.match(storeSource, /buildStudioVoxelConversionWorkspaceReadModel/);
+  assert.match(storeSource, /buildStudioVoxelConversionReadoutModel\(\{ workspace \}\)/);
+  assert.match(panelSource, /selector: 'asha-voxel-conversion-workspace-panel'/);
+  assert.match(panelSource, /data-visual-id="studio-voxel-conversion-workspace"/);
+  assert.match(shellSource, /<asha-voxel-conversion-workspace-panel class="voxel-panel" \/>/);
+
+  for (const state of ['empty_inputs', 'missing_capability', 'ready']) {
+    assert.match(storeSource, new RegExp(`id: '${state}'`));
+  }
+  for (const region of ['source', 'settings', 'preview', 'diagnostics', 'timeline', 'evidence']) {
+    assert.match(storeSource, new RegExp(`id: '${region}'`));
+    assert.match(panelSource, /data-voxel-region/);
+  }
+  for (const commandId of [
+    'voxel_conversion.plan',
+    'voxel_conversion.preview',
+    'voxel_conversion.apply',
+    'voxel_conversion.export_evidence',
+  ]) {
+    assert.match(storeSource, new RegExp(`commandId: '${commandId}'`));
+  }
+});
+
 test('studio boundary check rejects forbidden voxel conversion import shapes', () => {
   const forbiddenSpecifiers = [
     ['@asha', 'native-bridge'].join('/'),

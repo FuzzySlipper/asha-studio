@@ -25,6 +25,7 @@
     "libs/studio-shell/src/**/*.ts",
     "libs/studio-store/src/**/*.ts",
     "libs/studio-theme/src/**/*.ts",
+    "libs/studio-voxel-conversion/src/**/*.ts",
     "libs/studio-viewport/src/**/*.ts"
   ],
   "exclude": ["apps/studio-app/src/**/*.spec.ts", "apps/studio-app/src/**/*.test.ts"]

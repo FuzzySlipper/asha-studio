@@ -2226,6 +2226,256 @@ export class StudioInspectorPanelComponent {
 }
 
 @Component({
+  selector: 'asha-voxel-conversion-workspace-panel',
+  standalone: true,
+  template: `
+    <section class="voxel-workspace-panel" data-visual-id="studio-voxel-conversion-workspace">
+      @if (store.voxelConversionWorkspaceShell(); as shell) {
+        <header>
+          <div>
+            <span class="panel-kicker">Voxel Conversion</span>
+            <strong>{{ shell.shellVersion }}</strong>
+            <small>{{ shell.shellHash }}</small>
+          </div>
+          <dl data-voxel-shell-readout>
+            <dt>workspace</dt>
+            <dd>{{ shell.workspace.status }}</dd>
+            <dt>readiness</dt>
+            <dd>{{ shell.readout.status }}</dd>
+            <dt>authority</dt>
+            <dd>{{ shell.readout.authorityPosture }}</dd>
+          </dl>
+        </header>
+
+        <section class="voxel-state-strip" aria-label="Voxel conversion state">
+          @for (state of shell.states; track state.id) {
+            <article
+              [class.is-active]="state.active"
+              [attr.data-voxel-shell-state]="state.id"
+              [attr.data-voxel-shell-active]="state.active"
+            >
+              <span>{{ state.label }}</span>
+              <strong>{{ state.status }}</strong>
+              <small>{{ state.message }}</small>
+            </article>
+          }
+        </section>
+
+        <section class="voxel-region-grid" aria-label="Voxel conversion workspace regions">
+          @for (region of shell.regions; track region.id) {
+            <article
+              [class.is-disabled]="region.disabled"
+              [attr.data-voxel-region]="region.id"
+              [attr.data-voxel-region-status]="region.status"
+            >
+              <span>{{ region.label }}</span>
+              <strong>{{ region.status }}</strong>
+              <small>{{ region.message }}</small>
+            </article>
+          }
+        </section>
+
+        <section class="voxel-action-row" aria-label="Voxel conversion actions">
+          @for (action of shell.actions; track action.commandId) {
+            <button
+              type="button"
+              [disabled]="action.disabled"
+              [attr.data-voxel-action]="action.commandId"
+              [attr.title]="action.reason"
+            >
+              <span>{{ action.label }}</span>
+              <small>{{ action.reason }}</small>
+            </button>
+          }
+        </section>
+
+        <section class="voxel-diagnostics" aria-label="Voxel conversion diagnostics">
+          @for (diagnostic of shell.readout.diagnostics; track diagnostic.source + diagnostic.operation + diagnostic.code + diagnostic.reference) {
+            <span
+              [attr.data-voxel-diagnostic-code]="diagnostic.code"
+              [attr.data-voxel-diagnostic-source]="diagnostic.source"
+            >
+              {{ diagnostic.source }} · {{ diagnostic.operation }} · {{ diagnostic.code }} · {{ diagnostic.message }}
+            </span>
+          }
+        </section>
+      }
+    </section>
+  `,
+  styles: [
+    `
+      .voxel-workspace-panel {
+        background: var(--asha-color-panel);
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.55rem;
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: auto;
+        padding: 0.65rem 0.75rem;
+      }
+
+      header {
+        align-items: start;
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: minmax(14rem, 1fr) minmax(18rem, 1fr);
+        min-width: 0;
+      }
+
+      header > div,
+      .voxel-state-strip article,
+      .voxel-region-grid article,
+      .voxel-action-row button,
+      .voxel-diagnostics {
+        min-width: 0;
+      }
+
+      header > div {
+        display: grid;
+        gap: 0.12rem;
+      }
+
+      .panel-kicker {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      header strong,
+      header small,
+      .voxel-state-strip strong,
+      .voxel-state-strip small,
+      .voxel-region-grid strong,
+      .voxel-region-grid small,
+      .voxel-action-row small,
+      .voxel-diagnostics span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      header small,
+      .voxel-state-strip small,
+      .voxel-region-grid small,
+      .voxel-action-row small,
+      .voxel-diagnostics span {
+        color: var(--asha-color-muted);
+        font-size: 0.72rem;
+      }
+
+      dl {
+        display: grid;
+        gap: 0.18rem 0.55rem;
+        grid-template-columns: 5.5rem minmax(0, 1fr);
+        margin: 0;
+      }
+
+      dt {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+      }
+
+      dd {
+        margin: 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voxel-state-strip,
+      .voxel-region-grid,
+      .voxel-action-row,
+      .voxel-diagnostics {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .voxel-state-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .voxel-region-grid {
+        grid-template-columns: repeat(6, minmax(8rem, 1fr));
+      }
+
+      .voxel-state-strip article,
+      .voxel-region-grid article {
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.12rem;
+        padding: 0.45rem 0.55rem;
+      }
+
+      .voxel-state-strip article.is-active,
+      .voxel-region-grid article[data-voxel-region-status='failed_closed'],
+      .voxel-region-grid article[data-voxel-region-status='blocked'],
+      .voxel-region-grid article[data-voxel-region-status='missing'] {
+        border-color: var(--asha-color-warning);
+      }
+
+      .voxel-state-strip span,
+      .voxel-region-grid span {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+      }
+
+      .voxel-action-row {
+        grid-template-columns: repeat(4, minmax(9rem, 1fr));
+      }
+
+      .voxel-action-row button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        display: grid;
+        gap: 0.12rem;
+        min-height: 3.2rem;
+        padding: 0.45rem 0.55rem;
+        text-align: left;
+      }
+
+      .voxel-action-row button:disabled {
+        color: #8a949b;
+        cursor: not-allowed;
+        opacity: 0.78;
+      }
+
+      .voxel-diagnostics {
+        border-top: 1px solid var(--asha-color-border);
+        max-height: 4rem;
+        overflow: auto;
+        padding-top: 0.45rem;
+      }
+
+      .voxel-diagnostics span {
+        white-space: nowrap;
+      }
+
+      @media (max-width: 900px) {
+        header,
+        .voxel-state-strip,
+        .voxel-region-grid,
+        .voxel-action-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class StudioVoxelConversionWorkspacePanelComponent {
+  readonly store = inject(StudioWorkspaceStore);
+}
+
+@Component({
   selector: 'asha-assets-bottom-panel',
   standalone: true,
   template: `

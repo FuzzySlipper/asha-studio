@@ -111,6 +111,13 @@ import {
   type RuntimeSessionTelemetrySummary,
   type WorldLoadRequest,
 } from '@asha/runtime-bridge';
+import {
+  buildStudioVoxelConversionReadoutModel,
+  buildStudioVoxelConversionWorkspaceReadModel,
+  type StudioVoxelConversionCommandId,
+  type StudioVoxelConversionReadoutModel,
+  type StudioVoxelConversionWorkspaceReadModel,
+} from '@asha-studio/voxel-conversion';
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
 
@@ -130,6 +137,39 @@ export interface StudioProjectFileDialogReadModel {
   readonly entries: readonly StudioProjectFileEntry[];
   readonly selectedPath: string | null;
   readonly message: string;
+}
+
+export interface StudioVoxelConversionWorkspaceShellRegion {
+  readonly id: 'source' | 'settings' | 'preview' | 'diagnostics' | 'timeline' | 'evidence';
+  readonly label: string;
+  readonly status: string;
+  readonly disabled: boolean;
+  readonly message: string;
+}
+
+export interface StudioVoxelConversionWorkspaceShellAction {
+  readonly commandId: StudioVoxelConversionCommandId;
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly reason: string;
+}
+
+export interface StudioVoxelConversionWorkspaceShellState {
+  readonly id: 'empty_inputs' | 'missing_capability' | 'ready';
+  readonly label: string;
+  readonly active: boolean;
+  readonly status: string;
+  readonly message: string;
+}
+
+export interface StudioVoxelConversionWorkspaceShellReadModel {
+  readonly shellVersion: 'voxel-conversion-shell.v0';
+  readonly workspace: StudioVoxelConversionWorkspaceReadModel;
+  readonly readout: StudioVoxelConversionReadoutModel;
+  readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
+  readonly regions: readonly StudioVoxelConversionWorkspaceShellRegion[];
+  readonly actions: readonly StudioVoxelConversionWorkspaceShellAction[];
+  readonly shellHash: string;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -750,6 +790,159 @@ function buildDemoCommandProposalRows(workspace: StudioGameWorkspaceReadModel) {
   ];
 }
 
+function firstDiagnosticMessage(
+  diagnostics: readonly { readonly message: string }[],
+  fallback: string,
+): string {
+  return diagnostics[0]?.message ?? fallback;
+}
+
+function buildVoxelConversionWorkspaceShellReadModel(): StudioVoxelConversionWorkspaceShellReadModel {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: null,
+    target: null,
+    settings: null,
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const operations = [
+    workspace.operations.plan,
+    workspace.operations.preview,
+    workspace.operations.apply,
+    workspace.operations.exportEvidence,
+  ];
+  const readinessReason = (commandId: StudioVoxelConversionCommandId): string => {
+    const boundaryDiagnostic = readout.readiness.diagnostics.find(
+      diagnostic => diagnostic.commandId === commandId,
+    );
+    if (boundaryDiagnostic !== undefined) {
+      return boundaryDiagnostic.message;
+    }
+    const operation = operations.find(entry => entry.commandId === commandId);
+    return operation === undefined
+      ? 'Upstream voxel conversion capability is unavailable.'
+      : firstDiagnosticMessage(operation.diagnostics, 'Operation is waiting for authority evidence.');
+  };
+
+  const states: readonly StudioVoxelConversionWorkspaceShellState[] = [
+    {
+      id: 'empty_inputs',
+      label: 'Empty',
+      active: workspace.status === 'incomplete',
+      status: workspace.status,
+      message: 'No source asset, target grid, or conversion settings are selected.',
+    },
+    {
+      id: 'missing_capability',
+      label: 'Missing capability',
+      active: readout.status === 'failed_closed',
+      status: readout.status,
+      message: firstDiagnosticMessage(
+        readout.readiness.diagnostics,
+        'Asha runtime conversion operations are not available.',
+      ),
+    },
+    {
+      id: 'ready',
+      label: 'Ready',
+      active: workspace.status === 'ready' && readout.status === 'ready',
+      status: workspace.status === 'ready' ? readout.status : 'pending',
+      message: 'Enabled only after valid inputs and upstream authority operations are present.',
+    },
+  ];
+
+  const regions: readonly StudioVoxelConversionWorkspaceShellRegion[] = [
+    {
+      id: 'source',
+      label: 'Source',
+      status: workspace.source.status,
+      disabled: false,
+      message: firstDiagnosticMessage(workspace.source.diagnostics, 'Source asset selected.'),
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      status: workspace.settings.status,
+      disabled: false,
+      message: firstDiagnosticMessage(workspace.settings.diagnostics, 'Conversion settings are valid.'),
+    },
+    {
+      id: 'preview',
+      label: 'Preview',
+      status: workspace.operations.preview.status,
+      disabled: true,
+      message: firstDiagnosticMessage(
+        workspace.operations.preview.diagnostics,
+        'Preview awaits upstream authority evidence.',
+      ),
+    },
+    {
+      id: 'diagnostics',
+      label: 'Diagnostics',
+      status: readout.status,
+      disabled: false,
+      message: `${readout.diagnostics.length} diagnostics, authority posture ${readout.authorityPosture}.`,
+    },
+    {
+      id: 'timeline',
+      label: 'Timeline',
+      status: operations.map(operation => operation.status).join(' / '),
+      disabled: true,
+      message: 'Plan, preview, apply, and export rows are reserved until proposals are enabled.',
+    },
+    {
+      id: 'evidence',
+      label: 'Evidence',
+      status: workspace.operations.exportEvidence.status,
+      disabled: true,
+      message: firstDiagnosticMessage(
+        workspace.operations.exportEvidence.diagnostics,
+        'Evidence export awaits authority-produced refs.',
+      ),
+    },
+  ];
+
+  const actions: readonly StudioVoxelConversionWorkspaceShellAction[] = [
+    {
+      commandId: 'voxel_conversion.plan',
+      label: 'Plan',
+      disabled: true,
+      reason: readinessReason('voxel_conversion.plan'),
+    },
+    {
+      commandId: 'voxel_conversion.preview',
+      label: 'Preview',
+      disabled: true,
+      reason: readinessReason('voxel_conversion.preview'),
+    },
+    {
+      commandId: 'voxel_conversion.apply',
+      label: 'Apply',
+      disabled: true,
+      reason: readinessReason('voxel_conversion.apply'),
+    },
+    {
+      commandId: 'voxel_conversion.export_evidence',
+      label: 'Export',
+      disabled: true,
+      reason: readinessReason('voxel_conversion.export_evidence'),
+    },
+  ];
+
+  return {
+    shellVersion: 'voxel-conversion-shell.v0',
+    workspace,
+    readout,
+    states,
+    regions,
+    actions,
+    shellHash: `${workspace.readoutHash}:${readout.readoutHash}`,
+  };
+}
+
 function browserStorage(): Storage | null {
   try {
     return globalThis.localStorage ?? null;
@@ -1053,6 +1246,9 @@ export class StudioWorkspaceStore {
           commandProposals: buildDemoCommandProposalRows(workspace),
         });
   });
+  readonly voxelConversionWorkspaceShell = computed<StudioVoxelConversionWorkspaceShellReadModel>(() =>
+    buildVoxelConversionWorkspaceShellReadModel(),
+  );
   readonly workspaceCockpitEvidence = computed(() => {
     const assetInventory = this.assetInventoryState().inventory;
     const proofScenes = this.proofScenesState().proofScenes;

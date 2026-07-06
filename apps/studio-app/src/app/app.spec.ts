@@ -22,6 +22,40 @@ describe('StudioShellComponent', () => {
     expect(element.textContent).toContain('asha-studio-substrate');
   });
 
+  it('renders the fail-closed voxel conversion workspace shell', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    const panel = element.querySelector('[data-visual-id="studio-voxel-conversion-workspace"]');
+    expect(panel).not.toBeNull();
+    expect(panel?.textContent).toContain('voxel-conversion-shell.v0');
+    expect(panel?.textContent).toContain('failed_closed');
+    expect(panel?.textContent).toContain('runtime_facade_unavailable');
+    expect(panel?.querySelector('[data-voxel-shell-state="empty_inputs"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-shell-state="missing_capability"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-shell-state="ready"]')).not.toBeNull();
+
+    for (const region of ['source', 'settings', 'preview', 'diagnostics', 'timeline', 'evidence']) {
+      expect(panel?.querySelector(`[data-voxel-region="${region}"]`)).not.toBeNull();
+    }
+
+    for (const commandId of [
+      'voxel_conversion.plan',
+      'voxel_conversion.preview',
+      'voxel_conversion.apply',
+      'voxel_conversion.export_evidence',
+    ]) {
+      const button = panel?.querySelector(`[data-voxel-action="${commandId}"]`) as HTMLButtonElement | null;
+      expect(button).not.toBeNull();
+      expect(button?.disabled).toBe(true);
+    }
+  });
+
   it('renders the game workspace overview from the parsed manifest fixture', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
