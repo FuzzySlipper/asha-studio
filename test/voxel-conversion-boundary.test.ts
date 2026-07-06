@@ -7,12 +7,17 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   STUDIO_VOXEL_CONVERSION_OPERATION_BOUNDARIES,
+  buildStudioVoxelConversionApplyProposal,
   buildStudioVoxelConversionBoundaryReadout,
+  buildStudioVoxelConversionEvidenceExportProposal,
+  buildStudioVoxelConversionPlanProposal,
+  buildStudioVoxelConversionPreviewProposal,
   buildStudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
 import type {
   VoxelConversionEvidenceRef,
   VoxelConversionPlan,
+  VoxelConversionPreview,
   VoxelConversionSettings,
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
@@ -173,6 +178,26 @@ function samplePlan(
     },
     diagnostics: [],
     evidence: [sampleEvidence('plan')],
+  };
+}
+
+function samplePreview(plan: VoxelConversionPlan = samplePlan()): VoxelConversionPreview {
+  return {
+    planId: plan.planId,
+    outputHash: 'sha256:preview-output',
+    outputVoxelCount: 512,
+    outputBounds: {
+      min: [0, 0, 0],
+      max: [7, 7, 7],
+    },
+    sampleVoxels: [
+      {
+        coord: [0, 0, 0],
+        material: 1,
+      },
+    ],
+    diagnostics: [],
+    evidence: [sampleEvidence('preview')],
   };
 }
 
@@ -337,4 +362,171 @@ test('voxel conversion workspace read model rejects oversized output preflight',
   assert.equal(readout.settings.status, 'limit_exceeded');
   assert.equal(readout.settings.requestedOutputVoxels, 32768);
   assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'output_limit_exceeded'));
+});
+
+test('voxel conversion proposal builders produce typed plan preview apply export payloads', () => {
+  const source = sampleSource();
+  const target = sampleTarget();
+  const settings = sampleSettings();
+  const plan = samplePlan(source, settings);
+  const preview = samplePreview(plan);
+  const planWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const authorityWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan,
+    preview,
+    receipt: null,
+    evidence: [sampleEvidence('diagnostics')],
+  });
+
+  const planProposal = buildStudioVoxelConversionPlanProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 7,
+    workspace: planWorkspace,
+  });
+  const previewProposal = buildStudioVoxelConversionPreviewProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 8,
+    workspace: buildStudioVoxelConversionWorkspaceReadModel({
+      source,
+      target,
+      settings,
+      plan,
+      preview: null,
+      receipt: null,
+      evidence: [],
+    }),
+  });
+  const applyProposal = buildStudioVoxelConversionApplyProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 9,
+    workspace: authorityWorkspace,
+  });
+  const exportProposal = buildStudioVoxelConversionEvidenceExportProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 10,
+    workspace: authorityWorkspace,
+  });
+
+  assert.equal(planProposal.accepted, true);
+  assert.equal(planProposal.proposal?.input.request.source.sourceHash, 'sha256:source-v1');
+  assert.equal(planProposal.proposal?.input.request.settings.materialMap.defaultVoxelMaterial, 1);
+  assert.equal(planProposal.proposal?.expectedTimelineSequence, 7);
+  assert.deepEqual(planProposal.proposal?.evidenceExpectations, ['voxel_conversion_plan']);
+  assert.equal(previewProposal.proposal?.input.request.expectedPlanHash, 'sha256:settings');
+  assert.equal(applyProposal.proposal?.input.request.expectedPreviewHash, 'sha256:preview-output');
+  assert.equal(exportProposal.proposal?.input.evidence.length, 3);
+  assert.equal(exportProposal.proposal?.commandMetadata.inputSchemaName, 'VoxelConversionEvidenceExportInput');
+});
+
+test('voxel conversion proposal builders reject stale preview and apply guards', () => {
+  const plan = samplePlan();
+  const stalePreview = {
+    ...samplePreview(plan),
+    planId: 'stale-plan',
+  };
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan,
+    preview: stalePreview,
+    receipt: null,
+    evidence: [],
+  });
+  const applyProposal = buildStudioVoxelConversionApplyProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 11,
+    workspace,
+  });
+
+  assert.equal(workspace.operations.preview.status, 'stale');
+  assert.equal(applyProposal.accepted, false);
+  assert.equal(applyProposal.proposal, null);
+  assert.ok(applyProposal.diagnostics.some(diagnostic => diagnostic.code === 'stale_preview'));
+});
+
+test('voxel conversion proposal builders reject invalid material maps without partial payloads', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings({
+      materialMap: {
+        defaultVoxelMaterial: null,
+        entries: [
+          {
+            sourceMaterialSlot: -1,
+            sourceMaterialId: 'material.bad',
+            voxelMaterial: 0,
+          },
+        ],
+      },
+    }),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const proposal = buildStudioVoxelConversionPlanProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 12,
+    workspace,
+  });
+
+  assert.equal(proposal.accepted, false);
+  assert.equal(proposal.proposal, null);
+  assert.ok(proposal.diagnostics.some(diagnostic => diagnostic.code === 'invalid_material_map'));
+});
+
+test('voxel conversion proposal builders reject missing runtime capability', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const proposal = buildStudioVoxelConversionPlanProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 13,
+    workspace,
+    runtimeSession: {},
+  });
+
+  assert.equal(proposal.accepted, false);
+  assert.equal(proposal.proposal, null);
+  assert.ok(proposal.diagnostics.some(diagnostic => diagnostic.code === 'runtime_facade_unavailable'));
+});
+
+test('voxel conversion proposal builders reject unsupported source assets', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource({ assetKind: 'skinned_mesh' }),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const proposal = buildStudioVoxelConversionPlanProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 14,
+    workspace,
+  });
+
+  assert.equal(proposal.accepted, false);
+  assert.equal(proposal.proposal, null);
+  assert.ok(proposal.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_source_asset'));
 });

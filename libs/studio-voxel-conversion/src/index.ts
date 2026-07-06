@@ -1,5 +1,11 @@
 import { COMMAND_CATALOG, requireCatalogCommand } from '@asha/command-registry';
 import type {
+  VoxelConversionApplyCommandInput,
+  VoxelConversionEvidenceExportInput,
+  VoxelConversionPlanCommandInput,
+  VoxelConversionPreviewCommandInput,
+} from '@asha/command-registry';
+import type {
   VoxelConversionApplyRequest,
   VoxelConversionDiagnostic,
   VoxelConversionEvidenceRef,
@@ -66,6 +72,12 @@ export type StudioVoxelConversionWorkspaceDiagnosticCode =
   | 'missing_preview'
   | 'stale_preview'
   | 'missing_evidence';
+
+export type StudioVoxelConversionProposalDiagnosticCode =
+  | StudioVoxelConversionWorkspaceDiagnosticCode
+  | StudioVoxelConversionBoundaryDiagnosticCode
+  | 'missing_plan_hash'
+  | 'missing_preview_hash';
 
 export interface StudioVoxelConversionOperationBoundary {
   readonly commandId: StudioVoxelConversionCommandId;
@@ -147,6 +159,46 @@ export interface StudioVoxelConversionWorkspaceReadModel {
   readonly diagnostics: readonly StudioVoxelConversionWorkspaceDiagnostic[];
   readonly readoutHash: string;
   readonly nonClaims: readonly StudioVoxelConversionNonClaim[];
+}
+
+type StudioVoxelConversionCatalogCommand = ReturnType<typeof requireCatalogCommand>;
+
+export interface StudioVoxelConversionCommandMetadata {
+  readonly commandId: StudioVoxelConversionCommandId;
+  readonly inputSchemaName: string;
+  readonly outputSchemaName: string;
+  readonly operationClass: StudioVoxelConversionCatalogCommand['operationClass'];
+  readonly runtimeRequirements: StudioVoxelConversionCatalogCommand['runtimeRequirements'];
+  readonly artifacts: StudioVoxelConversionCatalogCommand['artifacts'];
+}
+
+export interface StudioVoxelConversionProposalDiagnostic {
+  readonly severity: 'error';
+  readonly code: StudioVoxelConversionProposalDiagnosticCode;
+  readonly commandId: StudioVoxelConversionCommandId;
+  readonly reference: string;
+  readonly message: string;
+}
+
+export interface StudioVoxelConversionCommandProposal<Input> {
+  readonly commandId: StudioVoxelConversionCommandId;
+  readonly input: Input;
+  readonly expectedTimelineSequence: number;
+  readonly commandMetadata: StudioVoxelConversionCommandMetadata;
+  readonly evidenceExpectations: readonly string[];
+}
+
+export interface StudioVoxelConversionProposalResult<Input> {
+  readonly accepted: boolean;
+  readonly proposal: StudioVoxelConversionCommandProposal<Input> | null;
+  readonly diagnostics: readonly StudioVoxelConversionProposalDiagnostic[];
+}
+
+export interface StudioVoxelConversionProposalOptions {
+  readonly sessionId: string;
+  readonly workspace: StudioVoxelConversionWorkspaceReadModel;
+  readonly expectedTimelineSequence: number;
+  readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, StudioVoxelConversionRuntimeMethod>> | null;
 }
 
 export type StudioVoxelConversionNonClaim =
@@ -434,6 +486,102 @@ function operationReadModel(
   };
 }
 
+function commandMetadata(commandId: StudioVoxelConversionCommandId): StudioVoxelConversionCommandMetadata {
+  const command = requireCatalogCommand(commandId, COMMAND_CATALOG);
+  return {
+    commandId,
+    inputSchemaName: command.inputSchemaName,
+    outputSchemaName: command.outputSchemaName,
+    operationClass: command.operationClass,
+    runtimeRequirements: command.runtimeRequirements,
+    artifacts: command.artifacts,
+  };
+}
+
+function proposalDiagnostic(
+  code: StudioVoxelConversionProposalDiagnosticCode,
+  commandId: StudioVoxelConversionCommandId,
+  reference: string,
+  message: string,
+): StudioVoxelConversionProposalDiagnostic {
+  return {
+    severity: 'error',
+    code,
+    commandId,
+    reference,
+    message,
+  };
+}
+
+function proposalDiagnosticsForOperation(
+  commandId: StudioVoxelConversionCommandId,
+  operation: StudioVoxelConversionOperationReadModel,
+  runtimeSession: StudioVoxelConversionProposalOptions['runtimeSession'],
+): readonly StudioVoxelConversionProposalDiagnostic[] {
+  const diagnostics: StudioVoxelConversionProposalDiagnostic[] = [];
+
+  for (const diagnostic of operation.diagnostics) {
+    if (diagnostic.severity !== 'error') {
+      continue;
+    }
+    diagnostics.push(proposalDiagnostic(
+      diagnostic.code,
+      commandId,
+      diagnostic.reference,
+      diagnostic.message,
+    ));
+  }
+
+  if (runtimeSession !== undefined) {
+    const boundaryReadout = buildStudioVoxelConversionBoundaryReadout(runtimeSession);
+    const boundaryDiagnostics = boundaryReadout.diagnostics.filter(
+      diagnostic => diagnostic.commandId === commandId,
+    );
+    for (const diagnostic of boundaryDiagnostics) {
+      diagnostics.push(proposalDiagnostic(
+        diagnostic.code,
+        commandId,
+        diagnostic.commandId,
+        diagnostic.message,
+      ));
+    }
+  }
+
+  return diagnostics;
+}
+
+function evidenceExpectations(commandId: StudioVoxelConversionCommandId): readonly string[] {
+  return commandMetadata(commandId).artifacts.map(artifact => artifact.type);
+}
+
+function acceptedProposal<Input>(
+  commandId: StudioVoxelConversionCommandId,
+  input: Input,
+  expectedTimelineSequence: number,
+): StudioVoxelConversionProposalResult<Input> {
+  return {
+    accepted: true,
+    diagnostics: [],
+    proposal: {
+      commandId,
+      input,
+      expectedTimelineSequence,
+      commandMetadata: commandMetadata(commandId),
+      evidenceExpectations: evidenceExpectations(commandId),
+    },
+  };
+}
+
+function rejectedProposal<Input>(
+  diagnostics: readonly StudioVoxelConversionProposalDiagnostic[],
+): StudioVoxelConversionProposalResult<Input> {
+  return {
+    accepted: false,
+    proposal: null,
+    diagnostics,
+  };
+}
+
 export function buildStudioVoxelConversionWorkspaceReadModel(
   input: StudioVoxelConversionWorkspaceInput,
 ): StudioVoxelConversionWorkspaceReadModel {
@@ -670,6 +818,223 @@ export function buildStudioVoxelConversionWorkspaceReadModel(
     ...readoutWithoutHash,
     readoutHash: stableReadoutHash(readoutWithoutHash),
   };
+}
+
+export function buildStudioVoxelConversionPlanProposal(
+  options: StudioVoxelConversionProposalOptions,
+): StudioVoxelConversionProposalResult<VoxelConversionPlanCommandInput> {
+  const commandId = 'voxel_conversion.plan';
+  const diagnostics = proposalDiagnosticsForOperation(
+    commandId,
+    options.workspace.operations.plan,
+    options.runtimeSession,
+  );
+  if (options.workspace.source.source === null) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_source',
+        commandId,
+        'source',
+        'Plan proposal requires a selected source asset.',
+      ),
+    ]);
+  }
+  if (options.workspace.target === null) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_target',
+        commandId,
+        'target',
+        'Plan proposal requires a target grid.',
+      ),
+    ]);
+  }
+  if (options.workspace.settings.settings === null) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_settings',
+        commandId,
+        'settings',
+        'Plan proposal requires conversion settings.',
+      ),
+    ]);
+  }
+  if (diagnostics.length > 0 || options.workspace.operations.plan.status !== 'ready') {
+    return rejectedProposal(diagnostics);
+  }
+
+  return acceptedProposal(
+    commandId,
+    {
+      sessionId: options.sessionId,
+      request: {
+        source: options.workspace.source.source,
+        target: options.workspace.target,
+        settings: options.workspace.settings.settings,
+      },
+    },
+    options.expectedTimelineSequence,
+  );
+}
+
+export function buildStudioVoxelConversionPreviewProposal(
+  options: StudioVoxelConversionProposalOptions,
+): StudioVoxelConversionProposalResult<VoxelConversionPreviewCommandInput> {
+  const commandId = 'voxel_conversion.preview';
+  const diagnostics = proposalDiagnosticsForOperation(
+    commandId,
+    options.workspace.operations.preview,
+    options.runtimeSession,
+  );
+  const plan = options.workspace.plan;
+  if (plan === null) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_plan',
+        commandId,
+        'plan',
+        'Preview proposal requires a current authority plan.',
+      ),
+    ]);
+  }
+  if (plan.settingsHash.length === 0) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_plan_hash',
+        commandId,
+        'plan.settingsHash',
+        'Preview proposal requires the expected plan hash.',
+      ),
+    ]);
+  }
+  if (diagnostics.length > 0 || options.workspace.operations.preview.status !== 'ready') {
+    return rejectedProposal(diagnostics);
+  }
+
+  return acceptedProposal(
+    commandId,
+    {
+      sessionId: options.sessionId,
+      request: {
+        planId: plan.planId,
+        expectedPlanHash: plan.settingsHash,
+      },
+    },
+    options.expectedTimelineSequence,
+  );
+}
+
+export function buildStudioVoxelConversionApplyProposal(
+  options: StudioVoxelConversionProposalOptions,
+): StudioVoxelConversionProposalResult<VoxelConversionApplyCommandInput> {
+  const commandId = 'voxel_conversion.apply';
+  const diagnostics = proposalDiagnosticsForOperation(
+    commandId,
+    options.workspace.operations.apply,
+    options.runtimeSession,
+  );
+  const plan = options.workspace.plan;
+  const preview = options.workspace.preview;
+  if (plan === null) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_plan',
+        commandId,
+        'plan',
+        'Apply proposal requires a current authority plan.',
+      ),
+    ]);
+  }
+  if (preview === null) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_preview',
+        commandId,
+        'preview',
+        'Apply proposal requires current preview evidence.',
+      ),
+    ]);
+  }
+  if (plan.settingsHash.length === 0) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_plan_hash',
+        commandId,
+        'plan.settingsHash',
+        'Apply proposal requires the expected plan hash.',
+      ),
+    ]);
+  }
+  if (preview.outputHash.length === 0) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_preview_hash',
+        commandId,
+        'preview.outputHash',
+        'Apply proposal requires the expected preview hash.',
+      ),
+    ]);
+  }
+  if (diagnostics.length > 0 || options.workspace.operations.apply.status !== 'ready') {
+    return rejectedProposal(diagnostics);
+  }
+
+  return acceptedProposal(
+    commandId,
+    {
+      sessionId: options.sessionId,
+      request: {
+        planId: plan.planId,
+        expectedPlanHash: plan.settingsHash,
+        expectedPreviewHash: preview.outputHash,
+      },
+    },
+    options.expectedTimelineSequence,
+  );
+}
+
+export function buildStudioVoxelConversionEvidenceExportProposal(
+  options: StudioVoxelConversionProposalOptions,
+): StudioVoxelConversionProposalResult<VoxelConversionEvidenceExportInput> {
+  const commandId = 'voxel_conversion.export_evidence';
+  const diagnostics = proposalDiagnosticsForOperation(
+    commandId,
+    options.workspace.operations.exportEvidence,
+    options.runtimeSession,
+  );
+  const evidence = options.workspace.operations.exportEvidence.evidence;
+  if (evidence.length === 0) {
+    return rejectedProposal([
+      ...diagnostics,
+      proposalDiagnostic(
+        'missing_evidence',
+        commandId,
+        'evidence',
+        'Evidence export proposal requires authority-produced evidence refs.',
+      ),
+    ]);
+  }
+  if (diagnostics.length > 0 || options.workspace.operations.exportEvidence.status !== 'ready') {
+    return rejectedProposal(diagnostics);
+  }
+
+  return acceptedProposal(
+    commandId,
+    {
+      sessionId: options.sessionId,
+      evidence,
+    },
+    options.expectedTimelineSequence,
+  );
 }
 
 export function buildStudioVoxelConversionBoundaryReadout(
