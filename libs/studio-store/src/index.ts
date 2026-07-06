@@ -9,6 +9,7 @@ import {
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
   buildStudioProofSceneList,
+  buildStudioAshaDemoProductPathReadModel,
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
   buildStudioCatalogWorkflowReadModel,
@@ -69,6 +70,7 @@ import {
   type StudioFpsGameplayPresetDraft,
   type StudioFpsGameplayPresetDraftField,
   type StudioGeneratedLevelPresetDraft,
+  type StudioAshaDemoProductPathReadModel,
   type StudioRunningProjectDiscoveryReadModel,
   type StudioRuntimeSessionInspectionReadModel,
   type StudioSceneFileListReadModel,
@@ -137,59 +139,63 @@ publish_artifact_format_version = "publish-artifact.v0"
 engine_source = "../asha"
 
 [workspace]
-scene_roots = ["scenes"]
+scene_roots = ["levels/presets", "levels/scenes"]
 asset_roots = ["assets"]
 replay_roots = ["replays"]
-catalog_packages = ["packages/game-catalogs"]
-policy_packages = ["packages/game-policy"]
+catalog_packages = ["catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
+policy_packages = []
 
 [runtime]
 dev_command = "npm run dev"
 devtools_endpoint = "ws://127.0.0.1:7391"
-wasm_or_native_entry = "harness/conformance/fixtures/minimal-world.json"
-backend_mode = "native"
-backend_profile = "native.napi.launcher.v1"
-backend_proof_refs = ["proof:dev-authority-smoke"]
+wasm_or_native_entry = "dist/runtime/index.js"
+backend_mode = "reference"
+backend_profile = "reference"
+backend_proof_refs = ["artifacts/4217/generated-tunnel-room.png"]
 
 [studio]
 workspace_mode = true
-attach_enabled = true
-allowed_source_writes = ["scenes", "assets", "packages/game-catalogs", "packages/game-policy"]
+attach_enabled = false
+allowed_source_writes = ["levels/presets", "levels/scenes", "assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
 
 [publish]
-command = "npm run publish:artifact"
-artifact_dir = "harness/out"
-verify_command = "npm run conformance"
+command = "npm run build"
+artifact_dir = "dist"
+verify_command = "npm run typecheck"
 
 [dev_resource_profile]
-local_roots = ["assets", "packages/game-catalogs"]
-cache_dir = "harness/out/dev-cache"
+local_roots = ["assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
+cache_dir = "dist/dev-cache"
 resolution_policy = "prefer-source"
 
 [publish_resource_profile]
-output_dir = "harness/out/publish/resources"
-archive_dir = "harness/out/publish/archive"
+output_dir = "dist/resources"
+archive_dir = "dist/archive"
 resolution_policy = "locked"
 `;
 
 const DEMO_GAME_WORKSPACE_SCRIPTS: Readonly<Record<string, string>> = {
-  dev: 'node scripts/dev-runtime.mjs',
-  'publish:artifact': 'node scripts/build-publish-artifact.mjs',
-  conformance: 'node scripts/run-conformance.mjs',
+  dev: 'node scripts/serve-ui.mjs',
+  build: 'node scripts/build-ui.mjs',
+  typecheck: 'node scripts/check-ui-assets.mjs',
 };
 
 const DEMO_GAME_WORKSPACE_PATHS = new Set([
-  'scenes',
+  'levels/presets',
+  'levels/scenes',
   'assets',
   'replays',
-  'packages/game-catalogs',
-  'packages/game-policy',
+  'catalogs/actors',
+  'catalogs/gameplay',
+  'catalogs/materials',
+  'catalogs/spawns',
+  'catalogs/weapons',
 ]);
 
 const DEMO_RUNTIME_PROJECT_BUNDLE: WorldLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
-  sceneId: 1001,
+  sceneId: 4103,
 };
 
 const STUDIO_PLAYABLE_LOOP_POLICY_SOURCE = 'export const policy = (view) => view;';
@@ -531,7 +537,7 @@ const DEMO_PUBLISH_EVIDENCE = {
 
 function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
   return loadStudioGameWorkspaceManifest({
-    workspaceRoot: '../asha-testing',
+    workspaceRoot: '../asha-demo',
     manifestPath: 'asha.game.toml',
     gameId: 'asha-demo',
     manifestText: DEMO_GAME_WORKSPACE_MANIFEST,
@@ -1009,6 +1015,12 @@ export class StudioWorkspaceStore {
       encounterTransitionReceipt: this.playableLoopEncounterTransitionReceiptState(),
       combatFeedbackProjection: this.playableLoopCombatFeedbackProjectionState(),
       paused: this.runtimeSessionPausedState(),
+    }),
+  );
+  readonly ashaDemoProductPath = computed<StudioAshaDemoProductPathReadModel>(() =>
+    buildStudioAshaDemoProductPathReadModel({
+      gameWorkspace: this.gameWorkspace(),
+      runtimeInspection: this.runtimeSessionInspection(),
     }),
   );
   readonly runningProjectDiscovery = computed<StudioRunningProjectDiscoveryReadModel>(() =>

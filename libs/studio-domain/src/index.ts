@@ -1256,6 +1256,86 @@ export interface StudioRuntimeSessionInspectionReadModel {
   readonly inspectionHash: string;
 }
 
+export type StudioAshaDemoProductPathMode = 'definition_authoring' | 'live_runtime_inspection';
+
+export interface StudioAshaDemoProductPathContentReadModel {
+  readonly kind:
+    | 'manifest'
+    | 'project_bundle'
+    | 'entity_definition'
+    | 'scene_document'
+    | 'level_preset'
+    | 'catalog'
+    | 'runtime_entry';
+  readonly label: string;
+  readonly path: string;
+  readonly validationStatus: 'valid' | 'invalid' | 'pending_live_attach' | 'unavailable';
+  readonly evidenceHash: string | null;
+}
+
+export interface StudioAshaDemoProductPathReadModel {
+  readonly productPathVersion: 'studio-asha-demo-product-path.v0';
+  readonly project: {
+    readonly gameId: string | null;
+    readonly workspaceRoot: string | null;
+    readonly manifestPath: string;
+    readonly projectBundlePath: 'project/project-bundle.json';
+  };
+  readonly mode: StudioAshaDemoProductPathMode;
+  readonly authoredContent: readonly StudioAshaDemoProductPathContentReadModel[];
+  readonly definitionAuthoring: {
+    readonly generatedLevelPresetStatus: StudioGeneratedLevelInspectionReadModel['definitionAuthoring']['validationStatus'];
+    readonly gameplayPresetStatus: StudioPlayableLoopDefinitionAuthoringReadModel['validation']['status'];
+    readonly generatedLevelPresetPath: StudioGeneratedLevelInspectionReadModel['definitionAuthoring']['presetPath'];
+    readonly gameplayPresetPath: StudioPlayableLoopDefinitionAuthoringReadModel['source']['presetPath'];
+  };
+  readonly liveRuntime: {
+    readonly attachState: StudioRuntimeSessionInspectionReadModel['attachState'];
+    readonly sessionStatus: StudioRuntimeSessionInspectionReadModel['sessionStatus'];
+    readonly sessionId: string | null;
+    readonly tick: number | null;
+    readonly sessionHash: string | null;
+    readonly replayRecordCount: number;
+    readonly lifecycleLabel: string | null;
+    readonly playerHealth: string | null;
+    readonly enemyHealth: string | null;
+  };
+  readonly controls: {
+    readonly attach: {
+      readonly commandId: 'runtime_session.attach_public_facade';
+      readonly available: boolean;
+      readonly publicSurface: '@asha/runtime-bridge:createMockRuntimeSession';
+    };
+    readonly runPolicy: {
+      readonly commandId: 'runtime_session.run_autonomous_policy_tick';
+      readonly available: boolean;
+      readonly disabledReason: string | null;
+      readonly publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.runAutonomousPolicyTick';
+    };
+    readonly restart: {
+      readonly commandId: 'runtime.restart_session_intent';
+      readonly available: boolean;
+      readonly disabledReason: string | null;
+      readonly publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart';
+    };
+  };
+  readonly publicSurfacesUsed: readonly string[];
+  readonly boundaries: {
+    readonly definitionAuthoringOwnsStoredFiles: true;
+    readonly liveRuntimeInspectionUsesPublicFacade: true;
+    readonly studioOwnsGameplayAuthority: false;
+    readonly runtimeToDefinitionExport: false;
+  };
+  readonly diagnostics: readonly StudioDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_private_transport',
+    'not_demo_local_shadow_state',
+    'not_runtime_to_definition_export',
+  ];
+  readonly productPathHash: string;
+}
+
 export interface StudioGeneratedLevelPresetDraft {
   readonly presetId: string;
   readonly seed: number;
@@ -3864,6 +3944,171 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
       'not_raw_state_store',
     ],
     inspectionHash: fnv1aHash('studio-runtime-session-inspection', body),
+  };
+}
+
+export function buildStudioAshaDemoProductPathReadModel(input: {
+  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
+  readonly runtimeInspection: StudioRuntimeSessionInspectionReadModel;
+}): StudioAshaDemoProductPathReadModel {
+  const workspace = input.gameWorkspace;
+  const runtimeInspection = input.runtimeInspection;
+  const attached = runtimeInspection.attachState === 'attached';
+  const diagnostics: StudioDiagnostic[] = [];
+
+  if (workspace === null) {
+    diagnostics.push({
+      severity: 'error',
+      code: 'asha_demo_product_path_missing_workspace',
+      message: 'ASHA Demo product path requires an opened asha-demo game workspace.',
+      source: 'asha.game.toml',
+      remediation: 'Open the asha-demo manifest through the public game-workspace loader.',
+    });
+  }
+
+  const generatedLevel = runtimeInspection.generatedLevel;
+  const playableLoopTuning = runtimeInspection.playableLoopTuning;
+  const liveLifecycle = runtimeInspection.playableLoopTuning.liveInspection.lifecycle;
+  const authoredContent: StudioAshaDemoProductPathContentReadModel[] = [
+    {
+      kind: 'manifest',
+      label: 'Game manifest',
+      path: workspace?.manifestPath ?? 'asha.game.toml',
+      validationStatus: workspace === null ? 'unavailable' : 'valid',
+      evidenceHash: workspace?.workspaceHash ?? null,
+    },
+    {
+      kind: 'project_bundle',
+      label: 'ProjectBundle',
+      path: 'project/project-bundle.json',
+      validationStatus: 'valid',
+      evidenceHash: runtimeInspection.workspaceHash,
+    },
+    {
+      kind: 'entity_definition',
+      label: 'Player entity',
+      path: 'catalogs/actors/demo-player.entity.json',
+      validationStatus: playableLoopTuning.definitionAuthoring.validation.status,
+      evidenceHash: playableLoopTuning.definitionAuthoring.hashes.presetHash,
+    },
+    {
+      kind: 'entity_definition',
+      label: 'Enemy entity',
+      path: 'catalogs/actors/generated-tunnel-enemy.entity.json',
+      validationStatus: attached ? 'valid' : 'pending_live_attach',
+      evidenceHash: liveLifecycle.lifecycleHash,
+    },
+    {
+      kind: 'scene_document',
+      label: 'Generated tunnel room',
+      path: 'levels/scenes/generated-tunnel-room.scene.json',
+      validationStatus: generatedLevel.definitionAuthoring.validationStatus,
+      evidenceHash: generatedLevel.liveInspection.generator.outputHash,
+    },
+    {
+      kind: 'level_preset',
+      label: 'Tiny enclosed tunnel',
+      path: 'levels/presets/tiny-enclosed-tunnel.json',
+      validationStatus: generatedLevel.definitionAuthoring.validationStatus,
+      evidenceHash: generatedLevel.liveInspection.generator.configHash,
+    },
+    {
+      kind: 'catalog',
+      label: 'Gameplay catalog',
+      path: 'catalogs/gameplay/default-fps.catalog.json',
+      validationStatus: playableLoopTuning.definitionAuthoring.validation.status,
+      evidenceHash: playableLoopTuning.definitionAuthoring.hashes.catalogHash,
+    },
+    {
+      kind: 'catalog',
+      label: 'Primary weapon',
+      path: 'catalogs/weapons/primary-fire.weapon.json',
+      validationStatus: playableLoopTuning.definitionAuthoring.validation.status,
+      evidenceHash: playableLoopTuning.definitionAuthoring.hashes.tuningHash,
+    },
+    {
+      kind: 'runtime_entry',
+      label: 'Reference runtime entry',
+      path: workspace?.runtimeEntry ?? 'dist/runtime/index.js',
+      validationStatus: workspace === null ? 'unavailable' : 'valid',
+      evidenceHash: runtimeInspection.sessionHash,
+    },
+  ];
+  const runPolicyAvailable = runtimeInspection.playableLoop.controls.policyTick.available;
+  const restartAvailable = runtimeInspection.playableLoop.controls.restart.available;
+  const body = {
+    project: {
+      gameId: workspace?.gameId ?? null,
+      workspaceRoot: workspace?.workspaceRoot ?? null,
+      manifestPath: workspace?.manifestPath ?? 'asha.game.toml',
+      projectBundlePath: 'project/project-bundle.json' as const,
+    },
+    mode: attached ? 'live_runtime_inspection' as const : 'definition_authoring' as const,
+    authoredContent,
+    definitionAuthoring: {
+      generatedLevelPresetStatus: generatedLevel.definitionAuthoring.validationStatus,
+      gameplayPresetStatus: playableLoopTuning.definitionAuthoring.validation.status,
+      generatedLevelPresetPath: generatedLevel.definitionAuthoring.presetPath,
+      gameplayPresetPath: playableLoopTuning.definitionAuthoring.source.presetPath,
+    },
+    liveRuntime: {
+      attachState: runtimeInspection.attachState,
+      sessionStatus: runtimeInspection.sessionStatus,
+      sessionId: runtimeInspection.sessionId,
+      tick: runtimeInspection.tick,
+      sessionHash: runtimeInspection.sessionHash,
+      replayRecordCount: runtimeInspection.replay.recordCount,
+      lifecycleLabel: liveLifecycle.label,
+      playerHealth: liveLifecycle.playerHealth,
+      enemyHealth: liveLifecycle.enemyHealth,
+    },
+    controls: {
+      attach: {
+        commandId: 'runtime_session.attach_public_facade' as const,
+        available: workspace !== null,
+        publicSurface: '@asha/runtime-bridge:createMockRuntimeSession' as const,
+      },
+      runPolicy: {
+        commandId: 'runtime_session.run_autonomous_policy_tick' as const,
+        available: runPolicyAvailable,
+        disabledReason: runtimeInspection.playableLoop.controls.policyTick.disabledReason,
+        publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.runAutonomousPolicyTick' as const,
+      },
+      restart: {
+        commandId: 'runtime.restart_session_intent' as const,
+        available: restartAvailable,
+        disabledReason: runtimeInspection.playableLoop.controls.restart.disabledReason,
+        publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart' as const,
+      },
+    },
+    publicSurfacesUsed: [
+      '@asha/game-workspace:parseAshaGameManifestToml',
+      '@asha/runtime-bridge:createMockRuntimeSession',
+      '@asha/runtime-bridge:RuntimeSessionFacade.initialize',
+      '@asha/runtime-bridge:RuntimeSessionFacade.readGeneratedTunnelReadout',
+      '@asha/runtime-bridge:RuntimeSessionFacade.readLifecycleStatus',
+      '@asha/runtime-bridge:RuntimeSessionFacade.runAutonomousPolicyTick',
+      '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart',
+    ],
+    boundaries: {
+      definitionAuthoringOwnsStoredFiles: true as const,
+      liveRuntimeInspectionUsesPublicFacade: true as const,
+      studioOwnsGameplayAuthority: false as const,
+      runtimeToDefinitionExport: false as const,
+    },
+    diagnostics,
+  };
+
+  return {
+    productPathVersion: 'studio-asha-demo-product-path.v0',
+    ...body,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_private_transport',
+      'not_demo_local_shadow_state',
+      'not_runtime_to_definition_export',
+    ],
+    productPathHash: fnv1aHash('studio-asha-demo-product-path', body),
   };
 }
 

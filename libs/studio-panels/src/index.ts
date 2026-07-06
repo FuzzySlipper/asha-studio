@@ -261,6 +261,81 @@ function filteredHierarchyEntities(
             <button type="button" (click)="closePlayableLoopInspector()">Close</button>
           </div>
           <div class="runtime-inspection-popout__body">
+            <section class="asha-demo-product-path" data-visual-id="studio-asha-demo-product-path">
+              <div class="asha-demo-product-path__identity">
+                <span>ASHA Demo Product Path</span>
+                <strong data-product-path="version">
+                  {{ store.ashaDemoProductPath().productPathVersion }}
+                </strong>
+                <small data-product-path="project-root">
+                  {{ store.ashaDemoProductPath().project.workspaceRoot || 'no project root' }}
+                  · {{ store.ashaDemoProductPath().project.manifestPath }}
+                  · {{ store.ashaDemoProductPath().project.projectBundlePath }}
+                </small>
+              </div>
+              <div class="asha-demo-product-path__mode">
+                <span>Mode Boundary</span>
+                <strong data-product-path="mode">{{ store.ashaDemoProductPath().mode }}</strong>
+                <small>
+                  authoring reads stored files · live inspection reads RuntimeSession
+                </small>
+              </div>
+              <div class="asha-demo-product-path__content">
+                @for (content of store.ashaDemoProductPath().authoredContent; track content.path) {
+                  <article
+                    class="asha-demo-product-path__file"
+                    [attr.data-product-content-kind]="content.kind"
+                    [attr.data-product-content-status]="content.validationStatus"
+                  >
+                    <span>{{ content.kind }}</span>
+                    <strong>{{ content.label }}</strong>
+                    <small>{{ content.path }}</small>
+                    <small>{{ content.validationStatus }} · {{ content.evidenceHash || 'pending hash' }}</small>
+                  </article>
+                }
+              </div>
+              <div class="asha-demo-product-path__runtime">
+                <div>
+                  <span>Live Runtime</span>
+                  <strong data-product-path="live-state">
+                    {{ store.ashaDemoProductPath().liveRuntime.attachState }}
+                    · {{ store.ashaDemoProductPath().liveRuntime.sessionStatus }}
+                  </strong>
+                  <small data-product-path="live-session">
+                    {{ store.ashaDemoProductPath().liveRuntime.sessionId || 'not attached' }}
+                    · tick {{ store.ashaDemoProductPath().liveRuntime.tick ?? 'n/a' }}
+                    · replay {{ store.ashaDemoProductPath().liveRuntime.replayRecordCount }}
+                  </small>
+                </div>
+                <div>
+                  <span>Lifecycle</span>
+                  <strong data-product-path="lifecycle">
+                    {{ store.ashaDemoProductPath().liveRuntime.lifecycleLabel || 'not attached' }}
+                  </strong>
+                  <small>
+                    player {{ store.ashaDemoProductPath().liveRuntime.playerHealth || 'n/a' }}
+                    · enemy {{ store.ashaDemoProductPath().liveRuntime.enemyHealth || 'n/a' }}
+                  </small>
+                </div>
+                <div>
+                  <span>Typed Controls</span>
+                  <strong data-product-path="controls">
+                    {{ store.ashaDemoProductPath().controls.runPolicy.available ? 'policy ready' : store.ashaDemoProductPath().controls.runPolicy.disabledReason || 'policy waiting' }}
+                  </strong>
+                  <small>
+                    {{ store.ashaDemoProductPath().controls.restart.commandId }}
+                    · {{ store.ashaDemoProductPath().controls.restart.available ? 'restart ready' : store.ashaDemoProductPath().controls.restart.disabledReason || 'restart waiting' }}
+                  </small>
+                </div>
+              </div>
+              <div class="asha-demo-product-path__surfaces">
+                <span>Public Surfaces</span>
+                <small data-product-path="public-surfaces">
+                  {{ store.ashaDemoProductPath().publicSurfacesUsed.join(' · ') }}
+                </small>
+              </div>
+            </section>
+
             <section class="generated-level-inspection" data-visual-id="studio-generated-level-inspection">
               <div class="generated-level-inspection__cell generated-level-inspection__cell--authoring">
                 <span>Definition Authoring</span>
@@ -923,6 +998,85 @@ function filteredHierarchyEntities(
         padding: 0.75rem;
       }
 
+      .asha-demo-product-path {
+        border-bottom: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.45rem;
+        grid-template-columns: minmax(14rem, 1.2fr) minmax(11rem, 0.8fr);
+        min-width: 0;
+        padding-bottom: 0.65rem;
+      }
+
+      .asha-demo-product-path__identity,
+      .asha-demo-product-path__mode,
+      .asha-demo-product-path__runtime > div,
+      .asha-demo-product-path__surfaces,
+      .asha-demo-product-path__file {
+        background: #10161b;
+        border: 1px solid var(--asha-color-border);
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.1rem;
+        min-width: 0;
+        overflow: hidden;
+        padding: 0.34rem 0.42rem;
+      }
+
+      .asha-demo-product-path__identity span,
+      .asha-demo-product-path__mode span,
+      .asha-demo-product-path__runtime span,
+      .asha-demo-product-path__surfaces span,
+      .asha-demo-product-path__file span {
+        color: var(--asha-color-muted);
+        font-size: 0.56rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .asha-demo-product-path__identity strong,
+      .asha-demo-product-path__mode strong,
+      .asha-demo-product-path__runtime strong,
+      .asha-demo-product-path__file strong {
+        font-size: 0.64rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .asha-demo-product-path__identity small,
+      .asha-demo-product-path__mode small,
+      .asha-demo-product-path__runtime small,
+      .asha-demo-product-path__surfaces small,
+      .asha-demo-product-path__file small {
+        color: var(--asha-color-muted);
+        font-size: 0.56rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .asha-demo-product-path__content {
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        min-width: 0;
+      }
+
+      .asha-demo-product-path__runtime {
+        display: grid;
+        gap: 0.35rem;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        min-width: 0;
+      }
+
+      .asha-demo-product-path__surfaces {
+        grid-column: 1 / -1;
+      }
+
       .generated-level-inspection {
         align-items: stretch;
         display: grid;
@@ -1098,6 +1252,8 @@ function filteredHierarchyEntities(
 
         .runtime-session-strip,
         .runtime-inspection,
+        .asha-demo-product-path,
+        .asha-demo-product-path__runtime,
         .generated-level-inspection,
         .playable-loop-inspection {
           grid-template-columns: 1fr;

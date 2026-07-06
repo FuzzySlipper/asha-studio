@@ -34,8 +34,9 @@ describe('StudioShellComponent', () => {
     const overview = element.querySelector('[data-visual-id="studio-game-workspace-overview"]');
     expect(overview).not.toBeNull();
     expect(overview?.textContent).toContain('asha-demo');
+    expect(overview?.textContent).toContain('../asha-demo');
     expect(overview?.textContent).toContain('ws://127.0.0.1:7391');
-    expect(overview?.textContent).toContain('npm run publish:artifact');
+    expect(overview?.textContent).toContain('npm run build');
     expect(
       overview?.querySelector('[data-workspace-overview="workspace-hash"]')?.textContent,
     ).toContain('studio-game-workspace-');
@@ -184,6 +185,92 @@ describe('StudioShellComponent', () => {
     expect(popout?.querySelector('[data-visual-id="studio-generated-level-inspection"]')).not.toBeNull();
     expect(popout?.querySelector('[data-visual-id="studio-encounter-tuning-inspection"]')).not.toBeNull();
     expect(popout?.querySelector('[data-visual-id="studio-playable-loop-inspection"]')).not.toBeNull();
+  });
+
+  it('renders the asha-demo product path from authored content through typed live controls', async () => {
+    await TestBed.configureTestingModule({
+      imports: [StudioShellComponent],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(StudioShellComponent);
+    fixture.detectChanges();
+
+    const element: HTMLElement = fixture.nativeElement;
+    openPlayableLoopInspector(element);
+    fixture.detectChanges();
+
+    const productPath = element.querySelector('[data-visual-id="studio-asha-demo-product-path"]');
+    expect(productPath?.querySelector('[data-product-path="version"]')?.textContent).toContain(
+      'studio-asha-demo-product-path.v0',
+    );
+    expect(productPath?.querySelector('[data-product-path="project-root"]')?.textContent).toContain(
+      '../asha-demo',
+    );
+    expect(productPath?.querySelector('[data-product-path="project-root"]')?.textContent).toContain(
+      'project/project-bundle.json',
+    );
+    expect(productPath?.textContent).toContain('catalogs/actors/demo-player.entity.json');
+    expect(productPath?.textContent).toContain('catalogs/actors/generated-tunnel-enemy.entity.json');
+    expect(productPath?.textContent).toContain('levels/scenes/generated-tunnel-room.scene.json');
+    expect(productPath?.textContent).toContain('levels/presets/tiny-enclosed-tunnel.json');
+    expect(productPath?.textContent).toContain('catalogs/gameplay/default-fps.catalog.json');
+    expect(productPath?.querySelector('[data-product-path="mode"]')?.textContent).toContain(
+      'definition_authoring',
+    );
+    expect(productPath?.querySelector('[data-product-path="live-state"]')?.textContent).toContain(
+      'not_attached',
+    );
+    expect(productPath?.querySelector('[data-product-path="public-surfaces"]')?.textContent).toContain(
+      '@asha/game-workspace:parseAshaGameManifestToml',
+    );
+    expect(productPath?.querySelector('[data-product-path="public-surfaces"]')?.textContent).toContain(
+      '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart',
+    );
+
+    const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
+    const attachButton = Array.from(runtimePanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Attach',
+    );
+    attachButton?.click();
+    fixture.detectChanges();
+
+    expect(productPath?.querySelector('[data-product-path="mode"]')?.textContent).toContain(
+      'live_runtime_inspection',
+    );
+    expect(productPath?.querySelector('[data-product-path="live-state"]')?.textContent).toContain(
+      'attached',
+    );
+    expect(productPath?.querySelector('[data-product-path="live-session"]')?.textContent).toContain(
+      'runtime-session:asha-demo:studio-reference',
+    );
+    expect(productPath?.querySelector('[data-product-path="lifecycle"]')?.textContent).toContain(
+      'In progress',
+    );
+
+    const loopPanel = element.querySelector('[data-visual-id="studio-playable-loop-inspection"]');
+    const runPolicyButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Run Policy',
+    );
+    runPolicyButton?.click();
+    fixture.detectChanges();
+
+    expect(productPath?.querySelector('[data-product-path="lifecycle"]')?.textContent).toContain(
+      'Enemy defeated',
+    );
+    expect(productPath?.querySelector('[data-product-path="controls"]')?.textContent).toContain(
+      'policy ready',
+    );
+
+    const restartButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
+      button => button.textContent?.trim() === 'Restart',
+    );
+    restartButton?.click();
+    fixture.detectChanges();
+
+    expect(productPath?.querySelector('[data-product-path="lifecycle"]')?.textContent).toContain(
+      'In progress',
+    );
+    expect(productPath?.textContent).toContain('runtime.restart_session_intent');
   });
 
   it('renders generated-level preset authoring and live metadata without crossing the mode boundary', async () => {
