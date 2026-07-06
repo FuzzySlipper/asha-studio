@@ -1633,7 +1633,8 @@ export class StudioWorkspaceStore {
     }
 
     try {
-      const facade = await createStudioRustRuntimeSessionFacade();
+      const attach = await createStudioRustRuntimeSessionFacade();
+      const facade = attach.facade;
       const initialized = facade.initialize({
         sessionId: `runtime-session:${workspace.gameId}:studio-rust`,
         seed: 17,
@@ -1643,6 +1644,7 @@ export class StudioWorkspaceStore {
         },
         projectBundle: DEMO_RUNTIME_PROJECT_BUNDLE,
       });
+      assertNativeRustRuntimeAuthority(facade, attach.bridge);
       this.runtimeSessionFacadeState.set(facade);
       this.runtimeSessionStateSummaryState.set(initialized);
       this.runtimeSessionPausedState.set(false);
@@ -2471,34 +2473,39 @@ export class StudioWorkspaceStore {
   }
 }
 
-type StudioRuntimeBridgeProvider =
-  | RuntimeBridge
-  | Promise<RuntimeBridge>
-  | (() => RuntimeBridge | Promise<RuntimeBridge>)
-  | {
-      readonly bridge?: RuntimeBridge | Promise<RuntimeBridge>;
-      createRuntimeBridge?: () => RuntimeBridge | Promise<RuntimeBridge>;
-    };
+interface StudioNativeRustRuntimeBridgeProvider {
+  readonly kind: 'asha_studio.native_runtime_bridge_provider.v1';
+  readonly backend: 'native_rust';
+  readonly productAuthority: true;
+  readonly referenceFallback: false;
+  readonly bridge?: RuntimeBridge | Promise<RuntimeBridge>;
+  createRuntimeBridge?: () => RuntimeBridge | Promise<RuntimeBridge>;
+}
+
+type StudioRuntimeBridgeProvider = StudioNativeRustRuntimeBridgeProvider;
 
 type StudioRuntimeBridgeGlobal = typeof globalThis & {
   readonly ashaStudioRuntimeBridge?: StudioRuntimeBridgeProvider;
   readonly ashaRuntimeBridge?: StudioRuntimeBridgeProvider;
 };
 
-interface StudioRuntimeBridgeFactoryProvider {
-  readonly bridge?: RuntimeBridge | Promise<RuntimeBridge>;
-  createRuntimeBridge?: () => RuntimeBridge | Promise<RuntimeBridge>;
+interface StudioRuntimeSessionAttach {
+  readonly facade: RuntimeSessionFacade;
+  readonly bridge: RuntimeBridge;
 }
 
-async function createStudioRustRuntimeSessionFacade(): Promise<RuntimeSessionFacade> {
+async function createStudioRustRuntimeSessionFacade(): Promise<StudioRuntimeSessionAttach> {
   const bridge = await readInjectedStudioRuntimeBridge();
   if (bridge === null) {
     throw new RuntimeBridgeError(
       'native_unavailable',
-      'Studio live RuntimeSession inspection requires globalThis.ashaStudioRuntimeBridge with the public RuntimeBridge interface; reference/mock RuntimeSession is not used for live attach.',
+      'Studio live RuntimeSession inspection requires globalThis.ashaStudioRuntimeBridge with asha_studio.native_runtime_bridge_provider.v1 native_rust authority metadata; reference/mock RuntimeSession is not used for live attach.',
     );
   }
-  return createRuntimeSessionFacade({ bridge, mode: 'rust' });
+  return {
+    facade: createRuntimeSessionFacade({ bridge, mode: 'rust' }),
+    bridge,
+  };
 }
 
 async function readInjectedStudioRuntimeBridge(): Promise<RuntimeBridge | null> {
@@ -2506,6 +2513,12 @@ async function readInjectedStudioRuntimeBridge(): Promise<RuntimeBridge | null> 
   const provider = runtimeGlobal.ashaStudioRuntimeBridge ?? runtimeGlobal.ashaRuntimeBridge ?? null;
   if (provider === null) {
     return null;
+  }
+  if (!isNativeRustRuntimeBridgeProvider(provider)) {
+    throw new RuntimeBridgeError(
+      'invalid_input',
+      'globalThis.ashaStudioRuntimeBridge must be an asha_studio.native_runtime_bridge_provider.v1 provider with native_rust authority metadata; raw RuntimeBridge/reference providers are rejected.',
+    );
   }
 
   const candidate = readRuntimeBridgeProviderValue(provider);
@@ -2522,20 +2535,45 @@ async function readInjectedStudioRuntimeBridge(): Promise<RuntimeBridge | null> 
 function readRuntimeBridgeProviderValue(
   provider: StudioRuntimeBridgeProvider,
 ): RuntimeBridge | Promise<RuntimeBridge> {
-  if (typeof provider === 'function') {
-    return provider();
+  if (typeof provider.createRuntimeBridge === 'function') {
+    return provider.createRuntimeBridge();
   }
-  if (isRuntimeBridge(provider)) {
-    return provider;
+  if (provider.bridge !== undefined) {
+    return provider.bridge;
   }
-  const factoryProvider = provider as StudioRuntimeBridgeFactoryProvider;
-  if (typeof factoryProvider.createRuntimeBridge === 'function') {
-    return factoryProvider.createRuntimeBridge();
+  throw new RuntimeBridgeError(
+    'invalid_input',
+    'globalThis.ashaStudioRuntimeBridge native provider must expose bridge or createRuntimeBridge',
+  );
+}
+
+function isNativeRustRuntimeBridgeProvider(value: unknown): value is StudioNativeRustRuntimeBridgeProvider {
+  if (value === null || typeof value !== 'object') {
+    return false;
   }
-  if (factoryProvider.bridge !== undefined) {
-    return factoryProvider.bridge;
+  const candidate = value as Partial<StudioNativeRustRuntimeBridgeProvider>;
+  return candidate.kind === 'asha_studio.native_runtime_bridge_provider.v1'
+    && candidate.backend === 'native_rust'
+    && candidate.productAuthority === true
+    && candidate.referenceFallback === false;
+}
+
+function assertNativeRustRuntimeAuthority(
+  facade: RuntimeSessionFacade,
+  bridge: RuntimeBridge,
+): void {
+  const readout = facade.readEcrpRuntimeReadout();
+  const snapshot = bridge.readFpsRuntimeSession();
+  if (
+    readout.authority.mode !== 'rust'
+    || readout.authority.source !== 'rust_bridge'
+    || snapshot.backend !== 'native_rust'
+  ) {
+    throw new RuntimeBridgeError(
+      'invalid_input',
+      `Studio rejected non-native RuntimeBridge provider: ECRP source=${readout.authority.source}, FPS backend=${snapshot.backend}`,
+    );
   }
-  return provider as RuntimeBridge | Promise<RuntimeBridge>;
 }
 
 function isRuntimeBridge(value: unknown): value is RuntimeBridge {
@@ -2546,6 +2584,7 @@ function isRuntimeBridge(value: unknown): value is RuntimeBridge {
   return typeof candidate.initializeEngine === 'function'
     && typeof candidate.loadWorldBundle === 'function'
     && typeof candidate.loadFpsRuntimeSession === 'function'
+    && typeof candidate.readFpsRuntimeSession === 'function'
     && typeof candidate.applyFpsPrimaryFire === 'function'
     && typeof candidate.restartFpsRuntimeSession === 'function';
 }
