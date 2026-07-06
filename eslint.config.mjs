@@ -4,6 +4,7 @@ const productionScopes = [
   'scope:contracts',
   'scope:domain',
   'scope:command-dispatch',
+  'scope:voxel-conversion',
   'scope:store',
   'scope:interactions',
   'scope:viewport',
@@ -58,11 +59,16 @@ export default [
               onlyDependOnLibsWithTags: ['scope:contracts', 'scope:domain'],
             },
             {
+              sourceTag: 'scope:voxel-conversion',
+              onlyDependOnLibsWithTags: ['scope:contracts', 'scope:domain'],
+            },
+            {
               sourceTag: 'scope:store',
               onlyDependOnLibsWithTags: [
                 'scope:contracts',
                 'scope:domain',
                 'scope:command-dispatch',
+                'scope:voxel-conversion',
               ],
             },
             {

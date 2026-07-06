@@ -154,14 +154,40 @@ function findDependencyViolations() {
   return violations;
 }
 
-function findImportViolations(filePath, fileText) {
-  const violations = [];
-  const importPattern = /from\s+['"](@asha\/[^'"]+)['"]|import\s*\(\s*['"](@asha\/[^'"]+)['"]\s*\)/g;
+function findImportSpecifiers(fileText) {
+  const specifiers = [];
+  const importPattern =
+    /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   let match = importPattern.exec(fileText);
 
   while (match !== null) {
-    const importPath = match[1] ?? match[2];
-    if (!isAllowedAshaImport(importPath)) {
+    specifiers.push(match[1] ?? match[2]);
+    match = importPattern.exec(fileText);
+  }
+
+  return specifiers;
+}
+
+function findImportViolations(filePath, fileText) {
+  const violations = [];
+  const importSpecifiers = findImportSpecifiers(fileText);
+  const forbiddenImportSpecifiers = new Set(boundaryPolicy.forbiddenImportSpecifiers ?? []);
+  const forbiddenImportPatterns = boundaryPolicy.forbiddenImportPatterns ?? [];
+
+  for (const importPath of importSpecifiers) {
+    if (forbiddenImportSpecifiers.has(importPath)) {
+      violations.push(`forbidden import specifier: ${importPath}`);
+      continue;
+    }
+
+    for (const pattern of forbiddenImportPatterns) {
+      const regex = globFragmentToRegExp(pattern);
+      if (regex.test(importPath)) {
+        violations.push(`forbidden import pattern ${pattern}: ${importPath}`);
+      }
+    }
+
+    if (importPath.startsWith('@asha/') && !isAllowedAshaImport(importPath)) {
       const packageRoot = ashaPackageRoot(importPath);
       if (publicSurfacePolicy.forbiddenPackageRoots.has(packageRoot)) {
         violations.push(`forbidden ASHA package import: ${importPath}`);
@@ -169,7 +195,6 @@ function findImportViolations(filePath, fileText) {
         violations.push(`non-approved ASHA package import for ${boundaryPolicy.consumerRole}: ${importPath}`);
       }
     }
-    match = importPattern.exec(fileText);
   }
 
   return violations;

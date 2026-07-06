@@ -27,6 +27,21 @@
     "@asha/native-bridge",
     "@asha/wasm-replay-bridge"
   ],
+  "forbiddenImportSpecifiers": [
+    "@asha/native-bridge",
+    "@asha/wasm-replay-bridge",
+    "voxelforge"
+  ],
+  "forbiddenImportPatterns": [
+    "@asha/*/src/*",
+    "@asha/*/dist/generated/*",
+    "../asha/engine-rs/*",
+    "/home/dev/asha/engine-rs/*",
+    "../voxelforge/*",
+    "/home/dev/voxelforge/*",
+    "voxelforge/*",
+    "@voxelforge/*"
+  ],
   "dependencySections": [
     "dependencies",
     "devDependencies",

@@ -22,6 +22,9 @@
       "@asha-studio/command-dispatch": [
         "libs/studio-command-dispatch/src/index.ts"
       ],
+      "@asha-studio/voxel-conversion": [
+        "libs/studio-voxel-conversion/src/index.ts"
+      ],
       "@asha-studio/store": ["libs/studio-store/src/index.ts"],
       "@asha-studio/interactions": ["libs/studio-interactions/src/index.ts"],
       "@asha-studio/viewport": ["libs/studio-viewport/src/index.ts"],

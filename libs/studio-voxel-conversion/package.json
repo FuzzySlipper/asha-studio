@@ -1,0 +1,14 @@
+{
+  "name": "@asha-studio/voxel-conversion",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@asha/command-registry": "link:../../../asha/ts/packages/command-registry",
+    "@asha/contracts": "link:../../../asha/ts/packages/contracts",
+    "@asha/runtime-bridge": "link:../../../asha/ts/packages/runtime-bridge",
+    "tslib": "^2.3.0"
+  }
+}
