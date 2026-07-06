@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "library": "@asha-studio/voxel-conversion",
+  "readout": {
+    "status": "ready",
+    "authorityPosture": "authority_backed",
+    "receipt": {
+      "planId": "plan-preview-cube",
+      "planHash": "sha256:settings",
+      "previewHash": "sha256:preview-output",
+      "applied": true,
+      "outputHash": "sha256:applied-output",
+      "outputVoxelCount": 512
+    },
+    "diagnosticCodes": [],
+    "evidence": [
+      "plan:plan",
+      "preview:preview",
+      "apply:apply_receipt",
+      "export:plan",
+      "export:preview",
+      "export:apply_receipt"
+    ]
+  },
+  "proposal": {
+    "accepted": true,
+    "commandId": "voxel_conversion.plan",
+    "inputSchemaName": "VoxelConversionPlanCommandInput",
+    "outputSchemaName": "VoxelConversionPlanCommandOutput",
+    "evidenceExpectations": ["voxel_conversion_plan"]
+  },
+  "boundary": {
+    "forbiddenProbeCount": 6
+  }
+}

@@ -35,6 +35,8 @@ const ashaEngineRoot = [ashaSourceRoot, 'engine-rs'].join('/');
 const engineCrateFragment = ['engine-rs', 'crates'].join('/');
 const generatedSourceFragment = ['src', 'generated'].join('/');
 const voxelforgeRoot = ['', 'home', 'dev', 'voxelforge'].join('/');
+const mcpWrapperText = ['VoxelConversion', 'McpCommand'].join('');
+const successorMcpText = ['successor', 'mcp', 'command'].join('_');
 
 function runBoundaryCheck(workspaceRoot: string): ReturnType<typeof spawnSync> {
   return spawnSync(process.execPath, [boundaryScript], {
@@ -96,6 +98,8 @@ function writeProbeWorkspace(importSpecifier: string): string {
         ashaEngineRoot,
         engineCrateFragment,
         generatedSourceFragment,
+        mcpWrapperText,
+        successorMcpText,
       ],
     }),
   );
@@ -269,6 +273,21 @@ test('studio boundary check rejects forbidden voxel conversion import shapes', (
     } finally {
       rmSync(workspaceRoot, { recursive: true, force: true });
     }
+  }
+});
+
+test('studio boundary check rejects MCP-shaped successor wrapper text', () => {
+  const workspaceRoot = writeProbeWorkspace('@asha/contracts');
+  try {
+    writeFileSync(
+      join(workspaceRoot, 'libs/probe/src/index.ts'),
+      `export const wrapper = '${mcpWrapperText}';\nexport const hatch = '${successorMcpText}';\n`,
+    );
+    const result = runBoundaryCheck(workspaceRoot);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Boundary check failed:/);
+  } finally {
+    rmSync(workspaceRoot, { recursive: true, force: true });
   }
 });
 
@@ -711,4 +730,66 @@ test('voxel conversion readout preserves conversion replay mismatch diagnostics 
   assert.ok(readout.diagnostics.some(
     diagnostic => diagnostic.source === 'upstream' && diagnostic.code === 'conversion_replay_mismatch',
   ));
+});
+
+test('voxel conversion Phase 2 golden consumer proof is inspectable without successor wrappers', () => {
+  const source = sampleSource();
+  const target = sampleTarget();
+  const settings = sampleSettings();
+  const plan = samplePlan(source, settings);
+  const preview = samplePreview(plan);
+  const receipt = sampleReceipt(plan);
+  const authorityWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan,
+    preview,
+    receipt,
+    evidence: [],
+  });
+  const planWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace: authorityWorkspace });
+  const proposal = buildStudioVoxelConversionPlanProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 20,
+    workspace: planWorkspace,
+  });
+  const proof = {
+    schemaVersion: 1,
+    library: '@asha-studio/voxel-conversion',
+    readout: {
+      status: readout.status,
+      authorityPosture: readout.authorityPosture,
+      receipt: readout.receipt,
+      diagnosticCodes: readout.diagnostics.map(diagnostic => diagnostic.code),
+      evidence: readout.evidence.map(evidence => `${evidence.source}:${evidence.kind}`),
+    },
+    proposal: {
+      accepted: proposal.accepted,
+      commandId: proposal.proposal?.commandId,
+      inputSchemaName: proposal.proposal?.commandMetadata.inputSchemaName,
+      outputSchemaName: proposal.proposal?.commandMetadata.outputSchemaName,
+      evidenceExpectations: proposal.proposal?.evidenceExpectations,
+    },
+    boundary: {
+      forbiddenProbeCount: 6,
+    },
+  };
+  const golden = JSON.parse(
+    readFileSync(
+      join(repoRoot, 'test/fixtures/studio-voxel-conversion-phase2-readout.golden.json'),
+      'utf8',
+    ),
+  );
+
+  assert.deepEqual(proof, golden);
 });

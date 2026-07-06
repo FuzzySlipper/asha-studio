@@ -59,7 +59,9 @@
     "postMessage({type, payload:any})",
     "payload: any",
     "payload:any",
-    "Record<string, unknown> command"
+    "Record<string, unknown> command",
+    "VoxelConversionMcpCommand",
+    "successor_mcp_command"
   ],
   "forbiddenConfigPathFragments": [
     "../asha/ts/packages",
