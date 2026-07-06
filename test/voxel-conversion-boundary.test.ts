@@ -24,6 +24,7 @@ import type {
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
 } from '@asha/contracts';
+import type { RuntimeSessionFacade } from '@asha/runtime-bridge';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const boundaryScript = join(repoRoot, 'scripts/check-boundaries.mjs');
@@ -101,6 +102,26 @@ function writeProbeWorkspace(importSpecifier: string): string {
         mcpWrapperText,
         successorMcpText,
       ],
+      dependencySections: [
+        'dependencies',
+        'devDependencies',
+        'peerDependencies',
+        'optionalDependencies',
+        'pnpm.overrides',
+        'overrides',
+        'resolutions',
+      ],
+      forbiddenConfigPathFragments: [
+        ['..', 'asha', 'ts', 'packages'].join('/'),
+        ['..', 'asha', 'engine-rs'].join('/'),
+        ashaEngineRoot,
+      ],
+      allowedConfigPathFiles: [
+        'package.json',
+        'pnpm-lock.yaml',
+        'boundary-policy.json',
+      ],
+      docsOnlyFiles: [],
     }),
   );
   writeFileSync(
@@ -222,6 +243,21 @@ function sampleReceipt(plan: VoxelConversionPlan = samplePlan()): VoxelConversio
   };
 }
 
+function sampleRuntimeSession(): Partial<Pick<
+  RuntimeSessionFacade,
+  | 'planVoxelConversion'
+  | 'previewVoxelConversion'
+  | 'applyVoxelConversion'
+  | 'exportVoxelConversionEvidence'
+>> {
+  return {
+    planVoxelConversion: request => samplePlan(request.source, request.settings),
+    previewVoxelConversion: () => samplePreview(),
+    applyVoxelConversion: () => sampleReceipt(),
+    exportVoxelConversionEvidence: evidence => evidence,
+  };
+}
+
 test('voxel conversion scaffold resolves upstream command metadata through approved roots', () => {
   const readout = buildStudioVoxelConversionBoundaryReadout();
 
@@ -291,6 +327,78 @@ test('studio boundary check rejects MCP-shaped successor wrapper text', () => {
   }
 });
 
+test('studio boundary check rejects require and dynamic import bypass shapes', () => {
+  const workspaceRoot = writeProbeWorkspace('@asha/contracts');
+  const nativeBridgeSpecifier = ['@asha', 'native-bridge'].join('/');
+  const generatedSpecifierPrefix = ['@asha', 'contracts', 'src'].join('/');
+  const generatedSpecifierSuffix = ['generated', 'voxelConversion'].join('/');
+  const requireProbe = [
+    'export const bridge = ',
+    'require',
+    "('@asha/' + 'native-bridge');",
+  ].join('');
+  const dynamicProbe = [
+    'export const generated = ',
+    'import',
+    `('${generatedSpecifierPrefix}/' + '${generatedSpecifierSuffix}');`,
+  ].join('');
+  try {
+    writeFileSync(
+      join(workspaceRoot, 'libs/probe/src/index.ts'),
+      [
+        "declare const require: (specifier: string) => unknown;",
+        requireProbe,
+        dynamicProbe,
+      ].join('\n'),
+    );
+    const result = runBoundaryCheck(workspaceRoot);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, new RegExp(`forbidden import specifier: ${nativeBridgeSpecifier}`));
+    assert.match(result.stderr, new RegExp(['forbidden import pattern @asha', '[*]', 'src', '[*]'].join('/')));
+  } finally {
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('studio boundary check rejects dependency and config path indirection', () => {
+  const workspaceRoot = writeProbeWorkspace('@asha/contracts');
+  const generatedContractPath = ['..', 'asha', 'ts', 'packages', 'contracts', generatedSourceFragment, 'voxelConversion.ts'].join('/');
+  try {
+    writeFileSync(
+      join(workspaceRoot, 'package.json'),
+      JSON.stringify({
+        type: 'module',
+        dependencies: {
+          '@asha/contracts': 'link:../asha/ts/packages/contracts',
+          '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
+          '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+        },
+        pnpm: {
+          overrides: {
+            '@asha/runtime-bridge': 'file:../asha/ts/packages/runtime-bridge',
+          },
+        },
+      }),
+    );
+    writeFileSync(
+      join(workspaceRoot, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          paths: {
+            '@asha/contracts/generated': [generatedContractPath],
+          },
+        },
+      }),
+    );
+    const result = runBoundaryCheck(workspaceRoot);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /pnpm\.overrides\.@asha\/runtime-bridge must use approved local package link/);
+    assert.match(result.stderr, /tsconfig\.json: forbidden config path fragment/);
+  } finally {
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test('voxel conversion workspace read model marks valid inputs plan-ready', () => {
   const readout = buildStudioVoxelConversionWorkspaceReadModel({
     source: sampleSource(),
@@ -345,6 +453,38 @@ test('voxel conversion workspace read model detects stale source hash readback',
   assert.equal(readout.status, 'stale');
   assert.equal(readout.source.status, 'stale');
   assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'source_hash_mismatch'));
+});
+
+test('voxel conversion workspace read model detects stale target and settings authority plans', () => {
+  const source = sampleSource();
+  const plan = samplePlan(source, sampleSettings());
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target: sampleTarget({ origin: [1, 0, 0] }),
+    settings: sampleSettings({ resolution: [4, 4, 4] }),
+    plan,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const previewProposal = buildStudioVoxelConversionPreviewProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 8,
+    workspace: readout,
+    runtimeSession: sampleRuntimeSession(),
+  });
+
+  assert.equal(readout.status, 'stale');
+  assert.equal(readout.operations.plan.status, 'stale');
+  assert.equal(readout.operations.preview.status, 'blocked');
+  assert.ok(readout.diagnostics.some(diagnostic =>
+    diagnostic.code === 'stale_plan' && diagnostic.reference === 'target',
+  ));
+  assert.ok(readout.diagnostics.some(diagnostic =>
+    diagnostic.code === 'stale_plan' && diagnostic.reference === 'settings',
+  ));
+  assert.equal(previewProposal.accepted, false);
+  assert.ok(previewProposal.diagnostics.some(diagnostic => diagnostic.code === 'stale_plan'));
 });
 
 test('voxel conversion workspace read model rejects invalid material maps', () => {
@@ -429,6 +569,7 @@ test('voxel conversion proposal builders produce typed plan preview apply export
     sessionId: 'session-1',
     expectedTimelineSequence: 7,
     workspace: planWorkspace,
+    runtimeSession: sampleRuntimeSession(),
   });
   const previewProposal = buildStudioVoxelConversionPreviewProposal({
     sessionId: 'session-1',
@@ -442,16 +583,19 @@ test('voxel conversion proposal builders produce typed plan preview apply export
       receipt: null,
       evidence: [],
     }),
+    runtimeSession: sampleRuntimeSession(),
   });
   const applyProposal = buildStudioVoxelConversionApplyProposal({
     sessionId: 'session-1',
     expectedTimelineSequence: 9,
     workspace: authorityWorkspace,
+    runtimeSession: sampleRuntimeSession(),
   });
   const exportProposal = buildStudioVoxelConversionEvidenceExportProposal({
     sessionId: 'session-1',
     expectedTimelineSequence: 10,
     workspace: authorityWorkspace,
+    runtimeSession: sampleRuntimeSession(),
   });
 
   assert.equal(planProposal.accepted, true);
@@ -484,6 +628,7 @@ test('voxel conversion proposal builders reject stale preview and apply guards',
     sessionId: 'session-1',
     expectedTimelineSequence: 11,
     workspace,
+    runtimeSession: sampleRuntimeSession(),
   });
 
   assert.equal(workspace.operations.preview.status, 'stale');
@@ -517,6 +662,7 @@ test('voxel conversion proposal builders reject invalid material maps without pa
     sessionId: 'session-1',
     expectedTimelineSequence: 12,
     workspace,
+    runtimeSession: sampleRuntimeSession(),
   });
 
   assert.equal(proposal.accepted, false);
@@ -524,7 +670,7 @@ test('voxel conversion proposal builders reject invalid material maps without pa
   assert.ok(proposal.diagnostics.some(diagnostic => diagnostic.code === 'invalid_material_map'));
 });
 
-test('voxel conversion proposal builders reject missing runtime capability', () => {
+test('voxel conversion proposal builders reject omitted runtime capability', () => {
   const workspace = buildStudioVoxelConversionWorkspaceReadModel({
     source: sampleSource(),
     target: sampleTarget(),
@@ -537,6 +683,27 @@ test('voxel conversion proposal builders reject missing runtime capability', () 
   const proposal = buildStudioVoxelConversionPlanProposal({
     sessionId: 'session-1',
     expectedTimelineSequence: 13,
+    workspace,
+  });
+
+  assert.equal(proposal.accepted, false);
+  assert.equal(proposal.proposal, null);
+  assert.ok(proposal.diagnostics.some(diagnostic => diagnostic.code === 'runtime_facade_unavailable'));
+});
+
+test('voxel conversion proposal builders reject incomplete runtime capability', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const proposal = buildStudioVoxelConversionPlanProposal({
+    sessionId: 'session-1',
+    expectedTimelineSequence: 14,
     workspace,
     runtimeSession: {},
   });
@@ -558,8 +725,9 @@ test('voxel conversion proposal builders reject unsupported source assets', () =
   });
   const proposal = buildStudioVoxelConversionPlanProposal({
     sessionId: 'session-1',
-    expectedTimelineSequence: 14,
+    expectedTimelineSequence: 15,
     workspace,
+    runtimeSession: sampleRuntimeSession(),
   });
 
   assert.equal(proposal.accepted, false);
@@ -587,6 +755,23 @@ test('voxel conversion readout fails closed when runtime operations are unavaila
   assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'runtime_facade_unavailable'));
 });
 
+test('voxel conversion readout fails closed when runtime operations are omitted', () => {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: sampleSource(),
+    target: sampleTarget(),
+    settings: sampleSettings(),
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+
+  assert.equal(readout.status, 'failed_closed');
+  assert.equal(readout.authorityPosture, 'failed_closed');
+  assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'runtime_facade_unavailable'));
+});
+
 test('voxel conversion readout preserves upstream operation-unimplemented diagnostics', () => {
   const plan = {
     ...samplePlan(),
@@ -608,7 +793,10 @@ test('voxel conversion readout preserves upstream operation-unimplemented diagno
     receipt: null,
     evidence: [],
   });
-  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
 
   assert.equal(readout.status, 'degraded');
   assert.ok(readout.diagnostics.some(
@@ -631,7 +819,10 @@ test('voxel conversion readout normalizes invalid material map diagnostics', () 
     receipt: null,
     evidence: [],
   });
-  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
 
   assert.equal(readout.status, 'degraded');
   assert.ok(readout.diagnostics.some(
@@ -662,8 +853,14 @@ test('voxel conversion readout normalizes unsupported source and oversized outpu
     evidence: [],
   });
 
-  const unsupportedReadout = buildStudioVoxelConversionReadoutModel({ workspace: unsupportedWorkspace });
-  const oversizedReadout = buildStudioVoxelConversionReadoutModel({ workspace: oversizedWorkspace });
+  const unsupportedReadout = buildStudioVoxelConversionReadoutModel({
+    workspace: unsupportedWorkspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
+  const oversizedReadout = buildStudioVoxelConversionReadoutModel({
+    workspace: oversizedWorkspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
 
   assert.ok(unsupportedReadout.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_source_asset'));
   assert.ok(oversizedReadout.diagnostics.some(diagnostic => diagnostic.code === 'output_limit_exceeded'));
@@ -692,7 +889,10 @@ test('voxel conversion readout preserves stale authority snapshot diagnostics', 
     receipt,
     evidence: [],
   });
-  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
 
   assert.equal(readout.receipt.applied, true);
   assert.ok(readout.diagnostics.some(
@@ -723,7 +923,10 @@ test('voxel conversion readout preserves conversion replay mismatch diagnostics 
     receipt,
     evidence: [],
   });
-  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
 
   assert.equal(readout.authorityPosture, 'authority_backed');
   assert.ok(readout.evidence.some(evidence => evidence.kind === 'apply_receipt'));
@@ -757,11 +960,15 @@ test('voxel conversion Phase 2 golden consumer proof is inspectable without succ
     receipt: null,
     evidence: [],
   });
-  const readout = buildStudioVoxelConversionReadoutModel({ workspace: authorityWorkspace });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace: authorityWorkspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
   const proposal = buildStudioVoxelConversionPlanProposal({
     sessionId: 'session-1',
     expectedTimelineSequence: 20,
     workspace: planWorkspace,
+    runtimeSession: sampleRuntimeSession(),
   });
   const proof = {
     schemaVersion: 1,
@@ -781,7 +988,7 @@ test('voxel conversion Phase 2 golden consumer proof is inspectable without succ
       evidenceExpectations: proposal.proposal?.evidenceExpectations,
     },
     boundary: {
-      forbiddenProbeCount: 6,
+      forbiddenProbeCount: 8,
     },
   };
   const golden = JSON.parse(

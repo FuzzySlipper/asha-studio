@@ -24,6 +24,8 @@ const scannedExtensions = new Set([
   '.json',
   '.mjs',
   '.ts',
+  '.yaml',
+  '.yml',
 ]);
 
 function collectFiles(directory) {
@@ -73,6 +75,21 @@ function readSourceFiles() {
   return files;
 }
 
+function readRootConfigFiles() {
+  return readdirSync(workspaceRoot)
+    .map(childName => join(workspaceRoot, childName))
+    .filter(childPath => {
+      const childStats = statSync(childPath);
+      if (!childStats.isFile()) {
+        return false;
+      }
+      const childName = childPath.slice(childPath.lastIndexOf('/') + 1);
+      const extensionStart = childName.lastIndexOf('.');
+      const extension = extensionStart >= 0 ? childName.slice(extensionStart) : '';
+      return scannedExtensions.has(extension);
+    });
+}
+
 function isAllowedAshaImport(importPath) {
   return publicSurfacePolicy.approvedSpecifiers.has(importPath);
 }
@@ -112,13 +129,28 @@ function loadPublicSurfacePolicy() {
   };
 }
 
+function valueAtPath(source, path) {
+  return path.split('.').reduce((current, segment) => {
+    if (current === undefined || current === null || typeof current !== 'object') {
+      return undefined;
+    }
+    return current[segment];
+  }, source);
+}
+
 function dependencySections() {
-  return [
-    packageJson.dependencies ?? {},
-    packageJson.devDependencies ?? {},
-    packageJson.peerDependencies ?? {},
-    packageJson.optionalDependencies ?? {},
+  const configuredSections = boundaryPolicy.dependencySections ?? [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
   ];
+  return configuredSections
+    .map(sectionPath => ({
+      sectionPath,
+      dependencies: valueAtPath(packageJson, sectionPath),
+    }))
+    .filter(section => section.dependencies !== undefined);
 }
 
 function findDependencyViolations() {
@@ -128,7 +160,7 @@ function findDependencyViolations() {
 
   for (const [packageName, expectedLink] of Object.entries(requiredLinks)) {
     const actual = dependencySections()
-      .map(section => section[packageName])
+      .map(section => section.dependencies[packageName])
       .find(value => value !== undefined);
     if (actual !== expectedLink) {
       violations.push(`${packageName} must use approved local package link ${expectedLink}, got ${actual ?? 'missing'}`);
@@ -136,17 +168,22 @@ function findDependencyViolations() {
   }
 
   for (const section of dependencySections()) {
-    for (const [packageName, spec] of Object.entries(section)) {
+    if (section.dependencies === null || typeof section.dependencies !== 'object' || Array.isArray(section.dependencies)) {
+      violations.push(`${section.sectionPath} must be an object when declared as a dependency section`);
+      continue;
+    }
+
+    for (const [packageName, spec] of Object.entries(section.dependencies)) {
       if (!packageName.startsWith('@asha/')) {
         continue;
       }
       if (!publicSurfacePolicy.approvedPackageRoots.has(packageName)) {
-        violations.push(`non-approved ASHA package dependency for ${boundaryPolicy.consumerRole}: ${packageName}`);
+        violations.push(`non-approved ASHA package dependency in ${section.sectionPath} for ${boundaryPolicy.consumerRole}: ${packageName}`);
         continue;
       }
       const expectedLink = allowedLinks[packageName] ?? `link:../asha/ts/packages/${packageName.replace('@asha/', '')}`;
       if (spec !== expectedLink) {
-        violations.push(`${packageName} must use approved local package link ${expectedLink}, got ${spec}`);
+        violations.push(`${section.sectionPath}.${packageName} must use approved local package link ${expectedLink}, got ${spec}`);
       }
     }
   }
@@ -163,6 +200,22 @@ function findImportSpecifiers(fileText) {
   while (match !== null) {
     specifiers.push(match[1] ?? match[2]);
     match = importPattern.exec(fileText);
+  }
+
+  const callPattern = /\b(?:import|require)\s*\(\s*((?:(['"])([^'"]*)\2\s*(?:\+\s*)?)+)\)/g;
+  match = callPattern.exec(fileText);
+  while (match !== null) {
+    const literalParts = [];
+    const literalPattern = /(['"])([^'"]*)\1/g;
+    let literalMatch = literalPattern.exec(match[1]);
+    while (literalMatch !== null) {
+      literalParts.push(literalMatch[2]);
+      literalMatch = literalPattern.exec(match[1]);
+    }
+    if (literalParts.length > 0) {
+      specifiers.push(literalParts.join(''));
+    }
+    match = callPattern.exec(fileText);
   }
 
   return specifiers;
@@ -233,6 +286,23 @@ function findTextViolations(relativePath, fileText) {
   return violations;
 }
 
+function findConfigPathViolations(relativePath, fileText) {
+  const violations = [];
+  const allowedFiles = new Set(boundaryPolicy.allowedConfigPathFiles ?? []);
+  const docsOnlyFiles = new Set(boundaryPolicy.docsOnlyFiles ?? []);
+  if (allowedFiles.has(relativePath) || docsOnlyFiles.has(relativePath)) {
+    return violations;
+  }
+
+  for (const forbiddenFragment of boundaryPolicy.forbiddenConfigPathFragments ?? []) {
+    if (fileText.includes(forbiddenFragment)) {
+      violations.push(`forbidden config path fragment: ${forbiddenFragment}`);
+    }
+  }
+
+  return violations;
+}
+
 const violations = [];
 
 for (const violation of findDependencyViolations()) {
@@ -248,6 +318,14 @@ for (const filePath of readSourceFiles()) {
   ];
 
   for (const violation of fileViolations) {
+    violations.push(`${relativePath}: ${violation}`);
+  }
+}
+
+for (const filePath of readRootConfigFiles()) {
+  const relativePath = relative(workspaceRoot, filePath);
+  const fileText = readFileSync(filePath, 'utf8');
+  for (const violation of findConfigPathViolations(relativePath, fileText)) {
     violations.push(`${relativePath}: ${violation}`);
   }
 }

@@ -30,6 +30,6 @@
     "evidenceExpectations": ["voxel_conversion_plan"]
   },
   "boundary": {
-    "forbiddenProbeCount": 6
+    "forbiddenProbeCount": 8
   }
 }

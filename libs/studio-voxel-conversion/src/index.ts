@@ -504,6 +504,40 @@ function missingTargetDiagnostics(
   ];
 }
 
+function stableValueEquals(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function planInputDiagnostics(
+  plan: VoxelConversionPlan | null,
+  target: VoxelConversionTargetRef | null,
+  settings: VoxelConversionSettings | null,
+): readonly StudioVoxelConversionWorkspaceDiagnostic[] {
+  if (plan === null) {
+    return [];
+  }
+
+  const diagnostics: StudioVoxelConversionWorkspaceDiagnostic[] = [];
+  if (target !== null && !stableValueEquals(plan.target, target)) {
+    diagnostics.push(workspaceDiagnostic(
+      'stale_plan',
+      'voxel_conversion.plan',
+      'target',
+      'The latest plan was produced for a different target grid.',
+    ));
+  }
+  if (settings !== null && !stableValueEquals(plan.settings, settings)) {
+    diagnostics.push(workspaceDiagnostic(
+      'stale_plan',
+      'voxel_conversion.plan',
+      'settings',
+      'The latest plan was produced for different conversion settings.',
+    ));
+  }
+
+  return diagnostics;
+}
+
 function hasDiagnostic(
   diagnostics: readonly StudioVoxelConversionWorkspaceDiagnostic[],
   code: StudioVoxelConversionWorkspaceDiagnosticCode,
@@ -596,19 +630,17 @@ function proposalDiagnosticsForOperation(
     ));
   }
 
-  if (runtimeSession !== undefined) {
-    const boundaryReadout = buildStudioVoxelConversionBoundaryReadout(runtimeSession);
-    const boundaryDiagnostics = boundaryReadout.diagnostics.filter(
-      diagnostic => diagnostic.commandId === commandId,
-    );
-    for (const diagnostic of boundaryDiagnostics) {
-      diagnostics.push(proposalDiagnostic(
-        diagnostic.code,
-        commandId,
-        diagnostic.commandId,
-        diagnostic.message,
-      ));
-    }
+  const boundaryReadout = buildStudioVoxelConversionBoundaryReadout(runtimeSession ?? {});
+  const boundaryDiagnostics = boundaryReadout.diagnostics.filter(
+    diagnostic => diagnostic.commandId === commandId,
+  );
+  for (const diagnostic of boundaryDiagnostics) {
+    diagnostics.push(proposalDiagnostic(
+      diagnostic.code,
+      commandId,
+      diagnostic.commandId,
+      diagnostic.message,
+    ));
   }
 
   return diagnostics;
@@ -653,9 +685,11 @@ export function buildStudioVoxelConversionWorkspaceReadModel(
   const sourceIssues = sourceDiagnostics(input.source, supportedSourceAssetKinds, input.plan);
   const targetIssues = missingTargetDiagnostics(input.target);
   const settingsIssues = settingsDiagnostics(input.settings);
+  const planInputIssues = planInputDiagnostics(input.plan, input.target, input.settings);
   const workspaceIssues = [...sourceIssues, ...targetIssues, ...settingsIssues];
   const hasBlockingWorkspaceIssue = workspaceIssues.length > 0;
-  const planStale = sourceIssues.some(diagnostic => diagnostic.code === 'source_hash_mismatch');
+  const planStale = sourceIssues.some(diagnostic => diagnostic.code === 'source_hash_mismatch')
+    || planInputIssues.length > 0;
 
   const planDiagnostics = hasBlockingWorkspaceIssue
     ? workspaceIssues
@@ -670,14 +704,16 @@ export function buildStudioVoxelConversionWorkspaceReadModel(
         ),
       ]
       : planStale
-        ? [
-          workspaceDiagnostic(
-            'stale_plan',
-            'voxel_conversion.plan',
-            'plan',
-            'The latest plan was produced for stale workspace inputs.',
-          ),
-        ]
+        ? planInputIssues.length > 0
+          ? planInputIssues
+          : [
+            workspaceDiagnostic(
+              'stale_plan',
+              'voxel_conversion.plan',
+              'plan',
+              'The latest plan was produced for stale workspace inputs.',
+            ),
+          ]
         : [];
 
   const previewStale = input.plan !== null
@@ -772,12 +808,14 @@ export function buildStudioVoxelConversionWorkspaceReadModel(
     ]
     : [];
 
-  const planStatus: StudioVoxelConversionOperationStatus = planDiagnostics.some(diagnostic => diagnostic.severity === 'error')
-    ? 'blocked'
-    : input.plan === null
-      ? 'ready'
-      : planStale
-        ? 'stale'
+  const planStatus: StudioVoxelConversionOperationStatus = input.plan === null
+    ? planDiagnostics.some(diagnostic => diagnostic.severity === 'error')
+      ? 'blocked'
+      : 'ready'
+    : planStale
+      ? 'stale'
+      : planDiagnostics.some(diagnostic => diagnostic.severity === 'error')
+        ? 'blocked'
         : 'complete';
   const previewStatus: StudioVoxelConversionOperationStatus = previewDiagnostics.some(diagnostic => diagnostic.severity === 'error')
     ? previewStale ? 'stale' : 'blocked'
@@ -1224,7 +1262,7 @@ function resolveAuthorityPosture(
 export function buildStudioVoxelConversionReadoutModel(
   options: StudioVoxelConversionReadoutOptions,
 ): StudioVoxelConversionReadoutModel {
-  const readiness = buildStudioVoxelConversionBoundaryReadout(options.runtimeSession);
+  const readiness = buildStudioVoxelConversionBoundaryReadout(options.runtimeSession ?? {});
   const diagnostics = [
     ...normalizeBoundaryDiagnostics(readiness),
     ...normalizeWorkspaceDiagnostics(options.workspace),
