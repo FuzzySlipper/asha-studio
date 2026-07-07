@@ -213,13 +213,22 @@ Generated `artifacts/` output remains intentionally git-ignored. Use current pac
 
 ## Verification
 
+Fresh-checkout deployment checks:
+
 ```bash
 pnpm run check:boundaries
 pnpm run check:docs-scripts
-pnpm run test
 pnpm run build
-pnpm run evidence:v2-live-backend
 git diff --check
+```
+
+The broader Studio test and live evidence suites require generated sibling
+evidence inputs. Run them only after `asha-testing` has produced the publish
+evidence and workspace cockpit artifacts referenced by the tests:
+
+```bash
+pnpm run test
+pnpm run evidence:v2-live-backend
 ```
 
 ## Known limitations
