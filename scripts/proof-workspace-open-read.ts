@@ -93,7 +93,7 @@ const unsupportedScanNegative = buildStudioWorkspaceOpenReadModel({
   manifestPath,
   manifestHash: sha256(manifestText),
   sourceFiles: [
-    { path: '../asha/package.json', text: '{}', sha256: sha256('{}') },
+    { path: '../asha-engine/package.json', text: '{}', sha256: sha256('{}') },
     { path: 'packages/game-catalogs/README.md', text: '# readme', sha256: sha256('# readme') },
     { path: 'assets/meshes/demo-cube.mesh.json', text: '{}', sha256: sha256('{}') },
   ],

@@ -6,7 +6,7 @@ ASHA Studio is a distinct frontend-heavy studio/reference app for composing ASHA
 
 This repo is intentionally separate from:
 
-- `asha` — backend-heavy engine substrate, Rust authority, generated contracts, public command/evidence packages.
+- `asha-engine` — backend-heavy engine substrate, Rust authority, generated contracts, public command/evidence packages.
 - `asha-testing` — synthetic proof, conformance, boundary, and reference-workspace harnesses.
 - `asha-demo` — human-facing demos and product-content experiments built on public ASHA surfaces.
 
@@ -25,6 +25,15 @@ The app consumes `@asha/command-registry` through the package root and projects 
 
 ## Local development
 
+Clone beside the engine repo:
+
+```bash
+cd /home/dev
+git clone git@github.com:FuzzySlipper/asha-engine.git asha-engine
+git clone git@github.com:FuzzySlipper/asha-studio.git asha-studio
+cd asha-studio
+```
+
 ```bash
 pnpm install
 pnpm run dev
@@ -41,7 +50,7 @@ current product evidence by default. Historical milestone and delegated proof
 scripts are classified in `scripts/studio-evidence-catalog.json`; they are not
 auto-discovered from `scripts/proof-*.ts`.
 
-The current local ASHA package linkage uses package-root links to `/home/dev/asha/ts/packages/*` because the ASHA packages are not published. The boundary checker reads ASHA's public-surface manifest at `/home/dev/asha/harness/public-surface/ts-packages.json` for the `asha-studio` consumer role, then allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
+The current local ASHA package linkage uses package-root links to `/home/dev/asha-engine/ts/packages/*` because the ASHA packages are not published. The boundary checker reads ASHA's public-surface manifest at `/home/dev/asha-engine/harness/public-surface/ts-packages.json` for the `asha-studio` consumer role, then allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
 
 ## Boundary policy
 
@@ -49,7 +58,7 @@ The current local ASHA package linkage uses package-root links to `/home/dev/ash
 
 Current source imports may use only the public package roots approved for `asha-studio` in the ASHA manifest: `@asha/command-registry`, `@asha/catalog-core`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, `@asha/runtime-bridge`, and `@asha/ui-dom`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
 
-If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha`, or arbitrary `call(methodName, json)` command hatches.
+If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha-engine`, or arbitrary `call(methodName, json)` command hatches.
 
 `docs/studio-limitations.md` records durable runtime/visual/non-claim limitations. `docs/script-reference-policy.json` records old proof command names that remain in historical docs as retired or deferred references; `pnpm run check:docs-scripts` rejects any new missing script reference without an explicit status. `pnpm run check:evidence-catalog` rejects uncategorized `scripts/proof-*.ts` files so synthetic proof scripts cannot silently become the supported Studio path.
 

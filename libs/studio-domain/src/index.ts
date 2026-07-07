@@ -2432,7 +2432,7 @@ export interface StudioSceneObjectCommandApplyResult {
   readonly diagnostics: readonly StudioDiagnostic[];
 }
 
-const ASHA_PACKAGE_LINK_ROOT = ['link:..', 'asha', 'ts', 'packages'].join('/');
+const ASHA_PACKAGE_LINK_ROOT = ['link:..', 'asha-engine', 'ts', 'packages'].join('/');
 
 export const STUDIO_EVIDENCE_DEFERRED_VERSION = 'studio-evidence.deferred-v0';
 
@@ -2827,7 +2827,7 @@ export function buildStudioWorkspaceOpenReadModel(input: {
         'Use manifest-declared relative scene/catalog paths only.',
       ));
     }
-    if (file.path.startsWith('../asha') || file.path.startsWith('../asha-studio') || file.path.includes('/src/')) {
+    if (file.path.startsWith('../asha-engine') || file.path.startsWith('../asha-studio') || file.path.includes('/src/')) {
       fileDiagnostics.push(studioWorkspaceOpenReadDiagnostic(
         'private_repo_scan',
         `Workspace source read cannot scan private sibling repos or ASHA internals: ${file.path}.`,

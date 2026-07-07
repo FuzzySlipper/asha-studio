@@ -515,7 +515,7 @@ test('workspace open/read model fails closed on missing manifest and unsupported
     manifestPath: 'asha.game.toml',
     manifestHash: sha256(manifestText),
     sourceFiles: [
-      { path: '../asha/package.json', text: '{}', sha256: sha256('{}') },
+      { path: '../asha-engine/package.json', text: '{}', sha256: sha256('{}') },
       { path: 'packages/game-catalogs/README.md', text: '# no', sha256: sha256('# no') },
       { path: 'assets/meshes/demo-cube.mesh.json', text: '{}', sha256: sha256('{}') },
     ],
@@ -3562,9 +3562,9 @@ test('compatibility evidence fails closed on required package link drift', () =>
   const evidence = buildStudioCompatibilityEvidence({
     packageJson: {
       dependencies: {
-        '@asha/contracts': 'link:../asha/ts/packages/contracts',
-        '@asha/command-registry': 'link:../asha/ts/packages/command-registry/src',
-        '@asha/editor-tools': 'link:../asha/ts/packages/editor-tools',
+        '@asha/contracts': 'link:../asha-engine/ts/packages/contracts',
+        '@asha/command-registry': 'link:../asha-engine/ts/packages/command-registry/src',
+        '@asha/editor-tools': 'link:../asha-engine/ts/packages/editor-tools',
       },
     },
   });

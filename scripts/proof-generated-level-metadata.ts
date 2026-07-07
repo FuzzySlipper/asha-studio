@@ -60,7 +60,7 @@ const gameWorkspace: StudioGameWorkspaceReadModel = {
       runtimeBridgeVersion: '0.1.0',
       devtoolsProtocolVersion: 'devtools-protocol.v0',
       publishArtifactFormatVersion: 'publish-artifact.v0',
-      engineSource: '../asha',
+      engineSource: '../asha-engine',
     },
     workspace: {
       sceneRoots: ['scenes'],

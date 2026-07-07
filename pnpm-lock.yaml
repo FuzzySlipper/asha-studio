@@ -30,29 +30,29 @@ importers:
         specifier: ~21.2.0
         version: 21.2.17(@angular/common@21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2))(@angular/platform-browser@21.2.17(@angular/common@21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)))(rxjs@7.8.2)
       '@asha/catalog-core':
-        specifier: link:../asha/ts/packages/catalog-core
-        version: link:../asha/ts/packages/catalog-core
+        specifier: link:../asha-engine/ts/packages/catalog-core
+        version: link:../asha-engine/ts/packages/catalog-core
       '@asha/command-registry':
-        specifier: link:../asha/ts/packages/command-registry
-        version: link:../asha/ts/packages/command-registry
+        specifier: link:../asha-engine/ts/packages/command-registry
+        version: link:../asha-engine/ts/packages/command-registry
       '@asha/contracts':
-        specifier: link:../asha/ts/packages/contracts
-        version: link:../asha/ts/packages/contracts
+        specifier: link:../asha-engine/ts/packages/contracts
+        version: link:../asha-engine/ts/packages/contracts
       '@asha/devtools':
-        specifier: link:../asha/ts/packages/devtools
-        version: link:../asha/ts/packages/devtools
+        specifier: link:../asha-engine/ts/packages/devtools
+        version: link:../asha-engine/ts/packages/devtools
       '@asha/editor-tools':
-        specifier: link:../asha/ts/packages/editor-tools
-        version: link:../asha/ts/packages/editor-tools
+        specifier: link:../asha-engine/ts/packages/editor-tools
+        version: link:../asha-engine/ts/packages/editor-tools
       '@asha/game-workspace':
-        specifier: link:../asha/ts/packages/game-workspace
-        version: link:../asha/ts/packages/game-workspace
+        specifier: link:../asha-engine/ts/packages/game-workspace
+        version: link:../asha-engine/ts/packages/game-workspace
       '@asha/render-projection':
-        specifier: link:../asha/ts/packages/render-projection
-        version: link:../asha/ts/packages/render-projection
+        specifier: link:../asha-engine/ts/packages/render-projection
+        version: link:../asha-engine/ts/packages/render-projection
       '@asha/runtime-bridge':
-        specifier: link:../asha/ts/packages/runtime-bridge
-        version: link:../asha/ts/packages/runtime-bridge
+        specifier: link:../asha-engine/ts/packages/runtime-bridge
+        version: link:../asha-engine/ts/packages/runtime-bridge
       rxjs:
         specifier: ~7.8.0
         version: 7.8.2
@@ -169,8 +169,8 @@ importers:
   libs/asha-contracts:
     dependencies:
       '@asha/contracts':
-        specifier: link:../../../asha/ts/packages/contracts
-        version: link:../../../asha/ts/packages/contracts
+        specifier: link:../../../asha-engine/ts/packages/contracts
+        version: link:../../../asha-engine/ts/packages/contracts
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
@@ -184,8 +184,8 @@ importers:
         specifier: workspace:*
         version: link:../studio-domain
       '@asha/command-registry':
-        specifier: link:../../../asha/ts/packages/command-registry
-        version: link:../../../asha/ts/packages/command-registry
+        specifier: link:../../../asha-engine/ts/packages/command-registry
+        version: link:../../../asha-engine/ts/packages/command-registry
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
@@ -214,17 +214,17 @@ importers:
         specifier: workspace:*
         version: link:../asha-contracts
       '@asha/catalog-core':
-        specifier: link:../../../asha/ts/packages/catalog-core
-        version: link:../../../asha/ts/packages/catalog-core
+        specifier: link:../../../asha-engine/ts/packages/catalog-core
+        version: link:../../../asha-engine/ts/packages/catalog-core
       '@asha/contracts':
-        specifier: link:../../../asha/ts/packages/contracts
-        version: link:../../../asha/ts/packages/contracts
+        specifier: link:../../../asha-engine/ts/packages/contracts
+        version: link:../../../asha-engine/ts/packages/contracts
       '@asha/devtools':
-        specifier: link:../../../asha/ts/packages/devtools
-        version: link:../../../asha/ts/packages/devtools
+        specifier: link:../../../asha-engine/ts/packages/devtools
+        version: link:../../../asha-engine/ts/packages/devtools
       '@asha/editor-tools':
-        specifier: link:../../../asha/ts/packages/editor-tools
-        version: link:../../../asha/ts/packages/editor-tools
+        specifier: link:../../../asha-engine/ts/packages/editor-tools
+        version: link:../../../asha-engine/ts/packages/editor-tools
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
@@ -321,8 +321,8 @@ importers:
         specifier: workspace:*
         version: link:../studio-store
       '@asha/render-projection':
-        specifier: link:../../../asha/ts/packages/render-projection
-        version: link:../../../asha/ts/packages/render-projection
+        specifier: link:../../../asha-engine/ts/packages/render-projection
+        version: link:../../../asha-engine/ts/packages/render-projection
       tslib:
         specifier: ^2.3.0
         version: 2.8.1
@@ -330,14 +330,14 @@ importers:
   libs/studio-voxel-conversion:
     dependencies:
       '@asha/command-registry':
-        specifier: link:../../../asha/ts/packages/command-registry
-        version: link:../../../asha/ts/packages/command-registry
+        specifier: link:../../../asha-engine/ts/packages/command-registry
+        version: link:../../../asha-engine/ts/packages/command-registry
       '@asha/contracts':
-        specifier: link:../../../asha/ts/packages/contracts
-        version: link:../../../asha/ts/packages/contracts
+        specifier: link:../../../asha-engine/ts/packages/contracts
+        version: link:../../../asha-engine/ts/packages/contracts
       '@asha/runtime-bridge':
-        specifier: link:../../../asha/ts/packages/runtime-bridge
-        version: link:../../../asha/ts/packages/runtime-bridge
+        specifier: link:../../../asha-engine/ts/packages/runtime-bridge
+        version: link:../../../asha-engine/ts/packages/runtime-bridge
       tslib:
         specifier: ^2.3.0
         version: 2.8.1

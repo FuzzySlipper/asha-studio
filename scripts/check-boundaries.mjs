@@ -108,7 +108,7 @@ function globFragmentToRegExp(fragment) {
 
 function loadPublicSurfacePolicy() {
   const consumerRole = boundaryPolicy.consumerRole ?? 'asha-studio';
-  const manifestPath = join(workspaceRoot, boundaryPolicy.publicSurfaceManifest ?? '../asha/harness/public-surface/ts-packages.json');
+  const manifestPath = join(workspaceRoot, boundaryPolicy.publicSurfaceManifest ?? '../asha-engine/harness/public-surface/ts-packages.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const consumerPolicy = (manifest.consumerPolicies ?? []).find((entry) => entry.consumerRole === consumerRole);
   if (consumerPolicy === undefined) {
@@ -155,7 +155,7 @@ function dependencySections() {
 
 function expectedAshaPackageLink(packageName) {
   const allowedLinks = boundaryPolicy.allowedLocalPackageLinks ?? {};
-  return allowedLinks[packageName] ?? `link:../asha/ts/packages/${packageName.replace('@asha/', '')}`;
+  return allowedLinks[packageName] ?? `link:../asha-engine/ts/packages/${packageName.replace('@asha/', '')}`;
 }
 
 function validateAshaDependency(sectionPath, packageName, spec) {

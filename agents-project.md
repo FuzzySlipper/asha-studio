@@ -28,7 +28,7 @@ not the current planning queue.
 
 ## Architecture Soul
 
-- **Backend protocol truth** lives in `asha`.
+- **Backend protocol truth** lives in `asha-engine`.
 - **Library boundaries are load-bearing.** Each library has a strict
   responsibility and may not import across boundaries.
 - **The transcript renderer is the hard part.** Virtualization, streaming,

@@ -40,7 +40,7 @@ const phase4ProductProofPath = join(repoRoot, 'artifacts/voxel-conversion-phase4
 const phase4ComparisonPath = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest/compare.json');
 const phase4ComparisonMarkdownPath = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest/compare.md');
 const publicSurfaceManifest = JSON.parse(
-  readFileSync(join(repoRoot, '../asha/harness/public-surface/ts-packages.json'), 'utf8'),
+  readFileSync(join(repoRoot, '../asha-engine/harness/public-surface/ts-packages.json'), 'utf8'),
 );
 const ashaSourceRoot = ['', 'home', 'dev', 'asha'].join('/');
 const ashaEngineRoot = [ashaSourceRoot, 'engine-rs'].join('/');
@@ -66,9 +66,9 @@ function writeProbeWorkspace(importSpecifier: string): string {
     JSON.stringify({
       type: 'module',
       dependencies: {
-        '@asha/contracts': 'link:../asha/ts/packages/contracts',
-        '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
-        '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+        '@asha/contracts': 'link:../asha-engine/ts/packages/contracts',
+        '@asha/runtime-bridge': 'link:../asha-engine/ts/packages/runtime-bridge',
+        '@asha/command-registry': 'link:../asha-engine/ts/packages/command-registry',
       },
     }),
   );
@@ -78,14 +78,14 @@ function writeProbeWorkspace(importSpecifier: string): string {
       consumerRole: 'asha-studio',
       publicSurfaceManifest: 'harness/public-surface/ts-packages.json',
       allowedLocalPackageLinks: {
-        '@asha/contracts': 'link:../asha/ts/packages/contracts',
-        '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
-        '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+        '@asha/contracts': 'link:../asha-engine/ts/packages/contracts',
+        '@asha/runtime-bridge': 'link:../asha-engine/ts/packages/runtime-bridge',
+        '@asha/command-registry': 'link:../asha-engine/ts/packages/command-registry',
       },
       requiredLocalPackageLinks: {
-        '@asha/contracts': 'link:../asha/ts/packages/contracts',
-        '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
-        '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+        '@asha/contracts': 'link:../asha-engine/ts/packages/contracts',
+        '@asha/runtime-bridge': 'link:../asha-engine/ts/packages/runtime-bridge',
+        '@asha/command-registry': 'link:../asha-engine/ts/packages/command-registry',
       },
       forbiddenPackages: [
         ['@asha', 'native-bridge'].join('/'),
@@ -123,7 +123,7 @@ function writeProbeWorkspace(importSpecifier: string): string {
         'resolutions',
       ],
       forbiddenConfigPathFragments: [
-        ['..', 'asha', 'ts', 'packages'].join('/'),
+        ['..', 'asha-engine', 'ts', 'packages'].join('/'),
         ['..', 'asha', 'engine-rs'].join('/'),
         ashaEngineRoot,
       ],
@@ -614,7 +614,7 @@ test('studio boundary check rejects require and dynamic import bypass shapes', (
 
 test('studio boundary check rejects dependency and config path indirection', () => {
   const workspaceRoot = writeProbeWorkspace('@asha/contracts');
-  const generatedContractPath = ['..', 'asha', 'ts', 'packages', 'contracts', generatedSourceFragment, 'voxelConversion.ts'].join('/');
+  const generatedContractPath = ['..', 'asha-engine', 'ts', 'packages', 'contracts', generatedSourceFragment, 'voxelConversion.ts'].join('/');
   const generatedNodeModulesPath = ['node_modules', '@asha', 'contracts', generatedSourceFragment, 'voxelConversion.ts'].join('/');
   const runtimeBridgePackage = ['@asha', 'runtime-bridge'].join('/');
   try {
@@ -623,13 +623,13 @@ test('studio boundary check rejects dependency and config path indirection', () 
       JSON.stringify({
         type: 'module',
         dependencies: {
-          '@asha/contracts': 'link:../asha/ts/packages/contracts',
-          '@asha/runtime-bridge': 'link:../asha/ts/packages/runtime-bridge',
-          '@asha/command-registry': 'link:../asha/ts/packages/command-registry',
+          '@asha/contracts': 'link:../asha-engine/ts/packages/contracts',
+          '@asha/runtime-bridge': 'link:../asha-engine/ts/packages/runtime-bridge',
+          '@asha/command-registry': 'link:../asha-engine/ts/packages/command-registry',
         },
         pnpm: {
           overrides: {
-            '@asha/runtime-bridge': 'file:../asha/ts/packages/runtime-bridge',
+            '@asha/runtime-bridge': 'file:../asha-engine/ts/packages/runtime-bridge',
           },
         },
       }),

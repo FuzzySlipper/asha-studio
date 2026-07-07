@@ -6,7 +6,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "dependencies": {
-    "@asha/contracts": "link:../../../asha/ts/packages/contracts",
+    "@asha/contracts": "link:../../../asha-engine/ts/packages/contracts",
     "tslib": "^2.3.0"
   }
 }

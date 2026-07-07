@@ -2,26 +2,26 @@
   "schemaVersion": 1,
   "summary": "ASHA Studio may consume approved public ASHA package roots only. Request new public ASHA surfaces in ASHA instead of importing internals or raw transports.",
   "consumerRole": "asha-studio",
-  "publicSurfaceManifest": "../asha/harness/public-surface/ts-packages.json",
+  "publicSurfaceManifest": "../asha-engine/harness/public-surface/ts-packages.json",
   "allowedLocalPackageLinks": {
-    "@asha/command-registry": "link:../asha/ts/packages/command-registry",
-    "@asha/catalog-core": "link:../asha/ts/packages/catalog-core",
-    "@asha/contracts": "link:../asha/ts/packages/contracts",
-    "@asha/devtools": "link:../asha/ts/packages/devtools",
-    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
-    "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
-    "@asha/render-projection": "link:../asha/ts/packages/render-projection",
-    "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
+    "@asha/command-registry": "link:../asha-engine/ts/packages/command-registry",
+    "@asha/catalog-core": "link:../asha-engine/ts/packages/catalog-core",
+    "@asha/contracts": "link:../asha-engine/ts/packages/contracts",
+    "@asha/devtools": "link:../asha-engine/ts/packages/devtools",
+    "@asha/editor-tools": "link:../asha-engine/ts/packages/editor-tools",
+    "@asha/game-workspace": "link:../asha-engine/ts/packages/game-workspace",
+    "@asha/render-projection": "link:../asha-engine/ts/packages/render-projection",
+    "@asha/runtime-bridge": "link:../asha-engine/ts/packages/runtime-bridge"
   },
   "requiredLocalPackageLinks": {
-    "@asha/command-registry": "link:../asha/ts/packages/command-registry",
-    "@asha/catalog-core": "link:../asha/ts/packages/catalog-core",
-    "@asha/contracts": "link:../asha/ts/packages/contracts",
-    "@asha/devtools": "link:../asha/ts/packages/devtools",
-    "@asha/editor-tools": "link:../asha/ts/packages/editor-tools",
-    "@asha/game-workspace": "link:../asha/ts/packages/game-workspace",
-    "@asha/render-projection": "link:../asha/ts/packages/render-projection",
-    "@asha/runtime-bridge": "link:../asha/ts/packages/runtime-bridge"
+    "@asha/command-registry": "link:../asha-engine/ts/packages/command-registry",
+    "@asha/catalog-core": "link:../asha-engine/ts/packages/catalog-core",
+    "@asha/contracts": "link:../asha-engine/ts/packages/contracts",
+    "@asha/devtools": "link:../asha-engine/ts/packages/devtools",
+    "@asha/editor-tools": "link:../asha-engine/ts/packages/editor-tools",
+    "@asha/game-workspace": "link:../asha-engine/ts/packages/game-workspace",
+    "@asha/render-projection": "link:../asha-engine/ts/packages/render-projection",
+    "@asha/runtime-bridge": "link:../asha-engine/ts/packages/runtime-bridge"
   },
   "forbiddenPackages": [
     "@asha/native-bridge",
@@ -35,8 +35,8 @@
   "forbiddenImportPatterns": [
     "@asha/*/src/*",
     "@asha/*/dist/generated/*",
-    "../asha/engine-rs/*",
-    "/home/dev/asha/engine-rs/*",
+    "../asha-engine/engine-rs/*",
+    "/home/dev/asha-engine/engine-rs/*",
     "../voxelforge/*",
     "/home/dev/voxelforge/*",
     "voxelforge/*",
@@ -52,7 +52,7 @@
     "resolutions"
   ],
   "forbiddenText": [
-    "/home/dev/asha/engine-rs",
+    "/home/dev/asha-engine/engine-rs",
     "engine-rs/crates",
     "src/generated",
     "call(methodName, json)",
@@ -64,11 +64,11 @@
     "successor_mcp_command"
   ],
   "forbiddenConfigPathFragments": [
-    "../asha/ts/packages",
+    "../asha-engine/ts/packages",
     "..\\asha\\ts\\packages",
-    "/home/dev/asha/ts/packages",
-    "../asha/engine-rs",
-    "/home/dev/asha/engine-rs"
+    "/home/dev/asha-engine/ts/packages",
+    "../asha-engine/engine-rs",
+    "/home/dev/asha-engine/engine-rs"
   ],
   "allowedConfigPathFiles": [
     "package.json",

@@ -8,7 +8,7 @@
   "dependencies": {
     "@asha-studio/contracts": "workspace:*",
     "@asha-studio/domain": "workspace:*",
-    "@asha/command-registry": "link:../../../asha/ts/packages/command-registry",
+    "@asha/command-registry": "link:../../../asha-engine/ts/packages/command-registry",
     "tslib": "^2.3.0"
   }
 }
