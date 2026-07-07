@@ -50,6 +50,7 @@ const rpcMethods = [
   'applyFpsEncounterTransition',
   'applyEnemyDirectNavMovement',
   'planVoxelConversion',
+  'registerVoxelConversionSource',
   'previewVoxelConversion',
   'applyVoxelConversion',
   'exportVoxelConversionEvidence',
@@ -278,6 +279,13 @@ function automationPrelude(): string {
     return inspection && inspection.attachState === 'attached';
   }
 
+  function nativeRuntimeBridge() {
+    const provider = globalThis.ashaStudioRuntimeBridge || globalThis.ashaRuntimeBridge;
+    return provider && typeof provider.createRuntimeBridge === 'function'
+      ? provider.createRuntimeBridge()
+      : null;
+  }
+
   function failClosedProviderDiagnostic() {
     const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
     const storeMessage = store && typeof store.runtimeConnectionMessage === 'function'
@@ -302,12 +310,44 @@ function automationPrelude(): string {
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
+        const runtimeBridge = nativeRuntimeBridge();
+        if (!runtimeBridge || typeof runtimeBridge.registerVoxelConversionSource !== 'function') {
+          throw new Error('native RuntimeBridge did not expose registerVoxelConversionSource');
+        }
+        const registration = runtimeBridge.registerVoxelConversionSource({
+          source: {
+            assetId: 'mesh.demo-cube',
+            assetKind: 'mesh',
+            assetVersion: 1,
+            sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
+            meshPrimitive: 'default',
+          },
+          positions: [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+          triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
+          materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
+        });
+        proof.agentSurface.operationStatuses.push('register_conversion_source:' + registration.registered);
+        const rejectedRegistration = runtimeBridge.registerVoxelConversionSource({
+          source: {
+            assetId: 'mesh.demo-missing-geometry',
+            assetKind: 'mesh',
+            assetVersion: 1,
+            sourceHash: 'sha256:mesh-demo-missing-geometry',
+            meshPrimitive: 'default',
+          },
+          positions: [],
+          triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
+          materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
+        });
+        proof.agentSurface.operationStatuses.push(
+          'reject_conversion_source:' + (rejectedRegistration.registered === false && rejectedRegistration.diagnostics[0]?.code === 'unsupported_source_asset'),
+        );
         const inspectResult = store.runAgentVoxelWorkflowOperation({ kind: 'inspect' });
         proof.agentSurface.operationStatuses.push('inspect:' + inspectResult.accepted);
         const configureResult = store.runAgentVoxelWorkflowOperation({
           kind: 'configure_conversion',
           patch: {
-            sourceAssetId: 'mesh/import-fixture-a',
+            sourceAssetId: 'mesh.demo-cube',
             mode: 'surface',
             fitPolicy: 'contain',
             originPolicy: 'target_min',
@@ -554,6 +594,8 @@ async function main(): Promise<void> {
     assert.deepEqual(nativeProof.evidenceKinds, ['plan', 'preview', 'apply_receipt']);
     assert.deepEqual(nativeProof.timelineStatuses, ['complete', 'complete', 'complete', 'ready']);
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
+      'register_conversion_source:true',
+      'reject_conversion_source:true',
       'inspect:true',
       'configure_conversion:true',
       'run_conversion.plan:true',
@@ -625,6 +667,7 @@ async function main(): Promise<void> {
         'studio_app_built_and_served_with_native_provider_prelude',
         'native_addon_rebuilt_and_accepted_by_createNativeRuntimeBridge',
         'attachRuntimeSessionInspection_succeeded_with_native_rust_authority',
+        'studio_catalog_static_mesh_registered_as_authority_conversion_source',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
         'missing_provider_remained_fail_closed',
