@@ -18,10 +18,16 @@ import {
 } from '@asha-studio/voxel-conversion';
 import {
   buildStudioAgentCompactVoxelEditBatch,
+  buildStudioAgentVoxelViewCaptureReadModel,
   buildStudioVoxelConversionWorkspaceShellForInputs,
   type StudioVoxelConversionSettingsDraft,
 } from '@asha-studio/store';
-import type { StudioAssetInventoryEntryReadModel } from '@asha-studio/domain';
+import {
+  buildInitialWorkspaceReadModel,
+  buildStudioPreferencesReadModel,
+  buildStudioViewportToolReadModel,
+  type StudioAssetInventoryEntryReadModel,
+} from '@asha-studio/domain';
 import type {
   VoxelConversionEvidenceRef,
   VoxelConversionPlan,
@@ -479,13 +485,18 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /commandMessageType: 'command\.propose'/);
   assert.match(storeSource, /supportedCommandOps: \['setVoxel'\]/);
   assert.match(storeSource, /compactAffordances: AGENT_COMPACT_VOXEL_AFFORDANCES/);
+  assert.match(storeSource, /view_from_angle/);
+  assert.match(storeSource, /buildStudioAgentVoxelViewCaptureReadModel/);
+  assert.match(storeSource, /not_browser_screenshot/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch/);
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'view_from_angle', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
+  assert.match(proofSource, /view_from_angle\.isometric:true/);
+  assert.match(proofSource, /view_from_angle_recorded_projection_camera_readout_without_screenshot_authority/);
   for (const compactAffordance of [
     'set_voxels',
     'set_voxels_runs',
@@ -500,6 +511,33 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /rejectedCompactVoxelEdit/);
   assert.match(proofSource, /rejectedVoxelEdit/);
   assert.match(proofSource, /unsupportedVoxelEdit/);
+});
+
+test('VoxelForge view_from_angle parity produces projection-only camera evidence', () => {
+  const workspace = buildInitialWorkspaceReadModel();
+  const capture = buildStudioAgentVoxelViewCaptureReadModel({
+    workspace,
+    viewportTool: buildStudioViewportToolReadModel('orbit'),
+    renderSettings: buildStudioPreferencesReadModel().render,
+    readbackMarker: 'session-preview-0001:scene-view-57349d34:4',
+    angle: 'right',
+    target: 'selected',
+  });
+
+  assert.equal(capture.captureVersion, 'studio-agent-voxel-view-capture.v0');
+  assert.equal(capture.angle, 'right');
+  assert.equal(capture.target, 'selected');
+  assert.equal(capture.targetRenderableId, 'selected-voxel:0,0,0');
+  assert.equal(capture.sessionId, workspace.session.sessionId);
+  assert.equal(capture.sceneHash, workspace.scene.sceneHash);
+  assert.equal(capture.viewport.selectedRenderableId, 'selected-voxel:0,0,0');
+  assert.match(capture.camera.cameraHash, /^viewport-camera-/);
+  assert.match(capture.viewport.readbackHash, /^viewport-readback-/);
+  assert.match(capture.captureHash, /^studio-agent-voxel-view-capture-/);
+  assert.ok(capture.nonClaims.includes('not_runtime_authority'));
+  assert.ok(capture.nonClaims.includes('not_hardware_gpu_capture'));
+  assert.ok(capture.nonClaims.includes('not_voxelforge_viewer'));
+  assert.ok(capture.nonClaims.includes('not_browser_screenshot'));
 });
 
 test('VoxelForge compact voxel affordances compile to bounded generated command batches', () => {

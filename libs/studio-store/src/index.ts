@@ -81,6 +81,7 @@ import {
   type StudioCatalogWorkflowReadModel,
   type StudioProofSceneListLoadResult,
   type StudioPreferencesReadModel,
+  type StudioRenderSettingsReadModel,
   type StudioRenderSettingKey,
   type StudioViewportCameraControlDelta,
   type StudioViewportCameraReadModel,
@@ -311,6 +312,7 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'inspect'
   | 'configure_conversion'
   | 'run_conversion'
+  | 'view_from_angle'
   | 'submit_voxel_edit'
   | 'submit_compact_voxel_edit';
 export type StudioAgentVoxelWorkflowResultOperation =
@@ -414,10 +416,48 @@ export interface StudioAgentCompactVoxelEditCompileResult {
   readonly generatedVoxelCount: number;
 }
 
+export type StudioAgentVoxelViewAngle =
+  | 'front'
+  | 'back'
+  | 'left'
+  | 'right'
+  | 'top'
+  | 'isometric';
+
+export interface StudioAgentVoxelViewFromAngleRequest {
+  readonly angle: StudioAgentVoxelViewAngle;
+  readonly target?: 'selected' | 'scene';
+}
+
+export interface StudioAgentVoxelViewCaptureReadModel {
+  readonly captureVersion: 'studio-agent-voxel-view-capture.v0';
+  readonly angle: StudioAgentVoxelViewAngle;
+  readonly target: 'selected' | 'scene';
+  readonly targetRenderableId: string | null;
+  readonly sessionId: string;
+  readonly sceneHash: string;
+  readonly readbackMarker: string;
+  readonly camera: StudioViewportCameraReadModel;
+  readonly viewport: {
+    readonly cameraHash: string;
+    readonly readbackHash: string;
+    readonly selectedRenderableId: string | null;
+  };
+  readonly evidenceKind: 'projection_view_readout';
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_hardware_gpu_capture',
+    'not_voxelforge_viewer',
+    'not_browser_screenshot',
+  ];
+  readonly captureHash: string;
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
+  | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch }
   | { readonly kind: 'submit_compact_voxel_edit'; readonly edit: StudioAgentCompactVoxelEdit };
 
@@ -453,6 +493,13 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly coordinateAbsLimit: number;
     readonly runtimeAttached: boolean;
   };
+  readonly viewCapture: {
+    readonly supportedAngles: readonly StudioAgentVoxelViewAngle[];
+    readonly cameraHash: string;
+    readonly readbackHash: string;
+    readonly selectedRenderableId: string | null;
+    readonly evidenceKind: 'projection_view_readout';
+  };
   readonly diagnostics: readonly string[];
   readonly nonClaims: readonly string[];
   readonly surfaceHash: string;
@@ -465,6 +512,7 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly surface: StudioAgentVoxelWorkflowSurfaceReadModel;
   readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
   readonly compiledVoxelEditBatch?: CommandBatch | null;
+  readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -1157,6 +1205,7 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'inspect',
   'configure_conversion',
   'run_conversion',
+  'view_from_angle',
   'submit_voxel_edit',
   'submit_compact_voxel_edit',
 ];
@@ -1168,6 +1217,14 @@ const AGENT_COMPACT_VOXEL_AFFORDANCES: readonly StudioAgentCompactVoxelEdit['kin
   'fill_box',
   'apply_voxel_primitives',
 ];
+const AGENT_VOXEL_VIEW_ANGLES: readonly StudioAgentVoxelViewAngle[] = [
+  'front',
+  'back',
+  'left',
+  'right',
+  'top',
+  'isometric',
+];
 
 function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
   const text = JSON.stringify(value);
@@ -1176,6 +1233,102 @@ function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
     hash = ((hash * 31) + text.charCodeAt(index)) >>> 0;
   }
   return `${label}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function viewportDistance(camera: StudioViewportCameraReadModel): number {
+  return Math.max(
+    1,
+    Math.hypot(
+      camera.position.x - camera.target.x,
+      camera.position.y - camera.target.y,
+      camera.position.z - camera.target.z,
+    ),
+  );
+}
+
+function cameraForVoxelViewAngle(
+  baseCamera: StudioViewportCameraReadModel,
+  angle: StudioAgentVoxelViewAngle,
+): StudioViewportCameraReadModel {
+  const target = baseCamera.target;
+  const distance = viewportDistance(baseCamera);
+  const raised = Math.max(0.5, distance * 0.18);
+  const diagonal = distance / Math.sqrt(3);
+  const offsetByAngle: Record<StudioAgentVoxelViewAngle, StudioViewportCameraReadModel['position']> = {
+    front: { x: 0, y: -distance, z: raised },
+    back: { x: 0, y: distance, z: raised },
+    left: { x: -distance, y: 0, z: raised },
+    right: { x: distance, y: 0, z: raised },
+    top: { x: 0, y: 0, z: distance },
+    isometric: { x: diagonal, y: -diagonal, z: diagonal },
+  };
+  const up = angle === 'top' ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
+  const offset = offsetByAngle[angle];
+  return buildStudioViewportCameraReadModel({
+    ...baseCamera,
+    position: {
+      x: target.x + offset.x,
+      y: target.y + offset.y,
+      z: target.z + offset.z,
+    },
+    target,
+    up,
+  });
+}
+
+export function buildStudioAgentVoxelViewCaptureReadModel(options: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly viewportTool: StudioViewportToolReadModel;
+  readonly renderSettings: StudioRenderSettingsReadModel;
+  readonly readbackMarker: string;
+  readonly angle: StudioAgentVoxelViewAngle;
+  readonly target?: 'selected' | 'scene';
+}): StudioAgentVoxelViewCaptureReadModel {
+  const target = options.target ?? 'selected';
+  const targetRenderableId = target === 'selected' ? options.workspace.scene.selectedRenderableId : null;
+  const framedCamera =
+    target === 'selected'
+      ? frameStudioViewportCameraOnRenderable(options.workspace.scene, targetRenderableId)
+      : frameStudioViewportCamera(options.workspace.scene);
+  const camera = cameraForVoxelViewAngle(framedCamera, options.angle);
+  const viewport = buildStudioViewportAdapterReadModel({
+    scene: options.workspace.scene,
+    camera,
+    tool: options.viewportTool,
+    renderSettings: options.renderSettings,
+  });
+  const body = {
+    captureVersion: 'studio-agent-voxel-view-capture.v0' as const,
+    angle: options.angle,
+    target,
+    targetRenderableId,
+    sessionId: options.workspace.session.sessionId,
+    sceneHash: options.workspace.scene.sceneHash,
+    readbackMarker: options.readbackMarker,
+    camera,
+    viewport: {
+      cameraHash: camera.cameraHash,
+      readbackHash: viewport.readbackHash,
+      selectedRenderableId: options.workspace.scene.selectedRenderableId,
+    },
+    evidenceKind: 'projection_view_readout' as const,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_hardware_gpu_capture',
+      'not_voxelforge_viewer',
+      'not_browser_screenshot',
+    ] as const,
+  };
+  return {
+    ...body,
+    captureHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-view-capture', body),
+  };
+}
+
+function agentVoxelViewAngleDiagnostic(angle: unknown): string | null {
+  return typeof angle === 'string' && AGENT_VOXEL_VIEW_ANGLES.includes(angle as StudioAgentVoxelViewAngle)
+    ? null
+    : `unsupported voxel view angle ${String(angle)}`;
 }
 
 function agentVoxelEditDiagnostic(batch: CommandBatch): string | null {
@@ -2264,6 +2417,7 @@ export class StudioWorkspaceStore {
   agentVoxelWorkflowSurface(): StudioAgentVoxelWorkflowSurfaceReadModel {
     const inspection = this.runtimeSessionInspection();
     const shell = this.voxelConversionWorkspaceShell();
+    const viewport = this.viewportAdapter();
     const body = {
       runtime: {
         attachState: inspection.attachState,
@@ -2293,6 +2447,13 @@ export class StudioWorkspaceStore {
         maxCommands: AGENT_VOXEL_EDIT_MAX_COMMANDS,
         coordinateAbsLimit: AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT,
         runtimeAttached: this.runtimeSessionFacadeState() !== null,
+      },
+      viewCapture: {
+        supportedAngles: AGENT_VOXEL_VIEW_ANGLES,
+        cameraHash: this.viewportCameraState().cameraHash,
+        readbackHash: viewport.readbackHash,
+        selectedRenderableId: this.workspaceState().scene.selectedRenderableId,
+        evidenceKind: 'projection_view_readout' as const,
       },
       diagnostics: [
         ...(this.runtimeSessionFacadeState() === null ? ['runtime_session_not_attached'] : []),
@@ -2340,6 +2501,43 @@ export class StudioWorkspaceStore {
           operation: operation.kind,
           diagnostic: proposal.accepted ? null : proposal.diagnostics.at(0)?.message ?? 'voxel conversion proposal rejected',
           surface: this.agentVoxelWorkflowSurface(),
+        };
+      }
+      case 'view_from_angle': {
+        const diagnostic = agentVoxelViewAngleDiagnostic(operation.view.angle);
+        if (diagnostic !== null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic,
+            surface: this.agentVoxelWorkflowSurface(),
+            viewCapture: null,
+          };
+        }
+        const capture = buildStudioAgentVoxelViewCaptureReadModel({
+          workspace: this.workspaceState(),
+          viewportTool: this.viewportToolState(),
+          renderSettings: this.preferencesStore.renderSettings(),
+          readbackMarker: this.readbackMarker(),
+          angle: operation.view.angle,
+          target: operation.view.target ?? 'selected',
+        });
+        this.viewportCameraState.set(capture.camera);
+        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+          commandId: 'voxel_view.from_angle',
+          label: 'Agent Voxel View',
+          inputSummary: `angle=${capture.angle};target=${capture.target};renderable=${capture.targetRenderableId ?? 'scene'}`,
+          outputSummary: `View capture ${capture.captureHash}.`,
+          status: 'ok',
+        });
+        this.workspaceState.set(recorded.workspace);
+        this.menuMessageState.set(`Voxel view ${capture.angle} captured.`);
+        return {
+          accepted: true,
+          operation: operation.kind,
+          diagnostic: null,
+          surface: this.agentVoxelWorkflowSurface(),
+          viewCapture: capture,
         };
       }
       case 'submit_voxel_edit':

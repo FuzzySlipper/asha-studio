@@ -79,6 +79,18 @@ interface BrowserProof {
     readonly rejectedCompactVoxelEdit: boolean | null;
     readonly rejectedVoxelEdit: boolean | null;
     readonly unsupportedVoxelEdit: boolean | null;
+    readonly viewCapture: {
+      readonly angle: string;
+      readonly target: string;
+      readonly targetRenderableId: string | null;
+      readonly sessionId: string;
+      readonly sceneHash: string;
+      readonly readbackMarker: string;
+      readonly cameraHash: string;
+      readonly viewportReadbackHash: string;
+      readonly captureHash: string;
+      readonly nonClaims: readonly string[];
+    } | null;
     readonly surfaceHash: string;
   };
   readonly nativeSmoke: {
@@ -229,6 +241,7 @@ function automationPrelude(): string {
       rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
       unsupportedVoxelEdit: null,
+      viewCapture: null,
       surfaceHash: '',
     },
     nativeSmoke: {
@@ -408,6 +421,25 @@ function automationPrelude(): string {
         );
         const inspectResult = store.runAgentVoxelWorkflowOperation({ kind: 'inspect' });
         proof.agentSurface.operationStatuses.push('inspect:' + inspectResult.accepted);
+        const viewResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'view_from_angle',
+          view: { angle: 'isometric', target: 'selected' },
+        });
+        proof.agentSurface.operationStatuses.push('view_from_angle.isometric:' + viewResult.accepted);
+        proof.agentSurface.viewCapture = viewResult.viewCapture === null || viewResult.viewCapture === undefined
+          ? null
+          : {
+              angle: viewResult.viewCapture.angle,
+              target: viewResult.viewCapture.target,
+              targetRenderableId: viewResult.viewCapture.targetRenderableId,
+              sessionId: viewResult.viewCapture.sessionId,
+              sceneHash: viewResult.viewCapture.sceneHash,
+              readbackMarker: viewResult.viewCapture.readbackMarker,
+              cameraHash: viewResult.viewCapture.viewport.cameraHash,
+              viewportReadbackHash: viewResult.viewCapture.viewport.readbackHash,
+              captureHash: viewResult.viewCapture.captureHash,
+              nonClaims: viewResult.viewCapture.nonClaims,
+            };
         const configureResult = store.runAgentVoxelWorkflowOperation({
           kind: 'configure_conversion',
           patch: {
@@ -761,6 +793,7 @@ async function main(): Promise<void> {
       'register_conversion_source:true',
       'reject_conversion_source:true',
       'inspect:true',
+      'view_from_angle.isometric:true',
       'configure_conversion:true',
       'run_conversion.plan:true',
       'run_conversion.preview:true',
@@ -772,6 +805,26 @@ async function main(): Promise<void> {
       'submit_compact_voxel_edit.apply_voxel_primitives:true',
       'submit_compact_voxel_edit.fill_box_oversized:false',
     ]);
+    assert.deepEqual(nativeProof.agentSurface.viewCapture, {
+      angle: 'isometric',
+      target: 'selected',
+      targetRenderableId: 'selected-voxel:0,0,0',
+      sessionId: 'session-preview-0001',
+      sceneHash: 'scene-view-57349d34',
+      readbackMarker: 'session-preview-0001:scene-view-57349d34:4',
+      cameraHash: nativeProof.agentSurface.viewCapture?.cameraHash,
+      viewportReadbackHash: nativeProof.agentSurface.viewCapture?.viewportReadbackHash,
+      captureHash: nativeProof.agentSurface.viewCapture?.captureHash,
+      nonClaims: [
+        'not_runtime_authority',
+        'not_hardware_gpu_capture',
+        'not_voxelforge_viewer',
+        'not_browser_screenshot',
+      ],
+    });
+    assert.match(nativeProof.agentSurface.viewCapture?.cameraHash ?? '', /^viewport-camera-/);
+    assert.match(nativeProof.agentSurface.viewCapture?.viewportReadbackHash ?? '', /^viewport-readback-/);
+    assert.match(nativeProof.agentSurface.viewCapture?.captureHash ?? '', /^studio-agent-voxel-view-capture-/);
     assert.equal(nativeProof.agentSurface.acceptedVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedCompactVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
@@ -862,6 +915,7 @@ async function main(): Promise<void> {
         'attachRuntimeSessionInspection_succeeded_with_native_rust_authority',
         'studio_catalog_static_mesh_registered_as_authority_conversion_source',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
+        'view_from_angle_recorded_projection_camera_readout_without_screenshot_authority',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
         'all_adapted_voxelforge_compact_affordances_submitted_through_public_surface',
         'oversized_voxelforge_style_compact_edit_failed_closed_before_runtime_submission',
@@ -870,6 +924,7 @@ async function main(): Promise<void> {
       ],
       nonClaims: [
         'not_hardware_gpu_evidence',
+        'not_hardware_gpu_capture',
         'not_performance_evidence',
         'not_packaged_electron_evidence',
         'not_public_remote_rpc_api',

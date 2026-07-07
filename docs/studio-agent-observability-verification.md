@@ -44,7 +44,8 @@ before runtime submission.
 The native launch evidence command, `pnpm run evidence -- native-voxel-runtime-launch`,
 drives this surface against the Rust native provider and records accepted
 `set_voxels`, `set_voxels_runs`, `fill_box`, and `apply_voxel_primitives`
-compact edits, plus runtime-rejected and preflight-rejected edit paths.
+compact edits, bounded `view_from_angle` camera/readout evidence, plus
+runtime-rejected and preflight-rejected edit paths.
 
 ## Verification Tiers
 
