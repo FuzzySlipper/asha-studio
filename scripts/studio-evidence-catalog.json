@@ -66,7 +66,7 @@
       "scriptPath": "scripts/proof-native-voxel-runtime-launch.ts",
       "status": "current_product",
       "lane": "studio_live_inspection",
-      "summary": "Launches built Studio with a native Rust RuntimeBridge provider and drives voxel conversion through the live attach path."
+      "summary": "Launches built Studio with a native Rust RuntimeBridge provider and drives voxel conversion plus accepted/rejected voxel edits through the live attach path."
     },
     {
       "name": "running-project-connection",

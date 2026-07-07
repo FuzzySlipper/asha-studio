@@ -74,6 +74,28 @@ interface BrowserProof {
     readonly unsupportedVoxelEdit: boolean | null;
     readonly surfaceHash: string;
   };
+  readonly nativeSmoke: {
+    readonly sessionHashBeforeVoxelEdits: string | null;
+    readonly sessionHashAfterAcceptedVoxelEdits: string | null;
+    readonly sessionHashAfterRejectedVoxelEdit: string | null;
+    readonly commandCountsBeforeVoxelEdits: { readonly accepted: number | null; readonly rejected: number | null };
+    readonly commandCountsAfterAcceptedVoxelEdits: { readonly accepted: number | null; readonly rejected: number | null };
+    readonly commandCountsAfterRejectedVoxelEdit: { readonly accepted: number | null; readonly rejected: number | null };
+    readonly conversion: {
+      readonly outputVoxelCount: number | null;
+      readonly outputBoundsLabel: string;
+      readonly materialRows: readonly {
+        readonly sourceMaterialSlot: number;
+        readonly sourceMaterialId: string | null;
+        readonly voxelMaterial: number;
+      }[];
+      readonly exportedEvidenceRefs: readonly {
+        readonly kind: string;
+        readonly uri: string;
+        readonly contentHash: string;
+      }[];
+    };
+  };
   readonly textSample: string;
 }
 
@@ -200,6 +222,20 @@ function automationPrelude(): string {
       unsupportedVoxelEdit: null,
       surfaceHash: '',
     },
+    nativeSmoke: {
+      sessionHashBeforeVoxelEdits: null,
+      sessionHashAfterAcceptedVoxelEdits: null,
+      sessionHashAfterRejectedVoxelEdit: null,
+      commandCountsBeforeVoxelEdits: { accepted: null, rejected: null },
+      commandCountsAfterAcceptedVoxelEdits: { accepted: null, rejected: null },
+      commandCountsAfterRejectedVoxelEdit: { accepted: null, rejected: null },
+      conversion: {
+        outputVoxelCount: null,
+        outputBoundsLabel: '',
+        materialRows: [],
+        exportedEvidenceRefs: [],
+      },
+    },
     textSample: '',
   };
 
@@ -284,6 +320,13 @@ function automationPrelude(): string {
     return provider && typeof provider.createRuntimeBridge === 'function'
       ? provider.createRuntimeBridge()
       : null;
+  }
+
+  function commandCounts(inspection) {
+    return {
+      accepted: inspection && inspection.commandSummary ? inspection.commandSummary.acceptedCommandCount : null,
+      rejected: inspection && inspection.commandSummary ? inspection.commandSummary.rejectedCommandCount : null,
+    };
   }
 
   function failClosedProviderDiagnostic() {
@@ -377,6 +420,21 @@ function automationPrelude(): string {
         await waitFor(() => acceptedAction('voxel_conversion.export_evidence'), 'evidence export proposal readiness');
         const exportResult = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId: 'voxel_conversion.export_evidence' });
         proof.agentSurface.operationStatuses.push('run_conversion.export_evidence:' + exportResult.accepted);
+        const conversionShell = store.voxelConversionWorkspaceShell();
+        const inspectionBeforeVoxelEdits = store.runtimeSessionInspection();
+        const exportedEvidenceRows = Array.from(new Map(
+          conversionShell.evidenceRows
+            .filter(row => row.source === 'export' && row.status === 'available')
+            .map(row => [row.kind + ':' + row.uri, row]),
+        ).values());
+        proof.nativeSmoke.sessionHashBeforeVoxelEdits = inspectionBeforeVoxelEdits.sessionHash;
+        proof.nativeSmoke.commandCountsBeforeVoxelEdits = commandCounts(inspectionBeforeVoxelEdits);
+        proof.nativeSmoke.conversion = {
+          outputVoxelCount: conversionShell.previewProjection.outputVoxelCount,
+          outputBoundsLabel: conversionShell.previewProjection.outputBoundsLabel,
+          materialRows: conversionShell.previewProjection.materialRows,
+          exportedEvidenceRefs: exportedEvidenceRows.map(row => ({ kind: row.kind, uri: row.uri, contentHash: row.contentHash })),
+        };
         const acceptedEdit = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_voxel_edit',
           batch: {
@@ -404,6 +462,9 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.operationStatuses.push('submit_compact_voxel_edit.fill_box:' + compactEdit.accepted);
+        const inspectionAfterAcceptedVoxelEdits = store.runtimeSessionInspection();
+        proof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits = inspectionAfterAcceptedVoxelEdits.sessionHash;
+        proof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits = commandCounts(inspectionAfterAcceptedVoxelEdits);
         const rejectedEdit = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_voxel_edit',
           batch: {
@@ -416,6 +477,9 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.rejectedVoxelEdit = rejectedEdit.accepted === false && rejectedEdit.voxelEditReceipt !== null;
+        const inspectionAfterRejectedVoxelEdit = store.runtimeSessionInspection();
+        proof.nativeSmoke.sessionHashAfterRejectedVoxelEdit = inspectionAfterRejectedVoxelEdit.sessionHash;
+        proof.nativeSmoke.commandCountsAfterRejectedVoxelEdit = commandCounts(inspectionAfterRejectedVoxelEdit);
         const unsupportedEdit = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_voxel_edit',
           batch: {
@@ -623,6 +687,29 @@ async function main(): Promise<void> {
     assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.unsupportedVoxelEdit, true);
     assert.match(nativeProof.agentSurface.surfaceHash, /^studio-agent-voxel-workflow-/);
+    assert.match(nativeProof.nativeSmoke.sessionHashBeforeVoxelEdits ?? '', /^fnv1a64:/);
+    assert.match(nativeProof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits ?? '', /^fnv1a64:/);
+    assert.notEqual(
+      nativeProof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits,
+      nativeProof.nativeSmoke.sessionHashBeforeVoxelEdits,
+      'accepted voxel edits must change the authority session hash',
+    );
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 2, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 2, rejected: 1 });
+    assert.equal(nativeProof.nativeSmoke.conversion.outputVoxelCount, 3);
+    assert.equal(nativeProof.nativeSmoke.conversion.outputBoundsLabel, '[0,0,0] to [7,7,0]');
+    assert.deepEqual(nativeProof.nativeSmoke.conversion.materialRows, [
+      { sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper', voxelMaterial: 1 },
+    ]);
+    assert.deepEqual(
+      nativeProof.nativeSmoke.conversion.exportedEvidenceRefs.map(ref => ref.kind),
+      ['plan', 'preview', 'apply_receipt'],
+    );
+    for (const ref of nativeProof.nativeSmoke.conversion.exportedEvidenceRefs) {
+      assert.match(ref.uri, /^asha:\/\/voxel-conversion\//);
+      assert.match(ref.contentHash, /^fnv1a64:/);
+    }
 
     const missingDom = await runChromiumDump(`${baseUrl}?provider=missing`);
     const missingProof = readProofFromDom(missingDom);
