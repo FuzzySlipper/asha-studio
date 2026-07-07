@@ -409,6 +409,7 @@ const DEMO_ASSET_INVENTORY_ARTIFACT = {
     'texture.demo-checker',
     'material.demo-copper',
     'mesh.demo-cube',
+    'mesh/import-fixture-a',
   ],
   entries: [
     {
@@ -442,6 +443,35 @@ const DEMO_ASSET_INVENTORY_ARTIFACT = {
           kind: 'packed-resource',
           path: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
           sha256: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
+        },
+      ],
+    },
+    {
+      assetId: 'mesh/import-fixture-a',
+      kind: 'static_mesh',
+      sourcePath: 'assets/meshes/import-fixture-a.mesh.json',
+      dependencies: ['material.demo-copper'],
+      devResolution: {
+        assetId: 'mesh/import-fixture-a',
+        sourcePath: 'assets/meshes/import-fixture-a.mesh.json',
+        sourceHash: 'sha256:import-fixture-a',
+        devCacheKey: 'dev-cache/static_mesh/mesh-import-fixture-a/import-fixture-a',
+        generatedArtifactVersion: 'asset-import.v1',
+        importStatus: 'clean',
+        publishOutputKey: 'meshes/import-fixture-a.mesh.json',
+      },
+      publishResolution: {
+        outputKey: 'meshes/import-fixture-a.mesh.json',
+        packedPath: 'harness/out/publish/resources/meshes/import-fixture-a.mesh.json',
+        packedHash: null,
+        packedBytes: null,
+      },
+      diagnostics: [],
+      evidenceRefs: [
+        {
+          kind: 'source',
+          path: 'assets/meshes/import-fixture-a.mesh.json',
+          sha256: 'sha256:import-fixture-a',
         },
       ],
     },
@@ -929,20 +959,25 @@ function firstDiagnosticMessage(
   return diagnostics[0]?.message ?? fallback;
 }
 
-const SUPPORTED_VOXEL_CONVERSION_SOURCE_KINDS = ['static_mesh'] as const;
+const SUPPORTED_VOXEL_CONVERSION_CATALOG_SOURCE_KINDS = ['static_mesh'] as const;
+const SUPPORTED_VOXEL_CONVERSION_AUTHORITY_SOURCE_KINDS = ['mesh'] as const;
+
+function voxelConversionAuthoritySourceKind(catalogKind: string): string {
+  return catalogKind === 'static_mesh' ? 'mesh' : catalogKind;
+}
 
 const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
-  selectedSourceAssetId: null,
-  mode: 'solid',
+  selectedSourceAssetId: 'mesh/import-fixture-a',
+  mode: 'surface',
   fitPolicy: 'contain',
   originPolicy: 'target_min',
   resolution: [8, 8, 8],
   voxelSize: 0.25,
   maxOutputVoxels: 1024,
   targetGrid: 1,
-  targetVolumeAssetId: 'volume.studio-voxel-preview',
+  targetVolumeAssetId: 'voxel/generated',
   targetOrigin: [0, 0, 0],
-  meshPrimitive: 'primitive-0',
+  meshPrimitive: 'default',
   materialMap: {
     defaultVoxelMaterial: 1,
     entries: [
@@ -964,7 +999,7 @@ function voxelConversionSourceOptions(
     label: `${entry.assetId} · ${entry.kind}`,
     kind: entry.kind,
     sourceHash: entry.devResolution?.sourceHash ?? null,
-    supported: SUPPORTED_VOXEL_CONVERSION_SOURCE_KINDS.includes(entry.kind as 'static_mesh'),
+    supported: SUPPORTED_VOXEL_CONVERSION_CATALOG_SOURCE_KINDS.includes(entry.kind as 'static_mesh'),
     selected: entry.assetId === selectedSourceAssetId,
   }));
 }
@@ -978,7 +1013,7 @@ function voxelConversionSourceRef(
   }
   return {
     assetId: selectedSource.assetId,
-    assetKind: selectedSource.kind,
+    assetKind: voxelConversionAuthoritySourceKind(selectedSource.kind),
     assetVersion: 1,
     sourceHash: selectedSource.devResolution?.sourceHash ?? '',
     meshPrimitive: draft.meshPrimitive,
@@ -1171,6 +1206,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     preview: options.authorityState.preview,
     receipt: options.authorityState.receipt,
     evidence: options.authorityState.evidence,
+    supportedSourceAssetKinds: SUPPORTED_VOXEL_CONVERSION_AUTHORITY_SOURCE_KINDS,
   });
   const readout = buildStudioVoxelConversionReadoutModel({
     workspace,

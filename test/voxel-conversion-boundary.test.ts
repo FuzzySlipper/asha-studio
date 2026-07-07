@@ -352,18 +352,33 @@ function summarizePhase4Case(fixtureCase: Phase4FixtureCase) {
 function sampleStudioVoxelDraft(overrides: Partial<StudioVoxelConversionSettingsDraft> = {}): StudioVoxelConversionSettingsDraft {
   return {
     selectedSourceAssetId: 'mesh.preview-cube',
-    mode: 'solid',
+    mode: 'surface',
     fitPolicy: 'contain',
     originPolicy: 'target_min',
     resolution: [8, 8, 8],
     voxelSize: 0.25,
     maxOutputVoxels: 1024,
     targetGrid: 1,
-    targetVolumeAssetId: 'volume.preview-cube',
+    targetVolumeAssetId: 'voxel/generated',
     targetOrigin: [0, 0, 0],
-    meshPrimitive: 'primitive-0',
+    meshPrimitive: 'default',
     materialMap: sampleSettings().materialMap,
     ...overrides,
+  };
+}
+
+function sampleStudioAuthoritySource(overrides: Partial<VoxelConversionSourceRef> = {}): VoxelConversionSourceRef {
+  return sampleSource({
+    assetKind: 'mesh',
+    meshPrimitive: 'default',
+    ...overrides,
+  });
+}
+
+function sampleStudioAuthorityPlan(): VoxelConversionPlan {
+  return {
+    ...samplePlan(sampleStudioAuthoritySource(), sampleSettings({ mode: 'surface' })),
+    target: sampleTarget({ volumeAssetId: 'voxel/generated' }),
   };
 }
 
@@ -489,6 +504,41 @@ test('studio voxel conversion workspace wires source and settings controls to re
 
   assert.match(panelSource, /data-voxel-proposal-diagnostic-code/);
   assert.match(panelSource, /unsupported/);
+});
+
+test('studio voxel conversion shell maps catalog static meshes to authority mesh refs', () => {
+  const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
+    draft: sampleStudioVoxelDraft(),
+    selectedSource: sampleStudioAsset(),
+    sessionId: 'session-1',
+    expectedTimelineSequence: 1,
+    runtimeSession: sampleRuntimeSession(),
+    authorityState: { plan: null, preview: null, receipt: null, evidence: [] },
+  });
+
+  assert.equal(shell.workspace.status, 'ready');
+  assert.equal(shell.workspace.source.source?.assetId, 'mesh.preview-cube');
+  assert.equal(shell.workspace.source.source?.assetKind, 'mesh');
+  assert.equal(shell.workspace.source.source?.meshPrimitive, 'default');
+  assert.equal(shell.workspace.target?.volumeAssetId, 'voxel/generated');
+  assert.equal(shell.planProposal.accepted, true);
+  assert.equal(shell.planProposal.proposal?.input.request.source.assetKind, 'mesh');
+  assert.equal(shell.planProposal.proposal?.input.request.target.volumeAssetId, 'voxel/generated');
+});
+
+test('studio voxel conversion shell rejects unsupported catalog assets after authority mapping', () => {
+  const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
+    draft: sampleStudioVoxelDraft(),
+    selectedSource: sampleStudioAsset({ kind: 'material' }),
+    sessionId: 'session-1',
+    expectedTimelineSequence: 1,
+    runtimeSession: sampleRuntimeSession(),
+    authorityState: { plan: null, preview: null, receipt: null, evidence: [] },
+  });
+
+  assert.equal(shell.workspace.source.source?.assetKind, 'material');
+  assert.equal(shell.planProposal.accepted, false);
+  assert.ok(shell.planProposal.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_source_asset'));
 });
 
 test('studio voxel conversion workspace exposes projection-only preview and material readouts', () => {
@@ -1287,7 +1337,7 @@ test('voxel conversion readout preserves conversion replay mismatch diagnostics 
 
 test('voxel conversion workspace Phase 3 production shell negative matrix stays fail-closed and inspectable', () => {
   const runtimeSession = sampleRuntimeSession();
-  const plan = samplePlan();
+  const plan = sampleStudioAuthorityPlan();
   const stalePreview = { ...samplePreview(plan), planId: 'stale-plan' };
   const cases = [
     {
@@ -1384,7 +1434,7 @@ test('voxel conversion workspace Phase 3 production shell reaches staged authori
   const runtimeSession = sampleRuntimeSession();
   const draft = sampleStudioVoxelDraft();
   const asset = sampleStudioAsset();
-  const plan = samplePlan();
+  const plan = sampleStudioAuthorityPlan();
   const preview = samplePreview(plan);
   const receipt = sampleReceipt(plan);
   const stages = [

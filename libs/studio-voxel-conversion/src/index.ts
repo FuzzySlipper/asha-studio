@@ -313,7 +313,7 @@ export const STUDIO_VOXEL_CONVERSION_OPERATION_BOUNDARIES: readonly StudioVoxelC
   },
 ];
 
-const DEFAULT_SUPPORTED_SOURCE_ASSET_KINDS = ['static_mesh'] as const;
+const DEFAULT_SUPPORTED_SOURCE_ASSET_KINDS = ['static_mesh', 'mesh'] as const;
 
 function workspaceDiagnostic(
   code: StudioVoxelConversionWorkspaceDiagnosticCode,
