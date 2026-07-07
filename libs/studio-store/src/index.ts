@@ -92,6 +92,7 @@ import {
 import type { SceneObjectId } from '@asha/editor-tools';
 import type {
   CommandBatch,
+  VoxelCommand,
   VoxelConversionEvidenceRef,
   VoxelConversionFitPolicy,
   VoxelConversionMaterialMap,
@@ -310,7 +311,8 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'inspect'
   | 'configure_conversion'
   | 'run_conversion'
-  | 'submit_voxel_edit';
+  | 'submit_voxel_edit'
+  | 'submit_compact_voxel_edit';
 export type StudioAgentVoxelWorkflowResultOperation =
   | StudioAgentVoxelWorkflowOperationKind
   | 'unsupported_operation';
@@ -333,11 +335,91 @@ export interface StudioAgentVoxelConversionSettingsPatch {
   readonly defaultMaterial?: string;
 }
 
+export interface StudioAgentVoxelPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+export interface StudioAgentVoxelWrite {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly i: number;
+}
+
+export interface StudioAgentVoxelRun {
+  readonly x1: number;
+  readonly x2: number;
+  readonly y: number;
+  readonly z: number;
+  readonly i: number;
+}
+
+export type StudioAgentVoxelPrimitive =
+  | {
+      readonly kind: 'block';
+      readonly at: StudioAgentVoxelPoint;
+      readonly palette_index: number;
+    }
+  | {
+      readonly kind: 'box';
+      readonly from: StudioAgentVoxelPoint;
+      readonly to: StudioAgentVoxelPoint;
+      readonly palette_index: number;
+      readonly mode?: 'filled' | 'shell' | 'edges';
+    }
+  | {
+      readonly kind: 'line';
+      readonly from: StudioAgentVoxelPoint;
+      readonly to: StudioAgentVoxelPoint;
+      readonly palette_index: number;
+      readonly radius?: number;
+    };
+
+export type StudioAgentCompactVoxelEdit =
+  | {
+      readonly kind: 'set_voxels';
+      readonly grid?: number;
+      readonly voxels: readonly StudioAgentVoxelWrite[];
+    }
+  | {
+      readonly kind: 'set_voxels_runs';
+      readonly grid?: number;
+      readonly runs: readonly StudioAgentVoxelRun[];
+    }
+  | {
+      readonly kind: 'fill_box';
+      readonly grid?: number;
+      readonly x1: number;
+      readonly y1: number;
+      readonly z1: number;
+      readonly x2: number;
+      readonly y2: number;
+      readonly z2: number;
+      readonly palette_index: number;
+    }
+  | {
+      readonly kind: 'apply_voxel_primitives';
+      readonly grid?: number;
+      readonly primitives: readonly StudioAgentVoxelPrimitive[];
+      readonly maxGeneratedVoxels?: number;
+    };
+
+export interface StudioAgentCompactVoxelEditCompileResult {
+  readonly accepted: boolean;
+  readonly diagnostic: string | null;
+  readonly batch: CommandBatch | null;
+  readonly affordance: StudioAgentCompactVoxelEdit['kind'];
+  readonly generatedVoxelCount: number;
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
-  | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch };
+  | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch }
+  | { readonly kind: 'submit_compact_voxel_edit'; readonly edit: StudioAgentCompactVoxelEdit };
 
 export interface StudioAgentVoxelWorkflowSurfaceReadModel {
   readonly surfaceVersion: 'studio-agent-voxel-workflow.v0';
@@ -366,7 +448,9 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
   readonly voxelEdit: {
     readonly commandMessageType: 'command.propose';
     readonly supportedCommandOps: readonly ['setVoxel'];
+    readonly compactAffordances: readonly StudioAgentCompactVoxelEdit['kind'][];
     readonly maxCommands: number;
+    readonly coordinateAbsLimit: number;
     readonly runtimeAttached: boolean;
   };
   readonly diagnostics: readonly string[];
@@ -380,6 +464,7 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly diagnostic: string | null;
   readonly surface: StudioAgentVoxelWorkflowSurfaceReadModel;
   readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
+  readonly compiledVoxelEditBatch?: CommandBatch | null;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -1073,8 +1158,16 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'configure_conversion',
   'run_conversion',
   'submit_voxel_edit',
+  'submit_compact_voxel_edit',
 ];
 const AGENT_VOXEL_EDIT_MAX_COMMANDS = 64;
+const AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT = 1024;
+const AGENT_COMPACT_VOXEL_AFFORDANCES: readonly StudioAgentCompactVoxelEdit['kind'][] = [
+  'set_voxels',
+  'set_voxels_runs',
+  'fill_box',
+  'apply_voxel_primitives',
+];
 
 function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
   const text = JSON.stringify(value);
@@ -1113,6 +1206,261 @@ function agentVoxelEditDiagnostic(batch: CommandBatch): string | null {
     }
   }
   return null;
+}
+
+function compactVoxelEditGrid(edit: StudioAgentCompactVoxelEdit): number {
+  return edit.grid ?? 1;
+}
+
+function isSafeVoxelInteger(value: number): boolean {
+  return Number.isSafeInteger(value) && Math.abs(value) <= AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT;
+}
+
+function compactVoxelMaterial(index: number): Extract<VoxelCommand, { readonly op: 'setVoxel' }>['value'] {
+  return index === 0 ? { kind: 'empty' } : { kind: 'solid', material: index };
+}
+
+function validateCompactVoxelWrite(write: StudioAgentVoxelWrite | StudioAgentVoxelRun, label: string): string | null {
+  if (!Number.isSafeInteger(write.i) || write.i < 0 || write.i > 255) {
+    return `${label} palette index must be an integer in 0..255`;
+  }
+  return null;
+}
+
+function addCompactVoxelCommand(
+  commands: Map<string, VoxelCommand>,
+  grid: number,
+  write: StudioAgentVoxelWrite,
+): string | null {
+  const validation = validateCompactVoxelWrite(write, 'compact voxel edit');
+  if (validation !== null) {
+    return validation;
+  }
+  if (!isSafeVoxelInteger(write.x) || !isSafeVoxelInteger(write.y) || !isSafeVoxelInteger(write.z)) {
+    return `compact voxel coordinate exceeds +/-${AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT} or is not an integer`;
+  }
+  const key = `${grid}:${write.x}:${write.y}:${write.z}`;
+  commands.set(key, {
+    op: 'setVoxel',
+    grid,
+    coord: { x: write.x, y: write.y, z: write.z },
+    value: compactVoxelMaterial(write.i),
+  });
+  return null;
+}
+
+function normalizeCompactRange(a: number, b: number): readonly [number, number] {
+  return a <= b ? [a, b] : [b, a];
+}
+
+function addCompactBoxCommands(
+  commands: Map<string, VoxelCommand>,
+  grid: number,
+  from: StudioAgentVoxelPoint,
+  to: StudioAgentVoxelPoint,
+  paletteIndex: number,
+  mode: 'filled' | 'shell' | 'edges',
+): string | null {
+  const validation = validateCompactVoxelWrite({ ...from, i: paletteIndex }, 'compact voxel primitive');
+  if (validation !== null) {
+    return validation;
+  }
+  const [minX, maxX] = normalizeCompactRange(from.x, to.x);
+  const [minY, maxY] = normalizeCompactRange(from.y, to.y);
+  const [minZ, maxZ] = normalizeCompactRange(from.z, to.z);
+  for (const value of [minX, maxX, minY, maxY, minZ, maxZ]) {
+    if (!isSafeVoxelInteger(value)) {
+      return `compact voxel box coordinate exceeds +/-${AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT} or is not an integer`;
+    }
+  }
+  for (let x = minX; x <= maxX; x += 1) {
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let z = minZ; z <= maxZ; z += 1) {
+        const boundaryAxes = Number(x === minX || x === maxX)
+          + Number(y === minY || y === maxY)
+          + Number(z === minZ || z === maxZ);
+        if (mode === 'shell' && boundaryAxes < 1) continue;
+        if (mode === 'edges' && boundaryAxes < 2) continue;
+        const diagnostic = addCompactVoxelCommand(commands, grid, { x, y, z, i: paletteIndex });
+        if (diagnostic !== null) return diagnostic;
+        if (commands.size > AGENT_VOXEL_EDIT_MAX_COMMANDS) {
+          return `compact voxel edit exceeds ${AGENT_VOXEL_EDIT_MAX_COMMANDS} generated commands`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function roundCompactLine(value: number): number {
+  return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5);
+}
+
+function addCompactLineCommands(
+  commands: Map<string, VoxelCommand>,
+  grid: number,
+  from: StudioAgentVoxelPoint,
+  to: StudioAgentVoxelPoint,
+  paletteIndex: number,
+  radius: number,
+): string | null {
+  if (!Number.isSafeInteger(radius) || radius < 0 || radius > 4) {
+    return 'compact voxel line radius must be an integer in 0..4';
+  }
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
+  if (!Number.isSafeInteger(steps)) {
+    return 'compact voxel line endpoints must be integer coordinates';
+  }
+  for (let step = 0; step <= steps; step += 1) {
+    const center = steps === 0
+      ? from
+      : {
+          x: from.x + roundCompactLine((dx * step) / steps),
+          y: from.y + roundCompactLine((dy * step) / steps),
+          z: from.z + roundCompactLine((dz * step) / steps),
+        };
+    for (let ox = -radius; ox <= radius; ox += 1) {
+      for (let oy = -radius; oy <= radius; oy += 1) {
+        for (let oz = -radius; oz <= radius; oz += 1) {
+          const diagnostic = addCompactVoxelCommand(commands, grid, {
+            x: center.x + ox,
+            y: center.y + oy,
+            z: center.z + oz,
+            i: paletteIndex,
+          });
+          if (diagnostic !== null) return diagnostic;
+          if (commands.size > AGENT_VOXEL_EDIT_MAX_COMMANDS) {
+            return `compact voxel edit exceeds ${AGENT_VOXEL_EDIT_MAX_COMMANDS} generated commands`;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export function buildStudioAgentCompactVoxelEditBatch(
+  edit: StudioAgentCompactVoxelEdit,
+): StudioAgentCompactVoxelEditCompileResult {
+  const grid = compactVoxelEditGrid(edit);
+  if (!Number.isSafeInteger(grid)) {
+    return {
+      accepted: false,
+      diagnostic: 'compact voxel edit grid must be a safe integer',
+      batch: null,
+      affordance: edit.kind,
+      generatedVoxelCount: 0,
+    };
+  }
+  const commands = new Map<string, VoxelCommand>();
+  let diagnostic: string | null = null;
+
+  switch (edit.kind) {
+    case 'set_voxels':
+      if (edit.voxels.length === 0) {
+        diagnostic = 'set_voxels requires at least one voxel';
+        break;
+      }
+      for (const voxel of edit.voxels) {
+        diagnostic = addCompactVoxelCommand(commands, grid, voxel);
+        if (diagnostic !== null || commands.size > AGENT_VOXEL_EDIT_MAX_COMMANDS) break;
+      }
+      break;
+    case 'set_voxels_runs':
+      if (edit.runs.length === 0) {
+        diagnostic = 'set_voxels_runs requires at least one run';
+        break;
+      }
+      for (const run of edit.runs) {
+        const validation = validateCompactVoxelWrite({ x: run.x1, y: run.y, z: run.z, i: run.i }, 'set_voxels_runs');
+        if (validation !== null) {
+          diagnostic = validation;
+          break;
+        }
+        const [minX, maxX] = normalizeCompactRange(run.x1, run.x2);
+        for (let x = minX; x <= maxX; x += 1) {
+          diagnostic = addCompactVoxelCommand(commands, grid, { x, y: run.y, z: run.z, i: run.i });
+          if (diagnostic !== null || commands.size > AGENT_VOXEL_EDIT_MAX_COMMANDS) break;
+        }
+        if (diagnostic !== null || commands.size > AGENT_VOXEL_EDIT_MAX_COMMANDS) break;
+      }
+      break;
+    case 'fill_box':
+      diagnostic = addCompactBoxCommands(
+        commands,
+        grid,
+        { x: edit.x1, y: edit.y1, z: edit.z1 },
+        { x: edit.x2, y: edit.y2, z: edit.z2 },
+        edit.palette_index,
+        'filled',
+      );
+      break;
+    case 'apply_voxel_primitives':
+      if (edit.primitives.length === 0) {
+        diagnostic = 'apply_voxel_primitives requires at least one primitive';
+        break;
+      }
+      if (
+        edit.maxGeneratedVoxels !== undefined
+        && (!Number.isSafeInteger(edit.maxGeneratedVoxels) || edit.maxGeneratedVoxels < 1 || edit.maxGeneratedVoxels > AGENT_VOXEL_EDIT_MAX_COMMANDS)
+      ) {
+        diagnostic = `maxGeneratedVoxels must be an integer in 1..${AGENT_VOXEL_EDIT_MAX_COMMANDS}`;
+        break;
+      }
+      for (const primitive of edit.primitives) {
+        if (primitive.kind === 'block') {
+          diagnostic = addCompactVoxelCommand(commands, grid, { ...primitive.at, i: primitive.palette_index });
+        } else if (primitive.kind === 'box') {
+          diagnostic = addCompactBoxCommands(
+            commands,
+            grid,
+            primitive.from,
+            primitive.to,
+            primitive.palette_index,
+            primitive.mode ?? 'filled',
+          );
+        } else {
+          diagnostic = addCompactLineCommands(
+            commands,
+            grid,
+            primitive.from,
+            primitive.to,
+            primitive.palette_index,
+            primitive.radius ?? 0,
+          );
+        }
+        if (diagnostic !== null || commands.size > (edit.maxGeneratedVoxels ?? AGENT_VOXEL_EDIT_MAX_COMMANDS)) break;
+      }
+      if (commands.size > (edit.maxGeneratedVoxels ?? AGENT_VOXEL_EDIT_MAX_COMMANDS)) {
+        diagnostic = `compact voxel edit exceeds ${edit.maxGeneratedVoxels ?? AGENT_VOXEL_EDIT_MAX_COMMANDS} generated commands`;
+      }
+      break;
+  }
+
+  if (commands.size > AGENT_VOXEL_EDIT_MAX_COMMANDS) {
+    diagnostic = `compact voxel edit exceeds ${AGENT_VOXEL_EDIT_MAX_COMMANDS} generated commands`;
+  }
+
+  if (diagnostic !== null) {
+    return {
+      accepted: false,
+      diagnostic,
+      batch: null,
+      affordance: edit.kind,
+      generatedVoxelCount: commands.size,
+    };
+  }
+
+  return {
+    accepted: true,
+    diagnostic: null,
+    batch: { commands: Array.from(commands.values()) },
+    affordance: edit.kind,
+    generatedVoxelCount: commands.size,
+  };
 }
 
 function voxelConversionSourceOptions(
@@ -1941,7 +2289,9 @@ export class StudioWorkspaceStore {
       voxelEdit: {
         commandMessageType: 'command.propose' as const,
         supportedCommandOps: ['setVoxel'] as const,
+        compactAffordances: AGENT_COMPACT_VOXEL_AFFORDANCES,
         maxCommands: AGENT_VOXEL_EDIT_MAX_COMMANDS,
+        coordinateAbsLimit: AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT,
         runtimeAttached: this.runtimeSessionFacadeState() !== null,
       },
       diagnostics: [
@@ -1994,6 +2344,20 @@ export class StudioWorkspaceStore {
       }
       case 'submit_voxel_edit':
         return this.submitAgentVoxelEdit(operation.batch);
+      case 'submit_compact_voxel_edit': {
+        const compiled = buildStudioAgentCompactVoxelEditBatch(operation.edit);
+        if (!compiled.accepted || compiled.batch === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: compiled.diagnostic,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelEditReceipt: null,
+            compiledVoxelEditBatch: null,
+          };
+        }
+        return this.submitAgentVoxelEdit(compiled.batch, operation.kind);
+      }
       default: {
         const unknownOperation = operation as { readonly kind?: unknown };
         return {
@@ -2731,15 +3095,19 @@ export class StudioWorkspaceStore {
     if (patch.defaultMaterial !== undefined) this.setVoxelConversionDefaultMaterial(patch.defaultMaterial);
   }
 
-  private submitAgentVoxelEdit(batch: CommandBatch): StudioAgentVoxelWorkflowResult {
+  private submitAgentVoxelEdit(
+    batch: CommandBatch,
+    operation: Extract<StudioAgentVoxelWorkflowResultOperation, 'submit_voxel_edit' | 'submit_compact_voxel_edit'> = 'submit_voxel_edit',
+  ): StudioAgentVoxelWorkflowResult {
     const preflightDiagnostic = agentVoxelEditDiagnostic(batch);
     if (preflightDiagnostic !== null) {
       return {
         accepted: false,
-        operation: 'submit_voxel_edit',
+        operation,
         diagnostic: preflightDiagnostic,
         surface: this.agentVoxelWorkflowSurface(),
         voxelEditReceipt: null,
+        compiledVoxelEditBatch: operation === 'submit_compact_voxel_edit' ? batch : null,
       };
     }
 
@@ -2747,10 +3115,11 @@ export class StudioWorkspaceStore {
     if (facade === null) {
       return {
         accepted: false,
-        operation: 'submit_voxel_edit',
+        operation,
         diagnostic: 'Attach RuntimeSession before submitting voxel edits.',
         surface: this.agentVoxelWorkflowSurface(),
         voxelEditReceipt: null,
+        compiledVoxelEditBatch: operation === 'submit_compact_voxel_edit' ? batch : null,
       };
     }
 
@@ -2770,10 +3139,11 @@ export class StudioWorkspaceStore {
       this.menuMessageState.set(summary);
       return {
         accepted: receipt.result.rejected === 0 && receipt.result.accepted > 0,
-        operation: 'submit_voxel_edit',
+        operation,
         diagnostic: receipt.result.rejected === 0 ? null : JSON.stringify(receipt.result.rejections),
         surface: this.agentVoxelWorkflowSurface(),
         voxelEditReceipt: receipt,
+        compiledVoxelEditBatch: operation === 'submit_compact_voxel_edit' ? batch : null,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Voxel edit runtime command failed.';
@@ -2788,10 +3158,11 @@ export class StudioWorkspaceStore {
       this.menuMessageState.set(message);
       return {
         accepted: false,
-        operation: 'submit_voxel_edit',
+        operation,
         diagnostic: message,
         surface: this.agentVoxelWorkflowSurface(),
         voxelEditReceipt: null,
+        compiledVoxelEditBatch: operation === 'submit_compact_voxel_edit' ? batch : null,
       };
     }
   }

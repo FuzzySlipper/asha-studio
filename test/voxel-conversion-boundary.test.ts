@@ -17,6 +17,7 @@ import {
   buildStudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
 import {
+  buildStudioAgentCompactVoxelEditBatch,
   buildStudioVoxelConversionWorkspaceShellForInputs,
   type StudioVoxelConversionSettingsDraft,
 } from '@asha-studio/store';
@@ -473,18 +474,84 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /runAgentVoxelWorkflowOperation/);
   assert.match(storeSource, /unsupported agent voxel workflow operation/);
   assert.match(storeSource, /AGENT_VOXEL_EDIT_MAX_COMMANDS = 64/);
+  assert.match(storeSource, /AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT = 1024/);
   assert.match(storeSource, /unsupported voxel edit operation/);
   assert.match(storeSource, /commandMessageType: 'command\.propose'/);
   assert.match(storeSource, /supportedCommandOps: \['setVoxel'\]/);
+  assert.match(storeSource, /compactAffordances: AGENT_COMPACT_VOXEL_AFFORDANCES/);
+  assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch/);
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'submit_voxel_edit']) {
+  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
+  assert.match(proofSource, /submit_compact_voxel_edit\.fill_box:true/);
   assert.match(proofSource, /acceptedVoxelEdit/);
   assert.match(proofSource, /rejectedVoxelEdit/);
   assert.match(proofSource, /unsupportedVoxelEdit/);
+});
+
+test('VoxelForge compact voxel affordances compile to bounded generated command batches', () => {
+  const fillBox = buildStudioAgentCompactVoxelEditBatch({
+    kind: 'fill_box',
+    grid: 7,
+    x1: 2,
+    y1: 0,
+    z1: 0,
+    x2: 3,
+    y2: 1,
+    z2: 0,
+    palette_index: 4,
+  });
+
+  assert.equal(fillBox.accepted, true);
+  assert.equal(fillBox.affordance, 'fill_box');
+  assert.equal(fillBox.generatedVoxelCount, 4);
+  assert.deepEqual(fillBox.batch?.commands, [
+    { op: 'setVoxel', grid: 7, coord: { x: 2, y: 0, z: 0 }, value: { kind: 'solid', material: 4 } },
+    { op: 'setVoxel', grid: 7, coord: { x: 2, y: 1, z: 0 }, value: { kind: 'solid', material: 4 } },
+    { op: 'setVoxel', grid: 7, coord: { x: 3, y: 0, z: 0 }, value: { kind: 'solid', material: 4 } },
+    { op: 'setVoxel', grid: 7, coord: { x: 3, y: 1, z: 0 }, value: { kind: 'solid', material: 4 } },
+  ]);
+
+  const runs = buildStudioAgentCompactVoxelEditBatch({
+    kind: 'set_voxels_runs',
+    runs: [{ x1: 0, x2: 2, y: 0, z: 1, i: 2 }],
+  });
+  assert.equal(runs.accepted, true);
+  assert.equal(runs.batch?.commands.length, 3);
+  assert.equal(runs.batch?.commands[2]?.op, 'setVoxel');
+
+  const primitives = buildStudioAgentCompactVoxelEditBatch({
+    kind: 'apply_voxel_primitives',
+    primitives: [
+      { kind: 'block', at: { x: 0, y: 0, z: 0 }, palette_index: 1 },
+      { kind: 'line', from: { x: 1, y: 0, z: 0 }, to: { x: 3, y: 0, z: 0 }, palette_index: 3 },
+    ],
+  });
+  assert.equal(primitives.accepted, true);
+  assert.equal(primitives.batch?.commands.length, 4);
+
+  const oversized = buildStudioAgentCompactVoxelEditBatch({
+    kind: 'fill_box',
+    x1: 0,
+    y1: 0,
+    z1: 0,
+    x2: 8,
+    y2: 8,
+    z2: 0,
+    palette_index: 1,
+  });
+  assert.equal(oversized.accepted, false);
+  assert.match(oversized.diagnostic ?? '', /exceeds 64 generated commands/);
+
+  const outOfBounds = buildStudioAgentCompactVoxelEditBatch({
+    kind: 'set_voxels',
+    voxels: [{ x: 2048, y: 0, z: 0, i: 1 }],
+  });
+  assert.equal(outOfBounds.accepted, false);
+  assert.match(outOfBounds.diagnostic ?? '', /coordinate exceeds/);
 });
 
 test('studio voxel conversion workspace wires source and settings controls to read-model draft', () => {

@@ -389,6 +389,21 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.acceptedVoxelEdit = acceptedEdit.accepted;
+        const compactEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_compact_voxel_edit',
+          edit: {
+            kind: 'fill_box',
+            grid: 1,
+            x1: 2,
+            y1: 0,
+            z1: 0,
+            x2: 2,
+            y2: 0,
+            z2: 0,
+            palette_index: 1,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('submit_compact_voxel_edit.fill_box:' + compactEdit.accepted);
         const rejectedEdit = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_voxel_edit',
           batch: {
@@ -602,6 +617,7 @@ async function main(): Promise<void> {
       'run_conversion.preview:true',
       'run_conversion.apply:true',
       'run_conversion.export_evidence:true',
+      'submit_compact_voxel_edit.fill_box:true',
     ]);
     assert.equal(nativeProof.agentSurface.acceptedVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
