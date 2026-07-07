@@ -35,6 +35,20 @@ import and local-link policy.
 - Agora compositor capture is optional/deferred and environment-gated. It is not
   part of `pnpm run verify`.
 
+## Voxel Conversion
+
+- Phase 4 voxel conversion proof artifacts are fixture-backed successor evidence
+  until upstream task #4479 wires Rust `RuntimeSession` voxel conversion facade
+  methods to live authority implementation.
+- The current proof demonstrates Studio plan/preview/apply/export proposal
+  behavior, Asha-authored fixture goldens, deterministic receipts, and
+  before/after comparison readouts. It does not claim live Rust voxelization,
+  hardware GPU evidence, conversion performance, arbitrary mesh support, copied
+  predecessor art assets, VoxelForge runtime/API dependency, or `.vforge`
+  compatibility.
+- Detailed scope accounting lives in
+  `docs/voxel-conversion-phase4-proof-posture.md`.
+
 ## Proof Commands And Historical Names
 
 - Runnable commands live in `package.json` scripts.
