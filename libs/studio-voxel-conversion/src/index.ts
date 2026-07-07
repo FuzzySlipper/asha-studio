@@ -504,8 +504,24 @@ function missingTargetDiagnostics(
   ];
 }
 
+function stableComparableValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => stableComparableValue(item));
+  }
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.keys(record)
+      .sort()
+      .reduce<Record<string, unknown>>((normalized, key) => {
+        normalized[key] = stableComparableValue(record[key]);
+        return normalized;
+      }, {});
+  }
+  return value;
+}
+
 function stableValueEquals(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return JSON.stringify(stableComparableValue(left)) === JSON.stringify(stableComparableValue(right));
 }
 
 function planInputDiagnostics(

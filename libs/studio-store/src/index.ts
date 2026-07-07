@@ -1810,6 +1810,10 @@ export class StudioWorkspaceStore {
   });
 
   constructor() {
+    const proofGlobal = globalThis as StudioNativeVoxelLaunchProofGlobal;
+    if (proofGlobal.ashaStudioNativeVoxelLaunchProof?.enabled === true) {
+      proofGlobal.ashaStudioNativeVoxelLaunchProof.store = this;
+    }
     void this.refreshProjectFiles('');
   }
 
@@ -3465,6 +3469,13 @@ type StudioRuntimeBridgeProvider = StudioNativeRustRuntimeBridgeProvider;
 type StudioRuntimeBridgeGlobal = typeof globalThis & {
   readonly ashaStudioRuntimeBridge?: StudioRuntimeBridgeProvider;
   readonly ashaRuntimeBridge?: StudioRuntimeBridgeProvider;
+};
+
+type StudioNativeVoxelLaunchProofGlobal = typeof globalThis & {
+  ashaStudioNativeVoxelLaunchProof?: {
+    readonly enabled?: boolean;
+    store?: StudioWorkspaceStore;
+  };
 };
 
 interface StudioRuntimeSessionAttach {

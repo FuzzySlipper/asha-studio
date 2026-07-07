@@ -856,6 +856,37 @@ test('voxel conversion workspace read model detects stale source hash readback',
   assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === 'source_hash_mismatch'));
 });
 
+test('voxel conversion workspace read model accepts native plan settings with stable key order', () => {
+  const source = sampleSource();
+  const target = sampleTarget();
+  const settings = sampleSettings();
+  const nativeOrderedSettings: VoxelConversionSettings = {
+    ...settings,
+    materialMap: {
+      entries: settings.materialMap.entries,
+      defaultVoxelMaterial: settings.materialMap.defaultVoxelMaterial,
+    },
+  };
+  const plan = {
+    ...samplePlan(source, nativeOrderedSettings),
+    target,
+  };
+  const readout = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+
+  assert.equal(readout.status, 'ready');
+  assert.equal(readout.operations.plan.status, 'complete');
+  assert.equal(readout.operations.preview.status, 'ready');
+  assert.ok(!readout.diagnostics.some(diagnostic => diagnostic.code === 'stale_plan'));
+});
+
 test('voxel conversion workspace read model detects stale target and settings authority plans', () => {
   const source = sampleSource();
   const plan = samplePlan(source, sampleSettings());

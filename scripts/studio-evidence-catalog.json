@@ -62,6 +62,13 @@
       "summary": "Live scene/entity debug inspector readout for Studio operator panels."
     },
     {
+      "name": "native-voxel-runtime-launch",
+      "scriptPath": "scripts/proof-native-voxel-runtime-launch.ts",
+      "status": "current_product",
+      "lane": "studio_live_inspection",
+      "summary": "Launches built Studio with a native Rust RuntimeBridge provider and drives voxel conversion through the live attach path."
+    },
+    {
       "name": "running-project-connection",
       "scriptPath": "scripts/proof-running-project-connection.ts",
       "status": "current_product",
