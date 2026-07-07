@@ -320,6 +320,49 @@ test('studio voxel conversion workspace shell registers visible fail-closed regi
   }
 });
 
+test('studio voxel conversion workspace wires source and settings controls to read-model draft', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+
+  assert.match(storeSource, /voxelConversionDraftState/);
+  assert.match(storeSource, /voxelConversionSourceOptions/);
+  assert.match(storeSource, /voxelConversionSourceRef/);
+  assert.match(storeSource, /voxelConversionSettings/);
+  assert.match(storeSource, /buildStudioVoxelConversionPlanProposal/);
+
+  for (const setter of [
+    'setVoxelConversionSourceAsset',
+    'setVoxelConversionMode',
+    'setVoxelConversionFitPolicy',
+    'setVoxelConversionOriginPolicy',
+    'setVoxelConversionResolutionAxis',
+    'setVoxelConversionMaxOutputVoxels',
+    'setVoxelConversionMaterialVoxelId',
+  ]) {
+    assert.match(storeSource, new RegExp(`${setter}\\(`));
+    assert.match(panelSource, new RegExp(`${setter}\\(`));
+  }
+
+  for (const control of [
+    'source-asset',
+    'mode',
+    'fit-policy',
+    'origin-policy',
+    'resolution-',
+    'max-output-voxels',
+    'target-grid',
+    'target-volume',
+    'material-source-slot',
+    'material-voxel-id',
+    'material-default',
+  ]) {
+    assert.match(panelSource, new RegExp(control));
+  }
+
+  assert.match(panelSource, /data-voxel-proposal-diagnostic-code/);
+  assert.match(panelSource, /unsupported/);
+});
+
 test('studio boundary check rejects forbidden voxel conversion import shapes', () => {
   const forbiddenSpecifiers = [
     ['@asha', 'native-bridge'].join('/'),

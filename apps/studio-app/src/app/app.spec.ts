@@ -39,6 +39,11 @@ describe('StudioShellComponent', () => {
     expect(panel?.querySelector('[data-voxel-shell-state="empty_inputs"]')).not.toBeNull();
     expect(panel?.querySelector('[data-voxel-shell-state="missing_capability"]')).not.toBeNull();
     expect(panel?.querySelector('[data-voxel-shell-state="ready"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-control="source-asset"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-control="mode"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-control="max-output-voxels"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-control="material-voxel-id"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-proposal-diagnostic-code]')).not.toBeNull();
 
     for (const region of ['source', 'settings', 'preview', 'diagnostics', 'timeline', 'evidence']) {
       expect(panel?.querySelector(`[data-voxel-region="${region}"]`)).not.toBeNull();

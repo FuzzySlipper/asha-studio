@@ -90,6 +90,15 @@ import {
   type StudioWorkspaceReadModel,
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
+import type {
+  VoxelConversionFitPolicy,
+  VoxelConversionMaterialMap,
+  VoxelConversionMode,
+  VoxelConversionOriginPolicy,
+  VoxelConversionSettings,
+  VoxelConversionSourceRef,
+  VoxelConversionTargetRef,
+} from '@asha/contracts';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import {
   RuntimeBridgeError,
@@ -112,9 +121,11 @@ import {
   type WorldLoadRequest,
 } from '@asha/runtime-bridge';
 import {
+  buildStudioVoxelConversionPlanProposal,
   buildStudioVoxelConversionReadoutModel,
   buildStudioVoxelConversionWorkspaceReadModel,
   type StudioVoxelConversionCommandId,
+  type StudioVoxelConversionProposalResult,
   type StudioVoxelConversionReadoutModel,
   type StudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
@@ -154,6 +165,30 @@ export interface StudioVoxelConversionWorkspaceShellAction {
   readonly reason: string;
 }
 
+export interface StudioVoxelConversionSourceOption {
+  readonly assetId: string;
+  readonly label: string;
+  readonly kind: string;
+  readonly sourceHash: string | null;
+  readonly supported: boolean;
+  readonly selected: boolean;
+}
+
+export interface StudioVoxelConversionSettingsDraftReadModel {
+  readonly selectedSourceAssetId: string | null;
+  readonly mode: VoxelConversionMode;
+  readonly fitPolicy: VoxelConversionFitPolicy;
+  readonly originPolicy: VoxelConversionOriginPolicy;
+  readonly resolution: readonly [number, number, number];
+  readonly voxelSize: number;
+  readonly maxOutputVoxels: number;
+  readonly targetGrid: number;
+  readonly targetVolumeAssetId: string;
+  readonly targetOrigin: readonly [number, number, number];
+  readonly meshPrimitive: string | null;
+  readonly materialMap: VoxelConversionMaterialMap;
+}
+
 export interface StudioVoxelConversionWorkspaceShellState {
   readonly id: 'empty_inputs' | 'missing_capability' | 'ready';
   readonly label: string;
@@ -166,10 +201,28 @@ export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly shellVersion: 'voxel-conversion-shell.v0';
   readonly workspace: StudioVoxelConversionWorkspaceReadModel;
   readonly readout: StudioVoxelConversionReadoutModel;
+  readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
+  readonly settingsDraft: StudioVoxelConversionSettingsDraftReadModel;
+  readonly planProposal: StudioVoxelConversionProposalResult<unknown>;
   readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
   readonly regions: readonly StudioVoxelConversionWorkspaceShellRegion[];
   readonly actions: readonly StudioVoxelConversionWorkspaceShellAction[];
   readonly shellHash: string;
+}
+
+interface StudioVoxelConversionSettingsDraft {
+  readonly selectedSourceAssetId: string | null;
+  readonly mode: VoxelConversionMode;
+  readonly fitPolicy: VoxelConversionFitPolicy;
+  readonly originPolicy: VoxelConversionOriginPolicy;
+  readonly resolution: readonly [number, number, number];
+  readonly voxelSize: number;
+  readonly maxOutputVoxels: number;
+  readonly targetGrid: number;
+  readonly targetVolumeAssetId: string;
+  readonly targetOrigin: readonly [number, number, number];
+  readonly meshPrimitive: string | null;
+  readonly materialMap: VoxelConversionMaterialMap;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -797,17 +850,110 @@ function firstDiagnosticMessage(
   return diagnostics[0]?.message ?? fallback;
 }
 
-function buildVoxelConversionWorkspaceShellReadModel(): StudioVoxelConversionWorkspaceShellReadModel {
+const SUPPORTED_VOXEL_CONVERSION_SOURCE_KINDS = ['static_mesh'] as const;
+
+const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
+  selectedSourceAssetId: null,
+  mode: 'solid',
+  fitPolicy: 'contain',
+  originPolicy: 'target_min',
+  resolution: [8, 8, 8],
+  voxelSize: 0.25,
+  maxOutputVoxels: 1024,
+  targetGrid: 1,
+  targetVolumeAssetId: 'volume.studio-voxel-preview',
+  targetOrigin: [0, 0, 0],
+  meshPrimitive: 'primitive-0',
+  materialMap: {
+    defaultVoxelMaterial: 1,
+    entries: [
+      {
+        sourceMaterialSlot: 0,
+        sourceMaterialId: 'material.demo-copper',
+        voxelMaterial: 1,
+      },
+    ],
+  },
+};
+
+function voxelConversionSourceOptions(
+  entries: readonly StudioAssetInventoryEntryReadModel[],
+  selectedSourceAssetId: string | null,
+): readonly StudioVoxelConversionSourceOption[] {
+  return entries.map(entry => ({
+    assetId: entry.assetId,
+    label: `${entry.assetId} · ${entry.kind}`,
+    kind: entry.kind,
+    sourceHash: entry.devResolution?.sourceHash ?? null,
+    supported: SUPPORTED_VOXEL_CONVERSION_SOURCE_KINDS.includes(entry.kind as 'static_mesh'),
+    selected: entry.assetId === selectedSourceAssetId,
+  }));
+}
+
+function voxelConversionSourceRef(
+  selectedSource: StudioAssetInventoryEntryReadModel | null,
+  draft: StudioVoxelConversionSettingsDraft,
+): VoxelConversionSourceRef | null {
+  if (selectedSource === null) {
+    return null;
+  }
+  return {
+    assetId: selectedSource.assetId,
+    assetKind: selectedSource.kind,
+    assetVersion: 1,
+    sourceHash: selectedSource.devResolution?.sourceHash ?? '',
+    meshPrimitive: draft.meshPrimitive,
+  };
+}
+
+function voxelConversionTargetRef(draft: StudioVoxelConversionSettingsDraft): VoxelConversionTargetRef {
+  return {
+    grid: draft.targetGrid,
+    volumeAssetId: draft.targetVolumeAssetId.trim().length === 0 ? null : draft.targetVolumeAssetId,
+    origin: {
+      x: draft.targetOrigin[0],
+      y: draft.targetOrigin[1],
+      z: draft.targetOrigin[2],
+    },
+  };
+}
+
+function voxelConversionSettings(draft: StudioVoxelConversionSettingsDraft): VoxelConversionSettings {
+  return {
+    mode: draft.mode,
+    fitPolicy: draft.fitPolicy,
+    originPolicy: draft.originPolicy,
+    resolution: draft.resolution,
+    voxelSize: draft.voxelSize,
+    maxOutputVoxels: draft.maxOutputVoxels,
+    transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    materialMap: draft.materialMap,
+  };
+}
+
+function buildVoxelConversionWorkspaceShellReadModel(options: {
+  readonly draft: StudioVoxelConversionSettingsDraft;
+  readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
+  readonly selectedSource: StudioAssetInventoryEntryReadModel | null;
+  readonly sessionId: string;
+  readonly expectedTimelineSequence: number;
+}): StudioVoxelConversionWorkspaceShellReadModel {
   const workspace = buildStudioVoxelConversionWorkspaceReadModel({
-    source: null,
-    target: null,
-    settings: null,
+    source: voxelConversionSourceRef(options.selectedSource, options.draft),
+    target: voxelConversionTargetRef(options.draft),
+    settings: voxelConversionSettings(options.draft),
     plan: null,
     preview: null,
     receipt: null,
     evidence: [],
   });
   const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const planProposal = buildStudioVoxelConversionPlanProposal({
+    workspace,
+    sessionId: options.sessionId,
+    expectedTimelineSequence: options.expectedTimelineSequence,
+    runtimeSession: null,
+  });
   const operations = [
     workspace.operations.plan,
     workspace.operations.preview,
@@ -936,10 +1082,13 @@ function buildVoxelConversionWorkspaceShellReadModel(): StudioVoxelConversionWor
     shellVersion: 'voxel-conversion-shell.v0',
     workspace,
     readout,
+    sourceOptions: options.sourceOptions,
+    settingsDraft: options.draft,
+    planProposal,
     states,
     regions,
     actions,
-    shellHash: `${workspace.readoutHash}:${readout.readoutHash}`,
+    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}`,
   };
 }
 
@@ -1024,6 +1173,32 @@ function createBrowserDevtoolsTransport(endpoint: string): StudioDevtoolsAttachT
       }, { once: true });
     }),
   };
+}
+
+function tupleWithIndex(
+  tuple: readonly [number, number, number],
+  index: number,
+  value: number,
+): readonly [number, number, number] {
+  return tuple.map((entry, entryIndex) => entryIndex === index ? value : entry) as [number, number, number];
+}
+
+function asVoxelConversionMode(value: string): VoxelConversionMode {
+  return value === 'surface' ? 'surface' : 'solid';
+}
+
+function asVoxelConversionFitPolicy(value: string): VoxelConversionFitPolicy {
+  if (value === 'cover' || value === 'stretch') {
+    return value;
+  }
+  return 'contain';
+}
+
+function asVoxelConversionOriginPolicy(value: string): VoxelConversionOriginPolicy {
+  if (value === 'source_origin' || value === 'centered') {
+    return value;
+  }
+  return 'target_min';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -1120,6 +1295,9 @@ export class StudioWorkspaceStore {
   );
   private readonly proofScenesState = signal<StudioProofSceneListLoadResult>(
     loadDemoProofScenes(this.gameWorkspaceState(), this.assetInventoryState()),
+  );
+  private readonly voxelConversionDraftState = signal<StudioVoxelConversionSettingsDraft>(
+    DEFAULT_VOXEL_CONVERSION_DRAFT,
   );
 
   readonly workspace = this.workspaceState.asReadonly();
@@ -1246,9 +1424,20 @@ export class StudioWorkspaceStore {
           commandProposals: buildDemoCommandProposalRows(workspace),
         });
   });
-  readonly voxelConversionWorkspaceShell = computed<StudioVoxelConversionWorkspaceShellReadModel>(() =>
-    buildVoxelConversionWorkspaceShellReadModel(),
-  );
+  readonly voxelConversionWorkspaceShell = computed<StudioVoxelConversionWorkspaceShellReadModel>(() => {
+    const draft = this.voxelConversionDraftState();
+    const assetInventory = this.assetInventoryState().inventory;
+    const assetEntries = assetInventory?.entries ?? [];
+    const sourceOptions = voxelConversionSourceOptions(assetEntries, draft.selectedSourceAssetId);
+    const selectedSource = assetEntries.find(entry => entry.assetId === draft.selectedSourceAssetId) ?? null;
+    return buildVoxelConversionWorkspaceShellReadModel({
+      draft,
+      sourceOptions,
+      selectedSource,
+      sessionId: this.workspaceState().session.sessionId,
+      expectedTimelineSequence: this.workspaceState().timelineSequence + 1,
+    });
+  });
   readonly workspaceCockpitEvidence = computed(() => {
     const assetInventory = this.assetInventoryState().inventory;
     const proofScenes = this.proofScenesState().proofScenes;
@@ -1815,6 +2004,136 @@ export class StudioWorkspaceStore {
 
   setBottomPanelTab(tab: StudioBottomPanelTab): void {
     this.bottomPanelTabState.set(tab);
+  }
+
+  setVoxelConversionSourceAsset(assetId: string): void {
+    const selectedSourceAssetId = assetId.length === 0 ? null : assetId;
+    this.voxelConversionDraftState.update(draft => ({ ...draft, selectedSourceAssetId }));
+    this.menuMessageState.set(
+      selectedSourceAssetId === null
+        ? 'Voxel conversion source cleared.'
+        : `Voxel conversion source set to ${selectedSourceAssetId}.`,
+    );
+  }
+
+  setVoxelConversionMode(mode: string): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      mode: asVoxelConversionMode(mode),
+    }));
+  }
+
+  setVoxelConversionFitPolicy(fitPolicy: string): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      fitPolicy: asVoxelConversionFitPolicy(fitPolicy),
+    }));
+  }
+
+  setVoxelConversionOriginPolicy(originPolicy: string): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      originPolicy: asVoxelConversionOriginPolicy(originPolicy),
+    }));
+  }
+
+  setVoxelConversionResolutionAxis(axis: number, value: number): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      resolution: tupleWithIndex(draft.resolution, axis, value),
+    }));
+  }
+
+  setVoxelConversionTargetOriginAxis(axis: number, value: number): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      targetOrigin: tupleWithIndex(draft.targetOrigin, axis, value),
+    }));
+  }
+
+  setVoxelConversionVoxelSize(voxelSize: number): void {
+    this.voxelConversionDraftState.update(draft => ({ ...draft, voxelSize }));
+  }
+
+  setVoxelConversionMaxOutputVoxels(maxOutputVoxels: number): void {
+    this.voxelConversionDraftState.update(draft => ({ ...draft, maxOutputVoxels }));
+  }
+
+  setVoxelConversionTargetGrid(targetGrid: number): void {
+    this.voxelConversionDraftState.update(draft => ({ ...draft, targetGrid }));
+  }
+
+  setVoxelConversionTargetVolumeAssetId(targetVolumeAssetId: string): void {
+    this.voxelConversionDraftState.update(draft => ({ ...draft, targetVolumeAssetId }));
+  }
+
+  setVoxelConversionMeshPrimitive(meshPrimitive: string): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      meshPrimitive: meshPrimitive.trim().length === 0 ? null : meshPrimitive,
+    }));
+  }
+
+  setVoxelConversionDefaultMaterial(value: string): void {
+    const defaultVoxelMaterial = value.trim().length === 0 ? null : Number(value);
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      materialMap: { ...draft.materialMap, defaultVoxelMaterial },
+    }));
+  }
+
+  setVoxelConversionMaterialSourceSlot(sourceMaterialSlot: number): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      materialMap: {
+        ...draft.materialMap,
+        entries: [
+          {
+            ...(draft.materialMap.entries[0] ?? {
+              sourceMaterialId: null,
+              voxelMaterial: 1,
+            }),
+            sourceMaterialSlot,
+          },
+        ],
+      },
+    }));
+  }
+
+  setVoxelConversionMaterialSourceId(sourceMaterialId: string): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      materialMap: {
+        ...draft.materialMap,
+        entries: [
+          {
+            ...(draft.materialMap.entries[0] ?? {
+              sourceMaterialSlot: 0,
+              voxelMaterial: 1,
+            }),
+            sourceMaterialId: sourceMaterialId.trim().length === 0 ? null : sourceMaterialId,
+          },
+        ],
+      },
+    }));
+  }
+
+  setVoxelConversionMaterialVoxelId(voxelMaterial: number): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      materialMap: {
+        ...draft.materialMap,
+        entries: [
+          {
+            ...(draft.materialMap.entries[0] ?? {
+              sourceMaterialSlot: 0,
+              sourceMaterialId: null,
+            }),
+            voxelMaterial,
+          },
+        ],
+      },
+    }));
   }
 
   setSelectedScenarioDraft(scenarioId: string): void {

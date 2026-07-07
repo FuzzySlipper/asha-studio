@@ -2261,6 +2261,192 @@ export class StudioInspectorPanelComponent {
           }
         </section>
 
+        <section class="voxel-editor-grid" aria-label="Voxel conversion source and settings">
+          <article class="voxel-source-editor">
+            <span>Source Asset</span>
+            <label>
+              Catalog source
+              <select
+                [value]="shell.settingsDraft.selectedSourceAssetId ?? ''"
+                (change)="store.setVoxelConversionSourceAsset($any($event.target).value)"
+                data-voxel-control="source-asset"
+              >
+                <option value="">No source selected</option>
+                @for (option of shell.sourceOptions; track option.assetId) {
+                  <option [value]="option.assetId">
+                    {{ option.label }} · {{ option.supported ? 'supported' : 'unsupported' }}
+                  </option>
+                }
+              </select>
+            </label>
+            <label>
+              Mesh primitive
+              <input
+                type="text"
+                [value]="shell.settingsDraft.meshPrimitive ?? ''"
+                (input)="store.setVoxelConversionMeshPrimitive($any($event.target).value)"
+                data-voxel-control="mesh-primitive"
+              />
+            </label>
+            <dl>
+              <dt>source hash</dt>
+              <dd>{{ shell.workspace.source.sourceHash ?? 'missing' }}</dd>
+              <dt>source status</dt>
+              <dd>{{ shell.workspace.source.status }}</dd>
+            </dl>
+          </article>
+
+          <article class="voxel-settings-editor">
+            <span>Conversion Settings</span>
+            <div class="voxel-control-row">
+              <label>
+                Mode
+                <select
+                  [value]="shell.settingsDraft.mode"
+                  (change)="store.setVoxelConversionMode($any($event.target).value)"
+                  data-voxel-control="mode"
+                >
+                  <option value="solid">solid</option>
+                  <option value="surface">surface</option>
+                </select>
+              </label>
+              <label>
+                Fit
+                <select
+                  [value]="shell.settingsDraft.fitPolicy"
+                  (change)="store.setVoxelConversionFitPolicy($any($event.target).value)"
+                  data-voxel-control="fit-policy"
+                >
+                  <option value="contain">contain</option>
+                  <option value="cover">cover</option>
+                  <option value="stretch">stretch</option>
+                </select>
+              </label>
+              <label>
+                Origin
+                <select
+                  [value]="shell.settingsDraft.originPolicy"
+                  (change)="store.setVoxelConversionOriginPolicy($any($event.target).value)"
+                  data-voxel-control="origin-policy"
+                >
+                  <option value="target_min">target_min</option>
+                  <option value="source_origin">source_origin</option>
+                  <option value="centered">centered</option>
+                </select>
+              </label>
+            </div>
+            <div class="voxel-control-row voxel-control-row--numeric">
+              @for (axis of [0, 1, 2]; track axis) {
+                <label>
+                  Resolution {{ axis }}
+                  <input
+                    type="number"
+                    [value]="shell.settingsDraft.resolution[axis]"
+                    (input)="store.setVoxelConversionResolutionAxis(axis, $any($event.target).valueAsNumber)"
+                    [attr.data-voxel-control]="'resolution-' + axis"
+                  />
+                </label>
+              }
+              <label>
+                Voxel size
+                <input
+                  type="number"
+                  step="0.01"
+                  [value]="shell.settingsDraft.voxelSize"
+                  (input)="store.setVoxelConversionVoxelSize($any($event.target).valueAsNumber)"
+                  data-voxel-control="voxel-size"
+                />
+              </label>
+              <label>
+                Max voxels
+                <input
+                  type="number"
+                  [value]="shell.settingsDraft.maxOutputVoxels"
+                  (input)="store.setVoxelConversionMaxOutputVoxels($any($event.target).valueAsNumber)"
+                  data-voxel-control="max-output-voxels"
+                />
+              </label>
+            </div>
+          </article>
+
+          <article class="voxel-target-editor">
+            <span>Target</span>
+            <div class="voxel-control-row voxel-control-row--numeric">
+              <label>
+                Grid
+                <input
+                  type="number"
+                  [value]="shell.settingsDraft.targetGrid"
+                  (input)="store.setVoxelConversionTargetGrid($any($event.target).valueAsNumber)"
+                  data-voxel-control="target-grid"
+                />
+              </label>
+              @for (axis of [0, 1, 2]; track axis) {
+                <label>
+                  Origin {{ axis }}
+                  <input
+                    type="number"
+                    [value]="shell.settingsDraft.targetOrigin[axis]"
+                    (input)="store.setVoxelConversionTargetOriginAxis(axis, $any($event.target).valueAsNumber)"
+                    [attr.data-voxel-control]="'target-origin-' + axis"
+                  />
+                </label>
+              }
+            </div>
+            <label>
+              Volume asset
+              <input
+                type="text"
+                [value]="shell.settingsDraft.targetVolumeAssetId"
+                (input)="store.setVoxelConversionTargetVolumeAssetId($any($event.target).value)"
+                data-voxel-control="target-volume"
+              />
+            </label>
+          </article>
+
+          <article class="voxel-material-editor">
+            <span>Material Map</span>
+            <div class="voxel-control-row voxel-control-row--numeric">
+              <label>
+                Source slot
+                <input
+                  type="number"
+                  [value]="shell.settingsDraft.materialMap.entries[0]?.sourceMaterialSlot ?? 0"
+                  (input)="store.setVoxelConversionMaterialSourceSlot($any($event.target).valueAsNumber)"
+                  data-voxel-control="material-source-slot"
+                />
+              </label>
+              <label>
+                Voxel material
+                <input
+                  type="number"
+                  [value]="shell.settingsDraft.materialMap.entries[0]?.voxelMaterial ?? 1"
+                  (input)="store.setVoxelConversionMaterialVoxelId($any($event.target).valueAsNumber)"
+                  data-voxel-control="material-voxel-id"
+                />
+              </label>
+              <label>
+                Default material
+                <input
+                  type="number"
+                  [value]="shell.settingsDraft.materialMap.defaultVoxelMaterial ?? ''"
+                  (input)="store.setVoxelConversionDefaultMaterial($any($event.target).value)"
+                  data-voxel-control="material-default"
+                />
+              </label>
+            </div>
+            <label>
+              Source material id
+              <input
+                type="text"
+                [value]="shell.settingsDraft.materialMap.entries[0]?.sourceMaterialId ?? ''"
+                (input)="store.setVoxelConversionMaterialSourceId($any($event.target).value)"
+                data-voxel-control="material-source-id"
+              />
+            </label>
+          </article>
+        </section>
+
         <section class="voxel-region-grid" aria-label="Voxel conversion workspace regions">
           @for (region of shell.regions; track region.id) {
             <article
@@ -2290,6 +2476,14 @@ export class StudioInspectorPanelComponent {
         </section>
 
         <section class="voxel-diagnostics" aria-label="Voxel conversion diagnostics">
+          @for (diagnostic of shell.planProposal.diagnostics; track diagnostic.commandId + diagnostic.code + diagnostic.reference) {
+            <span
+              [attr.data-voxel-proposal-diagnostic-code]="diagnostic.code"
+              [attr.data-voxel-proposal-diagnostic-command]="diagnostic.commandId"
+            >
+              proposal · {{ diagnostic.commandId }} · {{ diagnostic.code }} · {{ diagnostic.message }}
+            </span>
+          }
           @for (diagnostic of shell.readout.diagnostics; track diagnostic.source + diagnostic.operation + diagnostic.code + diagnostic.reference) {
             <span
               [attr.data-voxel-diagnostic-code]="diagnostic.code"
@@ -2389,6 +2583,7 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-state-strip,
+      .voxel-editor-grid,
       .voxel-region-grid,
       .voxel-action-row,
       .voxel-diagnostics {
@@ -2400,12 +2595,17 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
+      .voxel-editor-grid {
+        grid-template-columns: minmax(13rem, 0.8fr) minmax(24rem, 1.4fr) minmax(16rem, 1fr) minmax(16rem, 1fr);
+      }
+
       .voxel-region-grid {
         grid-template-columns: repeat(6, minmax(8rem, 1fr));
       }
 
       .voxel-state-strip article,
-      .voxel-region-grid article {
+      .voxel-region-grid article,
+      .voxel-editor-grid article {
         background: #10161b;
         border: 1px solid var(--asha-color-border);
         display: grid;
@@ -2421,10 +2621,42 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-state-strip span,
-      .voxel-region-grid span {
+      .voxel-region-grid span,
+      .voxel-editor-grid > article > span {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
         text-transform: uppercase;
+      }
+
+      .voxel-editor-grid label {
+        color: var(--asha-color-muted);
+        display: grid;
+        gap: 0.18rem;
+        font-size: 0.68rem;
+        min-width: 0;
+        text-transform: uppercase;
+      }
+
+      .voxel-editor-grid input,
+      .voxel-editor-grid select {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        font: inherit;
+        min-height: 1.9rem;
+        min-width: 0;
+        padding: 0 0.35rem;
+      }
+
+      .voxel-control-row {
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        min-width: 0;
+      }
+
+      .voxel-control-row--numeric {
+        grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
       }
 
       .voxel-action-row {
@@ -2462,6 +2694,7 @@ export class StudioInspectorPanelComponent {
       @media (max-width: 900px) {
         header,
         .voxel-state-strip,
+        .voxel-editor-grid,
         .voxel-region-grid,
         .voxel-action-row {
           grid-template-columns: 1fr;
