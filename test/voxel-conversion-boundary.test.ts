@@ -1071,6 +1071,197 @@ test('voxel conversion readout preserves conversion replay mismatch diagnostics 
   ));
 });
 
+test('voxel conversion workspace Phase 3 negative smoke matrix stays fail-closed and inspectable', () => {
+  const source = sampleSource();
+  const target = sampleTarget();
+  const settings = sampleSettings();
+  const plan = samplePlan(source, settings);
+  const stalePreview = { ...samplePreview(plan), planId: 'stale-plan' };
+
+  const cases = [
+    {
+      name: 'missing runtime metadata',
+      workspace: buildStudioVoxelConversionWorkspaceReadModel({
+        source,
+        target,
+        settings,
+        plan: null,
+        preview: null,
+        receipt: null,
+        evidence: [],
+      }),
+      expectedCode: 'runtime_facade_unavailable',
+    },
+    {
+      name: 'invalid material map',
+      workspace: buildStudioVoxelConversionWorkspaceReadModel({
+        source,
+        target,
+        settings: sampleSettings({
+          materialMap: {
+            defaultVoxelMaterial: 0,
+            entries: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.bad', voxelMaterial: 0 }],
+          },
+        }),
+        plan: null,
+        preview: null,
+        receipt: null,
+        evidence: [],
+      }),
+      expectedCode: 'invalid_material_map',
+    },
+    {
+      name: 'unsupported source',
+      workspace: buildStudioVoxelConversionWorkspaceReadModel({
+        source: sampleSource({ assetKind: 'material' }),
+        target,
+        settings,
+        plan: null,
+        preview: null,
+        receipt: null,
+        evidence: [],
+      }),
+      expectedCode: 'unsupported_source_asset',
+    },
+    {
+      name: 'oversized conversion',
+      workspace: buildStudioVoxelConversionWorkspaceReadModel({
+        source,
+        target,
+        settings: sampleSettings({ resolution: [32, 32, 32], maxOutputVoxels: 128 }),
+        plan: null,
+        preview: null,
+        receipt: null,
+        evidence: [],
+      }),
+      expectedCode: 'output_limit_exceeded',
+    },
+    {
+      name: 'stale preview',
+      workspace: buildStudioVoxelConversionWorkspaceReadModel({
+        source,
+        target,
+        settings,
+        plan,
+        preview: stalePreview,
+        receipt: null,
+        evidence: [],
+      }),
+      expectedCode: 'stale_preview',
+    },
+    {
+      name: 'failed export evidence',
+      workspace: buildStudioVoxelConversionWorkspaceReadModel({
+        source,
+        target,
+        settings,
+        plan: null,
+        preview: null,
+        receipt: null,
+        evidence: [],
+      }),
+      expectedCode: 'missing_evidence',
+    },
+  ];
+
+  for (const entry of cases) {
+    const readout = buildStudioVoxelConversionReadoutModel({ workspace: entry.workspace });
+    assert.equal(readout.status, 'failed_closed', entry.name);
+    assert.ok(readout.diagnostics.some(diagnostic => diagnostic.code === entry.expectedCode), entry.name);
+    assert.ok(readout.nonClaims.includes('not_conversion_authority'), entry.name);
+  }
+});
+
+test('voxel conversion workspace Phase 3 happy path uses typed mock-authority proposals', () => {
+  const source = sampleSource();
+  const target = sampleTarget();
+  const settings = sampleSettings();
+  const plan = samplePlan(source, settings);
+  const preview = samplePreview(plan);
+  const receipt = sampleReceipt(plan);
+  const runtimeSession = sampleRuntimeSession();
+  const planWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan: null,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const previewWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan,
+    preview: null,
+    receipt: null,
+    evidence: [],
+  });
+  const applyWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan,
+    preview,
+    receipt: null,
+    evidence: [],
+  });
+  const exportWorkspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source,
+    target,
+    settings,
+    plan,
+    preview,
+    receipt,
+    evidence: [sampleEvidence('diagnostics')],
+  });
+  const proposals = [
+    buildStudioVoxelConversionPlanProposal({
+      sessionId: 'session-1',
+      expectedTimelineSequence: 1,
+      workspace: planWorkspace,
+      runtimeSession,
+    }),
+    buildStudioVoxelConversionPreviewProposal({
+      sessionId: 'session-1',
+      expectedTimelineSequence: 2,
+      workspace: previewWorkspace,
+      runtimeSession,
+    }),
+    buildStudioVoxelConversionApplyProposal({
+      sessionId: 'session-1',
+      expectedTimelineSequence: 3,
+      workspace: applyWorkspace,
+      runtimeSession,
+    }),
+    buildStudioVoxelConversionEvidenceExportProposal({
+      sessionId: 'session-1',
+      expectedTimelineSequence: 4,
+      workspace: exportWorkspace,
+      runtimeSession,
+    }),
+  ];
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace: exportWorkspace,
+    runtimeSession,
+  });
+
+  assert.deepEqual(proposals.map(proposal => proposal.accepted), [true, true, true, true]);
+  assert.deepEqual(
+    proposals.map(proposal => proposal.proposal?.commandId),
+    [
+      'voxel_conversion.plan',
+      'voxel_conversion.preview',
+      'voxel_conversion.apply',
+      'voxel_conversion.export_evidence',
+    ],
+  );
+  assert.equal(readout.status, 'ready');
+  assert.equal(readout.authorityPosture, 'authority_backed');
+  assert.ok(readout.evidence.some(evidence => evidence.kind === 'apply_receipt'));
+});
+
 test('voxel conversion Phase 2 golden consumer proof is inspectable without successor wrappers', () => {
   const source = sampleSource();
   const target = sampleTarget();
