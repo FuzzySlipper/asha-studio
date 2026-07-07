@@ -33,6 +33,8 @@ import type { RuntimeSessionFacade } from '@asha/runtime-bridge';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const boundaryScript = join(repoRoot, 'scripts/check-boundaries.mjs');
+const phase4FixturePath = join(repoRoot, 'fixtures/voxel-conversion/phase4-cases.json');
+const phase4GoldenPath = join(repoRoot, 'test/fixtures/studio-voxel-conversion-phase4-cases.golden.json');
 const publicSurfaceManifest = JSON.parse(
   readFileSync(join(repoRoot, '../asha/harness/public-surface/ts-packages.json'), 'utf8'),
 );
@@ -260,6 +262,82 @@ function sampleRuntimeSession(): Partial<Pick<
     previewVoxelConversion: () => samplePreview(),
     applyVoxelConversion: () => sampleReceipt(),
     exportVoxelConversionEvidence: evidence => evidence,
+  };
+}
+
+interface Phase4FixtureSet {
+  readonly schemaVersion: number;
+  readonly artifactKind: string;
+  readonly provenance: {
+    readonly sourcePosture: string;
+    readonly predecessorEvidence: readonly string[];
+    readonly nonClaims: readonly string[];
+  };
+  readonly cases: readonly Phase4FixtureCase[];
+}
+
+interface Phase4FixtureCase {
+  readonly id: string;
+  readonly purpose: string;
+  readonly licensePosture: string;
+  readonly source: VoxelConversionSourceRef;
+  readonly target: VoxelConversionTargetRef;
+  readonly settings: VoxelConversionSettings;
+  readonly plan: VoxelConversionPlan | null;
+  readonly preview: VoxelConversionPreview | null;
+  readonly receipt: VoxelConversionReceipt | null;
+  readonly extraEvidence: readonly VoxelConversionEvidenceRef[];
+}
+
+function loadPhase4Fixtures(): Phase4FixtureSet {
+  return JSON.parse(readFileSync(phase4FixturePath, 'utf8')) as Phase4FixtureSet;
+}
+
+function summarizePhase4Case(fixtureCase: Phase4FixtureCase) {
+  const workspace = buildStudioVoxelConversionWorkspaceReadModel({
+    source: fixtureCase.source,
+    target: fixtureCase.target,
+    settings: fixtureCase.settings,
+    plan: fixtureCase.plan,
+    preview: fixtureCase.preview,
+    receipt: fixtureCase.receipt,
+    evidence: fixtureCase.extraEvidence,
+  });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: sampleRuntimeSession(),
+  });
+
+  return {
+    id: fixtureCase.id,
+    purpose: fixtureCase.purpose,
+    licensePosture: fixtureCase.licensePosture,
+    sourceAssetKind: fixtureCase.source.assetKind,
+    mode: fixtureCase.settings.mode,
+    requestedOutputVoxels: workspace.settings.requestedOutputVoxels,
+    workspaceStatus: workspace.status,
+    sourceStatus: workspace.source.status,
+    settingsStatus: workspace.settings.status,
+    operations: {
+      plan: workspace.operations.plan.status,
+      preview: workspace.operations.preview.status,
+      apply: workspace.operations.apply.status,
+      exportEvidence: workspace.operations.exportEvidence.status,
+    },
+    diagnosticCodes: [...new Set(workspace.diagnostics.map(diagnostic => diagnostic.code))],
+    materialMap: fixtureCase.settings.materialMap.entries.map(entry => ({
+      sourceMaterialSlot: entry.sourceMaterialSlot,
+      sourceMaterialId: entry.sourceMaterialId,
+      voxelMaterial: entry.voxelMaterial,
+    })),
+    sampleMaterials: [...new Set((fixtureCase.preview?.sampleVoxels ?? []).map(voxel => voxel.material))],
+    readout: {
+      status: readout.status,
+      authorityPosture: readout.authorityPosture,
+      diagnosticCodes: [...new Set(readout.diagnostics.map(diagnostic => diagnostic.code))],
+      receipt: readout.receipt,
+      evidence: readout.evidence.map(ref => `${ref.source}:${ref.kind}`),
+    },
   };
 }
 
@@ -578,6 +656,44 @@ test('studio boundary check rejects dependency and config path indirection', () 
   } finally {
     rmSync(workspaceRoot, { recursive: true, force: true });
   }
+});
+
+test('phase 4 voxel conversion fixtures match Asha-native golden coverage', () => {
+  const fixtureText = readFileSync(phase4FixturePath, 'utf8');
+  const fixtureSet = loadPhase4Fixtures();
+  const golden = JSON.parse(readFileSync(phase4GoldenPath, 'utf8'));
+  const summary = {
+    schemaVersion: 1,
+    artifactKind: 'studio_voxel_conversion_phase4_golden_summary',
+    sourceFixture: 'fixtures/voxel-conversion/phase4-cases.json',
+    fixtureSet: {
+      schemaVersion: fixtureSet.schemaVersion,
+      artifactKind: fixtureSet.artifactKind,
+      sourcePosture: fixtureSet.provenance.sourcePosture,
+      predecessorEvidence: fixtureSet.provenance.predecessorEvidence,
+      nonClaims: fixtureSet.provenance.nonClaims,
+    },
+    cases: fixtureSet.cases.map(summarizePhase4Case),
+  };
+
+  assert.deepEqual(
+    fixtureSet.cases.map(fixtureCase => fixtureCase.id),
+    [
+      'synthetic_quad_surface_shell',
+      'synthetic_colored_cube_solid',
+      'synthetic_two_material_slots',
+      'synthetic_transform_fit',
+      'bad_source_unsupported',
+      'oversized_output_rejection',
+      'invalid_material_map',
+      'stale_source_hash_rejection',
+    ],
+  );
+  assert.equal(fixtureText.includes('/home/dev/voxelforge'), false);
+  assert.equal(fixtureText.includes(mcpWrapperText), false);
+  assert.ok(fixtureSet.provenance.nonClaims.includes('not_voxelforge_runtime'));
+  assert.ok(fixtureSet.cases.every(fixtureCase => fixtureCase.licensePosture.includes('Asha-authored')));
+  assert.deepEqual(summary, golden);
 });
 
 test('voxel conversion workspace read model marks valid inputs plan-ready', () => {
