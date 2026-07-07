@@ -14,7 +14,7 @@ Studio adapts selected VoxelForge agent affordances as bounded input adapters ov
 | `get_model_info` | Deferred to existing `inspect` readout and runtime inspection surfaces. | Partially covered by the `inspect` operation and native launch artifact, which records attach state, conversion status, command counts, output voxel count/bounds, material mapping, evidence refs, and session hashes. Rich per-model statistics remain deferred. | Asha readback already reports the live authority signals needed for this proof; richer model statistics need an upstream readout if required. |
 | `view_from_angle` | Adapted as `runAgentVoxelWorkflowOperation({ kind: "view_from_angle" })` with bounded angle presets. | Supported by #4551 and live-tested by `pnpm run evidence -- native-voxel-runtime-launch`; the proof records the selected target, session/scene/readback markers, camera hash, viewport readback hash, capture hash, and projection-only non-claims. | Provides camera/readout evidence over Studio's viewport projection surfaces without screenshots, hardware GPU claims, VoxelForge viewer dependency, or runtime authority mutation. |
 | `new_model` | Rejected for the live runtime edit surface. | Rejected by design, not run as a live mutation. | Asha separates stored ProjectBundle authoring from live RuntimeSession authority; replacing the active model belongs in workspace/project commands, not voxel edit proposals. |
-| `publish_preview` | Deferred to Studio evidence/export flows. | Deferred; #4550 records authority evidence artifacts, not a VoxelForge-style preview writer. | Asha evidence is emitted through Studio proof/readout artifacts and runtime/session evidence; a VoxelForge-style preview file writer would be a separate bounded workspace export task. |
+| `publish_preview` | Adapted as `runAgentVoxelWorkflowOperation({ kind: "publish_preview" })` over existing Studio evidence/export flows. | Supported by #4552 and live-tested by `pnpm run evidence -- native-voxel-runtime-launch`; the proof writes `artifacts/native-voxel-runtime-launch/latest/voxel-preview-publication.json` and records its hash from the main artifact. | Emits a bounded JSON evidence artifact with preview/readout refs and projection-vs-authority posture; it is not a `.vforge` file, arbitrary filesystem writer, browser screenshot, or hardware/GPU capture. |
 
 ## Compact Edit Contract
 
@@ -45,6 +45,7 @@ The proof covers:
 - native RuntimeSession attach without reference/mock fallback;
 - static mesh registration, conversion plan, preview, apply, and evidence export;
 - `view_from_angle` isometric camera/readout capture for the selected voxel target;
+- `publish_preview` bounded preview publication artifact;
 - readbacks for session hash changes, accepted/rejected command counts, output voxel count/bounds, material mapping, and evidence refs;
 - accepted `set_voxels`, `set_voxels_runs`, `fill_box`, and `apply_voxel_primitives` compact edits;
 - fail-closed missing/invalid provider paths, unsupported raw voxel edit op, invalid material runtime rejection, and oversized `fill_box` compact rejection.

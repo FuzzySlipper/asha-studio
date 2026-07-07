@@ -18,6 +18,7 @@ import {
 } from '@asha-studio/voxel-conversion';
 import {
   buildStudioAgentCompactVoxelEditBatch,
+  buildStudioAgentVoxelPreviewPublicationReadModel,
   buildStudioAgentVoxelViewCaptureReadModel,
   buildStudioVoxelConversionWorkspaceShellForInputs,
   type StudioVoxelConversionSettingsDraft,
@@ -25,6 +26,7 @@ import {
 import {
   buildInitialWorkspaceReadModel,
   buildStudioPreferencesReadModel,
+  buildStudioViewportAdapterReadModel,
   buildStudioViewportToolReadModel,
   type StudioAssetInventoryEntryReadModel,
 } from '@asha-studio/domain';
@@ -488,15 +490,21 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /view_from_angle/);
   assert.match(storeSource, /buildStudioAgentVoxelViewCaptureReadModel/);
   assert.match(storeSource, /not_browser_screenshot/);
+  assert.match(storeSource, /publish_preview/);
+  assert.match(storeSource, /buildStudioAgentVoxelPreviewPublicationReadModel/);
+  assert.match(storeSource, /not_vforge_file/);
+  assert.match(storeSource, /agentVoxelPreviewArtifactPathDiagnostic/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch/);
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'view_from_angle', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'view_from_angle', 'publish_preview', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
   assert.match(proofSource, /view_from_angle\.isometric:true/);
   assert.match(proofSource, /view_from_angle_recorded_projection_camera_readout_without_screenshot_authority/);
+  assert.match(proofSource, /publish_preview:true/);
+  assert.match(proofSource, /publish_preview_emitted_bounded_projection_evidence_artifact/);
   for (const compactAffordance of [
     'set_voxels',
     'set_voxels_runs',
@@ -538,6 +546,47 @@ test('VoxelForge view_from_angle parity produces projection-only camera evidence
   assert.ok(capture.nonClaims.includes('not_hardware_gpu_capture'));
   assert.ok(capture.nonClaims.includes('not_voxelforge_viewer'));
   assert.ok(capture.nonClaims.includes('not_browser_screenshot'));
+});
+
+test('VoxelForge publish_preview parity produces a bounded projection artifact body', () => {
+  const workspace = buildInitialWorkspaceReadModel();
+  const plan = sampleStudioAuthorityPlan();
+  const preview = samplePreview(plan);
+  const receipt = sampleReceipt(plan);
+  const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
+    draft: sampleStudioVoxelDraft(),
+    selectedSource: sampleStudioAsset(),
+    sessionId: workspace.session.sessionId,
+    expectedTimelineSequence: 7,
+    runtimeSession: sampleRuntimeSession(),
+    authorityState: { plan, preview, receipt, evidence: [sampleEvidence('diagnostics')] },
+  });
+  const publication = buildStudioAgentVoxelPreviewPublicationReadModel({
+    workspace,
+    shell,
+    viewport: buildStudioViewportAdapterReadModel({ scene: workspace.scene }),
+    readbackMarker: 'session-preview-0001:scene-view-57349d34:7',
+    artifactPath: 'artifacts/native-voxel-runtime-launch/latest/voxel-preview-publication.json',
+    label: 'Native voxel runtime launch preview',
+  });
+
+  assert.equal(publication.artifactKind, 'studio_agent_voxel_preview_publication');
+  assert.equal(publication.artifactVersion, 'studio-agent-voxel-preview-publication.v0');
+  assert.equal(publication.label, 'Native voxel runtime launch preview');
+  assert.equal(publication.artifactPath, 'artifacts/native-voxel-runtime-launch/latest/voxel-preview-publication.json');
+  assert.equal(publication.sessionId, workspace.session.sessionId);
+  assert.equal(publication.sceneHash, workspace.scene.sceneHash);
+  assert.equal(publication.conversion.authorityPosture, 'authority_backed');
+  assert.equal(publication.conversion.outputVoxelCount, 512);
+  assert.deepEqual(publication.conversion.evidenceKinds, ['plan', 'preview', 'apply_receipt', 'diagnostics']);
+  assert.ok(publication.conversion.sourceEvidenceRefs.every(ref => ref.uri.startsWith('asha://')));
+  assert.match(publication.viewport.cameraHash, /^viewport-camera-/);
+  assert.match(publication.viewport.readbackHash, /^viewport-readback-/);
+  assert.match(publication.publicationHash, /^studio-agent-voxel-preview-publication-/);
+  assert.ok(publication.nonClaims.includes('not_vforge_file'));
+  assert.ok(publication.nonClaims.includes('not_runtime_authority'));
+  assert.ok(publication.nonClaims.includes('not_hardware_gpu_capture'));
+  assert.ok(publication.nonClaims.includes('not_arbitrary_filesystem_write'));
 });
 
 test('VoxelForge compact voxel affordances compile to bounded generated command batches', () => {

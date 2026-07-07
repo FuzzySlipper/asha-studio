@@ -91,6 +91,36 @@ interface BrowserProof {
       readonly captureHash: string;
       readonly nonClaims: readonly string[];
     } | null;
+    readonly previewPublication: {
+      readonly artifactKind: string;
+      readonly artifactVersion: string;
+      readonly label: string;
+      readonly artifactPath: string;
+      readonly sessionId: string;
+      readonly sceneHash: string;
+      readonly readbackMarker: string;
+      readonly conversion: {
+        readonly readoutHash: string;
+        readonly status: string;
+        readonly authorityPosture: string;
+        readonly outputVoxelCount: number | null;
+        readonly outputBoundsLabel: string;
+        readonly evidenceKinds: readonly string[];
+        readonly sourceEvidenceRefs: readonly {
+          readonly source: string;
+          readonly kind: string;
+          readonly uri: string;
+          readonly contentHash: string;
+        }[];
+      };
+      readonly viewport: {
+        readonly cameraHash: string;
+        readonly readbackHash: string;
+        readonly selectedRenderableId: string | null;
+      };
+      readonly nonClaims: readonly string[];
+      readonly publicationHash: string;
+    } | null;
     readonly surfaceHash: string;
   };
   readonly nativeSmoke: {
@@ -242,6 +272,7 @@ function automationPrelude(): string {
       rejectedVoxelEdit: null,
       unsupportedVoxelEdit: null,
       viewCapture: null,
+      previewPublication: null,
       surfaceHash: '',
     },
     nativeSmoke: {
@@ -473,6 +504,15 @@ function automationPrelude(): string {
         await waitFor(() => acceptedAction('voxel_conversion.export_evidence'), 'evidence export proposal readiness');
         const exportResult = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId: 'voxel_conversion.export_evidence' });
         proof.agentSurface.operationStatuses.push('run_conversion.export_evidence:' + exportResult.accepted);
+        const publishPreviewResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'publish_preview',
+          publication: {
+            artifactPath: 'artifacts/native-voxel-runtime-launch/latest/voxel-preview-publication.json',
+            label: 'Native voxel runtime launch preview',
+          },
+        });
+        proof.agentSurface.operationStatuses.push('publish_preview:' + publishPreviewResult.accepted);
+        proof.agentSurface.previewPublication = publishPreviewResult.previewPublication ?? null;
         const conversionShell = store.voxelConversionWorkspaceShell();
         const inspectionBeforeVoxelEdits = store.runtimeSessionInspection();
         const exportedEvidenceRows = Array.from(new Map(
@@ -799,6 +839,7 @@ async function main(): Promise<void> {
       'run_conversion.preview:true',
       'run_conversion.apply:true',
       'run_conversion.export_evidence:true',
+      'publish_preview:true',
       'submit_compact_voxel_edit.set_voxels:true',
       'submit_compact_voxel_edit.set_voxels_runs:true',
       'submit_compact_voxel_edit.fill_box:true',
@@ -825,6 +866,22 @@ async function main(): Promise<void> {
     assert.match(nativeProof.agentSurface.viewCapture?.cameraHash ?? '', /^viewport-camera-/);
     assert.match(nativeProof.agentSurface.viewCapture?.viewportReadbackHash ?? '', /^viewport-readback-/);
     assert.match(nativeProof.agentSurface.viewCapture?.captureHash ?? '', /^studio-agent-voxel-view-capture-/);
+    assert.equal(nativeProof.agentSurface.previewPublication?.artifactKind, 'studio_agent_voxel_preview_publication');
+    assert.equal(
+      nativeProof.agentSurface.previewPublication?.artifactPath,
+      'artifacts/native-voxel-runtime-launch/latest/voxel-preview-publication.json',
+    );
+    assert.equal(nativeProof.agentSurface.previewPublication?.conversion.authorityPosture, 'authority_backed');
+    assert.equal(nativeProof.agentSurface.previewPublication?.conversion.outputVoxelCount, 3);
+    assert.equal(nativeProof.agentSurface.previewPublication?.conversion.outputBoundsLabel, '[0,0,0] to [7,7,0]');
+    assert.deepEqual(nativeProof.agentSurface.previewPublication?.conversion.evidenceKinds, [
+      'plan',
+      'preview',
+      'apply_receipt',
+    ]);
+    assert.match(nativeProof.agentSurface.previewPublication?.publicationHash ?? '', /^studio-agent-voxel-preview-publication-/);
+    assert.ok(nativeProof.agentSurface.previewPublication?.nonClaims.includes('not_vforge_file'));
+    assert.ok(nativeProof.agentSurface.previewPublication?.nonClaims.includes('not_arbitrary_filesystem_write'));
     assert.equal(nativeProof.agentSurface.acceptedVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedCompactVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
@@ -867,9 +924,16 @@ async function main(): Promise<void> {
     const nativeDomPath = join(outDir, 'native-provider-dom.html');
     const missingDomPath = join(outDir, 'missing-provider-dom.html');
     const invalidDomPath = join(outDir, 'invalid-provider-dom.html');
+    const previewPublicationPath = join(outDir, 'voxel-preview-publication.json');
+    assert.ok(nativeProof.agentSurface.previewPublication, 'preview publication was not produced');
+    const previewPublication = {
+      ...nativeProof.agentSurface.previewPublication,
+      artifactHash: sha256(nativeProof.agentSurface.previewPublication),
+    };
     await writeFile(nativeDomPath, nativeDom);
     await writeFile(missingDomPath, missingDom);
     await writeFile(invalidDomPath, invalidDom);
+    await writeFile(previewPublicationPath, `${JSON.stringify(previewPublication, null, 2)}\n`);
 
     const artifact = {
       artifactKind: 'studio_native_voxel_runtime_launch_proof',
@@ -904,6 +968,11 @@ async function main(): Promise<void> {
           hash: sha256Buffer(invalidDom),
         },
       },
+      previewPublicationArtifact: {
+        path: relative(repoRoot, previewPublicationPath),
+        hash: previewPublication.artifactHash,
+        publicationHash: previewPublication.publicationHash,
+      },
       proofs: {
         nativeProvider: nativeProof,
         missingProvider: missingProof,
@@ -916,6 +985,7 @@ async function main(): Promise<void> {
         'studio_catalog_static_mesh_registered_as_authority_conversion_source',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
         'view_from_angle_recorded_projection_camera_readout_without_screenshot_authority',
+        'publish_preview_emitted_bounded_projection_evidence_artifact',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
         'all_adapted_voxelforge_compact_affordances_submitted_through_public_surface',
         'oversized_voxelforge_style_compact_edit_failed_closed_before_runtime_submission',
@@ -926,6 +996,7 @@ async function main(): Promise<void> {
         'not_hardware_gpu_evidence',
         'not_hardware_gpu_capture',
         'not_performance_evidence',
+        'not_vforge_file',
         'not_packaged_electron_evidence',
         'not_public_remote_rpc_api',
       ],

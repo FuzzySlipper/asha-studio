@@ -133,6 +133,7 @@ export type StudioUiEventCommandId =
   | 'project.connect_running'
   | 'project.disconnect_running'
   | 'voxel_view.from_angle'
+  | 'voxel_preview.publish'
   | 'voxel_edit.submit'
   | 'voxel_conversion.plan'
   | 'voxel_conversion.preview'

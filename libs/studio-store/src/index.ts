@@ -84,6 +84,7 @@ import {
   type StudioRenderSettingsReadModel,
   type StudioRenderSettingKey,
   type StudioViewportCameraControlDelta,
+  type StudioViewportAdapterReadModel,
   type StudioViewportCameraReadModel,
   type StudioViewportHitReadModel,
   type StudioViewportToolMode,
@@ -313,6 +314,7 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'configure_conversion'
   | 'run_conversion'
   | 'view_from_angle'
+  | 'publish_preview'
   | 'submit_voxel_edit'
   | 'submit_compact_voxel_edit';
 export type StudioAgentVoxelWorkflowResultOperation =
@@ -453,11 +455,53 @@ export interface StudioAgentVoxelViewCaptureReadModel {
   readonly captureHash: string;
 }
 
+export interface StudioAgentVoxelPreviewPublicationRequest {
+  readonly artifactPath?: string;
+  readonly label?: string;
+}
+
+export interface StudioAgentVoxelPreviewPublicationReadModel {
+  readonly artifactKind: 'studio_agent_voxel_preview_publication';
+  readonly artifactVersion: 'studio-agent-voxel-preview-publication.v0';
+  readonly label: string;
+  readonly artifactPath: string;
+  readonly sessionId: string;
+  readonly sceneHash: string;
+  readonly readbackMarker: string;
+  readonly conversion: {
+    readonly readoutHash: string;
+    readonly status: string;
+    readonly authorityPosture: string;
+    readonly outputVoxelCount: number | null;
+    readonly outputBoundsLabel: string;
+    readonly evidenceKinds: readonly string[];
+    readonly sourceEvidenceRefs: readonly {
+      readonly source: string;
+      readonly kind: string;
+      readonly uri: string;
+      readonly contentHash: string;
+    }[];
+  };
+  readonly viewport: {
+    readonly cameraHash: string;
+    readonly readbackHash: string;
+    readonly selectedRenderableId: string | null;
+  };
+  readonly nonClaims: readonly [
+    'not_vforge_file',
+    'not_runtime_authority',
+    'not_hardware_gpu_capture',
+    'not_arbitrary_filesystem_write',
+  ];
+  readonly publicationHash: string;
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
+  | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
   | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch }
   | { readonly kind: 'submit_compact_voxel_edit'; readonly edit: StudioAgentCompactVoxelEdit };
 
@@ -513,6 +557,7 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
   readonly compiledVoxelEditBatch?: CommandBatch | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
+  readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -1206,6 +1251,7 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'configure_conversion',
   'run_conversion',
   'view_from_angle',
+  'publish_preview',
   'submit_voxel_edit',
   'submit_compact_voxel_edit',
 ];
@@ -1329,6 +1375,71 @@ function agentVoxelViewAngleDiagnostic(angle: unknown): string | null {
   return typeof angle === 'string' && AGENT_VOXEL_VIEW_ANGLES.includes(angle as StudioAgentVoxelViewAngle)
     ? null
     : `unsupported voxel view angle ${String(angle)}`;
+}
+
+function agentVoxelPreviewArtifactPathDiagnostic(path: string): string | null {
+  if (!path.startsWith('artifacts/')) {
+    return 'voxel preview publication path must stay under artifacts/';
+  }
+  if (path.includes('..') || path.includes('\\') || path.startsWith('/')) {
+    return 'voxel preview publication path must be a relative artifacts path without traversal';
+  }
+  if (!path.endsWith('.json')) {
+    return 'voxel preview publication path must be a json artifact';
+  }
+  return null;
+}
+
+export function buildStudioAgentVoxelPreviewPublicationReadModel(options: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly shell: StudioVoxelConversionWorkspaceShellReadModel;
+  readonly viewport: StudioViewportAdapterReadModel;
+  readonly readbackMarker: string;
+  readonly artifactPath?: string;
+  readonly label?: string;
+}): StudioAgentVoxelPreviewPublicationReadModel {
+  const artifactPath = options.artifactPath ?? 'artifacts/agent-voxel-preview/latest/index.json';
+  const sourceEvidenceRefs = options.shell.evidenceRows
+    .filter(row => row.status === 'available')
+    .map(row => ({
+      source: row.source,
+      kind: row.kind,
+      uri: row.uri,
+      contentHash: row.contentHash,
+    }));
+  const body = {
+    artifactKind: 'studio_agent_voxel_preview_publication' as const,
+    artifactVersion: 'studio-agent-voxel-preview-publication.v0' as const,
+    label: options.label ?? 'Agent voxel preview',
+    artifactPath,
+    sessionId: options.workspace.session.sessionId,
+    sceneHash: options.workspace.scene.sceneHash,
+    readbackMarker: options.readbackMarker,
+    conversion: {
+      readoutHash: options.shell.readout.readoutHash,
+      status: options.shell.readout.status,
+      authorityPosture: options.shell.readout.authorityPosture,
+      outputVoxelCount: options.shell.previewProjection.outputVoxelCount,
+      outputBoundsLabel: options.shell.previewProjection.outputBoundsLabel,
+      evidenceKinds: Array.from(new Set(sourceEvidenceRefs.map(ref => ref.kind))),
+      sourceEvidenceRefs,
+    },
+    viewport: {
+      cameraHash: options.viewport.camera.cameraHash,
+      readbackHash: options.viewport.readbackHash,
+      selectedRenderableId: options.workspace.scene.selectedRenderableId,
+    },
+    nonClaims: [
+      'not_vforge_file',
+      'not_runtime_authority',
+      'not_hardware_gpu_capture',
+      'not_arbitrary_filesystem_write',
+    ] as const,
+  };
+  return {
+    ...body,
+    publicationHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-preview-publication', body),
+  };
 }
 
 function agentVoxelEditDiagnostic(batch: CommandBatch): string | null {
@@ -2538,6 +2649,54 @@ export class StudioWorkspaceStore {
           diagnostic: null,
           surface: this.agentVoxelWorkflowSurface(),
           viewCapture: capture,
+        };
+      }
+      case 'publish_preview': {
+        const artifactPath = operation.publication?.artifactPath ?? 'artifacts/agent-voxel-preview/latest/index.json';
+        const pathDiagnostic = agentVoxelPreviewArtifactPathDiagnostic(artifactPath);
+        if (pathDiagnostic !== null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: pathDiagnostic,
+            surface: this.agentVoxelWorkflowSurface(),
+            previewPublication: null,
+          };
+        }
+        const shell = this.voxelConversionWorkspaceShell();
+        const availableEvidenceCount = shell.evidenceRows.filter(row => row.status === 'available').length;
+        if (shell.readout.authorityPosture !== 'authority_backed' || availableEvidenceCount === 0) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Publish preview requires authority-backed voxel preview evidence.',
+            surface: this.agentVoxelWorkflowSurface(),
+            previewPublication: null,
+          };
+        }
+        const publication = buildStudioAgentVoxelPreviewPublicationReadModel({
+          workspace: this.workspaceState(),
+          shell,
+          viewport: this.viewportAdapter(),
+          readbackMarker: this.readbackMarker(),
+          artifactPath,
+          label: operation.publication?.label ?? 'Agent voxel preview',
+        });
+        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+          commandId: 'voxel_preview.publish',
+          label: 'Agent Voxel Preview',
+          inputSummary: `path=${publication.artifactPath};readout=${publication.conversion.readoutHash}`,
+          outputSummary: `Preview publication ${publication.publicationHash}.`,
+          status: 'ok',
+        });
+        this.workspaceState.set(recorded.workspace);
+        this.menuMessageState.set('Voxel preview publication prepared.');
+        return {
+          accepted: true,
+          operation: operation.kind,
+          diagnostic: null,
+          surface: this.agentVoxelWorkflowSurface(),
+          previewPublication: publication,
         };
       }
       case 'submit_voxel_edit':
