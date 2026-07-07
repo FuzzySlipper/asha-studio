@@ -37,6 +37,8 @@ const boundaryScript = join(repoRoot, 'scripts/check-boundaries.mjs');
 const phase4FixturePath = join(repoRoot, 'fixtures/voxel-conversion/phase4-cases.json');
 const phase4GoldenPath = join(repoRoot, 'test/fixtures/studio-voxel-conversion-phase4-cases.golden.json');
 const phase4ProductProofPath = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest/index.json');
+const phase4ComparisonPath = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest/compare.json');
+const phase4ComparisonMarkdownPath = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest/compare.md');
 const publicSurfaceManifest = JSON.parse(
   readFileSync(join(repoRoot, '../asha/harness/public-surface/ts-packages.json'), 'utf8'),
 );
@@ -715,11 +717,36 @@ test('phase 4 voxel conversion product proof artifact is inspectable and current
   assert.equal(artifact.readout.status, 'ready');
   assert.equal(artifact.readout.authorityPosture, 'authority_backed');
   assert.equal(artifact.readout.receipt.outputHash, 'sha256:phase4-cube-output');
+  assert.equal(artifact.comparison.afterOutputHash, 'sha256:phase4-cube-output');
+  assert.equal(artifact.comparison.outputBoundsSummary, '0,0,0..3,3,3');
   assert.ok(artifact.validations.includes('negative_stale_source_hash_failed_closed'));
   assert.equal(artifact.negativeSmokes.at(0)?.accepted, false);
   assert.ok(artifact.nonClaims.includes('not_voxelforge_runtime'));
   assert.ok(artifact.nonClaims.includes('fixture_backed_until_runtime_authority_4479_lands'));
   assert.equal(artifactHash, sha256Json(withoutHash));
+});
+
+test('phase 4 voxel conversion before/after comparison agrees across machine and human artifacts', () => {
+  const comparison = JSON.parse(readFileSync(phase4ComparisonPath, 'utf8'));
+  const markdown = readFileSync(phase4ComparisonMarkdownPath, 'utf8');
+  const { artifactHash, ...withoutHash } = comparison;
+
+  assert.equal(comparison.artifactKind, 'studio_voxel_conversion_phase4_before_after_comparison');
+  assert.equal(comparison.before.sourceHash, 'sha256:phase4-cube-source-v1');
+  assert.equal(comparison.before.settings.mode, 'solid');
+  assert.equal(comparison.after.receiptOutputHash, 'sha256:phase4-cube-output');
+  assert.equal(comparison.after.outputVoxelCount, 64);
+  assert.equal(comparison.after.outputBoundsSummary, '0,0,0..3,3,3');
+  assert.deepEqual(comparison.after.materialIds, [2]);
+  assert.deepEqual(Object.values(comparison.agreement), [true, true, true, true, true, true]);
+  assert.ok(comparison.projectionCaveats.some((caveat: string) => caveat.includes('not browser-rendered imagery')));
+  assert.ok(comparison.nonClaims.includes('not_browser_render_capture'));
+  assert.equal(artifactHash, sha256Json(withoutHash));
+  assert.ok(markdown.includes(`Artifact hash: ${artifactHash}`));
+  assert.ok(markdown.includes('Source hash: sha256:phase4-cube-source-v1'));
+  assert.ok(markdown.includes('Receipt output hash: sha256:phase4-cube-output'));
+  assert.ok(markdown.includes('Output bounds: 0,0,0..3,3,3'));
+  assert.ok(markdown.includes('fixture-backed readout evidence'));
 });
 
 test('voxel conversion workspace read model marks valid inputs plan-ready', () => {

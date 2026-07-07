@@ -28,6 +28,8 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const fixturePath = join(repoRoot, 'fixtures/voxel-conversion/phase4-cases.json');
 const outDir = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest');
 const artifactPath = join(outDir, 'index.json');
+const comparisonPath = join(outDir, 'compare.json');
+const comparisonMarkdownPath = join(outDir, 'compare.md');
 const proofCaseId = 'synthetic_colored_cube_solid';
 const staleCaseId = 'stale_source_hash_rejection';
 
@@ -143,6 +145,13 @@ function evidenceSummary(refs: readonly VoxelConversionEvidenceRef[]) {
   }));
 }
 
+function formatBounds(bounds: VoxelConversionPreview['outputBounds']): string {
+  if (bounds === null) {
+    return 'none';
+  }
+  return `${bounds.min.x},${bounds.min.y},${bounds.min.z}..${bounds.max.x},${bounds.max.y},${bounds.max.z}`;
+}
+
 const { text: fixtureText, fixtureSet } = loadFixtureSet();
 const proofCase = requireCase(fixtureSet, proofCaseId);
 const staleCase = requireCase(fixtureSet, staleCaseId);
@@ -233,6 +242,108 @@ const staleApplyProposal = buildStudioVoxelConversionApplyProposal({
 assert.equal(staleApplyProposal.accepted, false);
 assert.ok(staleApplyProposal.diagnostics.some(diagnostic => diagnostic.code === 'stale_preview'));
 
+const comparisonBody = {
+  artifactKind: 'studio_voxel_conversion_phase4_before_after_comparison',
+  artifactVersion: 'studio-voxel-conversion-phase4-before-after.v0',
+  generatedAt: 'deterministic-as-structure-only',
+  task: 'asha#4316',
+  sourceProof: {
+    path: 'artifacts/voxel-conversion-phase4-product-proof/latest/index.json',
+    command: 'pnpm run evidence -- voxel-conversion-phase4-product-proof',
+  },
+  fixture: {
+    path: 'fixtures/voxel-conversion/phase4-cases.json',
+    caseId: proofCase.id,
+    fixtureSha256: sha256(fixtureText),
+  },
+  before: {
+    source: proofCase.source,
+    target: proofCase.target,
+    settings: proofCase.settings,
+    materialMap: proofCase.settings.materialMap,
+    sourceHash: proofCase.source.sourceHash,
+  },
+  after: {
+    planId: proofCase.plan.planId,
+    authorityVersion: proofCase.plan.authorityVersion,
+    planHash: proofCase.plan.settingsHash,
+    previewHash: proofCase.preview.outputHash,
+    receiptOutputHash: proofCase.receipt.outputHash,
+    outputVoxelCount: proofCase.receipt.outputVoxelCount,
+    outputBounds: proofCase.receipt.outputBounds,
+    outputBoundsSummary: formatBounds(proofCase.receipt.outputBounds),
+    sampleVoxels: proofCase.preview.sampleVoxels,
+    materialIds: [...new Set(proofCase.preview.sampleVoxels.map(voxel => voxel.material))],
+  },
+  diagnostics: {
+    plan: proofCase.plan.diagnostics,
+    preview: proofCase.preview.diagnostics,
+    apply: proofCase.receipt.diagnostics,
+    readout: finalReadout.diagnostics,
+  },
+  evidence: {
+    plan: evidenceSummary(proofCase.plan.evidence),
+    preview: evidenceSummary(proofCase.preview.evidence),
+    apply: evidenceSummary(proofCase.receipt.evidence),
+    export: evidenceSummary(finalWorkspace.operations.exportEvidence.evidence),
+  },
+  agreement: {
+    receiptMatchesPreviewPlan: proofCase.receipt.planId === proofCase.preview.planId,
+    receiptMatchesPreviewHash: finalReadout.receipt.previewHash === proofCase.preview.outputHash,
+    receiptMatchesOutputHash: finalReadout.receipt.outputHash === proofCase.receipt.outputHash,
+    receiptMatchesOutputVoxelCount: finalReadout.receipt.outputVoxelCount === proofCase.receipt.outputVoxelCount,
+    materialMapPreserved: JSON.stringify(finalWorkspace.settings.materialMap) === JSON.stringify(proofCase.settings.materialMap),
+    diagnosticsEmpty: finalReadout.diagnostics.length === 0,
+  },
+  projectionCaveats: [
+    'Preview sample voxels are fixture-backed readout evidence, not browser-rendered imagery.',
+    'No hardware GPU, performance, or live Rust runtime execution is claimed by this comparison.',
+    'The committed comparison remains valid until the source fixture or proof generator changes.',
+  ],
+  nonClaims: [
+    ...fixtureSet.provenance.nonClaims,
+    'fixture_backed_until_runtime_authority_4479_lands',
+    'not_live_rust_runtime_execution',
+    'not_browser_render_capture',
+    'not_hardware_gpu_evidence',
+  ],
+};
+const comparison = {
+  ...comparisonBody,
+  artifactHash: sha256Json(comparisonBody),
+};
+const comparisonMarkdown = [
+  '# Voxel Conversion Phase 4 Before/After',
+  '',
+  `Artifact hash: ${comparison.artifactHash}`,
+  `Fixture case: ${comparison.fixture.caseId}`,
+  `Source asset: ${comparison.before.source.assetId}`,
+  `Source hash: ${comparison.before.sourceHash}`,
+  `Mode: ${comparison.before.settings.mode}`,
+  `Resolution: ${comparison.before.settings.resolution.join(' x ')}`,
+  `Material map: slot ${comparison.before.materialMap.entries[0]?.sourceMaterialSlot} -> material ${comparison.before.materialMap.entries[0]?.voxelMaterial}`,
+  '',
+  `Plan: ${comparison.after.planId}`,
+  `Authority version: ${comparison.after.authorityVersion}`,
+  `Plan hash: ${comparison.after.planHash}`,
+  `Preview hash: ${comparison.after.previewHash}`,
+  `Receipt output hash: ${comparison.after.receiptOutputHash}`,
+  `Output voxels: ${comparison.after.outputVoxelCount}`,
+  `Output bounds: ${comparison.after.outputBoundsSummary}`,
+  `Sample material ids: ${comparison.after.materialIds.join(', ')}`,
+  '',
+  'Agreement',
+  `- receiptMatchesPreviewPlan: ${comparison.agreement.receiptMatchesPreviewPlan}`,
+  `- receiptMatchesPreviewHash: ${comparison.agreement.receiptMatchesPreviewHash}`,
+  `- receiptMatchesOutputHash: ${comparison.agreement.receiptMatchesOutputHash}`,
+  `- receiptMatchesOutputVoxelCount: ${comparison.agreement.receiptMatchesOutputVoxelCount}`,
+  `- materialMapPreserved: ${comparison.agreement.materialMapPreserved}`,
+  `- diagnosticsEmpty: ${comparison.agreement.diagnosticsEmpty}`,
+  '',
+  'Caveats',
+  ...comparison.projectionCaveats.map(caveat => `- ${caveat}`),
+].join('\n');
+
 const artifactBody = {
   artifactKind: 'studio_voxel_conversion_phase4_product_proof',
   artifactVersion: 'studio-voxel-conversion-phase4-product-proof.v0',
@@ -314,6 +425,17 @@ const artifactBody = {
     nonClaims: finalReadout.nonClaims,
   },
   materialMap: proofCase.settings.materialMap,
+  comparison: {
+    artifactKind: comparison.artifactKind,
+    jsonPath: 'artifacts/voxel-conversion-phase4-product-proof/latest/compare.json',
+    markdownPath: 'artifacts/voxel-conversion-phase4-product-proof/latest/compare.md',
+    artifactHash: comparison.artifactHash,
+    beforeSourceHash: comparison.before.sourceHash,
+    afterOutputHash: comparison.after.receiptOutputHash,
+    outputVoxelCount: comparison.after.outputVoxelCount,
+    outputBoundsSummary: comparison.after.outputBoundsSummary,
+    projectionCaveats: comparison.projectionCaveats,
+  },
   negativeSmokes: [
     {
       case: staleCase.id,
@@ -350,4 +472,8 @@ const artifact = {
 
 await mkdir(outDir, { recursive: true });
 await writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
+await writeFile(comparisonPath, `${JSON.stringify(comparison, null, 2)}\n`);
+await writeFile(comparisonMarkdownPath, `${comparisonMarkdown}\n`);
 console.log(`wrote ${relative(repoRoot, artifactPath)}`);
+console.log(`wrote ${relative(repoRoot, comparisonPath)}`);
+console.log(`wrote ${relative(repoRoot, comparisonMarkdownPath)}`);

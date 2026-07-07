@@ -372,6 +372,21 @@
     ],
     "defaultVoxelMaterial": 2
   },
+  "comparison": {
+    "artifactKind": "studio_voxel_conversion_phase4_before_after_comparison",
+    "jsonPath": "artifacts/voxel-conversion-phase4-product-proof/latest/compare.json",
+    "markdownPath": "artifacts/voxel-conversion-phase4-product-proof/latest/compare.md",
+    "artifactHash": "sha256:ae71270918fa6c218c7b94d3cb5dd1f37be3890925be2565ba935ada4e3e12e9",
+    "beforeSourceHash": "sha256:phase4-cube-source-v1",
+    "afterOutputHash": "sha256:phase4-cube-output",
+    "outputVoxelCount": 64,
+    "outputBoundsSummary": "0,0,0..3,3,3",
+    "projectionCaveats": [
+      "Preview sample voxels are fixture-backed readout evidence, not browser-rendered imagery.",
+      "No hardware GPU, performance, or live Rust runtime execution is claimed by this comparison.",
+      "The committed comparison remains valid until the source fixture or proof generator changes."
+    ]
+  },
   "negativeSmokes": [
     {
       "case": "stale_source_hash_rejection",
@@ -404,5 +419,5 @@
     "not_hardware_gpu_evidence",
     "not_performance_evidence"
   ],
-  "artifactHash": "sha256:e8c1e42675511792d6bdacf1e498752712de40da37e3c4c9c21aeb590e5980a8"
+  "artifactHash": "sha256:f89720a1f6a47d941c7bcfbfcd60d313875703a47404c1eac3909488938862b9"
 }
