@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -35,6 +36,7 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const boundaryScript = join(repoRoot, 'scripts/check-boundaries.mjs');
 const phase4FixturePath = join(repoRoot, 'fixtures/voxel-conversion/phase4-cases.json');
 const phase4GoldenPath = join(repoRoot, 'test/fixtures/studio-voxel-conversion-phase4-cases.golden.json');
+const phase4ProductProofPath = join(repoRoot, 'artifacts/voxel-conversion-phase4-product-proof/latest/index.json');
 const publicSurfaceManifest = JSON.parse(
   readFileSync(join(repoRoot, '../asha/harness/public-surface/ts-packages.json'), 'utf8'),
 );
@@ -291,6 +293,10 @@ interface Phase4FixtureCase {
 
 function loadPhase4Fixtures(): Phase4FixtureSet {
   return JSON.parse(readFileSync(phase4FixturePath, 'utf8')) as Phase4FixtureSet;
+}
+
+function sha256Json(value: unknown): string {
+  return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
 }
 
 function summarizePhase4Case(fixtureCase: Phase4FixtureCase) {
@@ -694,6 +700,26 @@ test('phase 4 voxel conversion fixtures match Asha-native golden coverage', () =
   assert.ok(fixtureSet.provenance.nonClaims.includes('not_voxelforge_runtime'));
   assert.ok(fixtureSet.cases.every(fixtureCase => fixtureCase.licensePosture.includes('Asha-authored')));
   assert.deepEqual(summary, golden);
+});
+
+test('phase 4 voxel conversion product proof artifact is inspectable and current', () => {
+  const artifact = JSON.parse(readFileSync(phase4ProductProofPath, 'utf8'));
+  const { artifactHash, ...withoutHash } = artifact;
+
+  assert.equal(artifact.artifactKind, 'studio_voxel_conversion_phase4_product_proof');
+  assert.equal(artifact.proofCase.id, 'synthetic_colored_cube_solid');
+  assert.equal(artifact.workflow.plan.accepted, true);
+  assert.equal(artifact.workflow.preview.accepted, true);
+  assert.equal(artifact.workflow.apply.accepted, true);
+  assert.equal(artifact.workflow.exportEvidence.accepted, true);
+  assert.equal(artifact.readout.status, 'ready');
+  assert.equal(artifact.readout.authorityPosture, 'authority_backed');
+  assert.equal(artifact.readout.receipt.outputHash, 'sha256:phase4-cube-output');
+  assert.ok(artifact.validations.includes('negative_stale_source_hash_failed_closed'));
+  assert.equal(artifact.negativeSmokes.at(0)?.accepted, false);
+  assert.ok(artifact.nonClaims.includes('not_voxelforge_runtime'));
+  assert.ok(artifact.nonClaims.includes('fixture_backed_until_runtime_authority_4479_lands'));
+  assert.equal(artifactHash, sha256Json(withoutHash));
 });
 
 test('voxel conversion workspace read model marks valid inputs plan-ready', () => {

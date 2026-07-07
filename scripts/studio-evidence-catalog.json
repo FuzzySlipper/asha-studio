@@ -120,6 +120,14 @@
       "note": "Retained for milestone reproduction; not part of normal Studio verification."
     },
     {
+      "name": "voxel-conversion-phase4-product-proof",
+      "scriptPath": "scripts/proof-voxel-conversion-phase4-product.ts",
+      "status": "current_milestone",
+      "lane": "milestone_archive",
+      "summary": "Phase 4 voxel conversion product proof over Asha-authored fixture authority outputs.",
+      "note": "Fixture-backed until upstream runtime authority implementation lands; not part of normal Studio verification."
+    },
+    {
       "name": "authored-browser-interaction",
       "scriptPath": "scripts/proof-authored-browser-interaction.ts",
       "status": "current_milestone",
