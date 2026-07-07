@@ -28,15 +28,16 @@ const rpcMethods = [
   'loadWorldBundle',
   'saveCurrentWorld',
   'unloadWorld',
-  'step',
+  'stepSimulation',
   'readRenderDiffs',
   'getCompositionStatus',
   'submitCommands',
   'pickVoxel',
+  'selectVoxel',
   'readVoxelMeshEvidence',
+  'readVoxelModelInfo',
   'createCamera',
   'readCameraProjection',
-  'screenPointToPickRay',
   'applyFirstPersonCameraInput',
   'applyCollisionConstrainedCameraInput',
   'readModelMaterialPreview',
@@ -45,6 +46,10 @@ const rpcMethods = [
   'loadFpsRuntimeSession',
   'readFpsRuntimeSession',
   'applyFpsPrimaryFire',
+  'invokeGameExtensionWeaponEffect',
+  'validateGameRuleCatalog',
+  'submitGameRuleEffectIntent',
+  'readGameRuleRuntimeReadout',
   'restartFpsRuntimeSession',
   'readFpsEncounterDirector',
   'applyFpsEncounterTransition',
@@ -54,6 +59,10 @@ const rpcMethods = [
   'previewVoxelConversion',
   'applyVoxelConversion',
   'exportVoxelConversionEvidence',
+  'getBuffer',
+  'releaseBuffer',
+  'loadReplayFixture',
+  'runReplayStep',
 ] as const;
 const allowedRpcMethods = new Set<string>(rpcMethods);
 
@@ -706,12 +715,13 @@ async function handleRpc(bridge: RuntimeBridge, request: IncomingMessage, respon
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ ok: true, value }));
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     response.writeHead(500, { 'content-type': 'application/json' });
     response.end(JSON.stringify({
       ok: false,
       error: {
         name: error instanceof Error ? error.name : 'Error',
-        message: error instanceof Error ? error.message : String(error),
+        message: `${body.method} RPC failed: ${message}`,
       },
     }));
   }

@@ -505,6 +505,18 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /view_from_angle_recorded_projection_camera_readout_without_screenshot_authority/);
   assert.match(proofSource, /publish_preview:true/);
   assert.match(proofSource, /publish_preview_emitted_bounded_projection_evidence_artifact/);
+  for (const runtimeBridgeMethod of [
+    'stepSimulation',
+    'invokeGameExtensionWeaponEffect',
+    'validateGameRuleCatalog',
+    'submitGameRuleEffectIntent',
+    'readGameRuleRuntimeReadout',
+    'readVoxelModelInfo',
+  ]) {
+    assert.match(proofSource, new RegExp(`'${runtimeBridgeMethod}'`));
+  }
+  assert.doesNotMatch(proofSource, /'screenPointToPickRay'/);
+  assert.doesNotMatch(proofSource, /'step'/);
   for (const compactAffordance of [
     'set_voxels',
     'set_voxels_runs',
