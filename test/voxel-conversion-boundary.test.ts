@@ -486,8 +486,18 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
-  assert.match(proofSource, /submit_compact_voxel_edit\.fill_box:true/);
+  for (const compactAffordance of [
+    'set_voxels',
+    'set_voxels_runs',
+    'fill_box',
+    'apply_voxel_primitives',
+  ]) {
+    assert.match(proofSource, new RegExp(`submit_compact_voxel_edit\\.${compactAffordance}:true`));
+  }
+  assert.match(proofSource, /submit_compact_voxel_edit\.fill_box_oversized:false/);
+  assert.match(proofSource, /compactVoxelEdits/);
   assert.match(proofSource, /acceptedVoxelEdit/);
+  assert.match(proofSource, /rejectedCompactVoxelEdit/);
   assert.match(proofSource, /rejectedVoxelEdit/);
   assert.match(proofSource, /unsupportedVoxelEdit/);
 });

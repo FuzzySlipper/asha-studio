@@ -37,17 +37,19 @@ import and local-link policy.
 
 ## Voxel Conversion
 
-- Phase 4 voxel conversion proof artifacts are fixture-backed successor evidence
-  until upstream task #4479 wires Rust `RuntimeSession` voxel conversion facade
-  methods to live authority implementation.
-- The current proof demonstrates Studio plan/preview/apply/export proposal
-  behavior, Asha-authored fixture goldens, deterministic receipts, and
-  before/after comparison readouts. It does not claim live Rust voxelization,
-  hardware GPU evidence, conversion performance, arbitrary mesh support, copied
-  predecessor art assets, VoxelForge runtime/API dependency, or `.vforge`
-  compatibility.
+- The Phase 4 voxel conversion proof artifacts remain fixture-backed successor
+  evidence for Studio proposal/readout behavior, Asha-authored fixture goldens,
+  deterministic receipts, and before/after comparison readouts.
+- The native launch proof, `pnpm run evidence -- native-voxel-runtime-launch`,
+  covers a narrow live Rust RuntimeSession static-mesh conversion and bounded
+  compact voxel edit smoke through public Studio/runtime surfaces.
+- Current voxel proof does not claim hardware GPU evidence, conversion
+  performance, arbitrary mesh support, external art asset provenance, VoxelForge
+  runtime/API dependency, `.vforge` compatibility, or a VoxelForge-style preview
+  file writer.
 - Detailed scope accounting lives in
-  `docs/voxel-conversion-phase4-proof-posture.md`.
+  `docs/voxel-conversion-phase4-proof-posture.md` and
+  `docs/voxelforge-voxel-authoring-adaptation.md`.
 
 ## Proof Commands And Historical Names
 

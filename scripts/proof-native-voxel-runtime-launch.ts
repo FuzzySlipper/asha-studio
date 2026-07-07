@@ -69,7 +69,14 @@ interface BrowserProof {
   readonly timelineStatuses: readonly string[];
   readonly agentSurface: {
     readonly operationStatuses: readonly string[];
+    readonly compactVoxelEdits: readonly {
+      readonly affordance: string;
+      readonly accepted: boolean;
+      readonly generatedCommandCount: number | null;
+      readonly diagnostic: string | null;
+    }[];
     readonly acceptedVoxelEdit: boolean | null;
+    readonly rejectedCompactVoxelEdit: boolean | null;
     readonly rejectedVoxelEdit: boolean | null;
     readonly unsupportedVoxelEdit: boolean | null;
     readonly surfaceHash: string;
@@ -217,7 +224,9 @@ function automationPrelude(): string {
     timelineStatuses: [],
     agentSurface: {
       operationStatuses: [],
+      compactVoxelEdits: [],
       acceptedVoxelEdit: null,
+      rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
       unsupportedVoxelEdit: null,
       surfaceHash: '',
@@ -327,6 +336,18 @@ function automationPrelude(): string {
       accepted: inspection && inspection.commandSummary ? inspection.commandSummary.acceptedCommandCount : null,
       rejected: inspection && inspection.commandSummary ? inspection.commandSummary.rejectedCommandCount : null,
     };
+  }
+
+  function recordCompactVoxelEditResult(affordance, result) {
+    proof.agentSurface.operationStatuses.push('submit_compact_voxel_edit.' + affordance + ':' + result.accepted);
+    proof.agentSurface.compactVoxelEdits.push({
+      affordance,
+      accepted: result.accepted === true,
+      generatedCommandCount: result.compiledVoxelEditBatch && Array.isArray(result.compiledVoxelEditBatch.commands)
+        ? result.compiledVoxelEditBatch.commands.length
+        : null,
+      diagnostic: result.diagnostic || null,
+    });
   }
 
   function failClosedProviderDiagnostic() {
@@ -447,24 +468,76 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.acceptedVoxelEdit = acceptedEdit.accepted;
-        const compactEdit = store.runAgentVoxelWorkflowOperation({
+        const compactSetVoxels = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_compact_voxel_edit',
+          edit: {
+            kind: 'set_voxels',
+            grid: 1,
+            voxels: [
+              { x: 0, y: 0, z: 0, i: 1 },
+              { x: 1, y: 0, z: 0, i: 1 },
+            ],
+          },
+        });
+        recordCompactVoxelEditResult('set_voxels', compactSetVoxels);
+        const compactSetVoxelRuns = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_compact_voxel_edit',
+          edit: {
+            kind: 'set_voxels_runs',
+            grid: 1,
+            runs: [{ x1: 0, x2: 2, y: 0, z: 0, i: 1 }],
+          },
+        });
+        recordCompactVoxelEditResult('set_voxels_runs', compactSetVoxelRuns);
+        const compactFillBox = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_compact_voxel_edit',
           edit: {
             kind: 'fill_box',
             grid: 1,
-            x1: 2,
-            y1: 0,
+            x1: 0,
+            y1: 1,
             z1: 0,
-            x2: 2,
-            y2: 0,
+            x2: 0,
+            y2: 1,
             z2: 0,
             palette_index: 1,
           },
         });
-        proof.agentSurface.operationStatuses.push('submit_compact_voxel_edit.fill_box:' + compactEdit.accepted);
+        recordCompactVoxelEditResult('fill_box', compactFillBox);
+        const compactPrimitives = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_compact_voxel_edit',
+          edit: {
+            kind: 'apply_voxel_primitives',
+            grid: 1,
+            primitives: [
+              { kind: 'block', at: { x: 2, y: 0, z: 0 }, palette_index: 1 },
+              { kind: 'line', from: { x: 0, y: 1, z: 0 }, to: { x: 2, y: 1, z: 0 }, palette_index: 1 },
+            ],
+          },
+        });
+        recordCompactVoxelEditResult('apply_voxel_primitives', compactPrimitives);
         const inspectionAfterAcceptedVoxelEdits = store.runtimeSessionInspection();
         proof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits = inspectionAfterAcceptedVoxelEdits.sessionHash;
         proof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits = commandCounts(inspectionAfterAcceptedVoxelEdits);
+        const rejectedCompactEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_compact_voxel_edit',
+          edit: {
+            kind: 'fill_box',
+            grid: 1,
+            x1: 0,
+            y1: 0,
+            z1: 0,
+            x2: 8,
+            y2: 8,
+            z2: 0,
+            palette_index: 1,
+          },
+        });
+        recordCompactVoxelEditResult('fill_box_oversized', rejectedCompactEdit);
+        proof.agentSurface.rejectedCompactVoxelEdit = rejectedCompactEdit.accepted === false
+          && rejectedCompactEdit.voxelEditReceipt === null
+          && typeof rejectedCompactEdit.diagnostic === 'string'
+          && rejectedCompactEdit.diagnostic.includes('exceeds 64 generated commands');
         const rejectedEdit = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_voxel_edit',
           batch: {
@@ -672,6 +745,18 @@ async function main(): Promise<void> {
     assert.equal(nativeProof.runtimeMessage, 'Rust RuntimeSession attached');
     assert.deepEqual(nativeProof.evidenceKinds, ['plan', 'preview', 'apply_receipt']);
     assert.deepEqual(nativeProof.timelineStatuses, ['complete', 'complete', 'complete', 'ready']);
+    assert.deepEqual(nativeProof.agentSurface.compactVoxelEdits, [
+      { affordance: 'set_voxels', accepted: true, generatedCommandCount: 2, diagnostic: null },
+      { affordance: 'set_voxels_runs', accepted: true, generatedCommandCount: 3, diagnostic: null },
+      { affordance: 'fill_box', accepted: true, generatedCommandCount: 1, diagnostic: null },
+      { affordance: 'apply_voxel_primitives', accepted: true, generatedCommandCount: 4, diagnostic: null },
+      {
+        affordance: 'fill_box_oversized',
+        accepted: false,
+        generatedCommandCount: null,
+        diagnostic: 'compact voxel edit exceeds 64 generated commands',
+      },
+    ], JSON.stringify(nativeProof.agentSurface.compactVoxelEdits, null, 2));
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
       'register_conversion_source:true',
       'reject_conversion_source:true',
@@ -681,9 +766,14 @@ async function main(): Promise<void> {
       'run_conversion.preview:true',
       'run_conversion.apply:true',
       'run_conversion.export_evidence:true',
+      'submit_compact_voxel_edit.set_voxels:true',
+      'submit_compact_voxel_edit.set_voxels_runs:true',
       'submit_compact_voxel_edit.fill_box:true',
+      'submit_compact_voxel_edit.apply_voxel_primitives:true',
+      'submit_compact_voxel_edit.fill_box_oversized:false',
     ]);
     assert.equal(nativeProof.agentSurface.acceptedVoxelEdit, true);
+    assert.equal(nativeProof.agentSurface.rejectedCompactVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.unsupportedVoxelEdit, true);
     assert.match(nativeProof.agentSurface.surfaceHash, /^studio-agent-voxel-workflow-/);
@@ -695,8 +785,8 @@ async function main(): Promise<void> {
       'accepted voxel edits must change the authority session hash',
     );
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 2, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 2, rejected: 1 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 11, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 11, rejected: 1 });
     assert.equal(nativeProof.nativeSmoke.conversion.outputVoxelCount, 3);
     assert.equal(nativeProof.nativeSmoke.conversion.outputBoundsLabel, '[0,0,0] to [7,7,0]');
     assert.deepEqual(nativeProof.nativeSmoke.conversion.materialRows, [
@@ -773,6 +863,8 @@ async function main(): Promise<void> {
         'studio_catalog_static_mesh_registered_as_authority_conversion_source',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
+        'all_adapted_voxelforge_compact_affordances_submitted_through_public_surface',
+        'oversized_voxelforge_style_compact_edit_failed_closed_before_runtime_submission',
         'missing_provider_remained_fail_closed',
         'invalid_provider_remained_fail_closed',
       ],

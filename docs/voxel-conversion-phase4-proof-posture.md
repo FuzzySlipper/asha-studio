@@ -4,9 +4,9 @@ Task: #4317
 Date: 2026-07-07
 
 This note closes the Phase 4 successor proof posture for Asha Studio voxel
-conversion. It explains what is proven, what remains fixture-backed or
-projection-only, and which VoxelForge concepts were adapted without inheriting
-the predecessor runtime or file format.
+conversion. It explains what the archived Phase 4 fixture proof demonstrates,
+what remains projection-only, and which VoxelForge concepts were adapted without
+inheriting the predecessor runtime or file format.
 
 ## Proven
 
@@ -32,18 +32,26 @@ identity/hash, settings, material map, authority version, plan hash, preview
 hash, receipt output hash, output voxel count, output bounds, diagnostics,
 evidence refs, and a stale-source negative smoke.
 
+Task #4550 adds the follow-on live native proof command:
+`pnpm run evidence -- native-voxel-runtime-launch`. That proof builds Studio,
+rebuilds the native Rust addon, attaches a native Rust `RuntimeSession`, runs a
+small static-mesh conversion, submits VoxelForge-shaped compact voxel edits, and
+records live readbacks in ignored output at
+`artifacts/native-voxel-runtime-launch/latest/index.json`.
+
 ## Fixture-Backed Or Projection-Only
 
-- The product proof is fixture-backed authority evidence. It verifies Studio
+- The Phase 4 product proof is fixture-backed authority evidence. It verifies Studio
   command proposal/readout behavior over public Asha contracts and runtime
   facade method requirements, but it does not claim live Rust voxelization.
-- Upstream task #4479 owns wiring Rust `RuntimeSession` voxel conversion facade
-  methods to the real authority implementation.
+- The #4550 native launch proof now covers the small live Rust static-mesh
+  conversion and compact edit smoke. It does not retroactively change the
+  committed Phase 4 fixture artifact's non-claims.
 - Browser/Three preview remains display/readback evidence only. The Phase 4
   comparison uses fixture sample voxels and receipt metadata, not hardware GPU
   capture, performance evidence, or browser-rendered truth.
-- The proof does not claim production readiness for arbitrary meshes, external
-  art assets, high-volume conversions, or conversion performance.
+- Neither proof claims production readiness for arbitrary meshes, external art
+  assets, high-volume conversions, texture sampling, or conversion performance.
 
 ## VoxelForge Lessons Preserved
 
@@ -70,8 +78,6 @@ artifacts are Asha-authored successor proof data.
 
 ## Deferred Work
 
-- Complete #4479 and rerun the product proof against live Rust authority rather
-  than fixture-backed outputs.
 - Add external asset fixtures only after source provenance and redistribution
   posture are explicit.
 - Add production-grade conversion coverage for larger meshes, ambiguous solids,
@@ -85,6 +91,6 @@ artifacts are Asha-authored successor proof data.
 
 Phase 4 now proves the successor workflow shape and review evidence contract
 without relying on VoxelForge runtime APIs or implying `.vforge` product
-compatibility. Until #4479 lands, the proof should be read as deterministic
-fixture-backed authority evidence plus honest limitations, not as live runtime
-voxelization.
+compatibility. Treat the Phase 4 artifact as deterministic fixture-backed
+evidence, and use the #4550 native launch artifact when the question is live
+Rust runtime conversion/edit authority.
