@@ -91,10 +91,14 @@ import {
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
 import type {
+  VoxelConversionEvidenceRef,
   VoxelConversionFitPolicy,
   VoxelConversionMaterialMap,
   VoxelConversionMode,
   VoxelConversionOriginPolicy,
+  VoxelConversionPlan,
+  VoxelConversionPreview,
+  VoxelConversionReceipt,
   VoxelConversionSettings,
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
@@ -120,6 +124,12 @@ import {
   type RuntimeSessionTelemetrySummary,
   type WorldLoadRequest,
 } from '@asha/runtime-bridge';
+import type {
+  VoxelConversionApplyCommandInput,
+  VoxelConversionEvidenceExportInput,
+  VoxelConversionPlanCommandInput,
+  VoxelConversionPreviewCommandInput,
+} from '@asha/command-registry';
 import {
   buildStudioVoxelConversionApplyProposal,
   buildStudioVoxelConversionEvidenceExportProposal,
@@ -135,6 +145,13 @@ import {
 } from '@asha-studio/voxel-conversion';
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
+
+export const EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE: StudioVoxelConversionAuthorityState = {
+  plan: null,
+  preview: null,
+  receipt: null,
+  evidence: [],
+};
 
 export interface StudioProjectFileEntry {
   readonly path: string;
@@ -166,6 +183,7 @@ export interface StudioVoxelConversionWorkspaceShellAction {
   readonly commandId: StudioVoxelConversionCommandId;
   readonly label: string;
   readonly disabled: boolean;
+  readonly accepted: boolean;
   readonly reason: string;
 }
 
@@ -251,16 +269,27 @@ export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
   readonly settingsDraft: StudioVoxelConversionSettingsDraftReadModel;
   readonly planProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly previewProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly applyProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly exportProposal: StudioVoxelConversionProposalResult<unknown>;
   readonly previewProjection: StudioVoxelConversionPreviewProjectionReadModel;
   readonly commandTimeline: readonly StudioVoxelConversionTimelineRow[];
   readonly evidenceRows: readonly StudioVoxelConversionEvidenceRow[];
   readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
   readonly regions: readonly StudioVoxelConversionWorkspaceShellRegion[];
   readonly actions: readonly StudioVoxelConversionWorkspaceShellAction[];
+  readonly runtimeAttached: boolean;
   readonly shellHash: string;
 }
 
-interface StudioVoxelConversionSettingsDraft {
+export interface StudioVoxelConversionAuthorityState {
+  readonly plan: VoxelConversionPlan | null;
+  readonly preview: VoxelConversionPreview | null;
+  readonly receipt: VoxelConversionReceipt | null;
+  readonly evidence: readonly VoxelConversionEvidenceRef[];
+}
+
+export interface StudioVoxelConversionSettingsDraft {
   readonly selectedSourceAssetId: string | null;
   readonly mode: VoxelConversionMode;
   readonly fitPolicy: VoxelConversionFitPolicy;
@@ -1131,40 +1160,45 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
   readonly selectedSource: StudioAssetInventoryEntryReadModel | null;
   readonly sessionId: string;
   readonly expectedTimelineSequence: number;
+  readonly runtimeSession: Partial<Pick<RuntimeSessionFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
+  readonly authorityState: StudioVoxelConversionAuthorityState;
 }): StudioVoxelConversionWorkspaceShellReadModel {
   const workspace = buildStudioVoxelConversionWorkspaceReadModel({
     source: voxelConversionSourceRef(options.selectedSource, options.draft),
     target: voxelConversionTargetRef(options.draft),
     settings: voxelConversionSettings(options.draft),
-    plan: null,
-    preview: null,
-    receipt: null,
-    evidence: [],
+    plan: options.authorityState.plan,
+    preview: options.authorityState.preview,
+    receipt: options.authorityState.receipt,
+    evidence: options.authorityState.evidence,
   });
-  const readout = buildStudioVoxelConversionReadoutModel({ workspace });
+  const readout = buildStudioVoxelConversionReadoutModel({
+    workspace,
+    runtimeSession: options.runtimeSession,
+  });
   const planProposal = buildStudioVoxelConversionPlanProposal({
     workspace,
     sessionId: options.sessionId,
     expectedTimelineSequence: options.expectedTimelineSequence,
-    runtimeSession: null,
+    runtimeSession: options.runtimeSession,
   });
   const previewProposal = buildStudioVoxelConversionPreviewProposal({
     workspace,
     sessionId: options.sessionId,
     expectedTimelineSequence: options.expectedTimelineSequence + 1,
-    runtimeSession: null,
+    runtimeSession: options.runtimeSession,
   });
   const applyProposal = buildStudioVoxelConversionApplyProposal({
     workspace,
     sessionId: options.sessionId,
     expectedTimelineSequence: options.expectedTimelineSequence + 2,
-    runtimeSession: null,
+    runtimeSession: options.runtimeSession,
   });
   const exportProposal = buildStudioVoxelConversionEvidenceExportProposal({
     workspace,
     sessionId: options.sessionId,
     expectedTimelineSequence: options.expectedTimelineSequence + 3,
-    runtimeSession: null,
+    runtimeSession: options.runtimeSession,
   });
   const previewProjection = buildVoxelConversionPreviewProjection(workspace);
   const commandTimeline = buildVoxelConversionTimelineRows({
@@ -1192,6 +1226,20 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     return operation === undefined
       ? 'Upstream voxel conversion capability is unavailable.'
       : firstDiagnosticMessage(operation.diagnostics, 'Operation is waiting for authority evidence.');
+  };
+  const proposalForAction = (
+    commandId: StudioVoxelConversionCommandId,
+  ): StudioVoxelConversionProposalResult<unknown> => {
+    switch (commandId) {
+      case 'voxel_conversion.plan':
+        return planProposal;
+      case 'voxel_conversion.preview':
+        return previewProposal;
+      case 'voxel_conversion.apply':
+        return applyProposal;
+      case 'voxel_conversion.export_evidence':
+        return exportProposal;
+    }
   };
 
   const states: readonly StudioVoxelConversionWorkspaceShellState[] = [
@@ -1257,8 +1305,8 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
       id: 'timeline',
       label: 'Timeline',
       status: operations.map(operation => operation.status).join(' / '),
-      disabled: true,
-      message: 'Plan, preview, apply, and export rows are reserved until proposals are enabled.',
+      disabled: false,
+      message: 'Plan, preview, apply, and export rows reflect typed proposals and authority evidence.',
     },
     {
       id: 'evidence',
@@ -1276,26 +1324,38 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     {
       commandId: 'voxel_conversion.plan',
       label: 'Plan',
-      disabled: true,
-      reason: readinessReason('voxel_conversion.plan'),
+      disabled: !proposalForAction('voxel_conversion.plan').accepted,
+      accepted: proposalForAction('voxel_conversion.plan').accepted,
+      reason: proposalForAction('voxel_conversion.plan').accepted
+        ? 'Submit plan proposal to the attached Asha runtime facade.'
+        : readinessReason('voxel_conversion.plan'),
     },
     {
       commandId: 'voxel_conversion.preview',
       label: 'Preview',
-      disabled: true,
-      reason: readinessReason('voxel_conversion.preview'),
+      disabled: !proposalForAction('voxel_conversion.preview').accepted,
+      accepted: proposalForAction('voxel_conversion.preview').accepted,
+      reason: proposalForAction('voxel_conversion.preview').accepted
+        ? 'Submit preview proposal to the attached Asha runtime facade.'
+        : readinessReason('voxel_conversion.preview'),
     },
     {
       commandId: 'voxel_conversion.apply',
       label: 'Apply',
-      disabled: true,
-      reason: readinessReason('voxel_conversion.apply'),
+      disabled: !proposalForAction('voxel_conversion.apply').accepted,
+      accepted: proposalForAction('voxel_conversion.apply').accepted,
+      reason: proposalForAction('voxel_conversion.apply').accepted
+        ? 'Submit guarded apply proposal to the attached Asha runtime facade.'
+        : readinessReason('voxel_conversion.apply'),
     },
     {
       commandId: 'voxel_conversion.export_evidence',
       label: 'Export',
-      disabled: true,
-      reason: readinessReason('voxel_conversion.export_evidence'),
+      disabled: !proposalForAction('voxel_conversion.export_evidence').accepted,
+      accepted: proposalForAction('voxel_conversion.export_evidence').accepted,
+      reason: proposalForAction('voxel_conversion.export_evidence').accepted
+        ? 'Submit evidence export proposal to the attached Asha runtime facade.'
+        : readinessReason('voxel_conversion.export_evidence'),
     },
   ];
 
@@ -1306,14 +1366,38 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     sourceOptions: options.sourceOptions,
     settingsDraft: options.draft,
     planProposal,
+    previewProposal,
+    applyProposal,
+    exportProposal,
     previewProjection,
     commandTimeline,
     evidenceRows,
     states,
     regions,
     actions,
-    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProjection.status}:${commandTimeline.length}:${evidenceRows.length}`,
+    runtimeAttached: options.runtimeSession !== null,
+    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProposal.accepted}:${applyProposal.accepted}:${exportProposal.accepted}:${previewProjection.status}:${commandTimeline.length}:${evidenceRows.length}`,
   };
+}
+
+export function buildStudioVoxelConversionWorkspaceShellForInputs(options: {
+  readonly draft: StudioVoxelConversionSettingsDraft;
+  readonly sourceOptions?: readonly StudioVoxelConversionSourceOption[];
+  readonly selectedSource: StudioAssetInventoryEntryReadModel | null;
+  readonly sessionId: string;
+  readonly expectedTimelineSequence: number;
+  readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
+  readonly authorityState?: StudioVoxelConversionAuthorityState;
+}): StudioVoxelConversionWorkspaceShellReadModel {
+  return buildVoxelConversionWorkspaceShellReadModel({
+    draft: options.draft,
+    sourceOptions: options.sourceOptions ?? [],
+    selectedSource: options.selectedSource,
+    sessionId: options.sessionId,
+    expectedTimelineSequence: options.expectedTimelineSequence,
+    runtimeSession: options.runtimeSession ?? null,
+    authorityState: options.authorityState ?? EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE,
+  });
 }
 
 function browserStorage(): Storage | null {
@@ -1523,6 +1607,9 @@ export class StudioWorkspaceStore {
   private readonly voxelConversionDraftState = signal<StudioVoxelConversionSettingsDraft>(
     DEFAULT_VOXEL_CONVERSION_DRAFT,
   );
+  private readonly voxelConversionAuthorityState = signal<StudioVoxelConversionAuthorityState>(
+    EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE,
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
@@ -1660,6 +1747,8 @@ export class StudioWorkspaceStore {
       selectedSource,
       sessionId: this.workspaceState().session.sessionId,
       expectedTimelineSequence: this.workspaceState().timelineSequence + 1,
+      runtimeSession: this.runtimeSessionFacadeState(),
+      authorityState: this.voxelConversionAuthorityState(),
     });
   });
   readonly workspaceCockpitEvidence = computed(() => {
@@ -2358,6 +2447,88 @@ export class StudioWorkspaceStore {
         ],
       },
     }));
+  }
+
+  submitVoxelConversionCommand(commandId: StudioVoxelConversionCommandId): void {
+    const shell = this.voxelConversionWorkspaceShell();
+    const facade = this.runtimeSessionFacadeState();
+    const proposal = this.voxelConversionProposalForCommand(shell, commandId);
+    const label = shell.actions.find(action => action.commandId === commandId)?.label ?? commandId;
+    const proposalHash = proposal.proposal === null
+      ? 'rejected'
+      : `${proposal.proposal.commandMetadata.inputSchemaName}:${proposal.proposal.expectedTimelineSequence}`;
+
+    if (!proposal.accepted || proposal.proposal === null || facade === null) {
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId,
+        label: `Voxel Conversion ${label}`,
+        inputSummary: `proposal=${proposalHash};readout=${shell.workspace.readoutHash}`,
+        outputSummary: proposal.diagnostics.at(0)?.message ?? 'Voxel conversion proposal rejected before runtime submission.',
+        status: 'rejected',
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+      return;
+    }
+
+    try {
+      switch (commandId) {
+        case 'voxel_conversion.plan': {
+          const input = proposal.proposal.input as VoxelConversionPlanCommandInput;
+          const plan = facade.planVoxelConversion(input.request);
+          this.voxelConversionAuthorityState.set({
+            plan,
+            preview: null,
+            receipt: null,
+            evidence: [],
+          });
+          this.recordVoxelConversionRuntimeResult(commandId, label, proposalHash, `Plan ${plan.planId} received with ${plan.evidence.length} evidence refs.`);
+          break;
+        }
+        case 'voxel_conversion.preview': {
+          const input = proposal.proposal.input as VoxelConversionPreviewCommandInput;
+          const preview = facade.previewVoxelConversion(input.request);
+          this.voxelConversionAuthorityState.update(state => ({
+            ...state,
+            preview,
+            receipt: null,
+          }));
+          this.recordVoxelConversionRuntimeResult(commandId, label, proposalHash, `Preview ${preview.outputHash} received with ${preview.evidence.length} evidence refs.`);
+          break;
+        }
+        case 'voxel_conversion.apply': {
+          const input = proposal.proposal.input as VoxelConversionApplyCommandInput;
+          const receipt = facade.applyVoxelConversion(input.request);
+          this.voxelConversionAuthorityState.update(state => ({
+            ...state,
+            receipt,
+          }));
+          this.recordVoxelConversionRuntimeResult(commandId, label, proposalHash, `Apply receipt ${receipt.applied ? 'applied' : 'rejected'} with ${receipt.evidence.length} evidence refs.`);
+          break;
+        }
+        case 'voxel_conversion.export_evidence': {
+          const input = proposal.proposal.input as VoxelConversionEvidenceExportInput;
+          const evidence = facade.exportVoxelConversionEvidence(input.evidence);
+          this.voxelConversionAuthorityState.update(state => ({
+            ...state,
+            evidence,
+          }));
+          this.recordVoxelConversionRuntimeResult(commandId, label, proposalHash, `Exported ${evidence.length} authority evidence refs.`);
+          break;
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Voxel conversion runtime command failed.';
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId,
+        label: `Voxel Conversion ${label}`,
+        inputSummary: `proposal=${proposalHash};readout=${shell.workspace.readoutHash}`,
+        outputSummary: message,
+        status: 'failed',
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.menuMessageState.set(message);
+    }
   }
 
   setSelectedScenarioDraft(scenarioId: string): void {
@@ -3143,6 +3314,38 @@ export class StudioWorkspaceStore {
       throw new Error(payload.diagnostic ?? 'invalid project file readback');
     }
     return { path: normalizeProjectFilePath(payload.path), text: payload.text, sha256: payload.sha256 };
+  }
+
+  private voxelConversionProposalForCommand(
+    shell: StudioVoxelConversionWorkspaceShellReadModel,
+    commandId: StudioVoxelConversionCommandId,
+  ): StudioVoxelConversionProposalResult<unknown> {
+    switch (commandId) {
+      case 'voxel_conversion.plan':
+        return shell.planProposal;
+      case 'voxel_conversion.preview':
+        return shell.previewProposal;
+      case 'voxel_conversion.apply':
+        return shell.applyProposal;
+      case 'voxel_conversion.export_evidence':
+        return shell.exportProposal;
+    }
+  }
+
+  private recordVoxelConversionRuntimeResult(
+    commandId: StudioVoxelConversionCommandId,
+    label: string,
+    proposalHash: string,
+    outputSummary: string,
+  ): void {
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId,
+      label: `Voxel Conversion ${label}`,
+      inputSummary: `proposal=${proposalHash};readout=${this.voxelConversionWorkspaceShell().workspace.readoutHash}`,
+      outputSummary,
+    });
+    this.workspaceState.set(recorded.workspace);
+    this.menuMessageState.set(outputSummary);
   }
 
   private applyCatalogOperation(

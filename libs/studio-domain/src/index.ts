@@ -131,7 +131,11 @@ export type StudioUiEventCommandId =
   | 'catalog.validate_source'
   | 'project.refresh_sessions'
   | 'project.connect_running'
-  | 'project.disconnect_running';
+  | 'project.disconnect_running'
+  | 'voxel_conversion.plan'
+  | 'voxel_conversion.preview'
+  | 'voxel_conversion.apply'
+  | 'voxel_conversion.export_evidence';
 
 export interface StudioDiagnostic {
   readonly severity: StudioDiagnosticSeverity;

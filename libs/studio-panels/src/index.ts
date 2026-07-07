@@ -2548,7 +2548,9 @@ export class StudioInspectorPanelComponent {
               type="button"
               [disabled]="action.disabled"
               [attr.data-voxel-action]="action.commandId"
+              [attr.data-voxel-action-accepted]="action.accepted"
               [attr.title]="action.reason"
+              (click)="store.submitVoxelConversionCommand(action.commandId)"
             >
               <span>{{ action.label }}</span>
               <small>{{ action.reason }}</small>
