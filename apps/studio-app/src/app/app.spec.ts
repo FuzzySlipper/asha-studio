@@ -49,6 +49,11 @@ describe('StudioShellComponent', () => {
     expect(panel?.querySelector('[data-voxel-preview-state="projection_only"]')).not.toBeNull();
     expect(panel?.querySelector('[data-voxel-preview-state="stale"]')).not.toBeNull();
     expect(panel?.querySelector('[data-voxel-material-slot]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.plan"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.preview"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.apply"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.export_evidence"]')).not.toBeNull();
+    expect(panel?.querySelector('[data-voxel-evidence-status="missing"]')).not.toBeNull();
 
     for (const region of ['source', 'settings', 'preview', 'diagnostics', 'timeline', 'evidence']) {
       expect(panel?.querySelector(`[data-voxel-region="${region}"]`)).not.toBeNull();

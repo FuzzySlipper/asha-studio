@@ -121,10 +121,14 @@ import {
   type WorldLoadRequest,
 } from '@asha/runtime-bridge';
 import {
+  buildStudioVoxelConversionApplyProposal,
+  buildStudioVoxelConversionEvidenceExportProposal,
   buildStudioVoxelConversionPlanProposal,
+  buildStudioVoxelConversionPreviewProposal,
   buildStudioVoxelConversionReadoutModel,
   buildStudioVoxelConversionWorkspaceReadModel,
   type StudioVoxelConversionCommandId,
+  type StudioVoxelConversionEvidenceReadout,
   type StudioVoxelConversionProposalResult,
   type StudioVoxelConversionReadoutModel,
   type StudioVoxelConversionWorkspaceReadModel,
@@ -222,6 +226,24 @@ export interface StudioVoxelConversionPreviewProjectionReadModel {
   readonly states: readonly StudioVoxelConversionPreviewState[];
 }
 
+export interface StudioVoxelConversionTimelineRow {
+  readonly commandId: StudioVoxelConversionCommandId;
+  readonly label: string;
+  readonly status: string;
+  readonly proposalAccepted: boolean;
+  readonly evidenceCount: number;
+  readonly diagnosticCodes: readonly string[];
+  readonly message: string;
+}
+
+export interface StudioVoxelConversionEvidenceRow {
+  readonly source: StudioVoxelConversionEvidenceReadout['source'] | 'workspace';
+  readonly kind: string;
+  readonly uri: string;
+  readonly contentHash: string;
+  readonly status: 'available' | 'missing';
+}
+
 export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly shellVersion: 'voxel-conversion-shell.v0';
   readonly workspace: StudioVoxelConversionWorkspaceReadModel;
@@ -230,6 +252,8 @@ export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly settingsDraft: StudioVoxelConversionSettingsDraftReadModel;
   readonly planProposal: StudioVoxelConversionProposalResult<unknown>;
   readonly previewProjection: StudioVoxelConversionPreviewProjectionReadModel;
+  readonly commandTimeline: readonly StudioVoxelConversionTimelineRow[];
+  readonly evidenceRows: readonly StudioVoxelConversionEvidenceRow[];
   readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
   readonly regions: readonly StudioVoxelConversionWorkspaceShellRegion[];
   readonly actions: readonly StudioVoxelConversionWorkspaceShellAction[];
@@ -1022,6 +1046,85 @@ function buildVoxelConversionPreviewProjection(
   };
 }
 
+function proposalDiagnostics(
+  proposal: StudioVoxelConversionProposalResult<unknown>,
+): readonly string[] {
+  return proposal.diagnostics.map(diagnostic => diagnostic.code);
+}
+
+function timelineMessage(
+  proposal: StudioVoxelConversionProposalResult<unknown>,
+  fallback: string,
+): string {
+  return proposal.accepted
+    ? 'Typed proposal is ready for upstream runtime submission.'
+    : proposal.diagnostics[0]?.message ?? fallback;
+}
+
+function buildVoxelConversionTimelineRows(options: {
+  readonly workspace: StudioVoxelConversionWorkspaceReadModel;
+  readonly planProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly previewProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly applyProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly exportProposal: StudioVoxelConversionProposalResult<unknown>;
+}): readonly StudioVoxelConversionTimelineRow[] {
+  const rows = [
+    {
+      label: 'Plan',
+      operation: options.workspace.operations.plan,
+      proposal: options.planProposal,
+    },
+    {
+      label: 'Preview',
+      operation: options.workspace.operations.preview,
+      proposal: options.previewProposal,
+    },
+    {
+      label: 'Apply',
+      operation: options.workspace.operations.apply,
+      proposal: options.applyProposal,
+    },
+    {
+      label: 'Export Evidence',
+      operation: options.workspace.operations.exportEvidence,
+      proposal: options.exportProposal,
+    },
+  ];
+
+  return rows.map(row => ({
+    commandId: row.operation.commandId,
+    label: row.label,
+    status: row.operation.status,
+    proposalAccepted: row.proposal.accepted,
+    evidenceCount: row.operation.evidence.length,
+    diagnosticCodes: proposalDiagnostics(row.proposal),
+    message: timelineMessage(row.proposal, firstDiagnosticMessage(row.operation.diagnostics, 'Operation is blocked.')),
+  }));
+}
+
+function buildVoxelConversionEvidenceRows(
+  readout: StudioVoxelConversionReadoutModel,
+): readonly StudioVoxelConversionEvidenceRow[] {
+  if (readout.evidence.length === 0) {
+    return [
+      {
+        source: 'workspace',
+        kind: 'voxel_conversion_evidence',
+        uri: 'missing',
+        contentHash: 'missing',
+        status: 'missing',
+      },
+    ];
+  }
+  return readout.evidence.map(evidence => ({
+    source: evidence.source,
+    kind: evidence.kind,
+    uri: evidence.uri,
+    contentHash: evidence.contentHash,
+    status: 'available',
+  }));
+}
+
 function buildVoxelConversionWorkspaceShellReadModel(options: {
   readonly draft: StudioVoxelConversionSettingsDraft;
   readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
@@ -1045,7 +1148,33 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     expectedTimelineSequence: options.expectedTimelineSequence,
     runtimeSession: null,
   });
+  const previewProposal = buildStudioVoxelConversionPreviewProposal({
+    workspace,
+    sessionId: options.sessionId,
+    expectedTimelineSequence: options.expectedTimelineSequence + 1,
+    runtimeSession: null,
+  });
+  const applyProposal = buildStudioVoxelConversionApplyProposal({
+    workspace,
+    sessionId: options.sessionId,
+    expectedTimelineSequence: options.expectedTimelineSequence + 2,
+    runtimeSession: null,
+  });
+  const exportProposal = buildStudioVoxelConversionEvidenceExportProposal({
+    workspace,
+    sessionId: options.sessionId,
+    expectedTimelineSequence: options.expectedTimelineSequence + 3,
+    runtimeSession: null,
+  });
   const previewProjection = buildVoxelConversionPreviewProjection(workspace);
+  const commandTimeline = buildVoxelConversionTimelineRows({
+    workspace,
+    planProposal,
+    previewProposal,
+    applyProposal,
+    exportProposal,
+  });
+  const evidenceRows = buildVoxelConversionEvidenceRows(readout);
   const operations = [
     workspace.operations.plan,
     workspace.operations.preview,
@@ -1178,10 +1307,12 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     settingsDraft: options.draft,
     planProposal,
     previewProjection,
+    commandTimeline,
+    evidenceRows,
     states,
     regions,
     actions,
-    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProjection.status}`,
+    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProjection.status}:${commandTimeline.length}:${evidenceRows.length}`,
   };
 }
 

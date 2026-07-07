@@ -2514,6 +2514,34 @@ export class StudioInspectorPanelComponent {
           }
         </section>
 
+        <section class="voxel-command-timeline" aria-label="Voxel conversion command timeline">
+          @for (row of shell.commandTimeline; track row.commandId) {
+            <article
+              [attr.data-voxel-timeline-command]="row.commandId"
+              [attr.data-voxel-timeline-status]="row.status"
+              [attr.data-voxel-proposal-accepted]="row.proposalAccepted"
+            >
+              <span>{{ row.label }}</span>
+              <strong>{{ row.status }} · proposal {{ row.proposalAccepted ? 'accepted' : 'rejected' }}</strong>
+              <small>{{ row.message }}</small>
+              <small>evidence {{ row.evidenceCount }} · diagnostics {{ row.diagnosticCodes.join(', ') || 'none' }}</small>
+            </article>
+          }
+        </section>
+
+        <section class="voxel-evidence-readout" aria-label="Voxel conversion evidence readout">
+          @for (row of shell.evidenceRows; track row.source + row.kind + row.uri) {
+            <article
+              [attr.data-voxel-evidence-kind]="row.kind"
+              [attr.data-voxel-evidence-status]="row.status"
+            >
+              <span>{{ row.source }} · {{ row.kind }}</span>
+              <strong>{{ row.uri }}</strong>
+              <small>{{ row.contentHash }}</small>
+            </article>
+          }
+        </section>
+
         <section class="voxel-action-row" aria-label="Voxel conversion actions">
           @for (action of shell.actions; track action.commandId) {
             <button
@@ -2640,6 +2668,8 @@ export class StudioInspectorPanelComponent {
       .voxel-region-grid,
       .voxel-preview-readout,
       .voxel-material-readout,
+      .voxel-command-timeline,
+      .voxel-evidence-readout,
       .voxel-action-row,
       .voxel-diagnostics {
         display: grid;
@@ -2666,12 +2696,19 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: 13rem repeat(auto-fit, minmax(10rem, 1fr));
       }
 
+      .voxel-command-timeline,
+      .voxel-evidence-readout {
+        grid-template-columns: repeat(4, minmax(12rem, 1fr));
+      }
+
       .voxel-state-strip article,
       .voxel-region-grid article,
       .voxel-editor-grid article,
       .voxel-preview-readout article,
       .voxel-material-readout article,
-      .voxel-material-readout header {
+      .voxel-material-readout header,
+      .voxel-command-timeline article,
+      .voxel-evidence-readout article {
         background: #10161b;
         border: 1px solid var(--asha-color-border);
         display: grid;
@@ -2685,7 +2722,9 @@ export class StudioInspectorPanelComponent {
       .voxel-region-grid article[data-voxel-region-status='blocked'],
       .voxel-region-grid article[data-voxel-region-status='missing'],
       .voxel-preview-readout[data-voxel-preview-status='unavailable'],
-      .voxel-preview-readout[data-voxel-preview-status='stale'] {
+      .voxel-preview-readout[data-voxel-preview-status='stale'],
+      .voxel-command-timeline article[data-voxel-proposal-accepted='false'],
+      .voxel-evidence-readout article[data-voxel-evidence-status='missing'] {
         border-color: var(--asha-color-warning);
       }
 
@@ -2693,7 +2732,9 @@ export class StudioInspectorPanelComponent {
       .voxel-region-grid span,
       .voxel-editor-grid > article > span,
       .voxel-preview-readout span,
-      .voxel-material-readout span {
+      .voxel-material-readout span,
+      .voxel-command-timeline span,
+      .voxel-evidence-readout span {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
         text-transform: uppercase;
@@ -2702,7 +2743,11 @@ export class StudioInspectorPanelComponent {
       .voxel-preview-readout strong,
       .voxel-preview-readout small,
       .voxel-material-readout strong,
-      .voxel-material-readout small {
+      .voxel-material-readout small,
+      .voxel-command-timeline strong,
+      .voxel-command-timeline small,
+      .voxel-evidence-readout strong,
+      .voxel-evidence-readout small {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2779,6 +2824,8 @@ export class StudioInspectorPanelComponent {
         .voxel-region-grid,
         .voxel-preview-readout,
         .voxel-material-readout,
+        .voxel-command-timeline,
+        .voxel-evidence-readout,
         .voxel-action-row {
           grid-template-columns: 1fr;
         }

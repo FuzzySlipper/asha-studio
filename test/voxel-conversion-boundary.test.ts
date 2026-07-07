@@ -380,6 +380,28 @@ test('studio voxel conversion workspace exposes projection-only preview and mate
   assert.match(viewportSource, /no upstream preview evidence/);
 });
 
+test('studio voxel conversion workspace exposes command timeline and evidence rows', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+
+  for (const builder of [
+    'buildStudioVoxelConversionPlanProposal',
+    'buildStudioVoxelConversionPreviewProposal',
+    'buildStudioVoxelConversionApplyProposal',
+    'buildStudioVoxelConversionEvidenceExportProposal',
+  ]) {
+    assert.match(storeSource, new RegExp(builder));
+  }
+  assert.match(storeSource, /commandTimeline/);
+  assert.match(storeSource, /evidenceRows/);
+  assert.match(storeSource, /buildVoxelConversionTimelineRows/);
+  assert.match(storeSource, /buildVoxelConversionEvidenceRows/);
+  assert.match(panelSource, /data-voxel-timeline-command/);
+  assert.match(panelSource, /data-voxel-evidence-kind/);
+  assert.match(panelSource, /data-voxel-evidence-status/);
+  assert.match(panelSource, /proposalAccepted/);
+});
+
 test('studio boundary check rejects forbidden voxel conversion import shapes', () => {
   const forbiddenSpecifiers = [
     ['@asha', 'native-bridge'].join('/'),
