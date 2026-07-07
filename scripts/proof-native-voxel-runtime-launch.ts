@@ -66,6 +66,13 @@ interface BrowserProof {
   readonly actionStates: readonly { readonly commandId: string; readonly accepted: string | null; readonly disabled: boolean }[];
   readonly evidenceKinds: readonly string[];
   readonly timelineStatuses: readonly string[];
+  readonly agentSurface: {
+    readonly operationStatuses: readonly string[];
+    readonly acceptedVoxelEdit: boolean | null;
+    readonly rejectedVoxelEdit: boolean | null;
+    readonly unsupportedVoxelEdit: boolean | null;
+    readonly surfaceHash: string;
+  };
   readonly textSample: string;
 }
 
@@ -185,6 +192,13 @@ function automationPrelude(): string {
     actionStates: [],
     evidenceKinds: [],
     timelineStatuses: [],
+    agentSurface: {
+      operationStatuses: [],
+      acceptedVoxelEdit: null,
+      rejectedVoxelEdit: null,
+      unsupportedVoxelEdit: null,
+      surfaceHash: '',
+    },
     textSample: '',
   };
 
@@ -288,14 +302,79 @@ function automationPrelude(): string {
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
+        const inspectResult = store.runAgentVoxelWorkflowOperation({ kind: 'inspect' });
+        proof.agentSurface.operationStatuses.push('inspect:' + inspectResult.accepted);
+        const configureResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'configure_conversion',
+          patch: {
+            sourceAssetId: 'mesh/import-fixture-a',
+            mode: 'surface',
+            fitPolicy: 'contain',
+            originPolicy: 'target_min',
+            resolution: [8, 8, 8],
+            voxelSize: 0.25,
+            maxOutputVoxels: 1024,
+            targetGrid: 1,
+            targetVolumeAssetId: 'voxel/generated',
+            targetOrigin: [0, 0, 0],
+            meshPrimitive: 'default',
+            materialSourceSlot: 0,
+            materialSourceId: 'material.demo-copper',
+            materialVoxelId: 1,
+            defaultMaterial: '1',
+          },
+        });
+        proof.agentSurface.operationStatuses.push('configure_conversion:' + configureResult.accepted);
         await waitFor(() => acceptedAction('voxel_conversion.plan'), 'plan proposal readiness');
-        store.submitVoxelConversionCommand('voxel_conversion.plan');
+        const planResult = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId: 'voxel_conversion.plan' });
+        proof.agentSurface.operationStatuses.push('run_conversion.plan:' + planResult.accepted);
         await waitFor(() => acceptedAction('voxel_conversion.preview'), 'preview proposal readiness');
-        store.submitVoxelConversionCommand('voxel_conversion.preview');
+        const previewResult = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId: 'voxel_conversion.preview' });
+        proof.agentSurface.operationStatuses.push('run_conversion.preview:' + previewResult.accepted);
         await waitFor(() => acceptedAction('voxel_conversion.apply'), 'apply proposal readiness');
-        store.submitVoxelConversionCommand('voxel_conversion.apply');
+        const applyResult = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId: 'voxel_conversion.apply' });
+        proof.agentSurface.operationStatuses.push('run_conversion.apply:' + applyResult.accepted);
         await waitFor(() => acceptedAction('voxel_conversion.export_evidence'), 'evidence export proposal readiness');
-        store.submitVoxelConversionCommand('voxel_conversion.export_evidence');
+        const exportResult = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId: 'voxel_conversion.export_evidence' });
+        proof.agentSurface.operationStatuses.push('run_conversion.export_evidence:' + exportResult.accepted);
+        const acceptedEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_voxel_edit',
+          batch: {
+            commands: [{
+              op: 'setVoxel',
+              grid: 1,
+              coord: { x: 2, y: 0, z: 0 },
+              value: { kind: 'solid', material: 1 },
+            }],
+          },
+        });
+        proof.agentSurface.acceptedVoxelEdit = acceptedEdit.accepted;
+        const rejectedEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_voxel_edit',
+          batch: {
+            commands: [{
+              op: 'setVoxel',
+              grid: 1,
+              coord: { x: 3, y: 0, z: 0 },
+              value: { kind: 'solid', material: 999 },
+            }],
+          },
+        });
+        proof.agentSurface.rejectedVoxelEdit = rejectedEdit.accepted === false && rejectedEdit.voxelEditReceipt !== null;
+        const unsupportedEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_voxel_edit',
+          batch: {
+            commands: [{
+              op: 'fillRegion',
+              grid: 1,
+              min: { x: 0, y: 0, z: 0 },
+              max: { x: 1, y: 1, z: 1 },
+              value: { kind: 'solid', material: 1 },
+            }],
+          },
+        });
+        proof.agentSurface.unsupportedVoxelEdit = unsupportedEdit.accepted === false && unsupportedEdit.voxelEditReceipt === null;
+        proof.agentSurface.surfaceHash = unsupportedEdit.surface.surfaceHash;
         await waitFor(() => document.querySelector('[data-voxel-evidence-kind="apply_receipt"]'), 'apply receipt evidence');
         proof.status = 'complete';
         proof.message = 'native provider attached and voxel conversion commands completed';
@@ -474,6 +553,18 @@ async function main(): Promise<void> {
     assert.equal(nativeProof.runtimeMessage, 'Rust RuntimeSession attached');
     assert.deepEqual(nativeProof.evidenceKinds, ['plan', 'preview', 'apply_receipt']);
     assert.deepEqual(nativeProof.timelineStatuses, ['complete', 'complete', 'complete', 'ready']);
+    assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
+      'inspect:true',
+      'configure_conversion:true',
+      'run_conversion.plan:true',
+      'run_conversion.preview:true',
+      'run_conversion.apply:true',
+      'run_conversion.export_evidence:true',
+    ]);
+    assert.equal(nativeProof.agentSurface.acceptedVoxelEdit, true);
+    assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
+    assert.equal(nativeProof.agentSurface.unsupportedVoxelEdit, true);
+    assert.match(nativeProof.agentSurface.surfaceHash, /^studio-agent-voxel-workflow-/);
 
     const missingDom = await runChromiumDump(`${baseUrl}?provider=missing`);
     const missingProof = readProofFromDom(missingDom);
@@ -535,6 +626,7 @@ async function main(): Promise<void> {
         'native_addon_rebuilt_and_accepted_by_createNativeRuntimeBridge',
         'attachRuntimeSessionInspection_succeeded_with_native_rust_authority',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
+        'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
         'missing_provider_remained_fail_closed',
         'invalid_provider_remained_fail_closed',
       ],

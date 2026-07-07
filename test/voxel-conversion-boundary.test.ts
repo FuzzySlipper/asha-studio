@@ -464,6 +464,29 @@ test('studio voxel conversion workspace shell registers visible fail-closed regi
   }
 });
 
+test('studio agent voxel workflow surface stays typed and bounded', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
+
+  assert.match(storeSource, /StudioAgentVoxelWorkflowOperation/);
+  assert.match(storeSource, /agentVoxelWorkflowSurface\(\)/);
+  assert.match(storeSource, /runAgentVoxelWorkflowOperation/);
+  assert.match(storeSource, /unsupported agent voxel workflow operation/);
+  assert.match(storeSource, /AGENT_VOXEL_EDIT_MAX_COMMANDS = 64/);
+  assert.match(storeSource, /unsupported voxel edit operation/);
+  assert.match(storeSource, /commandMessageType: 'command\.propose'/);
+  assert.match(storeSource, /supportedCommandOps: \['setVoxel'\]/);
+  assert.doesNotMatch(storeSource, /debug\.rawJson/);
+  assert.doesNotMatch(storeSource, /method\.apply\(facade/);
+
+  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'submit_voxel_edit']) {
+    assert.match(proofSource, new RegExp(`kind: '${operation}'`));
+  }
+  assert.match(proofSource, /acceptedVoxelEdit/);
+  assert.match(proofSource, /rejectedVoxelEdit/);
+  assert.match(proofSource, /unsupportedVoxelEdit/);
+});
+
 test('studio voxel conversion workspace wires source and settings controls to read-model draft', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');

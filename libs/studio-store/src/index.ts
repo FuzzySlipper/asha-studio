@@ -91,6 +91,7 @@ import {
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
 import type {
+  CommandBatch,
   VoxelConversionEvidenceRef,
   VoxelConversionFitPolicy,
   VoxelConversionMaterialMap,
@@ -119,6 +120,7 @@ import {
   type RuntimeSessionGeneratedTunnelOperationReceipt,
   type RuntimeSessionLifecycleRestartReceipt,
   type RuntimeSessionLifecycleStatusReadout,
+  type RuntimeSessionCommandReceipt,
   type RuntimeSessionProjectionSummary,
   type RuntimeSessionStateSummary,
   type RuntimeSessionTelemetrySummary,
@@ -302,6 +304,82 @@ export interface StudioVoxelConversionSettingsDraft {
   readonly targetOrigin: readonly [number, number, number];
   readonly meshPrimitive: string | null;
   readonly materialMap: VoxelConversionMaterialMap;
+}
+
+export type StudioAgentVoxelWorkflowOperationKind =
+  | 'inspect'
+  | 'configure_conversion'
+  | 'run_conversion'
+  | 'submit_voxel_edit';
+export type StudioAgentVoxelWorkflowResultOperation =
+  | StudioAgentVoxelWorkflowOperationKind
+  | 'unsupported_operation';
+
+export interface StudioAgentVoxelConversionSettingsPatch {
+  readonly sourceAssetId?: string | null;
+  readonly mode?: VoxelConversionMode;
+  readonly fitPolicy?: VoxelConversionFitPolicy;
+  readonly originPolicy?: VoxelConversionOriginPolicy;
+  readonly resolution?: readonly [number, number, number];
+  readonly voxelSize?: number;
+  readonly maxOutputVoxels?: number;
+  readonly targetGrid?: number;
+  readonly targetVolumeAssetId?: string;
+  readonly targetOrigin?: readonly [number, number, number];
+  readonly meshPrimitive?: string | null;
+  readonly materialSourceSlot?: number;
+  readonly materialSourceId?: string | null;
+  readonly materialVoxelId?: number;
+  readonly defaultMaterial?: string;
+}
+
+export type StudioAgentVoxelWorkflowOperation =
+  | { readonly kind: 'inspect' }
+  | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
+  | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
+  | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch };
+
+export interface StudioAgentVoxelWorkflowSurfaceReadModel {
+  readonly surfaceVersion: 'studio-agent-voxel-workflow.v0';
+  readonly supportedOperations: readonly StudioAgentVoxelWorkflowOperationKind[];
+  readonly runtime: {
+    readonly attachState: string;
+    readonly sessionHash: string | null;
+    readonly acceptedCommandCount: number | null;
+    readonly rejectedCommandCount: number | null;
+  };
+  readonly conversion: {
+    readonly shellHash: string;
+    readonly readoutHash: string;
+    readonly status: string;
+    readonly authorityPosture: string;
+    readonly actionStates: readonly {
+      readonly commandId: StudioVoxelConversionCommandId;
+      readonly accepted: boolean;
+      readonly disabled: boolean;
+    }[];
+    readonly evidenceKinds: readonly string[];
+    readonly outputVoxelCount: number | null;
+    readonly outputBoundsLabel: string;
+    readonly diagnostics: readonly string[];
+  };
+  readonly voxelEdit: {
+    readonly commandMessageType: 'command.propose';
+    readonly supportedCommandOps: readonly ['setVoxel'];
+    readonly maxCommands: number;
+    readonly runtimeAttached: boolean;
+  };
+  readonly diagnostics: readonly string[];
+  readonly nonClaims: readonly string[];
+  readonly surfaceHash: string;
+}
+
+export interface StudioAgentVoxelWorkflowResult {
+  readonly accepted: boolean;
+  readonly operation: StudioAgentVoxelWorkflowResultOperation;
+  readonly diagnostic: string | null;
+  readonly surface: StudioAgentVoxelWorkflowSurfaceReadModel;
+  readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -989,6 +1067,53 @@ const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
     ],
   },
 };
+
+const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkflowOperationKind[] = [
+  'inspect',
+  'configure_conversion',
+  'run_conversion',
+  'submit_voxel_edit',
+];
+const AGENT_VOXEL_EDIT_MAX_COMMANDS = 64;
+
+function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
+  const text = JSON.stringify(value);
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash * 31) + text.charCodeAt(index)) >>> 0;
+  }
+  return `${label}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function agentVoxelEditDiagnostic(batch: CommandBatch): string | null {
+  if (batch.commands.length === 0) {
+    return 'voxel edit batch must include at least one command';
+  }
+  if (batch.commands.length > AGENT_VOXEL_EDIT_MAX_COMMANDS) {
+    return `voxel edit batch exceeds ${AGENT_VOXEL_EDIT_MAX_COMMANDS} commands`;
+  }
+  const unsupported = batch.commands.find(command => command.op !== 'setVoxel');
+  if (unsupported !== undefined) {
+    return `unsupported voxel edit operation ${unsupported.op}`;
+  }
+  for (const [index, command] of batch.commands.entries()) {
+    if (command.op !== 'setVoxel') {
+      return `unsupported voxel edit operation ${command.op}`;
+    }
+    if (
+      !Number.isSafeInteger(command.grid)
+      || !Number.isSafeInteger(command.coord.x)
+      || !Number.isSafeInteger(command.coord.y)
+      || !Number.isSafeInteger(command.coord.z)
+    ) {
+      return `setVoxel command ${index} must use safe integer grid and coordinates`;
+    }
+    if (command.value.kind === 'solid' && !Number.isSafeInteger(command.value.material)) {
+      return `setVoxel command ${index} solid material must be a safe integer`;
+    }
+  }
+  return null;
+}
 
 function voxelConversionSourceOptions(
   entries: readonly StudioAssetInventoryEntryReadModel[],
@@ -1787,6 +1912,99 @@ export class StudioWorkspaceStore {
       authorityState: this.voxelConversionAuthorityState(),
     });
   });
+
+  agentVoxelWorkflowSurface(): StudioAgentVoxelWorkflowSurfaceReadModel {
+    const inspection = this.runtimeSessionInspection();
+    const shell = this.voxelConversionWorkspaceShell();
+    const body = {
+      runtime: {
+        attachState: inspection.attachState,
+        sessionHash: inspection.sessionHash,
+        acceptedCommandCount: inspection.commandSummary.acceptedCommandCount,
+        rejectedCommandCount: inspection.commandSummary.rejectedCommandCount,
+      },
+      conversion: {
+        shellHash: shell.shellHash,
+        readoutHash: shell.readout.readoutHash,
+        status: shell.readout.status,
+        authorityPosture: shell.readout.authorityPosture,
+        actionStates: shell.actions.map(action => ({
+          commandId: action.commandId,
+          accepted: action.accepted,
+          disabled: action.disabled,
+        })),
+        evidenceKinds: Array.from(new Set(shell.evidenceRows.map(row => row.kind))),
+        outputVoxelCount: shell.previewProjection.outputVoxelCount,
+        outputBoundsLabel: shell.previewProjection.outputBoundsLabel,
+        diagnostics: shell.readout.diagnostics.map(diagnostic => diagnostic.code),
+      },
+      voxelEdit: {
+        commandMessageType: 'command.propose' as const,
+        supportedCommandOps: ['setVoxel'] as const,
+        maxCommands: AGENT_VOXEL_EDIT_MAX_COMMANDS,
+        runtimeAttached: this.runtimeSessionFacadeState() !== null,
+      },
+      diagnostics: [
+        ...(this.runtimeSessionFacadeState() === null ? ['runtime_session_not_attached'] : []),
+        ...shell.readout.diagnostics.map(diagnostic => diagnostic.code),
+      ],
+      nonClaims: [
+        'not_freeform_json_method_call',
+        'not_private_studio_state_mutation',
+        'not_voxelforge_mcp_transport',
+      ],
+    };
+    return {
+      surfaceVersion: 'studio-agent-voxel-workflow.v0',
+      supportedOperations: AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS,
+      ...body,
+      surfaceHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-workflow', body),
+    };
+  }
+
+  runAgentVoxelWorkflowOperation(
+    operation: StudioAgentVoxelWorkflowOperation,
+  ): StudioAgentVoxelWorkflowResult {
+    switch (operation.kind) {
+      case 'inspect':
+        return {
+          accepted: true,
+          operation: operation.kind,
+          diagnostic: null,
+          surface: this.agentVoxelWorkflowSurface(),
+        };
+      case 'configure_conversion': {
+        this.applyAgentVoxelConversionPatch(operation.patch);
+        return {
+          accepted: true,
+          operation: operation.kind,
+          diagnostic: null,
+          surface: this.agentVoxelWorkflowSurface(),
+        };
+      }
+      case 'run_conversion': {
+        const proposal = this.voxelConversionProposalForCommand(this.voxelConversionWorkspaceShell(), operation.commandId);
+        this.submitVoxelConversionCommand(operation.commandId);
+        return {
+          accepted: proposal.accepted,
+          operation: operation.kind,
+          diagnostic: proposal.accepted ? null : proposal.diagnostics.at(0)?.message ?? 'voxel conversion proposal rejected',
+          surface: this.agentVoxelWorkflowSurface(),
+        };
+      }
+      case 'submit_voxel_edit':
+        return this.submitAgentVoxelEdit(operation.batch);
+      default: {
+        const unknownOperation = operation as { readonly kind?: unknown };
+        return {
+          accepted: false,
+          operation: 'unsupported_operation',
+          diagnostic: `unsupported agent voxel workflow operation ${String(unknownOperation.kind)}`,
+          surface: this.agentVoxelWorkflowSurface(),
+        };
+      }
+    }
+  }
   readonly workspaceCockpitEvidence = computed(() => {
     const assetInventory = this.assetInventoryState().inventory;
     const proofScenes = this.proofScenesState().proofScenes;
@@ -2487,6 +2705,95 @@ export class StudioWorkspaceStore {
         ],
       },
     }));
+  }
+
+  private applyAgentVoxelConversionPatch(patch: StudioAgentVoxelConversionSettingsPatch): void {
+    if ('sourceAssetId' in patch) {
+      this.setVoxelConversionSourceAsset(patch.sourceAssetId ?? '');
+    }
+    if (patch.mode !== undefined) this.setVoxelConversionMode(patch.mode);
+    if (patch.fitPolicy !== undefined) this.setVoxelConversionFitPolicy(patch.fitPolicy);
+    if (patch.originPolicy !== undefined) this.setVoxelConversionOriginPolicy(patch.originPolicy);
+    if (patch.resolution !== undefined) {
+      patch.resolution.forEach((value, axis) => this.setVoxelConversionResolutionAxis(axis, value));
+    }
+    if (patch.voxelSize !== undefined) this.setVoxelConversionVoxelSize(patch.voxelSize);
+    if (patch.maxOutputVoxels !== undefined) this.setVoxelConversionMaxOutputVoxels(patch.maxOutputVoxels);
+    if (patch.targetGrid !== undefined) this.setVoxelConversionTargetGrid(patch.targetGrid);
+    if (patch.targetVolumeAssetId !== undefined) this.setVoxelConversionTargetVolumeAssetId(patch.targetVolumeAssetId);
+    if (patch.targetOrigin !== undefined) {
+      patch.targetOrigin.forEach((value, axis) => this.setVoxelConversionTargetOriginAxis(axis, value));
+    }
+    if ('meshPrimitive' in patch) this.setVoxelConversionMeshPrimitive(patch.meshPrimitive ?? '');
+    if (patch.materialSourceSlot !== undefined) this.setVoxelConversionMaterialSourceSlot(patch.materialSourceSlot);
+    if ('materialSourceId' in patch) this.setVoxelConversionMaterialSourceId(patch.materialSourceId ?? '');
+    if (patch.materialVoxelId !== undefined) this.setVoxelConversionMaterialVoxelId(patch.materialVoxelId);
+    if (patch.defaultMaterial !== undefined) this.setVoxelConversionDefaultMaterial(patch.defaultMaterial);
+  }
+
+  private submitAgentVoxelEdit(batch: CommandBatch): StudioAgentVoxelWorkflowResult {
+    const preflightDiagnostic = agentVoxelEditDiagnostic(batch);
+    if (preflightDiagnostic !== null) {
+      return {
+        accepted: false,
+        operation: 'submit_voxel_edit',
+        diagnostic: preflightDiagnostic,
+        surface: this.agentVoxelWorkflowSurface(),
+        voxelEditReceipt: null,
+      };
+    }
+
+    const facade = this.runtimeSessionFacadeState();
+    if (facade === null) {
+      return {
+        accepted: false,
+        operation: 'submit_voxel_edit',
+        diagnostic: 'Attach RuntimeSession before submitting voxel edits.',
+        surface: this.agentVoxelWorkflowSurface(),
+        voxelEditReceipt: null,
+      };
+    }
+
+    try {
+      const receipt = facade.submitCommands(batch);
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      const status = receipt.result.rejected > 0 ? 'rejected' : 'ok';
+      const summary = `Voxel edit accepted ${receipt.result.accepted}, rejected ${receipt.result.rejected}.`;
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'voxel_edit.submit',
+        label: 'Agent Voxel Edit',
+        inputSummary: `commands=${batch.commands.length};sequence=${receipt.sequenceId}`,
+        outputSummary: summary,
+        status,
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.menuMessageState.set(summary);
+      return {
+        accepted: receipt.result.rejected === 0 && receipt.result.accepted > 0,
+        operation: 'submit_voxel_edit',
+        diagnostic: receipt.result.rejected === 0 ? null : JSON.stringify(receipt.result.rejections),
+        surface: this.agentVoxelWorkflowSurface(),
+        voxelEditReceipt: receipt,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Voxel edit runtime command failed.';
+      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+        commandId: 'voxel_edit.submit',
+        label: 'Agent Voxel Edit',
+        inputSummary: `commands=${batch.commands.length}`,
+        outputSummary: message,
+        status: 'failed',
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.menuMessageState.set(message);
+      return {
+        accepted: false,
+        operation: 'submit_voxel_edit',
+        diagnostic: message,
+        surface: this.agentVoxelWorkflowSurface(),
+        voxelEditReceipt: null,
+      };
+    }
   }
 
   submitVoxelConversionCommand(commandId: StudioVoxelConversionCommandId): void {

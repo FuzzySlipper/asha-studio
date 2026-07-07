@@ -32,6 +32,19 @@ scene, selected target, latest viewport hit, render settings, latest command,
 compatibility marker, diagnostics, and non-claims without turning the app into a
 proof dashboard.
 
+## Agent Voxel Workflow Surface
+
+Live voxel workflows use `StudioWorkspaceStore.runAgentVoxelWorkflowOperation`
+and `agentVoxelWorkflowSurface()` rather than private component callbacks. The
+surface exposes typed operations for inspection, conversion settings, conversion
+plan/preview/apply/export, and bounded voxel edits. Voxel edits are limited to
+`command.propose`-style `setVoxel` batches and reject unsupported operations
+before runtime submission.
+
+The native launch evidence command, `pnpm run evidence -- native-voxel-runtime-launch`,
+drives this surface against the Rust native provider and records accepted,
+runtime-rejected, and preflight-rejected edit paths.
+
 ## Verification Tiers
 
 Use the lightest tier that proves the behavior.

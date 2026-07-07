@@ -132,6 +132,7 @@ export type StudioUiEventCommandId =
   | 'project.refresh_sessions'
   | 'project.connect_running'
   | 'project.disconnect_running'
+  | 'voxel_edit.submit'
   | 'voxel_conversion.plan'
   | 'voxel_conversion.preview'
   | 'voxel_conversion.apply'
