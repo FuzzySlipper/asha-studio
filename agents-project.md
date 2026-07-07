@@ -45,3 +45,5 @@ pnpm run build
 ```
 
 Only run broader generated-artifact or live-evidence suites when their prerequisites are present, and record those prerequisites in the Den task.
+
+For choosing the lightest useful evidence gate, use `docs/studio-agent-observability-verification.md`.
