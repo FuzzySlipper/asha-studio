@@ -209,6 +209,7 @@ function samplePlan(
     authorityVersion: 'voxel-conversion-authority.v0',
     expectedSourceHash: source.sourceHash,
     settingsHash: 'sha256:settings',
+    planHash: 'sha256:plan',
     estimatedOutputVoxels: 512,
     estimatedBounds: {
       min: { x: 0, y: 0, z: 0 },
@@ -1003,7 +1004,7 @@ test('voxel conversion proposal builders produce typed plan preview apply export
   assert.equal(planProposal.proposal?.input.request.settings.materialMap.defaultVoxelMaterial, 1);
   assert.equal(planProposal.proposal?.expectedTimelineSequence, 7);
   assert.deepEqual(planProposal.proposal?.evidenceExpectations, ['voxel_conversion_plan']);
-  assert.equal(previewProposal.proposal?.input.request.expectedPlanHash, 'sha256:settings');
+  assert.equal(previewProposal.proposal?.input.request.expectedPlanHash, 'sha256:plan');
   assert.equal(applyProposal.proposal?.input.request.expectedPreviewHash, 'sha256:preview-output');
   assert.equal(exportProposal.proposal?.input.evidence.length, 3);
   assert.equal(exportProposal.proposal?.commandMetadata.inputSchemaName, 'VoxelConversionEvidenceExportInput');

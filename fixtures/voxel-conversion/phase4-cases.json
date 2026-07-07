@@ -90,6 +90,7 @@
         "authorityVersion": "voxel-conversion-authority.phase4-fixture",
         "expectedSourceHash": "sha256:phase4-surface-source-v1",
         "settingsHash": "sha256:phase4-surface-settings",
+        "planHash": "sha256:phase4-surface-plan",
         "estimatedOutputVoxels": 12,
         "estimatedBounds": {
           "min": { "x": 0, "y": 0, "z": 0 },
@@ -228,6 +229,7 @@
         "authorityVersion": "voxel-conversion-authority.phase4-fixture",
         "expectedSourceHash": "sha256:phase4-cube-source-v1",
         "settingsHash": "sha256:phase4-cube-settings",
+        "planHash": "sha256:phase4-cube-plan",
         "estimatedOutputVoxels": 64,
         "estimatedBounds": {
           "min": { "x": 0, "y": 0, "z": 0 },
@@ -365,6 +367,7 @@
         "authorityVersion": "voxel-conversion-authority.phase4-fixture",
         "expectedSourceHash": "sha256:phase4-materials-source-v1",
         "settingsHash": "sha256:phase4-materials-settings",
+        "planHash": "sha256:phase4-materials-plan",
         "estimatedOutputVoxels": 16,
         "estimatedBounds": {
           "min": { "x": 0, "y": 0, "z": 0 },
@@ -493,6 +496,7 @@
         "authorityVersion": "voxel-conversion-authority.phase4-fixture",
         "expectedSourceHash": "sha256:phase4-transform-source-v1",
         "settingsHash": "sha256:phase4-transform-settings",
+        "planHash": "sha256:phase4-transform-plan",
         "estimatedOutputVoxels": 72,
         "estimatedBounds": {
           "min": { "x": -2, "y": 0, "z": -2 },
@@ -745,6 +749,7 @@
         "authorityVersion": "voxel-conversion-authority.phase4-fixture",
         "expectedSourceHash": "sha256:phase4-stale-source-v1",
         "settingsHash": "sha256:phase4-stale-settings",
+        "planHash": "sha256:phase4-stale-plan",
         "estimatedOutputVoxels": 64,
         "estimatedBounds": {
           "min": { "x": 0, "y": 0, "z": 0 },

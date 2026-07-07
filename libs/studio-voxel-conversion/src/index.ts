@@ -1003,13 +1003,13 @@ export function buildStudioVoxelConversionPreviewProposal(
       ),
     ]);
   }
-  if (plan.settingsHash.length === 0) {
+  if (plan.planHash.length === 0) {
     return rejectedProposal([
       ...diagnostics,
       proposalDiagnostic(
         'missing_plan_hash',
         commandId,
-        'plan.settingsHash',
+        'plan.planHash',
         'Preview proposal requires the expected plan hash.',
       ),
     ]);
@@ -1024,7 +1024,7 @@ export function buildStudioVoxelConversionPreviewProposal(
       sessionId: options.sessionId,
       request: {
         planId: plan.planId,
-        expectedPlanHash: plan.settingsHash,
+        expectedPlanHash: plan.planHash,
       },
     },
     options.expectedTimelineSequence,
@@ -1064,13 +1064,13 @@ export function buildStudioVoxelConversionApplyProposal(
       ),
     ]);
   }
-  if (plan.settingsHash.length === 0) {
+  if (plan.planHash.length === 0) {
     return rejectedProposal([
       ...diagnostics,
       proposalDiagnostic(
         'missing_plan_hash',
         commandId,
-        'plan.settingsHash',
+        'plan.planHash',
         'Apply proposal requires the expected plan hash.',
       ),
     ]);
@@ -1096,7 +1096,7 @@ export function buildStudioVoxelConversionApplyProposal(
       sessionId: options.sessionId,
       request: {
         planId: plan.planId,
-        expectedPlanHash: plan.settingsHash,
+        expectedPlanHash: plan.planHash,
         expectedPreviewHash: preview.outputHash,
       },
     },
@@ -1286,7 +1286,7 @@ export function buildStudioVoxelConversionReadoutModel(
     evidence: evidenceReadouts(options.workspace),
     receipt: {
       planId: options.workspace.plan?.planId ?? options.workspace.receipt?.planId ?? null,
-      planHash: options.workspace.plan?.settingsHash ?? null,
+      planHash: options.workspace.plan?.planHash ?? null,
       previewHash: options.workspace.preview?.outputHash ?? null,
       applied: options.workspace.receipt?.applied ?? null,
       outputHash: options.workspace.receipt?.outputHash ?? options.workspace.preview?.outputHash ?? null,

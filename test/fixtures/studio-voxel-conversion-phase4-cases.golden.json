@@ -51,7 +51,7 @@
         "diagnosticCodes": [],
         "receipt": {
           "planId": "plan.phase4.surface-shell",
-          "planHash": "sha256:phase4-surface-settings",
+          "planHash": "sha256:phase4-surface-plan",
           "previewHash": "sha256:phase4-surface-preview",
           "applied": true,
           "outputHash": "sha256:phase4-surface-output",
@@ -102,7 +102,7 @@
         "diagnosticCodes": [],
         "receipt": {
           "planId": "plan.phase4.colored-cube",
-          "planHash": "sha256:phase4-cube-settings",
+          "planHash": "sha256:phase4-cube-plan",
           "previewHash": "sha256:phase4-cube-preview",
           "applied": true,
           "outputHash": "sha256:phase4-cube-output",
@@ -154,7 +154,7 @@
         "diagnosticCodes": [],
         "receipt": {
           "planId": "plan.phase4.two-materials",
-          "planHash": "sha256:phase4-materials-settings",
+          "planHash": "sha256:phase4-materials-plan",
           "previewHash": "sha256:phase4-materials-preview",
           "applied": true,
           "outputHash": "sha256:phase4-materials-output",
@@ -201,7 +201,7 @@
         "diagnosticCodes": [],
         "receipt": {
           "planId": "plan.phase4.transform-fit",
-          "planHash": "sha256:phase4-transform-settings",
+          "planHash": "sha256:phase4-transform-plan",
           "previewHash": "sha256:phase4-transform-preview",
           "applied": true,
           "outputHash": "sha256:phase4-transform-output",
@@ -405,7 +405,7 @@
         ],
         "receipt": {
           "planId": "plan.phase4.stale-source",
-          "planHash": "sha256:phase4-stale-settings",
+          "planHash": "sha256:phase4-stale-plan",
           "previewHash": "sha256:phase4-stale-preview",
           "applied": null,
           "outputHash": "sha256:phase4-stale-preview",
