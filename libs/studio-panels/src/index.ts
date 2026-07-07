@@ -2461,6 +2461,59 @@ export class StudioInspectorPanelComponent {
           }
         </section>
 
+        <section
+          class="voxel-preview-readout"
+          [attr.data-voxel-preview-status]="shell.previewProjection.status"
+          aria-label="Voxel conversion preview readout"
+        >
+          <article>
+            <span>Preview Projection</span>
+            <strong>{{ shell.previewProjection.viewportLabel }}</strong>
+            <small>{{ shell.previewProjection.inputReadoutHash }}</small>
+          </article>
+          <article>
+            <span>Output</span>
+            <strong>{{ shell.previewProjection.outputVoxelCount ?? 'no count' }}</strong>
+            <small>{{ shell.previewProjection.outputBoundsLabel }}</small>
+          </article>
+          <article>
+            <span>Evidence</span>
+            <strong>{{ shell.previewProjection.previewHash ?? 'missing preview hash' }}</strong>
+            <small>browser preview is not authority</small>
+          </article>
+          @for (state of shell.previewProjection.states; track state.id) {
+            <article
+              [class.is-active]="state.active"
+              [attr.data-voxel-preview-state]="state.id"
+              [attr.data-voxel-preview-active]="state.active"
+            >
+              <span>{{ state.label }}</span>
+              <strong>{{ state.active ? shell.previewProjection.status : 'reserved' }}</strong>
+              <small>{{ state.message }}</small>
+            </article>
+          }
+        </section>
+
+        <section class="voxel-material-readout" aria-label="Voxel conversion material readout">
+          <header>
+            <span>Material Mapping</span>
+            <strong>{{ shell.previewProjection.materialMapStatus }}</strong>
+          </header>
+          @for (row of shell.previewProjection.materialRows; track row.sourceMaterialSlot) {
+            <article [attr.data-voxel-material-slot]="row.sourceMaterialSlot">
+              <span>slot {{ row.sourceMaterialSlot }}</span>
+              <strong>{{ row.sourceMaterialId ?? 'unmapped source material' }}</strong>
+              <small>voxel material {{ row.voxelMaterial }}</small>
+            </article>
+          } @empty {
+            <article data-voxel-material-slot="empty">
+              <span>material map</span>
+              <strong>empty</strong>
+              <small>No material entries are mapped.</small>
+            </article>
+          }
+        </section>
+
         <section class="voxel-action-row" aria-label="Voxel conversion actions">
           @for (action of shell.actions; track action.commandId) {
             <button
@@ -2585,6 +2638,8 @@ export class StudioInspectorPanelComponent {
       .voxel-state-strip,
       .voxel-editor-grid,
       .voxel-region-grid,
+      .voxel-preview-readout,
+      .voxel-material-readout,
       .voxel-action-row,
       .voxel-diagnostics {
         display: grid;
@@ -2603,9 +2658,20 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: repeat(6, minmax(8rem, 1fr));
       }
 
+      .voxel-preview-readout {
+        grid-template-columns: repeat(6, minmax(9rem, 1fr));
+      }
+
+      .voxel-material-readout {
+        grid-template-columns: 13rem repeat(auto-fit, minmax(10rem, 1fr));
+      }
+
       .voxel-state-strip article,
       .voxel-region-grid article,
-      .voxel-editor-grid article {
+      .voxel-editor-grid article,
+      .voxel-preview-readout article,
+      .voxel-material-readout article,
+      .voxel-material-readout header {
         background: #10161b;
         border: 1px solid var(--asha-color-border);
         display: grid;
@@ -2614,18 +2680,33 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-state-strip article.is-active,
+      .voxel-preview-readout article.is-active,
       .voxel-region-grid article[data-voxel-region-status='failed_closed'],
       .voxel-region-grid article[data-voxel-region-status='blocked'],
-      .voxel-region-grid article[data-voxel-region-status='missing'] {
+      .voxel-region-grid article[data-voxel-region-status='missing'],
+      .voxel-preview-readout[data-voxel-preview-status='unavailable'],
+      .voxel-preview-readout[data-voxel-preview-status='stale'] {
         border-color: var(--asha-color-warning);
       }
 
       .voxel-state-strip span,
       .voxel-region-grid span,
-      .voxel-editor-grid > article > span {
+      .voxel-editor-grid > article > span,
+      .voxel-preview-readout span,
+      .voxel-material-readout span {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
         text-transform: uppercase;
+      }
+
+      .voxel-preview-readout strong,
+      .voxel-preview-readout small,
+      .voxel-material-readout strong,
+      .voxel-material-readout small {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .voxel-editor-grid label {
@@ -2696,6 +2777,8 @@ export class StudioInspectorPanelComponent {
         .voxel-state-strip,
         .voxel-editor-grid,
         .voxel-region-grid,
+        .voxel-preview-readout,
+        .voxel-material-readout,
         .voxel-action-row {
           grid-template-columns: 1fr;
         }

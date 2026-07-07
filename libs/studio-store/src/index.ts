@@ -197,6 +197,31 @@ export interface StudioVoxelConversionWorkspaceShellState {
   readonly message: string;
 }
 
+export interface StudioVoxelConversionPreviewState {
+  readonly id: 'unavailable' | 'projection_only' | 'stale';
+  readonly label: string;
+  readonly active: boolean;
+  readonly message: string;
+}
+
+export interface StudioVoxelConversionMaterialReadout {
+  readonly sourceMaterialSlot: number;
+  readonly sourceMaterialId: string | null;
+  readonly voxelMaterial: number;
+}
+
+export interface StudioVoxelConversionPreviewProjectionReadModel {
+  readonly status: 'unavailable' | 'projection_only' | 'stale';
+  readonly viewportLabel: string;
+  readonly inputReadoutHash: string;
+  readonly previewHash: string | null;
+  readonly outputVoxelCount: number | null;
+  readonly outputBoundsLabel: string;
+  readonly materialMapStatus: string;
+  readonly materialRows: readonly StudioVoxelConversionMaterialReadout[];
+  readonly states: readonly StudioVoxelConversionPreviewState[];
+}
+
 export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly shellVersion: 'voxel-conversion-shell.v0';
   readonly workspace: StudioVoxelConversionWorkspaceReadModel;
@@ -204,6 +229,7 @@ export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
   readonly settingsDraft: StudioVoxelConversionSettingsDraftReadModel;
   readonly planProposal: StudioVoxelConversionProposalResult<unknown>;
+  readonly previewProjection: StudioVoxelConversionPreviewProjectionReadModel;
   readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
   readonly regions: readonly StudioVoxelConversionWorkspaceShellRegion[];
   readonly actions: readonly StudioVoxelConversionWorkspaceShellAction[];
@@ -931,6 +957,71 @@ function voxelConversionSettings(draft: StudioVoxelConversionSettingsDraft): Vox
   };
 }
 
+function boundsLabel(
+  bounds: {
+    readonly min: { readonly x: number; readonly y: number; readonly z: number };
+    readonly max: { readonly x: number; readonly y: number; readonly z: number };
+  } | null,
+): string {
+  if (bounds === null) {
+    return 'no preview bounds';
+  }
+  return `[${bounds.min.x},${bounds.min.y},${bounds.min.z}] to [${bounds.max.x},${bounds.max.y},${bounds.max.z}]`;
+}
+
+function buildVoxelConversionPreviewProjection(
+  workspace: StudioVoxelConversionWorkspaceReadModel,
+): StudioVoxelConversionPreviewProjectionReadModel {
+  const status: StudioVoxelConversionPreviewProjectionReadModel['status'] =
+    workspace.operations.preview.status === 'stale'
+      ? 'stale'
+      : workspace.preview === null
+        ? 'unavailable'
+        : 'projection_only';
+  const previewHash = workspace.preview?.outputHash ?? null;
+  const materialRows = workspace.settings.materialMap?.entries.map(entry => ({
+    sourceMaterialSlot: entry.sourceMaterialSlot,
+    sourceMaterialId: entry.sourceMaterialId,
+    voxelMaterial: entry.voxelMaterial,
+  })) ?? [];
+  const states: readonly StudioVoxelConversionPreviewState[] = [
+    {
+      id: 'unavailable',
+      label: 'Unavailable',
+      active: status === 'unavailable',
+      message: 'No upstream voxel preview evidence is available for the current inputs.',
+    },
+    {
+      id: 'projection_only',
+      label: 'Projection Only',
+      active: status === 'projection_only',
+      message: 'Browser/Three preview is display evidence only and is not conversion authority.',
+    },
+    {
+      id: 'stale',
+      label: 'Stale',
+      active: status === 'stale',
+      message: 'Preview evidence does not match the current source, settings, or material map.',
+    },
+  ];
+
+  return {
+    status,
+    viewportLabel: status === 'projection_only'
+      ? 'voxel preview projection only'
+      : status === 'stale'
+        ? 'stale voxel preview projection'
+        : 'voxel preview unavailable',
+    inputReadoutHash: workspace.readoutHash,
+    previewHash,
+    outputVoxelCount: workspace.preview?.outputVoxelCount ?? null,
+    outputBoundsLabel: boundsLabel(workspace.preview?.outputBounds ?? null),
+    materialMapStatus: workspace.settings.status,
+    materialRows,
+    states,
+  };
+}
+
 function buildVoxelConversionWorkspaceShellReadModel(options: {
   readonly draft: StudioVoxelConversionSettingsDraft;
   readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
@@ -954,6 +1045,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     expectedTimelineSequence: options.expectedTimelineSequence,
     runtimeSession: null,
   });
+  const previewProjection = buildVoxelConversionPreviewProjection(workspace);
   const operations = [
     workspace.operations.plan,
     workspace.operations.preview,
@@ -1085,10 +1177,11 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     sourceOptions: options.sourceOptions,
     settingsDraft: options.draft,
     planProposal,
+    previewProjection,
     states,
     regions,
     actions,
-    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}`,
+    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProjection.status}`,
   };
 }
 

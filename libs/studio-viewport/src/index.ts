@@ -277,6 +277,16 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
           </div>
         }
 
+        <div
+          class="voxel-preview-overlay"
+          [attr.data-voxel-viewport-preview-status]="store.voxelConversionWorkspaceShell().previewProjection.status"
+        >
+          <span>voxel conversion</span>
+          <strong>{{ store.voxelConversionWorkspaceShell().previewProjection.viewportLabel }}</strong>
+          <small>{{ store.voxelConversionWorkspaceShell().previewProjection.previewHash ?? 'no upstream preview evidence' }}</small>
+          <small>{{ store.voxelConversionWorkspaceShell().previewProjection.inputReadoutHash }}</small>
+        </div>
+
         <div class="axis-gizmo" aria-hidden="true">
           <span class="axis-gizmo__x">X</span>
           <span class="axis-gizmo__y">Y</span>
@@ -377,6 +387,39 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .voxel-preview-overlay {
+        background: rgba(11, 17, 23, 0.88);
+        border: 1px solid rgba(212, 149, 63, 0.55);
+        color: var(--asha-color-muted);
+        display: grid;
+        font-size: 0.68rem;
+        gap: 0.16rem;
+        max-width: min(24rem, calc(100% - 2rem));
+        min-width: 14rem;
+        padding: 0.4rem 0.55rem;
+        position: absolute;
+        right: 1rem;
+        top: 1rem;
+      }
+
+      .voxel-preview-overlay strong,
+      .voxel-preview-overlay small {
+        color: var(--asha-color-ink);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voxel-preview-overlay small {
+        color: var(--asha-color-muted);
+      }
+
+      .voxel-preview-overlay[data-voxel-viewport-preview-status='unavailable'],
+      .voxel-preview-overlay[data-voxel-viewport-preview-status='stale'] {
+        border-color: var(--asha-color-warning);
       }
 
       .axis-gizmo {

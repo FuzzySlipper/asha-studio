@@ -363,6 +363,23 @@ test('studio voxel conversion workspace wires source and settings controls to re
   assert.match(panelSource, /unsupported/);
 });
 
+test('studio voxel conversion workspace exposes projection-only preview and material readouts', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+  const viewportSource = readFileSync(join(repoRoot, 'libs/studio-viewport/src/index.ts'), 'utf8');
+
+  assert.match(storeSource, /buildVoxelConversionPreviewProjection/);
+  assert.match(storeSource, /previewProjection/);
+  assert.match(storeSource, /projection_only/);
+  assert.match(storeSource, /stale/);
+  assert.match(storeSource, /Browser\/Three preview is display evidence only/);
+  assert.match(panelSource, /data-voxel-preview-status/);
+  assert.match(panelSource, /data-voxel-preview-state/);
+  assert.match(panelSource, /data-voxel-material-slot/);
+  assert.match(viewportSource, /data-voxel-viewport-preview-status/);
+  assert.match(viewportSource, /no upstream preview evidence/);
+});
+
 test('studio boundary check rejects forbidden voxel conversion import shapes', () => {
   const forbiddenSpecifiers = [
     ['@asha', 'native-bridge'].join('/'),
