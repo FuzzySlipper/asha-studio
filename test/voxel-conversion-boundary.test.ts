@@ -498,9 +498,13 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'configure_conversion', 'run_conversion', 'view_from_angle', 'publish_preview', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'register_conversion_source', 'configure_conversion', 'run_conversion', 'get_model_info', 'view_from_angle', 'publish_preview', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
+  assert.match(proofSource, /register_conversion_source\.facade:true/);
+  assert.match(proofSource, /get_model_info:true/);
+  assert.match(proofSource, /get_model_info\.missing:false/);
+  assert.match(proofSource, /voxel_model_info_read_through_runtime_session_facade/);
   assert.match(proofSource, /view_from_angle\.isometric:true/);
   assert.match(proofSource, /view_from_angle_recorded_projection_camera_readout_without_screenshot_authority/);
   assert.match(proofSource, /publish_preview:true/);

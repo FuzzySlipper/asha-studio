@@ -139,6 +139,12 @@ interface BrowserProof {
     readonly commandCountsBeforeVoxelEdits: { readonly accepted: number | null; readonly rejected: number | null };
     readonly commandCountsAfterAcceptedVoxelEdits: { readonly accepted: number | null; readonly rejected: number | null };
     readonly commandCountsAfterRejectedVoxelEdit: { readonly accepted: number | null; readonly rejected: number | null };
+    readonly sourceRegistration: {
+      readonly registered: boolean | null;
+      readonly rejectedUnsupported: boolean | null;
+      readonly sourceAssetId: string | null;
+      readonly materialSlotCount: number | null;
+    };
     readonly conversion: {
       readonly outputVoxelCount: number | null;
       readonly outputBoundsLabel: string;
@@ -152,6 +158,24 @@ interface BrowserProof {
         readonly uri: string;
         readonly contentHash: string;
       }[];
+    };
+    readonly modelInfo: {
+      readonly resident: boolean | null;
+      readonly modelId: string | null;
+      readonly volumeAssetId: string | null;
+      readonly voxelCount: number | null;
+      readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[];
+      readonly sourceAssetId: string | null;
+      readonly evidenceRefs: readonly {
+        readonly kind: string;
+        readonly uri: string;
+        readonly contentHash: string;
+      }[];
+      readonly diagnosticCodes: readonly string[];
+    };
+    readonly missingModelInfo: {
+      readonly resident: boolean | null;
+      readonly diagnosticCodes: readonly string[];
     };
   };
   readonly textSample: string;
@@ -291,11 +315,31 @@ function automationPrelude(): string {
       commandCountsBeforeVoxelEdits: { accepted: null, rejected: null },
       commandCountsAfterAcceptedVoxelEdits: { accepted: null, rejected: null },
       commandCountsAfterRejectedVoxelEdit: { accepted: null, rejected: null },
+      sourceRegistration: {
+        registered: null,
+        rejectedUnsupported: null,
+        sourceAssetId: null,
+        materialSlotCount: null,
+      },
       conversion: {
         outputVoxelCount: null,
         outputBoundsLabel: '',
         materialRows: [],
         exportedEvidenceRefs: [],
+      },
+      modelInfo: {
+        resident: null,
+        modelId: null,
+        volumeAssetId: null,
+        voxelCount: null,
+        materialCounts: [],
+        sourceAssetId: null,
+        evidenceRefs: [],
+        diagnosticCodes: [],
+      },
+      missingModelInfo: {
+        resident: null,
+        diagnosticCodes: [],
       },
     },
     textSample: '',
@@ -377,13 +421,6 @@ function automationPrelude(): string {
     return inspection && inspection.attachState === 'attached';
   }
 
-  function nativeRuntimeBridge() {
-    const provider = globalThis.ashaStudioRuntimeBridge || globalThis.ashaRuntimeBridge;
-    return provider && typeof provider.createRuntimeBridge === 'function'
-      ? provider.createRuntimeBridge()
-      : null;
-  }
-
   function commandCounts(inspection) {
     return {
       accepted: inspection && inspection.commandSummary ? inspection.commandSummary.acceptedCommandCount : null,
@@ -427,37 +464,44 @@ function automationPrelude(): string {
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
-        const runtimeBridge = nativeRuntimeBridge();
-        if (!runtimeBridge || typeof runtimeBridge.registerVoxelConversionSource !== 'function') {
-          throw new Error('native RuntimeBridge did not expose registerVoxelConversionSource');
-        }
-        const registration = runtimeBridge.registerVoxelConversionSource({
-          source: {
-            assetId: 'mesh.demo-cube',
-            assetKind: 'mesh',
-            assetVersion: 1,
-            sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
-            meshPrimitive: 'default',
+        const registration = store.runAgentVoxelWorkflowOperation({
+          kind: 'register_conversion_source',
+          registration: {
+            source: {
+              assetId: 'mesh.demo-cube',
+              assetKind: 'mesh',
+              assetVersion: 1,
+              sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
+              meshPrimitive: 'default',
+            },
+            positions: [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
+            triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
+            materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
           },
-          positions: [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
-          triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
-          materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
         });
-        proof.agentSurface.operationStatuses.push('register_conversion_source:' + registration.registered);
-        const rejectedRegistration = runtimeBridge.registerVoxelConversionSource({
-          source: {
-            assetId: 'mesh.demo-missing-geometry',
-            assetKind: 'mesh',
-            assetVersion: 1,
-            sourceHash: 'sha256:mesh-demo-missing-geometry',
-            meshPrimitive: 'default',
+        proof.agentSurface.operationStatuses.push('register_conversion_source.facade:' + registration.accepted);
+        proof.nativeSmoke.sourceRegistration.registered = registration.sourceRegistration?.registered ?? null;
+        proof.nativeSmoke.sourceRegistration.sourceAssetId = registration.sourceRegistration?.source.assetId ?? null;
+        proof.nativeSmoke.sourceRegistration.materialSlotCount = registration.sourceRegistration?.materialSlots.length ?? null;
+        const rejectedRegistration = store.runAgentVoxelWorkflowOperation({
+          kind: 'register_conversion_source',
+          registration: {
+            source: {
+              assetId: 'mesh.demo-missing-geometry',
+              assetKind: 'mesh',
+              assetVersion: 1,
+              sourceHash: 'sha256:mesh-demo-missing-geometry',
+              meshPrimitive: 'default',
+            },
+            positions: [],
+            triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
+            materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
           },
-          positions: [],
-          triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
-          materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
         });
+        proof.nativeSmoke.sourceRegistration.rejectedUnsupported = rejectedRegistration.sourceRegistration?.registered === false
+          && rejectedRegistration.sourceRegistration.diagnostics[0]?.code === 'unsupported_source_asset';
         proof.agentSurface.operationStatuses.push(
-          'reject_conversion_source:' + (rejectedRegistration.registered === false && rejectedRegistration.diagnostics[0]?.code === 'unsupported_source_asset'),
+          'reject_conversion_source.facade:' + proof.nativeSmoke.sourceRegistration.rejectedUnsupported,
         );
         const inspectResult = store.runAgentVoxelWorkflowOperation({ kind: 'inspect' });
         proof.agentSurface.operationStatuses.push('inspect:' + inspectResult.accepted);
@@ -536,6 +580,38 @@ function automationPrelude(): string {
           outputBoundsLabel: conversionShell.previewProjection.outputBoundsLabel,
           materialRows: conversionShell.previewProjection.materialRows,
           exportedEvidenceRefs: exportedEvidenceRows.map(row => ({ kind: row.kind, uri: row.uri, contentHash: row.contentHash })),
+        };
+        const modelInfoResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'get_model_info',
+          request: {
+            grid: 1,
+            volumeAssetId: 'voxel/generated',
+            includeMaterialCounts: true,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('get_model_info:' + modelInfoResult.accepted);
+        proof.nativeSmoke.modelInfo = {
+          resident: modelInfoResult.modelInfo?.resident ?? null,
+          modelId: modelInfoResult.modelInfo?.modelId ?? null,
+          volumeAssetId: modelInfoResult.modelInfo?.volumeAssetId ?? null,
+          voxelCount: modelInfoResult.modelInfo?.voxelCount ?? null,
+          materialCounts: modelInfoResult.modelInfo?.materialCounts ?? [],
+          sourceAssetId: modelInfoResult.modelInfo?.source?.assetId ?? null,
+          evidenceRefs: (modelInfoResult.modelInfo?.evidence ?? []).map(ref => ({ kind: ref.kind, uri: ref.uri, contentHash: ref.contentHash })),
+          diagnosticCodes: (modelInfoResult.modelInfo?.diagnostics ?? []).map(diagnostic => diagnostic.code),
+        };
+        const missingModelInfoResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'get_model_info',
+          request: {
+            grid: 999,
+            volumeAssetId: 'voxel/missing',
+            includeMaterialCounts: true,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('get_model_info.missing:' + missingModelInfoResult.accepted);
+        proof.nativeSmoke.missingModelInfo = {
+          resident: missingModelInfoResult.modelInfo?.resident ?? null,
+          diagnosticCodes: (missingModelInfoResult.modelInfo?.diagnostics ?? []).map(diagnostic => diagnostic.code),
         };
         const acceptedEdit = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_voxel_edit',
@@ -840,8 +916,8 @@ async function main(): Promise<void> {
       },
     ], JSON.stringify(nativeProof.agentSurface.compactVoxelEdits, null, 2));
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
-      'register_conversion_source:true',
-      'reject_conversion_source:true',
+      'register_conversion_source.facade:true',
+      'reject_conversion_source.facade:true',
       'inspect:true',
       'view_from_angle.isometric:true',
       'configure_conversion:true',
@@ -850,6 +926,8 @@ async function main(): Promise<void> {
       'run_conversion.apply:true',
       'run_conversion.export_evidence:true',
       'publish_preview:true',
+      'get_model_info:true',
+      'get_model_info.missing:false',
       'submit_compact_voxel_edit.set_voxels:true',
       'submit_compact_voxel_edit.set_voxels_runs:true',
       'submit_compact_voxel_edit.fill_box:true',
@@ -907,6 +985,12 @@ async function main(): Promise<void> {
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 11, rejected: 0 });
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 11, rejected: 1 });
+    assert.deepEqual(nativeProof.nativeSmoke.sourceRegistration, {
+      registered: true,
+      rejectedUnsupported: true,
+      sourceAssetId: 'mesh.demo-cube',
+      materialSlotCount: 1,
+    });
     assert.equal(nativeProof.nativeSmoke.conversion.outputVoxelCount, 3);
     assert.equal(nativeProof.nativeSmoke.conversion.outputBoundsLabel, '[0,0,0] to [7,7,0]');
     assert.deepEqual(nativeProof.nativeSmoke.conversion.materialRows, [
@@ -920,6 +1004,21 @@ async function main(): Promise<void> {
       assert.match(ref.uri, /^asha:\/\/voxel-conversion\//);
       assert.match(ref.contentHash, /^fnv1a64:/);
     }
+    assert.equal(nativeProof.nativeSmoke.modelInfo.resident, true);
+    assert.equal(nativeProof.nativeSmoke.modelInfo.volumeAssetId, 'voxel/generated');
+    assert.equal(nativeProof.nativeSmoke.modelInfo.voxelCount, 3);
+    assert.deepEqual(nativeProof.nativeSmoke.modelInfo.materialCounts, [
+      { material: 1, voxelCount: 3 },
+    ]);
+    assert.equal(nativeProof.nativeSmoke.modelInfo.sourceAssetId, 'mesh.demo-cube');
+    assert.match(nativeProof.nativeSmoke.modelInfo.modelId ?? '', /^voxel-model:/);
+    assert.deepEqual(
+      nativeProof.nativeSmoke.modelInfo.evidenceRefs.map(ref => ref.kind),
+      ['plan', 'preview', 'apply_receipt'],
+    );
+    assert.deepEqual(nativeProof.nativeSmoke.modelInfo.diagnosticCodes, []);
+    assert.equal(nativeProof.nativeSmoke.missingModelInfo.resident, false);
+    assert.deepEqual(nativeProof.nativeSmoke.missingModelInfo.diagnosticCodes, ['voxel_conversion_unavailable']);
 
     const missingDom = await runChromiumDump(`${baseUrl}?provider=missing`);
     const missingProof = readProofFromDom(missingDom);
@@ -992,8 +1091,10 @@ async function main(): Promise<void> {
         'studio_app_built_and_served_with_native_provider_prelude',
         'native_addon_rebuilt_and_accepted_by_createNativeRuntimeBridge',
         'attachRuntimeSessionInspection_succeeded_with_native_rust_authority',
-        'studio_catalog_static_mesh_registered_as_authority_conversion_source',
+        'studio_catalog_static_mesh_registered_through_runtime_session_facade',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
+        'voxel_model_info_read_through_runtime_session_facade',
+        'missing_voxel_model_info_failed_closed_through_runtime_session_facade',
         'view_from_angle_recorded_projection_camera_readout_without_screenshot_authority',
         'publish_preview_emitted_bounded_projection_evidence_artifact',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',

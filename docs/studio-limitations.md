@@ -41,8 +41,9 @@ import and local-link policy.
   evidence for Studio proposal/readout behavior, Asha-authored fixture goldens,
   deterministic receipts, and before/after comparison readouts.
 - The native launch proof, `pnpm run evidence -- native-voxel-runtime-launch`,
-  covers a narrow live Rust RuntimeSession static-mesh conversion and bounded
-  compact voxel edit smoke through public Studio/runtime surfaces.
+  covers live Rust RuntimeSession source registration, static-mesh conversion,
+  model-info readback, and bounded compact voxel edit smoke through public
+  Studio/runtime surfaces.
 - Current voxel proof does not claim hardware GPU evidence, conversion
   performance, arbitrary mesh support, external art asset provenance, VoxelForge
   runtime/API dependency, `.vforge` compatibility, or a VoxelForge-style preview

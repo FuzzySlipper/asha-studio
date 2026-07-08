@@ -104,8 +104,12 @@ import type {
   VoxelConversionPreview,
   VoxelConversionReceipt,
   VoxelConversionSettings,
+  VoxelConversionSourceRegistration,
+  VoxelConversionSourceRegistrationRequest,
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
+  VoxelModelInfoReadout,
+  VoxelModelInfoRequest,
 } from '@asha/contracts';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import {
@@ -311,8 +315,10 @@ export interface StudioVoxelConversionSettingsDraft {
 
 export type StudioAgentVoxelWorkflowOperationKind =
   | 'inspect'
+  | 'register_conversion_source'
   | 'configure_conversion'
   | 'run_conversion'
+  | 'get_model_info'
   | 'view_from_angle'
   | 'publish_preview'
   | 'submit_voxel_edit'
@@ -498,8 +504,10 @@ export interface StudioAgentVoxelPreviewPublicationReadModel {
 
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
+  | { readonly kind: 'register_conversion_source'; readonly registration: VoxelConversionSourceRegistrationRequest }
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
+  | { readonly kind: 'get_model_info'; readonly request: VoxelModelInfoRequest }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
   | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch }
@@ -556,6 +564,8 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly surface: StudioAgentVoxelWorkflowSurfaceReadModel;
   readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
   readonly compiledVoxelEditBatch?: CommandBatch | null;
+  readonly sourceRegistration?: VoxelConversionSourceRegistration | null;
+  readonly modelInfo?: VoxelModelInfoReadout | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
 }
@@ -1248,8 +1258,10 @@ const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
 
 const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkflowOperationKind[] = [
   'inspect',
+  'register_conversion_source',
   'configure_conversion',
   'run_conversion',
+  'get_model_info',
   'view_from_angle',
   'publish_preview',
   'submit_voxel_edit',
@@ -2595,6 +2607,38 @@ export class StudioWorkspaceStore {
           diagnostic: null,
           surface: this.agentVoxelWorkflowSurface(),
         };
+      case 'register_conversion_source': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before registering voxel conversion sources.',
+            surface: this.agentVoxelWorkflowSurface(),
+            sourceRegistration: null,
+          };
+        }
+        try {
+          const registration = facade.registerVoxelConversionSource(operation.registration);
+          return {
+            accepted: registration.registered,
+            operation: operation.kind,
+            diagnostic: registration.registered
+              ? null
+              : registration.diagnostics.at(0)?.message ?? 'Voxel conversion source registration rejected.',
+            surface: this.agentVoxelWorkflowSurface(),
+            sourceRegistration: registration,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel conversion source registration failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            sourceRegistration: null,
+          };
+        }
+      }
       case 'configure_conversion': {
         this.applyAgentVoxelConversionPatch(operation.patch);
         return {
@@ -2613,6 +2657,38 @@ export class StudioWorkspaceStore {
           diagnostic: proposal.accepted ? null : proposal.diagnostics.at(0)?.message ?? 'voxel conversion proposal rejected',
           surface: this.agentVoxelWorkflowSurface(),
         };
+      }
+      case 'get_model_info': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before reading voxel model info.',
+            surface: this.agentVoxelWorkflowSurface(),
+            modelInfo: null,
+          };
+        }
+        try {
+          const modelInfo = facade.readVoxelModelInfo(operation.request);
+          return {
+            accepted: modelInfo.resident,
+            operation: operation.kind,
+            diagnostic: modelInfo.resident
+              ? null
+              : modelInfo.diagnostics.at(0)?.message ?? 'Voxel model is not resident.',
+            surface: this.agentVoxelWorkflowSurface(),
+            modelInfo,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel model info read failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            modelInfo: null,
+          };
+        }
       }
       case 'view_from_angle': {
         const diagnostic = agentVoxelViewAngleDiagnostic(operation.view.angle);
