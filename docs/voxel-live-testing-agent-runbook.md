@@ -145,6 +145,7 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 | `publish_preview` | Adapted as bounded JSON preview evidence. |
 | `new_model` | Rejected for live runtime edit surface; belongs to stored ProjectBundle/workspace flows if needed. |
 | `.vforge` save/load | Out of #4550 scope; no compatibility promise. |
+| Asha-native serialized voxel storage | Planned under #4785 follow-ups as ProjectBundle/asset work, not `.vforge` inheritance. |
 | VoxelForge MCP transport | Rejected for current successor shape; Asha/Studio already expose agent tools without carrying MCP. |
 | C# sidecar/viewer/Electron packaging | Out of #4550 scope. |
 | Region labels, frame-swap animation, spatial queries, texture tools | Out of #4550 scope; reexamine under Den task #4785. |
@@ -157,6 +158,8 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
   proof posture.
 - `docs/voxel-conversion-fixture-candidates.md`: fixture selection and
   predecessor-asset provenance notes.
+- `docs/voxelforge-broader-feature-reexamination.md`: #4785 broader
+  VoxelForge feature matrix and follow-up routing.
 - `docs/studio-limitations.md`: durable non-claims.
 - `scripts/proof-native-voxel-runtime-launch.ts`: live native proof.
 - `scripts/proof-voxel-conversion-phase4-product.ts`: fixture-backed product
