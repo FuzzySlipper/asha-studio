@@ -6,7 +6,7 @@
   "task": "asha#4315",
   "sourceFixture": {
     "path": "fixtures/voxel-conversion/phase4-cases.json",
-    "sha256": "sha256:d08052caa79f5e4525bf45c64f3fde6f40f1c7d11c85d2f518f4e3dca89d4391",
+    "sha256": "sha256:84ca1a83500a2e21ef493950e5d9736eef53d4ed49902663f4fd3809e7a8522d",
     "artifactKind": "studio_voxel_conversion_phase4_fixture_set",
     "sourcePosture": "Asha-authored synthetic fixtures under this repository license.",
     "predecessorEvidence": [
@@ -179,7 +179,7 @@
         "sessionId": "session.phase4.voxel-conversion-product-proof",
         "request": {
           "planId": "plan.phase4.colored-cube",
-          "expectedPlanHash": "sha256:phase4-cube-settings"
+          "expectedPlanHash": "sha256:phase4-cube-plan"
         }
       },
       "evidenceExpectations": [
@@ -243,7 +243,7 @@
         "sessionId": "session.phase4.voxel-conversion-product-proof",
         "request": {
           "planId": "plan.phase4.colored-cube",
-          "expectedPlanHash": "sha256:phase4-cube-settings",
+          "expectedPlanHash": "sha256:phase4-cube-plan",
           "expectedPreviewHash": "sha256:phase4-cube-preview"
         }
       },
@@ -310,7 +310,7 @@
     "diagnostics": [],
     "receipt": {
       "planId": "plan.phase4.colored-cube",
-      "planHash": "sha256:phase4-cube-settings",
+      "planHash": "sha256:phase4-cube-plan",
       "previewHash": "sha256:phase4-cube-preview",
       "applied": true,
       "outputHash": "sha256:phase4-cube-output",
@@ -376,7 +376,7 @@
     "artifactKind": "studio_voxel_conversion_phase4_before_after_comparison",
     "jsonPath": "artifacts/voxel-conversion-phase4-product-proof/latest/compare.json",
     "markdownPath": "artifacts/voxel-conversion-phase4-product-proof/latest/compare.md",
-    "artifactHash": "sha256:ae71270918fa6c218c7b94d3cb5dd1f37be3890925be2565ba935ada4e3e12e9",
+    "artifactHash": "sha256:4c682e7a2c04072781bdf55692cdb5d0fc106eb1cef0a3d7e79eac50f71e46de",
     "beforeSourceHash": "sha256:phase4-cube-source-v1",
     "afterOutputHash": "sha256:phase4-cube-output",
     "outputVoxelCount": 64,
@@ -419,5 +419,5 @@
     "not_hardware_gpu_evidence",
     "not_performance_evidence"
   ],
-  "artifactHash": "sha256:f89720a1f6a47d941c7bcfbfcd60d313875703a47404c1eac3909488938862b9"
+  "artifactHash": "sha256:4cc486fbdd490c20e089bb8bdfe9b4ec2bc44be047fdd64ac50f18f74450556f"
 }

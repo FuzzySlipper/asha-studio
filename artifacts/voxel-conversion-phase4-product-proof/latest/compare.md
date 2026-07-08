@@ -1,6 +1,6 @@
 # Voxel Conversion Phase 4 Before/After
 
-Artifact hash: sha256:ae71270918fa6c218c7b94d3cb5dd1f37be3890925be2565ba935ada4e3e12e9
+Artifact hash: sha256:4c682e7a2c04072781bdf55692cdb5d0fc106eb1cef0a3d7e79eac50f71e46de
 Fixture case: synthetic_colored_cube_solid
 Source asset: mesh.synthetic-colored-cube
 Source hash: sha256:phase4-cube-source-v1

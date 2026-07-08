@@ -25,6 +25,9 @@ inheriting the predecessor runtime or file format.
 - The before/after comparison artifacts are
   `artifacts/voxel-conversion-phase4-product-proof/latest/compare.json` and
   `artifacts/voxel-conversion-phase4-product-proof/latest/compare.md`.
+  These Phase 4 `latest` files are intentionally tracked golden/current
+  evidence; rerunning the proof should be followed by committing deterministic
+  artifact changes rather than treating them as disposable runtime output.
 
 The proof demonstrates an Asha-native plan, preview, apply, and evidence-export
 flow for the `synthetic_colored_cube_solid` fixture. It captures source

@@ -10,7 +10,7 @@
   "fixture": {
     "path": "fixtures/voxel-conversion/phase4-cases.json",
     "caseId": "synthetic_colored_cube_solid",
-    "fixtureSha256": "sha256:d08052caa79f5e4525bf45c64f3fde6f40f1c7d11c85d2f518f4e3dca89d4391"
+    "fixtureSha256": "sha256:84ca1a83500a2e21ef493950e5d9736eef53d4ed49902663f4fd3809e7a8522d"
   },
   "before": {
     "source": {
@@ -200,5 +200,5 @@
     "not_browser_render_capture",
     "not_hardware_gpu_evidence"
   ],
-  "artifactHash": "sha256:ae71270918fa6c218c7b94d3cb5dd1f37be3890925be2565ba935ada4e3e12e9"
+  "artifactHash": "sha256:4c682e7a2c04072781bdf55692cdb5d0fc106eb1cef0a3d7e79eac50f71e46de"
 }
