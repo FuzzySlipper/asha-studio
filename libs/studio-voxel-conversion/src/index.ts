@@ -510,10 +510,25 @@ function stableComparableValue(value: unknown): unknown {
   }
   if (value !== null && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    return Object.keys(record)
+    const comparableRecord: Record<string, unknown> = { ...record };
+    if (
+      Array.isArray(comparableRecord['entries'])
+      && 'defaultVoxelMaterial' in comparableRecord
+      && !('textureAssets' in comparableRecord)
+    ) {
+      comparableRecord['textureAssets'] = [];
+    }
+    if (
+      Array.isArray(comparableRecord['entries'])
+      && 'defaultVoxelMaterial' in comparableRecord
+      && !('textureBindings' in comparableRecord)
+    ) {
+      comparableRecord['textureBindings'] = [];
+    }
+    return Object.keys(comparableRecord)
       .sort()
       .reduce<Record<string, unknown>>((normalized, key) => {
-        normalized[key] = stableComparableValue(record[key]);
+        normalized[key] = stableComparableValue(comparableRecord[key]);
         return normalized;
       }, {});
   }

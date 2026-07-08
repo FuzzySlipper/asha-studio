@@ -188,6 +188,8 @@ function sampleSettings(overrides: Partial<VoxelConversionSettings> = {}): Voxel
     transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
     materialMap: {
       defaultVoxelMaterial: 1,
+      textureAssets: [],
+      textureBindings: [],
       entries: [
         {
           sourceMaterialSlot: 0,
@@ -855,15 +857,85 @@ test('studio voxel conversion workspace exposes projection-only preview and mate
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
   const viewportSource = readFileSync(join(repoRoot, 'libs/studio-viewport/src/index.ts'), 'utf8');
+  const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
+    draft: sampleStudioVoxelDraft({
+      materialMap: {
+        entries: [
+          {
+            sourceMaterialSlot: 0,
+            sourceMaterialId: 'material.copper',
+            voxelMaterial: 7,
+          },
+        ],
+        textureAssets: [
+          {
+            texture: {
+              textureAssetId: 'texture.copper-albedo',
+              assetVersion: 1,
+              contentHash: 'sha256:texture-copper-albedo',
+              width: 2,
+              height: 2,
+              colorSpace: 'srgb',
+              channelLayout: 'rgba8',
+            },
+            texelMaterials: [7, 7, 8, 8],
+          },
+        ],
+        textureBindings: [
+          {
+            sourceMaterialSlot: 0,
+            texture: {
+              textureAssetId: 'texture.copper-albedo',
+              assetVersion: 1,
+              contentHash: 'sha256:texture-copper-albedo',
+              width: 2,
+              height: 2,
+              colorSpace: 'srgb',
+              channelLayout: 'rgba8',
+            },
+            uvAttribute: {
+              attributeName: 'TEXCOORD_0',
+              sourceHash: 'sha256:uv0',
+            },
+            sampleUv: [0.5, 0.5],
+            samplingPolicy: 'nearest',
+            wrapPolicy: 'repeat',
+            materialMode: 'sampled_palette',
+          },
+        ],
+        defaultVoxelMaterial: null,
+      },
+    }),
+    selectedSource: sampleStudioAsset(),
+    sessionId: 'session-1',
+    expectedTimelineSequence: 1,
+    runtimeSession: sampleRuntimeSession(),
+    authorityState: { plan: null, preview: null, receipt: null, evidence: [] },
+  });
+  const sampledRow = shell.previewProjection.materialRows[0];
 
   assert.match(storeSource, /buildVoxelConversionPreviewProjection/);
+  assert.equal(sampledRow?.samplingStatus, 'texture_sampled');
+  assert.equal(sampledRow?.textureAssetId, 'texture.copper-albedo');
+  assert.equal(sampledRow?.textureContentHash, 'sha256:texture-copper-albedo');
+  assert.equal(sampledRow?.uvAttributeName, 'TEXCOORD_0');
+  assert.equal(sampledRow?.uvAttributeHash, 'sha256:uv0');
+  assert.deepEqual(sampledRow?.sampleUv, [0.5, 0.5]);
+  assert.equal(sampledRow?.samplingPolicy, 'nearest');
+  assert.equal(sampledRow?.wrapPolicy, 'repeat');
+  assert.equal(sampledRow?.materialMode, 'sampled_palette');
   assert.match(storeSource, /previewProjection/);
+  assert.match(storeSource, /texture_sampled/);
+  assert.match(storeSource, /flat_material/);
   assert.match(storeSource, /projection_only/);
   assert.match(storeSource, /stale/);
   assert.match(storeSource, /Browser\/Three preview is display evidence only/);
   assert.match(panelSource, /data-voxel-preview-status/);
   assert.match(panelSource, /data-voxel-preview-state/);
   assert.match(panelSource, /data-voxel-material-slot/);
+  assert.match(panelSource, /data-voxel-material-sampling/);
+  assert.match(panelSource, /data-voxel-material-texture/);
+  assert.match(panelSource, /data-voxel-material-uv/);
   assert.match(viewportSource, /data-voxel-viewport-preview-status/);
   assert.match(viewportSource, /no upstream preview evidence/);
 });

@@ -2500,10 +2500,20 @@ export class StudioInspectorPanelComponent {
             <strong>{{ shell.previewProjection.materialMapStatus }}</strong>
           </header>
           @for (row of shell.previewProjection.materialRows; track row.sourceMaterialSlot) {
-            <article [attr.data-voxel-material-slot]="row.sourceMaterialSlot">
+            <article
+              [attr.data-voxel-material-slot]="row.sourceMaterialSlot"
+              [attr.data-voxel-material-sampling]="row.samplingStatus"
+              [attr.data-voxel-material-texture]="row.textureAssetId ?? 'none'"
+              [attr.data-voxel-material-uv]="row.uvAttributeName ?? 'none'"
+            >
               <span>slot {{ row.sourceMaterialSlot }}</span>
               <strong>{{ row.sourceMaterialId ?? 'unmapped source material' }}</strong>
-              <small>voxel material {{ row.voxelMaterial }}</small>
+              <small>
+                voxel material {{ row.voxelMaterial }}
+                @if (row.samplingStatus === 'texture_sampled') {
+                  · texture {{ row.textureAssetId }} · uv {{ row.uvAttributeName }}
+                }
+              </small>
             </article>
           } @empty {
             <article data-voxel-material-slot="empty">

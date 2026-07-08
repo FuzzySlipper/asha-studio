@@ -257,6 +257,15 @@ export interface StudioVoxelConversionMaterialReadout {
   readonly sourceMaterialSlot: number;
   readonly sourceMaterialId: string | null;
   readonly voxelMaterial: number;
+  readonly samplingStatus: 'flat_material' | 'texture_sampled';
+  readonly textureAssetId: string | null;
+  readonly textureContentHash: string | null;
+  readonly uvAttributeName: string | null;
+  readonly uvAttributeHash: string | null;
+  readonly sampleUv: readonly [number, number] | null;
+  readonly samplingPolicy: string | null;
+  readonly wrapPolicy: string | null;
+  readonly materialMode: string | null;
 }
 
 export interface StudioVoxelConversionPreviewProjectionReadModel {
@@ -2619,11 +2628,27 @@ function buildVoxelConversionPreviewProjection(
         ? 'unavailable'
         : 'projection_only';
   const previewHash = workspace.preview?.outputHash ?? null;
-  const materialRows = workspace.settings.materialMap?.entries.map(entry => ({
-    sourceMaterialSlot: entry.sourceMaterialSlot,
-    sourceMaterialId: entry.sourceMaterialId,
-    voxelMaterial: entry.voxelMaterial,
-  })) ?? [];
+  const materialMap = workspace.settings.materialMap;
+  const materialRows = materialMap?.entries.map(entry => {
+    const textureBindings = materialMap.textureBindings ?? [];
+    const binding = textureBindings.find(candidate => (
+      candidate.sourceMaterialSlot === entry.sourceMaterialSlot
+    )) ?? null;
+    return {
+      sourceMaterialSlot: entry.sourceMaterialSlot,
+      sourceMaterialId: entry.sourceMaterialId,
+      voxelMaterial: entry.voxelMaterial,
+      samplingStatus: binding === null ? 'flat_material' as const : 'texture_sampled' as const,
+      textureAssetId: binding?.texture.textureAssetId ?? null,
+      textureContentHash: binding?.texture.contentHash ?? null,
+      uvAttributeName: binding?.uvAttribute.attributeName ?? null,
+      uvAttributeHash: binding?.uvAttribute.sourceHash ?? null,
+      sampleUv: binding?.sampleUv ?? null,
+      samplingPolicy: binding?.samplingPolicy ?? null,
+      wrapPolicy: binding?.wrapPolicy ?? null,
+      materialMode: binding?.materialMode ?? null,
+    };
+  }) ?? [];
   const states: readonly StudioVoxelConversionPreviewState[] = [
     {
       id: 'unavailable',

@@ -202,6 +202,15 @@ interface BrowserProof {
         readonly sourceMaterialSlot: number;
         readonly sourceMaterialId: string | null;
         readonly voxelMaterial: number;
+        readonly samplingStatus: string;
+        readonly textureAssetId: string | null;
+        readonly textureContentHash: string | null;
+        readonly uvAttributeName: string | null;
+        readonly uvAttributeHash: string | null;
+        readonly sampleUv: readonly [number, number] | null;
+        readonly samplingPolicy: string | null;
+        readonly wrapPolicy: string | null;
+        readonly materialMode: string | null;
       }[];
       readonly exportedEvidenceRefs: readonly {
         readonly kind: string;
@@ -1453,7 +1462,20 @@ async function main(): Promise<void> {
     assert.equal(nativeProof.nativeSmoke.conversion.outputVoxelCount, 3);
     assert.equal(nativeProof.nativeSmoke.conversion.outputBoundsLabel, '[0,0,0] to [7,7,0]');
     assert.deepEqual(nativeProof.nativeSmoke.conversion.materialRows, [
-      { sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper', voxelMaterial: 1 },
+      {
+        sourceMaterialSlot: 0,
+        sourceMaterialId: 'material.demo-copper',
+        voxelMaterial: 1,
+        samplingStatus: 'flat_material',
+        textureAssetId: null,
+        textureContentHash: null,
+        uvAttributeName: null,
+        uvAttributeHash: null,
+        sampleUv: null,
+        samplingPolicy: null,
+        wrapPolicy: null,
+        materialMode: null,
+      },
     ]);
     assert.deepEqual(
       nativeProof.nativeSmoke.conversion.exportedEvidenceRefs.map(ref => ref.kind),
