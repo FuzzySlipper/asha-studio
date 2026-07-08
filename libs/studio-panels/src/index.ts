@@ -2552,6 +2552,82 @@ export class StudioInspectorPanelComponent {
           }
         </section>
 
+        <section
+          class="voxel-asset-workflow"
+          aria-label="Voxel asset save and load workflow"
+          [attr.data-voxel-asset-workflow-status]="store.voxelAssetWorkflowControl().status"
+        >
+          <article>
+            <span>Voxel Asset</span>
+            <strong>
+              {{ store.voxelAssetWorkflowControl().status }} · {{ store.voxelAssetWorkflowControl().targetAssetId }}
+            </strong>
+            <small>{{ store.voxelAssetWorkflowControl().message }}</small>
+          </article>
+          <dl>
+            <dt>bundle</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().targetProjectBundle }}</dd>
+            <dt>path</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().targetAssetPath }}</dd>
+            <dt>model</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().residentModelId ?? 'no resident model' }}</dd>
+            <dt>last asset</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().lastAssetId ?? 'no exported asset' }}</dd>
+            <dt>voxels</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().voxelCount ?? 'n/a' }}</dd>
+            <dt>materials</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().materialSummary }}</dd>
+            <dt>asset hash</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().canonicalJsonHash ?? 'no saved asset hash' }}</dd>
+            <dt>voxel hash</dt>
+            <dd>{{ store.voxelAssetWorkflowControl().voxelDataHash ?? 'no voxel data hash' }}</dd>
+          </dl>
+          <div class="voxel-asset-workflow__actions">
+            <button
+              type="button"
+              data-voxel-asset-action="model_info"
+              title="Read resident voxel model info"
+              (click)="store.runVoxelAssetWorkflowControl('model_info')"
+            >
+              <span>Info</span>
+              <small>resident model</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-asset-action="export_volume"
+              title="Export the resident voxel model as an asset"
+              (click)="store.runVoxelAssetWorkflowControl('export_volume')"
+            >
+              <span>Export</span>
+              <small>asset readback</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-asset-action="save_volume"
+              title="Save the exported voxel asset through ProjectBundle storage"
+              (click)="store.runVoxelAssetWorkflowControl('save_volume')"
+            >
+              <span>Save</span>
+              <small>ProjectBundle diff</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-asset-action="load_volume"
+              title="Load the last exported or saved voxel asset into RuntimeSession"
+              [disabled]="!store.voxelAssetWorkflowControl().canLoadLastAsset"
+              (click)="store.runVoxelAssetWorkflowControl('load_volume')"
+            >
+              <span>Load</span>
+              <small>RuntimeSession</small>
+            </button>
+          </div>
+          @if (store.voxelAssetWorkflowControl().validationDiagnosticCodes.length > 0) {
+            <small data-voxel-asset-diagnostics>
+              diagnostics {{ store.voxelAssetWorkflowControl().validationDiagnosticCodes.join(', ') }}
+            </small>
+          }
+        </section>
+
         <section class="voxel-action-row" aria-label="Voxel conversion actions">
           @for (action of shell.actions; track action.commandId) {
             <button
@@ -2615,6 +2691,7 @@ export class StudioInspectorPanelComponent {
       header > div,
       .voxel-state-strip article,
       .voxel-region-grid article,
+      .voxel-asset-workflow,
       .voxel-action-row button,
       .voxel-diagnostics {
         min-width: 0;
@@ -2648,6 +2725,7 @@ export class StudioInspectorPanelComponent {
       header small,
       .voxel-state-strip small,
       .voxel-region-grid small,
+      .voxel-asset-workflow small,
       .voxel-action-row small,
       .voxel-diagnostics span {
         color: var(--asha-color-muted);
@@ -2682,6 +2760,7 @@ export class StudioInspectorPanelComponent {
       .voxel-material-readout,
       .voxel-command-timeline,
       .voxel-evidence-readout,
+      .voxel-asset-workflow,
       .voxel-action-row,
       .voxel-diagnostics {
         display: grid;
@@ -2713,6 +2792,12 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: repeat(4, minmax(12rem, 1fr));
       }
 
+      .voxel-asset-workflow {
+        border: 1px solid var(--asha-color-border);
+        grid-template-columns: minmax(14rem, 0.8fr) minmax(19rem, 1.1fr) minmax(20rem, 1fr);
+        padding: 0.55rem;
+      }
+
       .voxel-state-strip article,
       .voxel-region-grid article,
       .voxel-editor-grid article,
@@ -2720,7 +2805,8 @@ export class StudioInspectorPanelComponent {
       .voxel-material-readout article,
       .voxel-material-readout header,
       .voxel-command-timeline article,
-      .voxel-evidence-readout article {
+      .voxel-evidence-readout article,
+      .voxel-asset-workflow article {
         background: #10161b;
         border: 1px solid var(--asha-color-border);
         display: grid;
@@ -2740,13 +2826,18 @@ export class StudioInspectorPanelComponent {
         border-color: var(--asha-color-warning);
       }
 
+      .voxel-asset-workflow[data-voxel-asset-workflow-status='rejected'] {
+        border-color: var(--asha-color-warning);
+      }
+
       .voxel-state-strip span,
       .voxel-region-grid span,
       .voxel-editor-grid > article > span,
       .voxel-preview-readout span,
       .voxel-material-readout span,
       .voxel-command-timeline span,
-      .voxel-evidence-readout span {
+      .voxel-evidence-readout span,
+      .voxel-asset-workflow span {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
         text-transform: uppercase;
@@ -2759,7 +2850,10 @@ export class StudioInspectorPanelComponent {
       .voxel-command-timeline strong,
       .voxel-command-timeline small,
       .voxel-evidence-readout strong,
-      .voxel-evidence-readout small {
+      .voxel-evidence-readout small,
+      .voxel-asset-workflow strong,
+      .voxel-asset-workflow small,
+      .voxel-asset-workflow dd {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2801,7 +2895,15 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: repeat(4, minmax(9rem, 1fr));
       }
 
-      .voxel-action-row button {
+      .voxel-asset-workflow__actions {
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        min-width: 0;
+      }
+
+      .voxel-action-row button,
+      .voxel-asset-workflow button {
         background: var(--asha-color-control);
         border: 1px solid var(--asha-color-border);
         color: var(--asha-color-ink);
@@ -2812,7 +2914,8 @@ export class StudioInspectorPanelComponent {
         text-align: left;
       }
 
-      .voxel-action-row button:disabled {
+      .voxel-action-row button:disabled,
+      .voxel-asset-workflow button:disabled {
         color: #8a949b;
         cursor: not-allowed;
         opacity: 0.78;
@@ -2838,8 +2941,13 @@ export class StudioInspectorPanelComponent {
         .voxel-material-readout,
         .voxel-command-timeline,
         .voxel-evidence-readout,
+        .voxel-asset-workflow,
         .voxel-action-row {
           grid-template-columns: 1fr;
+        }
+
+        .voxel-asset-workflow__actions {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
     `,

@@ -180,6 +180,26 @@ export const EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE: StudioVoxelConversionAuthor
   evidence: [],
 };
 
+const DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL: StudioVoxelAssetWorkflowControlReadModel = {
+  controlVersion: 'studio-voxel-asset-workflow-control.v0',
+  lastAction: null,
+  status: 'idle',
+  message: 'No voxel asset workflow action has run.',
+  targetAssetId: 'voxel-volume/generated',
+  targetProjectBundle: 'asha-demo',
+  targetAssetPath: 'assets/voxels/generated.avxl.json',
+  residentModelId: null,
+  volumeAssetId: null,
+  voxelCount: null,
+  materialSummary: 'no material readback',
+  canonicalJsonHash: null,
+  voxelDataHash: null,
+  validationDiagnosticCodes: [],
+  canLoadLastAsset: false,
+  lastAssetId: null,
+  lastAsset: null,
+};
+
 export interface StudioProjectFileEntry {
   readonly path: string;
   readonly name: string;
@@ -784,6 +804,36 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
   readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
   readonly voxelAssetReopen?: StudioAgentVoxelAssetReopenReadModel | null;
+}
+
+export type StudioVoxelAssetWorkflowControlAction = 'model_info' | 'export_volume' | 'save_volume' | 'load_volume';
+
+export interface StudioVoxelAssetWorkflowControlReadModel {
+  readonly controlVersion: 'studio-voxel-asset-workflow-control.v0';
+  readonly lastAction: StudioVoxelAssetWorkflowControlAction | null;
+  readonly status: 'idle' | 'accepted' | 'rejected';
+  readonly message: string;
+  readonly targetAssetId: string;
+  readonly targetProjectBundle: string;
+  readonly targetAssetPath: string;
+  readonly residentModelId: string | null;
+  readonly volumeAssetId: string | null;
+  readonly voxelCount: number | null;
+  readonly materialSummary: string;
+  readonly canonicalJsonHash: string | null;
+  readonly voxelDataHash: string | null;
+  readonly validationDiagnosticCodes: readonly string[];
+  readonly canLoadLastAsset: boolean;
+  readonly lastAssetId: string | null;
+  readonly lastAsset: VoxelVolumeAsset | null;
+}
+
+interface StudioVoxelAssetWorkflowTarget {
+  readonly grid: number;
+  readonly volumeAssetId: string;
+  readonly targetAssetId: string;
+  readonly projectBundle: string;
+  readonly assetPath: string;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -2140,6 +2190,14 @@ function countVoxelAssetVoxels(asset: VoxelVolumeAsset): number {
   return asset.representation.sparseRuns.reduce((total, run) => total + run.length, 0);
 }
 
+function materialCountsSummary(
+  counts: readonly { readonly material: number; readonly voxelCount: number }[],
+): string {
+  return counts.length === 0
+    ? 'no material counts'
+    : counts.map(count => `${count.material}:${count.voxelCount}`).join(', ');
+}
+
 export function buildStudioAgentVoxelVolumeExportReadModel(
   receipt: VoxelVolumeAssetExportReceipt,
 ): StudioAgentVoxelVolumeExportReadModel {
@@ -3223,12 +3281,16 @@ export class StudioWorkspaceStore {
   private readonly voxelConversionAuthorityState = signal<StudioVoxelConversionAuthorityState>(
     EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE,
   );
+  private readonly voxelAssetWorkflowControlState = signal<StudioVoxelAssetWorkflowControlReadModel>(
+    DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL,
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
   readonly viewportTool = this.viewportToolState.asReadonly();
   readonly preferences = this.preferencesStore.preferences;
   readonly renderSettings = this.preferencesStore.renderSettings;
+  readonly voxelAssetWorkflowControl = this.voxelAssetWorkflowControlState.asReadonly();
   readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
   readonly saveAsPath = this.saveAsPathState.asReadonly();
@@ -4617,6 +4679,298 @@ export class StudioWorkspaceStore {
         ],
       },
     }));
+  }
+
+  runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): void {
+    const target = this.voxelAssetWorkflowTarget();
+    const modelInfoResult = this.runAgentVoxelWorkflowOperation({
+      kind: 'get_model_info',
+      request: {
+        grid: target.grid,
+        volumeAssetId: target.volumeAssetId,
+        includeMaterialCounts: true,
+      },
+    });
+
+    if (action === 'model_info') {
+      this.recordVoxelAssetWorkflowControlFromModelInfo(action, target, modelInfoResult);
+      return;
+    }
+
+    if (!modelInfoResult.accepted || modelInfoResult.modelInfo === null || modelInfoResult.modelInfo === undefined) {
+      this.recordVoxelAssetWorkflowControl({
+        action,
+        accepted: false,
+        target,
+        message: modelInfoResult.diagnostic ?? 'Read resident voxel model info before asset workflow operations.',
+        residentModelId: null,
+        volumeAssetId: target.volumeAssetId,
+        voxelCount: null,
+        materialSummary: 'no material readback',
+        canonicalJsonHash: null,
+        voxelDataHash: null,
+        validationDiagnosticCodes: [],
+        lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
+      });
+      return;
+    }
+
+    const exportRequest = this.voxelAssetWorkflowExportRequest(target, modelInfoResult.modelInfo);
+    if (action === 'export_volume') {
+      const exportResult = this.runAgentVoxelWorkflowOperation({
+        kind: 'export_voxel_volume_asset',
+        exportRequest,
+      });
+      this.recordVoxelAssetWorkflowControlFromExport(action, target, modelInfoResult.modelInfo, exportResult);
+      return;
+    }
+
+    if (action === 'save_volume') {
+      const exportResult = this.runAgentVoxelWorkflowOperation({
+        kind: 'export_voxel_volume_asset',
+        exportRequest,
+      });
+      if (
+        !exportResult.accepted
+        || exportResult.voxelVolumeExport === null
+        || exportResult.voxelVolumeExport === undefined
+        || exportResult.voxelVolumeExport.asset === null
+      ) {
+        this.recordVoxelAssetWorkflowControlFromExport(action, target, modelInfoResult.modelInfo, exportResult);
+        return;
+      }
+
+      const saveResult = this.runAgentVoxelWorkflowOperation({
+        kind: 'save_voxel_volume_asset',
+        saveRequest: {
+          exportRequest,
+          targetProjectBundle: target.projectBundle,
+          targetAssetPath: target.assetPath,
+          representationKind: 'sparse_runs',
+          expectedExistingCanonicalJsonHash: null,
+          expectedCanonicalJsonHash: exportResult.voxelVolumeExport.canonicalJsonHash,
+          expectedVoxelDataHash: exportResult.voxelVolumeExport.voxelDataHash,
+        },
+      });
+      this.recordVoxelAssetWorkflowControlFromSave(target, modelInfoResult.modelInfo, saveResult);
+      return;
+    }
+
+    const lastAsset = this.voxelAssetWorkflowControlState().lastAsset;
+    if (lastAsset === null) {
+      this.recordVoxelAssetWorkflowControl({
+        action,
+        accepted: false,
+        target,
+        message: 'Export or save a voxel asset before loading it into RuntimeSession.',
+        residentModelId: modelInfoResult.modelInfo.modelId,
+        volumeAssetId: target.volumeAssetId,
+        voxelCount: modelInfoResult.modelInfo.voxelCount,
+        materialSummary: materialCountsSummary(modelInfoResult.modelInfo.materialCounts),
+        canonicalJsonHash: null,
+        voxelDataHash: null,
+        validationDiagnosticCodes: [],
+        lastAsset: null,
+      });
+      return;
+    }
+
+    if (lastAsset.assetId !== target.targetAssetId) {
+      this.recordVoxelAssetWorkflowControl({
+        action,
+        accepted: false,
+        target,
+        message: `Last exported asset ${lastAsset.assetId} does not match target ${target.targetAssetId}.`,
+        residentModelId: modelInfoResult.modelInfo.modelId,
+        volumeAssetId: target.volumeAssetId,
+        voxelCount: modelInfoResult.modelInfo.voxelCount,
+        materialSummary: materialCountsSummary(modelInfoResult.modelInfo.materialCounts),
+        canonicalJsonHash: lastAsset.contentHashes.canonicalJson,
+        voxelDataHash: lastAsset.contentHashes.voxelData,
+        validationDiagnosticCodes: [],
+        lastAsset,
+      });
+      return;
+    }
+
+    const loadResult = this.runAgentVoxelWorkflowOperation({
+      kind: 'load_voxel_volume_asset',
+      loadRequest: {
+        asset: lastAsset,
+        targetGrid: target.grid,
+        targetVolumeAssetId: target.volumeAssetId,
+        replaceExisting: true,
+        includeMaterialCounts: true,
+      },
+    });
+    this.recordVoxelAssetWorkflowControlFromLoad(target, loadResult);
+  }
+
+  private voxelAssetWorkflowTarget(): StudioVoxelAssetWorkflowTarget {
+    const draft = this.voxelConversionWorkspaceShell().settingsDraft;
+    const volumeAssetId = draft.targetVolumeAssetId.trim().length === 0
+      ? 'voxel/generated'
+      : draft.targetVolumeAssetId.trim();
+    const rawName = volumeAssetId.split('/').filter(Boolean).at(-1) ?? 'generated';
+    const assetName = rawName.replace(/[^A-Za-z0-9._-]/gu, '-');
+    return {
+      grid: draft.targetGrid,
+      volumeAssetId,
+      targetAssetId: `voxel-volume/${assetName}`,
+      projectBundle: 'asha-demo',
+      assetPath: `assets/voxels/${assetName}.${VOXEL_ASSET_EXTENSION}`,
+    };
+  }
+
+  private voxelAssetWorkflowExportRequest(
+    target: StudioVoxelAssetWorkflowTarget,
+    modelInfo: VoxelModelInfoReadout,
+  ): VoxelVolumeAssetExportRequest {
+    return {
+      grid: target.grid,
+      volumeAssetId: target.volumeAssetId,
+      targetAssetId: target.targetAssetId,
+      label: 'Studio voxel workflow asset',
+      createdBy: 'asha-studio',
+      sourceTool: 'asha-studio',
+      maxSparseRuns: 64,
+      expectedSessionHash: modelInfo.sessionHash,
+    };
+  }
+
+  private recordVoxelAssetWorkflowControlFromModelInfo(
+    action: StudioVoxelAssetWorkflowControlAction,
+    target: StudioVoxelAssetWorkflowTarget,
+    result: StudioAgentVoxelWorkflowResult,
+  ): void {
+    const modelInfo = result.modelInfo ?? null;
+    this.recordVoxelAssetWorkflowControl({
+      action,
+      accepted: result.accepted,
+      target,
+      message: result.accepted && modelInfo !== null
+        ? `Resident model ${modelInfo.modelId} has ${modelInfo.voxelCount} voxels.`
+        : result.diagnostic ?? 'Voxel model info is unavailable.',
+      residentModelId: modelInfo?.modelId ?? null,
+      volumeAssetId: modelInfo?.volumeAssetId ?? target.volumeAssetId,
+      voxelCount: modelInfo?.voxelCount ?? null,
+      materialSummary: materialCountsSummary(modelInfo?.materialCounts ?? []),
+      canonicalJsonHash: null,
+      voxelDataHash: null,
+      validationDiagnosticCodes: (modelInfo?.diagnostics ?? []).map(diagnostic => diagnostic.code),
+      lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
+    });
+  }
+
+  private recordVoxelAssetWorkflowControlFromExport(
+    action: StudioVoxelAssetWorkflowControlAction,
+    target: StudioVoxelAssetWorkflowTarget,
+    modelInfo: VoxelModelInfoReadout,
+    result: StudioAgentVoxelWorkflowResult,
+  ): void {
+    const exportReadout = result.voxelVolumeExport ?? null;
+    this.recordVoxelAssetWorkflowControl({
+      action,
+      accepted: result.accepted,
+      target,
+      message: result.accepted && exportReadout !== null
+        ? `Exported ${exportReadout.assetId ?? target.targetAssetId} with ${exportReadout.voxelCount ?? 0} voxels.`
+        : result.diagnostic ?? 'Voxel volume export failed.',
+      residentModelId: modelInfo.modelId,
+      volumeAssetId: modelInfo.volumeAssetId,
+      voxelCount: exportReadout?.voxelCount ?? modelInfo.voxelCount,
+      materialSummary: materialCountsSummary(modelInfo.materialCounts),
+      canonicalJsonHash: exportReadout?.canonicalJsonHash ?? null,
+      voxelDataHash: exportReadout?.voxelDataHash ?? null,
+      validationDiagnosticCodes: exportReadout?.validationDiagnosticCodes ?? [],
+      lastAsset: exportReadout?.asset ?? this.voxelAssetWorkflowControlState().lastAsset,
+    });
+  }
+
+  private recordVoxelAssetWorkflowControlFromSave(
+    target: StudioVoxelAssetWorkflowTarget,
+    modelInfo: VoxelModelInfoReadout,
+    result: StudioAgentVoxelWorkflowResult,
+  ): void {
+    const saveReadout = result.voxelVolumeSave ?? null;
+    this.recordVoxelAssetWorkflowControl({
+      action: 'save_volume',
+      accepted: result.accepted,
+      target,
+      message: result.accepted && saveReadout !== null
+        ? `Saved ${saveReadout.assetId ?? target.targetAssetId} to ${saveReadout.assetPath}.`
+        : result.diagnostic ?? 'Voxel volume save failed.',
+      residentModelId: modelInfo.modelId,
+      volumeAssetId: modelInfo.volumeAssetId,
+      voxelCount: saveReadout?.voxelCount ?? modelInfo.voxelCount,
+      materialSummary: saveReadout?.materialCount === null || saveReadout?.materialCount === undefined
+        ? materialCountsSummary(modelInfo.materialCounts)
+        : `materials:${saveReadout.materialCount}`,
+      canonicalJsonHash: saveReadout?.nextCanonicalJsonHash ?? null,
+      voxelDataHash: saveReadout?.nextVoxelDataHash ?? null,
+      validationDiagnosticCodes: saveReadout?.validationDiagnosticCodes ?? [],
+      lastAsset: saveReadout?.asset ?? this.voxelAssetWorkflowControlState().lastAsset,
+    });
+  }
+
+  private recordVoxelAssetWorkflowControlFromLoad(
+    target: StudioVoxelAssetWorkflowTarget,
+    result: StudioAgentVoxelWorkflowResult,
+  ): void {
+    const loadReadout = result.voxelVolumeLoad ?? null;
+    this.recordVoxelAssetWorkflowControl({
+      action: 'load_volume',
+      accepted: result.accepted,
+      target,
+      message: result.accepted && loadReadout !== null
+        ? `Loaded ${loadReadout.requestAssetId} as ${loadReadout.modelId}.`
+        : result.diagnostic ?? 'Voxel volume load failed.',
+      residentModelId: loadReadout?.modelId ?? null,
+      volumeAssetId: loadReadout?.volumeAssetId ?? target.volumeAssetId,
+      voxelCount: loadReadout?.voxelCount ?? null,
+      materialSummary: materialCountsSummary(loadReadout?.materialCounts ?? []),
+      canonicalJsonHash: loadReadout?.canonicalJsonHash ?? null,
+      voxelDataHash: loadReadout?.voxelDataHash ?? null,
+      validationDiagnosticCodes: loadReadout?.validationDiagnosticCodes ?? [],
+      lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
+    });
+  }
+
+  private recordVoxelAssetWorkflowControl(input: {
+    readonly action: StudioVoxelAssetWorkflowControlAction;
+    readonly accepted: boolean;
+    readonly target: StudioVoxelAssetWorkflowTarget;
+    readonly message: string;
+    readonly residentModelId: string | null;
+    readonly volumeAssetId: string | null;
+    readonly voxelCount: number | null;
+    readonly materialSummary: string;
+    readonly canonicalJsonHash: string | null;
+    readonly voxelDataHash: string | null;
+    readonly validationDiagnosticCodes: readonly string[];
+    readonly lastAsset: VoxelVolumeAsset | null;
+  }): void {
+    const next: StudioVoxelAssetWorkflowControlReadModel = {
+      controlVersion: 'studio-voxel-asset-workflow-control.v0',
+      lastAction: input.action,
+      status: input.accepted ? 'accepted' : 'rejected',
+      message: input.message,
+      targetAssetId: input.target.targetAssetId,
+      targetProjectBundle: input.target.projectBundle,
+      targetAssetPath: input.target.assetPath,
+      residentModelId: input.residentModelId,
+      volumeAssetId: input.volumeAssetId,
+      voxelCount: input.voxelCount,
+      materialSummary: input.materialSummary,
+      canonicalJsonHash: input.canonicalJsonHash,
+      voxelDataHash: input.voxelDataHash,
+      validationDiagnosticCodes: input.validationDiagnosticCodes,
+      canLoadLastAsset: input.lastAsset !== null,
+      lastAssetId: input.lastAsset?.assetId ?? null,
+      lastAsset: input.lastAsset,
+    };
+    this.voxelAssetWorkflowControlState.set(next);
+    this.menuMessageState.set(input.message);
   }
 
   private applyAgentVoxelConversionPatch(patch: StudioAgentVoxelConversionSettingsPatch): void {

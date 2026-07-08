@@ -818,6 +818,40 @@ test('studio voxel conversion workspace wires source and settings controls to re
   assert.match(panelSource, /unsupported/);
 });
 
+test('studio voxel conversion workspace exposes voxel asset save/load controls', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+
+  assert.match(storeSource, /voxelAssetWorkflowControlState/);
+  assert.match(storeSource, /voxelAssetWorkflowControl =/);
+  assert.match(storeSource, /runVoxelAssetWorkflowControl/);
+
+  for (const operation of [
+    'get_model_info',
+    'export_voxel_volume_asset',
+    'save_voxel_volume_asset',
+    'load_voxel_volume_asset',
+  ]) {
+    assert.match(storeSource, new RegExp(operation));
+  }
+
+  assert.match(panelSource, /data-voxel-asset-workflow-status/);
+  assert.match(panelSource, /data-voxel-asset-diagnostics/);
+
+  for (const action of ['model_info', 'export_volume', 'save_volume', 'load_volume']) {
+    assert.match(panelSource, new RegExp(`data-voxel-asset-action="${action}"`));
+    assert.match(panelSource, new RegExp(`runVoxelAssetWorkflowControl\\('${action}'\\)`));
+  }
+
+  assert.match(panelSource, /canLoadLastAsset/);
+  assert.match(panelSource, /targetProjectBundle/);
+  assert.match(panelSource, /targetAssetPath/);
+  assert.match(panelSource, /lastAssetId/);
+  assert.match(panelSource, /canonicalJsonHash/);
+  assert.match(panelSource, /voxelDataHash/);
+  assert.match(storeSource, /does not match target/);
+});
+
 test('studio voxel conversion shell maps catalog static meshes to authority mesh refs', () => {
   const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
     draft: sampleStudioVoxelDraft(),
