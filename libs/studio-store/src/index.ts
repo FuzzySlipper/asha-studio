@@ -200,6 +200,25 @@ const DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL: StudioVoxelAssetWorkflowControlReadM
   lastAsset: null,
 };
 
+const DEFAULT_VOXEL_COMPACT_EDIT_CONTROL: StudioVoxelCompactEditControlReadModel = {
+  controlVersion: 'studio-voxel-compact-edit-control.v0',
+  lastAction: null,
+  status: 'idle',
+  message: 'Compact voxel edit controls ready.',
+  grid: 1,
+  x1: 0,
+  y1: 0,
+  z1: 0,
+  x2: 1,
+  y2: 1,
+  z2: 0,
+  material: 1,
+  generatedCommandCount: null,
+  acceptedCommandCount: null,
+  rejectedCommandCount: null,
+  diagnostic: null,
+};
+
 export interface StudioProjectFileEntry {
   readonly path: string;
   readonly name: string;
@@ -808,6 +827,18 @@ export interface StudioAgentVoxelWorkflowResult {
 
 export type StudioVoxelAssetWorkflowControlAction = 'model_info' | 'export_volume' | 'save_volume' | 'load_volume';
 
+export type StudioVoxelCompactEditControlAction = 'block' | 'fill_box';
+
+export type StudioVoxelCompactEditControlField =
+  | 'grid'
+  | 'x1'
+  | 'y1'
+  | 'z1'
+  | 'x2'
+  | 'y2'
+  | 'z2'
+  | 'material';
+
 export interface StudioVoxelAssetWorkflowControlReadModel {
   readonly controlVersion: 'studio-voxel-asset-workflow-control.v0';
   readonly lastAction: StudioVoxelAssetWorkflowControlAction | null;
@@ -826,6 +857,25 @@ export interface StudioVoxelAssetWorkflowControlReadModel {
   readonly canLoadLastAsset: boolean;
   readonly lastAssetId: string | null;
   readonly lastAsset: VoxelVolumeAsset | null;
+}
+
+export interface StudioVoxelCompactEditControlReadModel {
+  readonly controlVersion: 'studio-voxel-compact-edit-control.v0';
+  readonly lastAction: StudioVoxelCompactEditControlAction | null;
+  readonly status: 'idle' | 'accepted' | 'rejected';
+  readonly message: string;
+  readonly grid: number;
+  readonly x1: number;
+  readonly y1: number;
+  readonly z1: number;
+  readonly x2: number;
+  readonly y2: number;
+  readonly z2: number;
+  readonly material: number;
+  readonly generatedCommandCount: number | null;
+  readonly acceptedCommandCount: number | null;
+  readonly rejectedCommandCount: number | null;
+  readonly diagnostic: string | null;
 }
 
 interface StudioVoxelAssetWorkflowTarget {
@@ -3284,6 +3334,9 @@ export class StudioWorkspaceStore {
   private readonly voxelAssetWorkflowControlState = signal<StudioVoxelAssetWorkflowControlReadModel>(
     DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL,
   );
+  private readonly voxelCompactEditControlState = signal<StudioVoxelCompactEditControlReadModel>(
+    DEFAULT_VOXEL_COMPACT_EDIT_CONTROL,
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
@@ -3291,6 +3344,7 @@ export class StudioWorkspaceStore {
   readonly preferences = this.preferencesStore.preferences;
   readonly renderSettings = this.preferencesStore.renderSettings;
   readonly voxelAssetWorkflowControl = this.voxelAssetWorkflowControlState.asReadonly();
+  readonly voxelCompactEditControl = this.voxelCompactEditControlState.asReadonly();
   readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
   readonly saveAsPath = this.saveAsPathState.asReadonly();
@@ -4679,6 +4733,71 @@ export class StudioWorkspaceStore {
         ],
       },
     }));
+  }
+
+  setVoxelCompactEditControlField(
+    field: StudioVoxelCompactEditControlField,
+    value: number,
+  ): void {
+    this.voxelCompactEditControlState.update(current => {
+      if (!Number.isFinite(value)) {
+        return current;
+      }
+      return {
+        ...current,
+        [field]: value,
+        status: 'idle',
+        message: 'Compact voxel edit draft updated.',
+        generatedCommandCount: null,
+        acceptedCommandCount: null,
+        rejectedCommandCount: null,
+        diagnostic: null,
+      };
+    });
+  }
+
+  runVoxelCompactEditControl(action: StudioVoxelCompactEditControlAction): void {
+    const draft = this.voxelCompactEditControlState();
+    const edit: StudioAgentCompactVoxelEdit = action === 'block'
+      ? {
+          kind: 'set_voxels',
+          grid: draft.grid,
+          voxels: [{ x: draft.x1, y: draft.y1, z: draft.z1, i: draft.material }],
+        }
+      : {
+          kind: 'fill_box',
+          grid: draft.grid,
+          x1: draft.x1,
+          y1: draft.y1,
+          z1: draft.z1,
+          x2: draft.x2,
+          y2: draft.y2,
+          z2: draft.z2,
+          palette_index: draft.material,
+        };
+    const compiled = buildStudioAgentCompactVoxelEditBatch(edit);
+    const result = this.runAgentVoxelWorkflowOperation({
+      kind: 'submit_compact_voxel_edit',
+      edit,
+    });
+    const acceptedCount = result.voxelEditReceipt?.result.accepted ?? null;
+    const rejectedCount = result.voxelEditReceipt?.result.rejected ?? null;
+    const generatedCommandCount = result.compiledVoxelEditBatch?.commands.length
+      ?? compiled.generatedVoxelCount;
+    const message = result.accepted
+      ? `Compact ${action} accepted ${acceptedCount ?? 0}, rejected ${rejectedCount ?? 0}.`
+      : result.diagnostic ?? 'Compact voxel edit rejected.';
+    this.voxelCompactEditControlState.set({
+      ...draft,
+      lastAction: action,
+      status: result.accepted ? 'accepted' : 'rejected',
+      message,
+      generatedCommandCount,
+      acceptedCommandCount: acceptedCount,
+      rejectedCommandCount: rejectedCount,
+      diagnostic: result.diagnostic ?? compiled.diagnostic,
+    });
+    this.menuMessageState.set(message);
   }
 
   runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): void {

@@ -2628,6 +2628,137 @@ export class StudioInspectorPanelComponent {
           }
         </section>
 
+        <section
+          class="voxel-compact-edit"
+          aria-label="Compact voxel creation controls"
+          [attr.data-voxel-edit-status]="store.voxelCompactEditControl().status"
+        >
+          <article>
+            <span>Voxel Edit</span>
+            <strong>
+              {{ store.voxelCompactEditControl().status }} ·
+              {{ store.voxelCompactEditControl().lastAction ?? 'draft' }}
+            </strong>
+            <small>{{ store.voxelCompactEditControl().message }}</small>
+          </article>
+          <div class="voxel-compact-edit__inputs">
+            <label>
+              Grid
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="grid"
+                [value]="store.voxelCompactEditControl().grid"
+                (input)="store.setVoxelCompactEditControlField('grid', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Material
+              <input
+                type="number"
+                min="0"
+                max="255"
+                step="1"
+                data-voxel-edit-control="material"
+                [value]="store.voxelCompactEditControl().material"
+                (input)="store.setVoxelCompactEditControlField('material', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              X1
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="x1"
+                [value]="store.voxelCompactEditControl().x1"
+                (input)="store.setVoxelCompactEditControlField('x1', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Y1
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="y1"
+                [value]="store.voxelCompactEditControl().y1"
+                (input)="store.setVoxelCompactEditControlField('y1', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Z1
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="z1"
+                [value]="store.voxelCompactEditControl().z1"
+                (input)="store.setVoxelCompactEditControlField('z1', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              X2
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="x2"
+                [value]="store.voxelCompactEditControl().x2"
+                (input)="store.setVoxelCompactEditControlField('x2', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Y2
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="y2"
+                [value]="store.voxelCompactEditControl().y2"
+                (input)="store.setVoxelCompactEditControlField('y2', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Z2
+              <input
+                type="number"
+                step="1"
+                data-voxel-edit-control="z2"
+                [value]="store.voxelCompactEditControl().z2"
+                (input)="store.setVoxelCompactEditControlField('z2', $any($event.target).valueAsNumber)"
+              />
+            </label>
+          </div>
+          <dl>
+            <dt>generated</dt>
+            <dd>{{ store.voxelCompactEditControl().generatedCommandCount ?? 'n/a' }}</dd>
+            <dt>accepted</dt>
+            <dd>{{ store.voxelCompactEditControl().acceptedCommandCount ?? 'n/a' }}</dd>
+            <dt>rejected</dt>
+            <dd>{{ store.voxelCompactEditControl().rejectedCommandCount ?? 'n/a' }}</dd>
+            <dt>diagnostic</dt>
+            <dd data-voxel-edit-diagnostic>
+              {{ store.voxelCompactEditControl().diagnostic ?? 'none' }}
+            </dd>
+          </dl>
+          <div class="voxel-compact-edit__actions">
+            <button
+              type="button"
+              data-voxel-edit-action="block"
+              title="Submit one compact voxel block edit"
+              (click)="store.runVoxelCompactEditControl('block')"
+            >
+              <span>Block</span>
+              <small>x1/y1/z1</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-edit-action="fill_box"
+              title="Submit a compact voxel filled box edit"
+              (click)="store.runVoxelCompactEditControl('fill_box')"
+            >
+              <span>Fill</span>
+              <small>x1/y1/z1 to x2/y2/z2</small>
+            </button>
+          </div>
+        </section>
+
         <section class="voxel-action-row" aria-label="Voxel conversion actions">
           @for (action of shell.actions; track action.commandId) {
             <button
@@ -2692,6 +2823,7 @@ export class StudioInspectorPanelComponent {
       .voxel-state-strip article,
       .voxel-region-grid article,
       .voxel-asset-workflow,
+      .voxel-compact-edit,
       .voxel-action-row button,
       .voxel-diagnostics {
         min-width: 0;
@@ -2726,6 +2858,7 @@ export class StudioInspectorPanelComponent {
       .voxel-state-strip small,
       .voxel-region-grid small,
       .voxel-asset-workflow small,
+      .voxel-compact-edit small,
       .voxel-action-row small,
       .voxel-diagnostics span {
         color: var(--asha-color-muted);
@@ -2761,6 +2894,7 @@ export class StudioInspectorPanelComponent {
       .voxel-command-timeline,
       .voxel-evidence-readout,
       .voxel-asset-workflow,
+      .voxel-compact-edit,
       .voxel-action-row,
       .voxel-diagnostics {
         display: grid;
@@ -2798,6 +2932,12 @@ export class StudioInspectorPanelComponent {
         padding: 0.55rem;
       }
 
+      .voxel-compact-edit {
+        border: 1px solid var(--asha-color-border);
+        grid-template-columns: minmax(13rem, 0.7fr) minmax(20rem, 1.2fr) minmax(14rem, 0.75fr) minmax(11rem, 0.55fr);
+        padding: 0.55rem;
+      }
+
       .voxel-state-strip article,
       .voxel-region-grid article,
       .voxel-editor-grid article,
@@ -2806,7 +2946,8 @@ export class StudioInspectorPanelComponent {
       .voxel-material-readout header,
       .voxel-command-timeline article,
       .voxel-evidence-readout article,
-      .voxel-asset-workflow article {
+      .voxel-asset-workflow article,
+      .voxel-compact-edit article {
         background: #10161b;
         border: 1px solid var(--asha-color-border);
         display: grid;
@@ -2830,6 +2971,10 @@ export class StudioInspectorPanelComponent {
         border-color: var(--asha-color-warning);
       }
 
+      .voxel-compact-edit[data-voxel-edit-status='rejected'] {
+        border-color: var(--asha-color-warning);
+      }
+
       .voxel-state-strip span,
       .voxel-region-grid span,
       .voxel-editor-grid > article > span,
@@ -2837,7 +2982,8 @@ export class StudioInspectorPanelComponent {
       .voxel-material-readout span,
       .voxel-command-timeline span,
       .voxel-evidence-readout span,
-      .voxel-asset-workflow span {
+      .voxel-asset-workflow span,
+      .voxel-compact-edit span {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
         text-transform: uppercase;
@@ -2853,14 +2999,18 @@ export class StudioInspectorPanelComponent {
       .voxel-evidence-readout small,
       .voxel-asset-workflow strong,
       .voxel-asset-workflow small,
-      .voxel-asset-workflow dd {
+      .voxel-asset-workflow dd,
+      .voxel-compact-edit strong,
+      .voxel-compact-edit small,
+      .voxel-compact-edit dd {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .voxel-editor-grid label {
+      .voxel-editor-grid label,
+      .voxel-compact-edit label {
         color: var(--asha-color-muted);
         display: grid;
         gap: 0.18rem;
@@ -2870,7 +3020,8 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-editor-grid input,
-      .voxel-editor-grid select {
+      .voxel-editor-grid select,
+      .voxel-compact-edit input {
         background: var(--asha-color-control);
         border: 1px solid var(--asha-color-border);
         color: var(--asha-color-ink);
@@ -2895,15 +3046,28 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: repeat(4, minmax(9rem, 1fr));
       }
 
-      .voxel-asset-workflow__actions {
+      .voxel-compact-edit__inputs {
         display: grid;
         gap: 0.35rem;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         min-width: 0;
       }
 
+      .voxel-asset-workflow__actions,
+      .voxel-compact-edit__actions {
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        min-width: 0;
+      }
+
+      .voxel-compact-edit__actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .voxel-action-row button,
-      .voxel-asset-workflow button {
+      .voxel-asset-workflow button,
+      .voxel-compact-edit button {
         background: var(--asha-color-control);
         border: 1px solid var(--asha-color-border);
         color: var(--asha-color-ink);
@@ -2915,7 +3079,8 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-action-row button:disabled,
-      .voxel-asset-workflow button:disabled {
+      .voxel-asset-workflow button:disabled,
+      .voxel-compact-edit button:disabled {
         color: #8a949b;
         cursor: not-allowed;
         opacity: 0.78;
@@ -2942,11 +3107,14 @@ export class StudioInspectorPanelComponent {
         .voxel-command-timeline,
         .voxel-evidence-readout,
         .voxel-asset-workflow,
+        .voxel-compact-edit,
         .voxel-action-row {
           grid-template-columns: 1fr;
         }
 
-        .voxel-asset-workflow__actions {
+        .voxel-asset-workflow__actions,
+        .voxel-compact-edit__inputs,
+        .voxel-compact-edit__actions {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }

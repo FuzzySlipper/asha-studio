@@ -856,6 +856,37 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(storeSource, /does not match target/);
 });
 
+test('studio voxel conversion workspace exposes compact voxel creation controls', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+
+  assert.match(storeSource, /voxelCompactEditControlState/);
+  assert.match(storeSource, /voxelCompactEditControl =/);
+  assert.match(storeSource, /runVoxelCompactEditControl/);
+  assert.match(storeSource, /setVoxelCompactEditControlField/);
+  assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch\(edit\)/);
+  assert.match(storeSource, /kind: 'submit_compact_voxel_edit'/);
+  assert.match(storeSource, /kind: 'set_voxels'/);
+  assert.match(storeSource, /kind: 'fill_box'/);
+  assert.match(storeSource, /generatedCommandCount/);
+  assert.match(storeSource, /acceptedCommandCount/);
+  assert.match(storeSource, /rejectedCommandCount/);
+  assert.match(storeSource, /Attach RuntimeSession before submitting voxel edits/);
+
+  assert.match(panelSource, /data-voxel-edit-status/);
+  assert.match(panelSource, /data-voxel-edit-diagnostic/);
+
+  for (const control of ['grid', 'material', 'x1', 'y1', 'z1', 'x2', 'y2', 'z2']) {
+    assert.match(panelSource, new RegExp(`data-voxel-edit-control="${control}"`));
+    assert.match(panelSource, new RegExp(`setVoxelCompactEditControlField\\('${control}'`));
+  }
+
+  for (const action of ['block', 'fill_box']) {
+    assert.match(panelSource, new RegExp(`data-voxel-edit-action="${action}"`));
+    assert.match(panelSource, new RegExp(`runVoxelCompactEditControl\\('${action}'\\)`));
+  }
+});
+
 test('studio voxel conversion shell maps catalog static meshes to authority mesh refs', () => {
   const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
     draft: sampleStudioVoxelDraft(),

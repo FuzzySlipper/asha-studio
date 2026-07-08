@@ -91,6 +91,32 @@ interface BrowserProof {
       readonly generatedCommandCount: number | null;
       readonly diagnostic: string | null;
     }[];
+    readonly compactVoxelEditControls: {
+      readonly block: {
+        readonly status: string;
+        readonly lastAction: string | null;
+        readonly generatedCommandCount: number | null;
+        readonly acceptedCommandCount: number | null;
+        readonly rejectedCommandCount: number | null;
+        readonly diagnostic: string | null;
+      } | null;
+      readonly fillBox: {
+        readonly status: string;
+        readonly lastAction: string | null;
+        readonly generatedCommandCount: number | null;
+        readonly acceptedCommandCount: number | null;
+        readonly rejectedCommandCount: number | null;
+        readonly diagnostic: string | null;
+      } | null;
+      readonly oversizedFillBox: {
+        readonly status: string;
+        readonly lastAction: string | null;
+        readonly generatedCommandCount: number | null;
+        readonly acceptedCommandCount: number | null;
+        readonly rejectedCommandCount: number | null;
+        readonly diagnostic: string | null;
+      } | null;
+    };
     readonly acceptedVoxelEdit: boolean | null;
     readonly rejectedCompactVoxelEdit: boolean | null;
     readonly rejectedVoxelEdit: boolean | null;
@@ -510,6 +536,11 @@ function automationPrelude(): string {
       operationStatuses: [],
       operationDiagnostics: [],
       compactVoxelEdits: [],
+      compactVoxelEditControls: {
+        block: null,
+        fillBox: null,
+        oversizedFillBox: null,
+      },
       acceptedVoxelEdit: null,
       rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
@@ -660,6 +691,46 @@ function automationPrelude(): string {
         : null,
       diagnostic: result.diagnostic || null,
     });
+  }
+
+  function compactVoxelEditControlReadout() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const control = store && typeof store.voxelCompactEditControl === 'function'
+      ? store.voxelCompactEditControl()
+      : null;
+    if (!control) {
+      throw new Error('Compact voxel edit control readout unavailable');
+    }
+    return {
+      status: control.status,
+      lastAction: control.lastAction,
+      generatedCommandCount: control.generatedCommandCount,
+      acceptedCommandCount: control.acceptedCommandCount,
+      rejectedCommandCount: control.rejectedCommandCount,
+      diagnostic: control.diagnostic,
+    };
+  }
+
+  function setCompactVoxelEditControl(name, value) {
+    const input = document.querySelector('[data-voxel-edit-control="' + name + '"]');
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error('Missing compact voxel edit input ' + name);
+    }
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  async function submitCompactVoxelEditControl(action) {
+    const button = document.querySelector('[data-voxel-edit-action="' + action + '"]');
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error('Missing compact voxel edit action ' + action);
+    }
+    button.click();
+    await waitFor(() => {
+      const control = compactVoxelEditControlReadout();
+      return control.lastAction === action && control.status !== 'idle' ? control : null;
+    }, 'compact voxel edit control ' + action);
+    return compactVoxelEditControlReadout();
   }
 
   function summarizeVoxelAssetPersistence(result) {
@@ -1169,6 +1240,26 @@ function automationPrelude(): string {
         });
         proof.agentSurface.unsupportedVoxelEdit = unsupportedEdit.accepted === false && unsupportedEdit.voxelEditReceipt === null;
         proof.agentSurface.surfaceHash = unsupportedEdit.surface.surfaceHash;
+        setCompactVoxelEditControl('grid', 1);
+        setCompactVoxelEditControl('material', 1);
+        setCompactVoxelEditControl('x1', 0);
+        setCompactVoxelEditControl('y1', 0);
+        setCompactVoxelEditControl('z1', 0);
+        proof.agentSurface.compactVoxelEditControls.block = await submitCompactVoxelEditControl('block');
+        setCompactVoxelEditControl('x1', 1);
+        setCompactVoxelEditControl('y1', 1);
+        setCompactVoxelEditControl('z1', 0);
+        setCompactVoxelEditControl('x2', 1);
+        setCompactVoxelEditControl('y2', 1);
+        setCompactVoxelEditControl('z2', 0);
+        proof.agentSurface.compactVoxelEditControls.fillBox = await submitCompactVoxelEditControl('fill_box');
+        setCompactVoxelEditControl('x1', 0);
+        setCompactVoxelEditControl('y1', 0);
+        setCompactVoxelEditControl('z1', 0);
+        setCompactVoxelEditControl('x2', 8);
+        setCompactVoxelEditControl('y2', 8);
+        setCompactVoxelEditControl('z2', 0);
+        proof.agentSurface.compactVoxelEditControls.oversizedFillBox = await submitCompactVoxelEditControl('fill_box');
         await waitFor(() => document.querySelector('[data-voxel-evidence-kind="apply_receipt"]'), 'apply receipt evidence');
         proof.status = 'complete';
         proof.message = 'native provider attached and voxel conversion commands completed';
@@ -1392,6 +1483,32 @@ async function main(): Promise<void> {
         diagnostic: 'compact voxel edit exceeds 64 generated commands',
       },
     ], JSON.stringify(nativeProof.agentSurface.compactVoxelEdits, null, 2));
+    assert.deepEqual(nativeProof.agentSurface.compactVoxelEditControls, {
+      block: {
+        status: 'accepted',
+        lastAction: 'block',
+        generatedCommandCount: 1,
+        acceptedCommandCount: 1,
+        rejectedCommandCount: 0,
+        diagnostic: null,
+      },
+      fillBox: {
+        status: 'accepted',
+        lastAction: 'fill_box',
+        generatedCommandCount: 1,
+        acceptedCommandCount: 1,
+        rejectedCommandCount: 0,
+        diagnostic: null,
+      },
+      oversizedFillBox: {
+        status: 'rejected',
+        lastAction: 'fill_box',
+        generatedCommandCount: 65,
+        acceptedCommandCount: null,
+        rejectedCommandCount: null,
+        diagnostic: 'compact voxel edit exceeds 64 generated commands',
+      },
+    }, JSON.stringify(nativeProof.agentSurface.compactVoxelEditControls, null, 2));
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
       'register_conversion_source.facade:true',
       'register_conversion_mesh_asset.facade:true',
