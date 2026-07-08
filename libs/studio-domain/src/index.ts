@@ -136,6 +136,7 @@ export type StudioUiEventCommandId =
   | 'voxel_preview.publish'
   | 'voxel_asset.export_volume'
   | 'voxel_asset.save_volume'
+  | 'voxel_asset.load_volume'
   | 'voxel_asset.persist'
   | 'voxel_asset.reopen'
   | 'voxel_edit.submit'

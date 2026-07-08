@@ -63,6 +63,7 @@ const rpcMethods = [
   'exportVoxelConversionEvidence',
   'exportVoxelVolumeAsset',
   'saveVoxelVolumeAsset',
+  'loadVoxelVolumeAsset',
   'getBuffer',
   'releaseBuffer',
   'loadReplayFixture',
@@ -235,6 +236,21 @@ interface BrowserProof {
         readonly provenanceCount: number | null;
         readonly validationDiagnosticCodes: readonly string[];
         readonly fullAssetPayload: boolean;
+      } | null;
+      readonly loadedVolumeAsset: {
+        readonly loaded: boolean;
+        readonly requestAssetId: string;
+        readonly modelId: string;
+        readonly volumeAssetId: string | null;
+        readonly grid: number;
+        readonly voxelCount: number;
+        readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[];
+        readonly provenanceKinds: readonly string[];
+        readonly canonicalJsonHash: string | null;
+        readonly voxelDataHash: string | null;
+        readonly sessionHash: string;
+        readonly replayHash: string;
+        readonly validationDiagnosticCodes: readonly string[];
       } | null;
     };
     readonly modelInfo: {
@@ -519,6 +535,7 @@ function automationPrelude(): string {
         exportedEvidenceRefs: [],
         exportedVolumeAsset: null,
         savedVolumeAsset: null,
+        loadedVolumeAsset: null,
       },
       modelInfo: {
         resident: null,
@@ -687,6 +704,26 @@ function automationPrelude(): string {
       provenanceCount: saveReadout.provenanceCount,
       validationDiagnosticCodes: saveReadout.validationDiagnosticCodes,
       fullAssetPayload: saveReadout.fullAssetPayload,
+    };
+  }
+
+  function summarizeVoxelVolumeLoad(result) {
+    const loadReadout = result.voxelVolumeLoad;
+    if (!loadReadout) return null;
+    return {
+      loaded: loadReadout.loaded,
+      requestAssetId: loadReadout.requestAssetId,
+      modelId: loadReadout.modelId,
+      volumeAssetId: loadReadout.volumeAssetId,
+      grid: loadReadout.grid,
+      voxelCount: loadReadout.voxelCount,
+      materialCounts: loadReadout.materialCounts,
+      provenanceKinds: loadReadout.provenanceKinds,
+      canonicalJsonHash: loadReadout.canonicalJsonHash,
+      voxelDataHash: loadReadout.voxelDataHash,
+      sessionHash: loadReadout.sessionHash,
+      replayHash: loadReadout.replayHash,
+      validationDiagnosticCodes: loadReadout.validationDiagnosticCodes,
     };
   }
 
@@ -925,6 +962,20 @@ function automationPrelude(): string {
         });
         proof.agentSurface.operationStatuses.push('save_voxel_volume_asset.converted:' + savedVolumeResult.accepted);
         proof.nativeSmoke.conversion.savedVolumeAsset = summarizeVoxelVolumeSave(savedVolumeResult);
+        const loadedVolumeResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'load_voxel_volume_asset',
+          loadRequest: {
+            asset: savedVolumeResult.voxelVolumeSave && savedVolumeResult.voxelVolumeSave.asset
+              ? savedVolumeResult.voxelVolumeSave.asset
+              : exportedVolumeResult.voxelVolumeExport?.asset,
+            targetGrid: 1,
+            targetVolumeAssetId: 'voxel/generated',
+            replaceExisting: true,
+            includeMaterialCounts: true,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('load_voxel_volume_asset.converted:' + loadedVolumeResult.accepted);
+        proof.nativeSmoke.conversion.loadedVolumeAsset = summarizeVoxelVolumeLoad(loadedVolumeResult);
         const convertedAssetResult = store.runAgentVoxelWorkflowOperation({
           kind: 'persist_voxel_asset',
           persistence: {
@@ -1299,6 +1350,7 @@ async function main(): Promise<void> {
       'get_model_info:true',
       'export_voxel_volume_asset.converted:true',
       'save_voxel_volume_asset.converted:true',
+      'load_voxel_volume_asset.converted:true',
       'persist_voxel_asset.converted:true',
       'reopen_voxel_asset.converted:true',
       'get_model_info.missing:false',
@@ -1442,6 +1494,24 @@ async function main(): Promise<void> {
       validationDiagnosticCodes: [],
       fullAssetPayload: true,
     });
+    assert.deepEqual(nativeProof.nativeSmoke.conversion.loadedVolumeAsset, {
+      loaded: true,
+      requestAssetId: 'voxel-volume/generated',
+      modelId: nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.modelId,
+      volumeAssetId: 'voxel/generated',
+      grid: 1,
+      voxelCount: 3,
+      materialCounts: [{ material: 1, voxelCount: 3 }],
+      provenanceKinds: ['converted'],
+      canonicalJsonHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.canonicalJsonHash,
+      voxelDataHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.voxelDataHash,
+      sessionHash: nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.sessionHash,
+      replayHash: nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.replayHash,
+      validationDiagnosticCodes: [],
+    });
+    assert.match(nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.modelId ?? '', /^voxel-model:/);
+    assert.match(nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.sessionHash ?? '', /^fnv1a64:/);
+    assert.match(nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.replayHash ?? '', /^fnv1a64:/);
     assert.equal(nativeProof.nativeSmoke.modelInfo.resident, true);
     assert.equal(nativeProof.nativeSmoke.modelInfo.volumeAssetId, 'voxel/generated');
     assert.equal(nativeProof.nativeSmoke.modelInfo.voxelCount, 3);

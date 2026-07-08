@@ -486,9 +486,12 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /register_conversion_mesh_asset/);
   assert.match(storeSource, /export_voxel_volume_asset/);
   assert.match(storeSource, /save_voxel_volume_asset/);
+  assert.match(storeSource, /load_voxel_volume_asset/);
   assert.match(storeSource, /buildStudioAgentVoxelVolumeExportReadModel/);
   assert.match(storeSource, /buildStudioAgentVoxelVolumeSaveReadModel/);
+  assert.match(storeSource, /buildStudioAgentVoxelVolumeLoadReadModel/);
   assert.match(storeSource, /not_browser_local_storage_save/);
+  assert.match(storeSource, /not_studio_json_promotion/);
   assert.match(storeSource, /not_preview_sample_export/);
   assert.match(storeSource, /AGENT_VOXEL_EDIT_MAX_COMMANDS = 64/);
   assert.match(storeSource, /AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT = 1024/);
@@ -515,7 +518,7 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'register_conversion_source', 'register_conversion_mesh_asset', 'configure_conversion', 'run_conversion', 'get_model_info', 'export_voxel_volume_asset', 'save_voxel_volume_asset', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'register_conversion_source', 'register_conversion_mesh_asset', 'configure_conversion', 'run_conversion', 'get_model_info', 'export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
   assert.match(proofSource, /register_conversion_source\.facade:true/);
@@ -523,6 +526,7 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /get_model_info:true/);
   assert.match(proofSource, /export_voxel_volume_asset\.converted:true/);
   assert.match(proofSource, /save_voxel_volume_asset\.converted:true/);
+  assert.match(proofSource, /load_voxel_volume_asset\.converted:true/);
   assert.match(proofSource, /get_model_info\.missing:false/);
   assert.match(proofSource, /voxel_model_info_read_through_runtime_session_facade/);
   assert.match(proofSource, /view_from_angle\.isometric:true/);
