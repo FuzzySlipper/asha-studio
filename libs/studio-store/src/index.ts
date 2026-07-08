@@ -107,6 +107,7 @@ import {
   type VoxelConversionPreview,
   type VoxelConversionReceipt,
   type VoxelConversionSettings,
+  type VoxelConversionMeshAssetRegistrationRequest,
   type VoxelConversionSourceRegistration,
   type VoxelConversionSourceRegistrationRequest,
   type VoxelConversionSourceRef,
@@ -118,6 +119,8 @@ import {
   type VoxelAssetSparseRun,
   type VoxelCoord,
   type VoxelVolumeAsset,
+  type VoxelVolumeAssetExportReceipt,
+  type VoxelVolumeAssetExportRequest,
   type VoxelModelInfoReadout,
   type VoxelModelInfoRequest,
 } from '@asha/contracts';
@@ -141,7 +144,7 @@ import {
   type RuntimeSessionProjectionSummary,
   type RuntimeSessionStateSummary,
   type RuntimeSessionTelemetrySummary,
-  type WorldLoadRequest,
+  type ProjectBundleLoadRequest,
 } from '@asha/runtime-bridge';
 import type {
   VoxelConversionApplyCommandInput,
@@ -326,9 +329,11 @@ export interface StudioVoxelConversionSettingsDraft {
 export type StudioAgentVoxelWorkflowOperationKind =
   | 'inspect'
   | 'register_conversion_source'
+  | 'register_conversion_mesh_asset'
   | 'configure_conversion'
   | 'run_conversion'
   | 'get_model_info'
+  | 'export_voxel_volume_asset'
   | 'view_from_angle'
   | 'publish_preview'
   | 'persist_voxel_asset'
@@ -593,12 +598,40 @@ export interface StudioAgentVoxelAssetReopenReadModel {
   ];
 }
 
+export interface StudioAgentVoxelVolumeExportReadModel {
+  readonly artifactKind: 'studio_agent_voxel_volume_export';
+  readonly artifactVersion: 'studio-agent-voxel-volume-export.v0';
+  readonly request: VoxelVolumeAssetExportRequest;
+  readonly exported: boolean;
+  readonly assetId: string | null;
+  readonly mediaType: string | null;
+  readonly schemaVersion: number | null;
+  readonly voxelCount: number | null;
+  readonly boundsLabel: string | null;
+  readonly materialPalette: readonly VoxelAssetMaterialBinding[];
+  readonly provenanceKinds: readonly VoxelAssetProvenanceKind[];
+  readonly canonicalJsonHash: string | null;
+  readonly voxelDataHash: string | null;
+  readonly validationDiagnosticCodes: readonly string[];
+  readonly serializedAsset: string | null;
+  readonly fullAssetPayload: boolean;
+  readonly nonClaims: readonly [
+    'not_vforge_file',
+    'not_preview_sample_export',
+    'not_silent_sessionstate_promotion',
+    'not_arbitrary_filesystem_write',
+  ];
+  readonly exportHash: string;
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'register_conversion_source'; readonly registration: VoxelConversionSourceRegistrationRequest }
+  | { readonly kind: 'register_conversion_mesh_asset'; readonly registration: VoxelConversionMeshAssetRegistrationRequest }
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
   | { readonly kind: 'get_model_info'; readonly request: VoxelModelInfoRequest }
+  | { readonly kind: 'export_voxel_volume_asset'; readonly exportRequest: VoxelVolumeAssetExportRequest }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
   | { readonly kind: 'persist_voxel_asset'; readonly persistence: StudioAgentVoxelAssetPersistenceRequest }
@@ -649,7 +682,7 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly extension: string;
     readonly mediaType: string;
     readonly schemaVersion: number;
-    readonly supportedOperations: readonly ['persist_voxel_asset', 'reopen_voxel_asset'];
+    readonly supportedOperations: readonly ['export_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'];
     readonly assetPlane: 'ProjectBundle';
     readonly authority: 'svc-voxel-asset';
   };
@@ -667,6 +700,7 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly compiledVoxelEditBatch?: CommandBatch | null;
   readonly sourceRegistration?: VoxelConversionSourceRegistration | null;
   readonly modelInfo?: VoxelModelInfoReadout | null;
+  readonly voxelVolumeExport?: StudioAgentVoxelVolumeExportReadModel | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
   readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
@@ -735,7 +769,7 @@ const DEMO_GAME_WORKSPACE_PATHS = new Set([
   'catalogs/weapons',
 ]);
 
-const DEMO_RUNTIME_PROJECT_BUNDLE: WorldLoadRequest = {
+const DEMO_RUNTIME_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
   sceneId: 4103,
@@ -1349,6 +1383,8 @@ const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
   meshPrimitive: 'default',
   materialMap: {
     defaultVoxelMaterial: 1,
+    textureAssets: [],
+    textureBindings: [],
     entries: [
       {
         sourceMaterialSlot: 0,
@@ -1362,9 +1398,11 @@ const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
 const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkflowOperationKind[] = [
   'inspect',
   'register_conversion_source',
+  'register_conversion_mesh_asset',
   'configure_conversion',
   'run_conversion',
   'get_model_info',
+  'export_voxel_volume_asset',
   'view_from_angle',
   'publish_preview',
   'persist_voxel_asset',
@@ -2014,6 +2052,52 @@ export function buildStudioAgentVoxelAssetReopenReadModel(options: {
       'not_engine_validation',
       'not_vforge_file',
     ],
+  };
+}
+
+function countVoxelAssetVoxels(asset: VoxelVolumeAsset): number {
+  return asset.representation.sparseRuns.reduce((total, run) => total + run.length, 0);
+}
+
+export function buildStudioAgentVoxelVolumeExportReadModel(
+  receipt: VoxelVolumeAssetExportReceipt,
+): StudioAgentVoxelVolumeExportReadModel {
+  const asset = receipt.asset;
+  const validationDiagnosticCodes = [
+    ...receipt.diagnostics.map(diagnostic => diagnostic.code),
+    ...(asset?.validationDiagnostics ?? []).map(diagnostic => diagnostic.code),
+  ];
+  const body = {
+    artifactKind: 'studio_agent_voxel_volume_export' as const,
+    artifactVersion: 'studio-agent-voxel-volume-export.v0' as const,
+    request: receipt.request,
+    exported: receipt.exported,
+    assetId: asset?.assetId ?? null,
+    mediaType: asset?.mediaType ?? null,
+    schemaVersion: asset?.schemaVersion ?? null,
+    voxelCount: asset === null ? null : countVoxelAssetVoxels(asset),
+    boundsLabel: asset === null ? null : voxelAssetBoundsLabel(asset.bounds),
+    materialPalette: asset?.materialPalette ?? [],
+    provenanceKinds: (asset?.provenance ?? []).map(ref => ref.kind),
+    canonicalJsonHash: receipt.canonicalJsonHash ?? asset?.contentHashes.canonicalJson ?? null,
+    voxelDataHash: receipt.voxelDataHash ?? asset?.contentHashes.voxelData ?? null,
+    validationDiagnosticCodes,
+    serializedAsset: receipt.canonicalJson,
+    fullAssetPayload: receipt.exported
+      && asset !== null
+      && receipt.canonicalJson !== null
+      && receipt.canonicalJsonHash !== null
+      && receipt.voxelDataHash !== null,
+    nonClaims: [
+      'not_vforge_file',
+      'not_preview_sample_export',
+      'not_silent_sessionstate_promotion',
+      'not_arbitrary_filesystem_write',
+    ] as const,
+  };
+  return {
+    ...body,
+    exportHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-volume-export', body),
   };
 }
 
@@ -3145,7 +3229,7 @@ export class StudioWorkspaceStore {
         extension: VOXEL_ASSET_EXTENSION,
         mediaType: VOXEL_ASSET_MEDIA_TYPE,
         schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
-        supportedOperations: ['persist_voxel_asset', 'reopen_voxel_asset'] as const,
+        supportedOperations: ['export_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'] as const,
         assetPlane: 'ProjectBundle' as const,
         authority: 'svc-voxel-asset' as const,
       },
@@ -3210,6 +3294,38 @@ export class StudioWorkspaceStore {
           };
         }
       }
+      case 'register_conversion_mesh_asset': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before registering project mesh assets for voxel conversion.',
+            surface: this.agentVoxelWorkflowSurface(),
+            sourceRegistration: null,
+          };
+        }
+        try {
+          const registration = facade.registerVoxelConversionMeshAsset(operation.registration);
+          return {
+            accepted: registration.registered,
+            operation: operation.kind,
+            diagnostic: registration.registered
+              ? null
+              : registration.diagnostics.at(0)?.message ?? 'Voxel conversion mesh asset registration rejected.',
+            surface: this.agentVoxelWorkflowSurface(),
+            sourceRegistration: registration,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel conversion mesh asset registration failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            sourceRegistration: null,
+          };
+        }
+      }
       case 'configure_conversion': {
         this.applyAgentVoxelConversionPatch(operation.patch);
         return {
@@ -3258,6 +3374,49 @@ export class StudioWorkspaceStore {
             diagnostic: error instanceof Error ? error.message : 'Voxel model info read failed.',
             surface: this.agentVoxelWorkflowSurface(),
             modelInfo: null,
+          };
+        }
+      }
+      case 'export_voxel_volume_asset': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before exporting a resident voxel volume asset.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeExport: null,
+          };
+        }
+        try {
+          const receipt = facade.exportVoxelVolumeAsset(operation.exportRequest);
+          const exportReadout = buildStudioAgentVoxelVolumeExportReadModel(receipt);
+          const accepted = receipt.exported && exportReadout.fullAssetPayload;
+          const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+            commandId: 'voxel_asset.export_volume',
+            label: 'Agent Voxel Volume Export',
+            inputSummary: `grid=${receipt.request.grid};volume=${receipt.request.volumeAssetId ?? 'default'};asset=${receipt.request.targetAssetId}`,
+            outputSummary: accepted
+              ? `Voxel volume export ${exportReadout.canonicalJsonHash ?? exportReadout.exportHash}.`
+              : receipt.diagnostics.at(0)?.message ?? 'Voxel volume export did not return a complete asset payload.',
+            status: accepted ? 'ok' : 'rejected',
+          });
+          this.workspaceState.set(recorded.workspace);
+          this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+          return {
+            accepted,
+            operation: operation.kind,
+            diagnostic: accepted ? null : recorded.timelineEntry.outputSummary,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeExport: exportReadout,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel volume asset export failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeExport: null,
           };
         }
       }
@@ -5367,7 +5526,7 @@ function isRuntimeBridge(value: unknown): value is RuntimeBridge {
   if (value === null || typeof value !== 'object') {
     return false;
   }
-  const candidate = value as Partial<Record<keyof RuntimeBridge, unknown>>;
+  const candidate = value as Partial<Record<string, unknown>>;
   return typeof candidate.initializeEngine === 'function'
     && typeof candidate.loadWorldBundle === 'function'
     && typeof candidate.loadFpsRuntimeSession === 'function'
