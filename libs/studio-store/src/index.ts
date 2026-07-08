@@ -200,6 +200,11 @@ const DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL: StudioVoxelAssetWorkflowControlReadM
   lastAsset: null,
 };
 
+const DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT: StudioVoxelAssetWorkflowTargetDraft = {
+  targetProjectBundle: null,
+  targetAssetPath: null,
+};
+
 const DEFAULT_VOXEL_COMPACT_EDIT_CONTROL: StudioVoxelCompactEditControlReadModel = {
   controlVersion: 'studio-voxel-compact-edit-control.v0',
   lastAction: null,
@@ -859,6 +864,23 @@ export interface StudioVoxelAssetWorkflowControlReadModel {
   readonly lastAsset: VoxelVolumeAsset | null;
 }
 
+export interface StudioVoxelAssetWorkflowTargetDraft {
+  readonly targetProjectBundle: string | null;
+  readonly targetAssetPath: string | null;
+}
+
+export interface StudioVoxelAssetWorkflowTargetReadModel {
+  readonly controlVersion: 'studio-voxel-asset-workflow-target.v0';
+  readonly targetAssetId: string;
+  readonly targetProjectBundle: string;
+  readonly targetAssetPath: string;
+  readonly derivedProjectBundle: string;
+  readonly derivedAssetPath: string;
+  readonly customProjectBundle: boolean;
+  readonly customAssetPath: boolean;
+  readonly workspaceGameId: string | null;
+}
+
 export interface StudioVoxelCompactEditControlReadModel {
   readonly controlVersion: 'studio-voxel-compact-edit-control.v0';
   readonly lastAction: StudioVoxelCompactEditControlAction | null;
@@ -884,6 +906,10 @@ interface StudioVoxelAssetWorkflowTarget {
   readonly targetAssetId: string;
   readonly projectBundle: string;
   readonly assetPath: string;
+  readonly derivedProjectBundle: string;
+  readonly derivedAssetPath: string;
+  readonly customProjectBundle: boolean;
+  readonly customAssetPath: boolean;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -3331,6 +3357,9 @@ export class StudioWorkspaceStore {
   private readonly voxelConversionAuthorityState = signal<StudioVoxelConversionAuthorityState>(
     EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE,
   );
+  private readonly voxelAssetWorkflowTargetDraftState = signal<StudioVoxelAssetWorkflowTargetDraft>(
+    DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT,
+  );
   private readonly voxelAssetWorkflowControlState = signal<StudioVoxelAssetWorkflowControlReadModel>(
     DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL,
   );
@@ -3343,7 +3372,30 @@ export class StudioWorkspaceStore {
   readonly viewportTool = this.viewportToolState.asReadonly();
   readonly preferences = this.preferencesStore.preferences;
   readonly renderSettings = this.preferencesStore.renderSettings;
-  readonly voxelAssetWorkflowControl = this.voxelAssetWorkflowControlState.asReadonly();
+  readonly voxelAssetWorkflowTarget = computed<StudioVoxelAssetWorkflowTargetReadModel>(() => {
+    const target = this.voxelAssetWorkflowTargetForCurrentDraft();
+    return {
+      controlVersion: 'studio-voxel-asset-workflow-target.v0',
+      targetAssetId: target.targetAssetId,
+      targetProjectBundle: target.projectBundle,
+      targetAssetPath: target.assetPath,
+      derivedProjectBundle: target.derivedProjectBundle,
+      derivedAssetPath: target.derivedAssetPath,
+      customProjectBundle: target.customProjectBundle,
+      customAssetPath: target.customAssetPath,
+      workspaceGameId: this.gameWorkspace()?.gameId ?? null,
+    };
+  });
+  readonly voxelAssetWorkflowControl = computed<StudioVoxelAssetWorkflowControlReadModel>(() => {
+    const target = this.voxelAssetWorkflowTargetForCurrentDraft();
+    const control = this.voxelAssetWorkflowControlState();
+    return {
+      ...control,
+      targetAssetId: target.targetAssetId,
+      targetProjectBundle: target.projectBundle,
+      targetAssetPath: target.assetPath,
+    };
+  });
   readonly voxelCompactEditControl = this.voxelCompactEditControlState.asReadonly();
   readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
@@ -4800,8 +4852,28 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(message);
   }
 
+  setVoxelAssetWorkflowTargetProjectBundle(value: string): void {
+    this.voxelAssetWorkflowTargetDraftState.update(draft => ({
+      ...draft,
+      targetProjectBundle: value.trim().length === 0 ? null : value.trim(),
+    }));
+  }
+
+  setVoxelAssetWorkflowTargetAssetPath(value: string): void {
+    this.voxelAssetWorkflowTargetDraftState.update(draft => ({
+      ...draft,
+      targetAssetPath: value.trim().length === 0 ? null : value.trim(),
+    }));
+  }
+
+  resetVoxelAssetWorkflowTarget(): void {
+    this.voxelAssetWorkflowTargetDraftState.set(DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT);
+    const target = this.voxelAssetWorkflowTargetForCurrentDraft();
+    this.menuMessageState.set(`Voxel asset target follows ${target.projectBundle}:${target.assetPath}.`);
+  }
+
   runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): void {
-    const target = this.voxelAssetWorkflowTarget();
+    const target = this.voxelAssetWorkflowTargetForCurrentDraft();
     const modelInfoResult = this.runAgentVoxelWorkflowOperation({
       kind: 'get_model_info',
       request: {
@@ -4925,19 +4997,28 @@ export class StudioWorkspaceStore {
     this.recordVoxelAssetWorkflowControlFromLoad(target, loadResult);
   }
 
-  private voxelAssetWorkflowTarget(): StudioVoxelAssetWorkflowTarget {
+  private voxelAssetWorkflowTargetForCurrentDraft(): StudioVoxelAssetWorkflowTarget {
     const draft = this.voxelConversionWorkspaceShell().settingsDraft;
     const volumeAssetId = draft.targetVolumeAssetId.trim().length === 0
       ? 'voxel/generated'
       : draft.targetVolumeAssetId.trim();
     const rawName = volumeAssetId.split('/').filter(Boolean).at(-1) ?? 'generated';
     const assetName = rawName.replace(/[^A-Za-z0-9._-]/gu, '-');
+    const targetDraft = this.voxelAssetWorkflowTargetDraftState();
+    const derivedProjectBundle = this.gameWorkspace()?.gameId ?? 'asha-project';
+    const derivedAssetPath = `assets/voxels/${assetName}.${VOXEL_ASSET_EXTENSION}`;
+    const customProjectBundle = targetDraft.targetProjectBundle !== null;
+    const customAssetPath = targetDraft.targetAssetPath !== null;
     return {
       grid: draft.targetGrid,
       volumeAssetId,
       targetAssetId: `voxel-volume/${assetName}`,
-      projectBundle: 'asha-demo',
-      assetPath: `assets/voxels/${assetName}.${VOXEL_ASSET_EXTENSION}`,
+      projectBundle: targetDraft.targetProjectBundle ?? derivedProjectBundle,
+      assetPath: targetDraft.targetAssetPath ?? derivedAssetPath,
+      derivedProjectBundle,
+      derivedAssetPath,
+      customProjectBundle,
+      customAssetPath,
     };
   }
 

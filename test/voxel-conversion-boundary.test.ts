@@ -828,7 +828,13 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
 
   assert.match(storeSource, /voxelAssetWorkflowControlState/);
   assert.match(storeSource, /voxelAssetWorkflowControl =/);
+  assert.match(storeSource, /voxelAssetWorkflowTarget =/);
   assert.match(storeSource, /runVoxelAssetWorkflowControl/);
+  assert.match(storeSource, /setVoxelAssetWorkflowTargetProjectBundle/);
+  assert.match(storeSource, /setVoxelAssetWorkflowTargetAssetPath/);
+  assert.match(storeSource, /resetVoxelAssetWorkflowTarget/);
+  assert.match(storeSource, /derivedProjectBundle = this\.gameWorkspace\(\)\?\.gameId \?\? 'asha-project'/);
+  assert.doesNotMatch(storeSource, /projectBundle: 'asha-demo',\n\s+assetPath: `assets\/voxels/);
 
   for (const operation of [
     'get_model_info',
@@ -841,6 +847,9 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
 
   assert.match(panelSource, /data-voxel-asset-workflow-status/);
   assert.match(panelSource, /data-voxel-asset-diagnostics/);
+  assert.match(panelSource, /data-voxel-asset-target-control="project_bundle"/);
+  assert.match(panelSource, /data-voxel-asset-target-control="asset_path"/);
+  assert.match(panelSource, /data-voxel-asset-target-action="reset"/);
 
   for (const action of ['model_info', 'export_volume', 'save_volume', 'load_volume']) {
     assert.match(panelSource, new RegExp(`data-voxel-asset-action="${action}"`));
@@ -850,6 +859,8 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(panelSource, /canLoadLastAsset/);
   assert.match(panelSource, /targetProjectBundle/);
   assert.match(panelSource, /targetAssetPath/);
+  assert.match(panelSource, /derivedProjectBundle/);
+  assert.match(panelSource, /derivedAssetPath/);
   assert.match(panelSource, /lastAssetId/);
   assert.match(panelSource, /canonicalJsonHash/);
   assert.match(panelSource, /voxelDataHash/);

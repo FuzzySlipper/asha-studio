@@ -2564,11 +2564,45 @@ export class StudioInspectorPanelComponent {
             </strong>
             <small>{{ store.voxelAssetWorkflowControl().message }}</small>
           </article>
+          <div class="voxel-asset-workflow__target-controls">
+            <label>
+              ProjectBundle
+              <input
+                type="text"
+                data-voxel-asset-target-control="project_bundle"
+                [value]="store.voxelAssetWorkflowTarget().targetProjectBundle"
+                (input)="store.setVoxelAssetWorkflowTargetProjectBundle($any($event.target).value)"
+              />
+            </label>
+            <label>
+              Asset Path
+              <input
+                type="text"
+                data-voxel-asset-target-control="asset_path"
+                [value]="store.voxelAssetWorkflowTarget().targetAssetPath"
+                (input)="store.setVoxelAssetWorkflowTargetAssetPath($any($event.target).value)"
+              />
+            </label>
+            <button
+              type="button"
+              data-voxel-asset-target-action="reset"
+              title="Use the active workspace and derived voxel asset path"
+              (click)="store.resetVoxelAssetWorkflowTarget()"
+            >
+              <span>Use Workspace</span>
+              <small>{{ store.voxelAssetWorkflowTarget().workspaceGameId ?? 'no workspace' }}</small>
+            </button>
+          </div>
           <dl>
             <dt>bundle</dt>
             <dd>{{ store.voxelAssetWorkflowControl().targetProjectBundle }}</dd>
             <dt>path</dt>
             <dd>{{ store.voxelAssetWorkflowControl().targetAssetPath }}</dd>
+            <dt>derived</dt>
+            <dd>
+              {{ store.voxelAssetWorkflowTarget().derivedProjectBundle }} ·
+              {{ store.voxelAssetWorkflowTarget().derivedAssetPath }}
+            </dd>
             <dt>model</dt>
             <dd>{{ store.voxelAssetWorkflowControl().residentModelId ?? 'no resident model' }}</dd>
             <dt>last asset</dt>
@@ -2928,7 +2962,7 @@ export class StudioInspectorPanelComponent {
 
       .voxel-asset-workflow {
         border: 1px solid var(--asha-color-border);
-        grid-template-columns: minmax(14rem, 0.8fr) minmax(19rem, 1.1fr) minmax(20rem, 1fr);
+        grid-template-columns: minmax(14rem, 0.7fr) minmax(20rem, 1.1fr) minmax(19rem, 1fr) minmax(20rem, 1fr);
         padding: 0.55rem;
       }
 
@@ -3010,6 +3044,7 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-editor-grid label,
+      .voxel-asset-workflow label,
       .voxel-compact-edit label {
         color: var(--asha-color-muted);
         display: grid;
@@ -3021,6 +3056,7 @@ export class StudioInspectorPanelComponent {
 
       .voxel-editor-grid input,
       .voxel-editor-grid select,
+      .voxel-asset-workflow input,
       .voxel-compact-edit input {
         background: var(--asha-color-control);
         border: 1px solid var(--asha-color-border);
@@ -3044,6 +3080,17 @@ export class StudioInspectorPanelComponent {
 
       .voxel-action-row {
         grid-template-columns: repeat(4, minmax(9rem, 1fr));
+      }
+
+      .voxel-asset-workflow__target-controls {
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: minmax(7rem, 0.75fr) minmax(12rem, 1.25fr);
+        min-width: 0;
+      }
+
+      .voxel-asset-workflow__target-controls button {
+        grid-column: 1 / -1;
       }
 
       .voxel-compact-edit__inputs {
@@ -3113,9 +3160,14 @@ export class StudioInspectorPanelComponent {
         }
 
         .voxel-asset-workflow__actions,
+        .voxel-asset-workflow__target-controls,
         .voxel-compact-edit__inputs,
         .voxel-compact-edit__actions {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .voxel-asset-workflow__target-controls button {
+          grid-column: auto;
         }
       }
     `,
