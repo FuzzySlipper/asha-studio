@@ -1,6 +1,6 @@
 # Voxel Live Testing Agent Runbook
 
-Status: current for tasks #4550, #4778, and #4779.
+Status: current for tasks #4550, #4778, #4779, and #5060.
 
 This runbook is the agent entry point for VoxelForge-ish voxel conversion and
 compact-edit testing in Asha Studio. It is intentionally narrower than original
@@ -40,8 +40,8 @@ Current ignored output:
 - `artifacts/native-voxel-runtime-launch/latest/missing-provider-dom.html`
 - `artifacts/native-voxel-runtime-launch/latest/invalid-provider-dom.html`
 
-The latest #4778 proof artifact hash was
-`sha256:856c455275730e52735a38a06ed72371b46d15975db5b22eeb89883528e0064c`.
+The latest #5065 proof artifact hash recorded from `index.json` was
+`sha256:c6b11cf1b32562196563ecd7f8d7fa635f52ae7981350ceba5d661d85862df66`.
 This native proof output is regenerated/ignored evidence; record the current
 hash in Den task packets rather than committing the `latest` native artifact.
 
@@ -56,6 +56,11 @@ The native proof should record:
 - conversion source registration through RuntimeSessionFacade;
 - unsupported source registration rejected with `unsupported_source_asset`;
 - plan, preview, apply, and export evidence refs;
+- complete voxel-volume export receipt for `voxel-volume/generated`;
+- explicit ProjectBundle save transaction for
+  `assets/voxels/generated.avxl.json`;
+- validated load receipt back into RuntimeSession as
+  `voxel-model:grid:1:volume:voxel/generated`;
 - output voxel count `3`;
 - output bounds `[0,0,0] to [7,7,0]`;
 - material row slot `0` to voxel material `1`;
@@ -69,7 +74,7 @@ The native proof should record:
 - Rust `svc-voxel-asset` authority validation for both emitted `.avxl.json`
   files with no diagnostics and matching canonical/voxel-data hashes;
 - reopen readbacks whose canonical hashes match the persisted voxel assets;
-- accepted command counts changing from `0` to `11` after compact edits;
+- accepted command counts changing from `0` to `8` after compact edits;
 - rejected command count changing to `1` after invalid material edit smoke;
 - fail-closed missing-provider and invalid-provider browser paths.
 
@@ -86,6 +91,9 @@ contract internals.
 | `configure_conversion` | supported | Studio settings patch for public conversion proposals. |
 | `run_conversion` | supported | Plan, preview, apply, and evidence export command ids. |
 | `get_model_info` | supported | RuntimeSessionFacade model-info readback. |
+| `export_voxel_volume_asset` | supported | RuntimeSessionFacade full converted voxel-volume export with asset/hash/diagnostic readout. |
+| `save_voxel_volume_asset` | supported | RuntimeSessionFacade explicit runtime-to-stored ProjectBundle save transaction readout. |
+| `load_voxel_volume_asset` | supported | RuntimeSessionFacade validated stored voxel-volume load back into RuntimeSession. |
 | `submit_voxel_edit` | supported | Low-level bounded `setVoxel` command batch. |
 | `submit_compact_voxel_edit` | supported | VoxelForge-shaped compact adapter over generated `setVoxel` commands. |
 | `view_from_angle` | projection-supported | Camera/readout evidence, not runtime authority or screenshot truth. |
@@ -151,6 +159,9 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 | --- | --- |
 | Compact voxel writes | Adapted through bounded `submit_compact_voxel_edit`. |
 | Static mesh conversion | Adapted through RuntimeSessionFacade source registration and conversion proposals. |
+| Complete voxel export | Adapted through `RuntimeSessionFacade.exportVoxelVolumeAsset` and recorded as Asha-native `VoxelVolumeAsset` data. |
+| Explicit ProjectBundle save | Adapted through `RuntimeSessionFacade.saveVoxelVolumeAsset`; save is explicit, diffed, and hash-checked. |
+| Saved voxel asset load | Adapted through `RuntimeSessionFacade.loadVoxelVolumeAsset` followed by model-info readback. |
 | `get_model_info` | Adapted through RuntimeSessionFacade model-info readback. |
 | `view_from_angle` | Adapted as projection-only camera/readout evidence. |
 | `publish_preview` | Adapted as bounded JSON preview evidence. |
@@ -178,6 +189,11 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 - `test/voxel-conversion-boundary.test.ts`: boundary and parity regression
   coverage.
 - Den #4785: broader VoxelForge feature reexamination outside #4550.
+- Den #5060: current VoxelForge-ish real workflow parent.
+- Den #5061-#5065: native mesh ingestion, export, save, load, material readout,
+  and end-to-end proof slices.
+- Den #5067: minimal Studio controls for user/agent operation beyond the proof
+  harness.
 
 ## Do Not
 

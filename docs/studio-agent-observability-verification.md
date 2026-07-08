@@ -37,15 +37,17 @@ proof dashboard.
 Live voxel workflows use `StudioWorkspaceStore.runAgentVoxelWorkflowOperation`
 and `agentVoxelWorkflowSurface()` rather than private component callbacks. The
 surface exposes typed operations for inspection, conversion settings, conversion
-plan/preview/apply/export, and bounded voxel edits. Voxel edits are limited to
-`command.propose`-style `setVoxel` batches and reject unsupported operations
-before runtime submission.
+plan/preview/apply/export, complete voxel-volume export, explicit save/load
+asset transactions, model-info readback, and bounded voxel edits. Voxel edits
+are limited to `command.propose`-style `setVoxel` batches and reject unsupported
+operations before runtime submission.
 
 The native launch evidence command, `pnpm run evidence -- native-voxel-runtime-launch`,
 drives this surface against the Rust native provider and records accepted
 `set_voxels`, `set_voxels_runs`, `fill_box`, and `apply_voxel_primitives`
 compact edits, bounded `view_from_angle` camera/readout evidence,
-`publish_preview` JSON evidence export, plus runtime-rejected and
+`publish_preview` JSON evidence export, converted/authored `.avxl.json` asset
+artifacts, full export/save/load readbacks, plus runtime-rejected and
 preflight-rejected edit paths.
 
 For the current runnable workflow, expected artifact readbacks, and
