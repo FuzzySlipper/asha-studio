@@ -23,6 +23,7 @@ const bindHost = '0.0.0.0';
 const browserHost = '127.0.0.1';
 const rpcPath = '/__asha_native_bridge_rpc';
 const chromium = '/usr/bin/chromium';
+const serveMode = process.argv.includes('--serve');
 
 const rpcMethods = [
   'initializeEngine',
@@ -1191,11 +1192,13 @@ function automationPrelude(): string {
 `;
 }
 
-function injectScripts(indexHtml: string, mode: string, token: string): string {
+type NativeVoxelLaunchMode = 'proof' | 'interactive';
+
+function injectScripts(indexHtml: string, mode: string, token: string, launchMode: NativeVoxelLaunchMode): string {
   const scripts = [
     mode === 'native' ? providerPrelude(token) : '',
     mode === 'invalid' ? invalidProviderPrelude() : '',
-    automationPrelude(),
+    launchMode === 'proof' ? automationPrelude() : '',
   ].filter(script => script.length > 0)
     .map(script => `<script>${script}</script>`)
     .join('\n');
@@ -1247,7 +1250,12 @@ async function handleRpc(bridge: RuntimeBridge, request: IncomingMessage, respon
   }
 }
 
-async function handleStatic(request: IncomingMessage, response: ServerResponse, token: string): Promise<void> {
+async function handleStatic(
+  request: IncomingMessage,
+  response: ServerResponse,
+  token: string,
+  launchMode: NativeVoxelLaunchMode,
+): Promise<void> {
   const url = new URL(request.url ?? '/', `http://${browserHost}`);
   const path = url.pathname === '/' ? '/index.html' : url.pathname;
   const filePath = join(staticRoot, path);
@@ -1259,21 +1267,25 @@ async function handleStatic(request: IncomingMessage, response: ServerResponse, 
   if (path === '/index.html') {
     const html = await readFile(filePath, 'utf8');
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end(injectScripts(html, url.searchParams.get('provider') ?? 'native', token));
+    response.end(injectScripts(html, url.searchParams.get('provider') ?? 'native', token, launchMode));
     return;
   }
   response.writeHead(200, { 'content-type': contentType(filePath) });
   createReadStream(filePath).pipe(response);
 }
 
-async function createLaunchServer(bridge: RuntimeBridge, token: string): Promise<{ readonly port: number; close(): Promise<void> }> {
+async function createLaunchServer(
+  bridge: RuntimeBridge,
+  token: string,
+  launchMode: NativeVoxelLaunchMode,
+): Promise<{ readonly port: number; close(): Promise<void> }> {
   const server = createServer((request, response) => {
     void (async () => {
       if (request.url?.startsWith(rpcPath) === true && request.method === 'POST') {
         await handleRpc(bridge, request, response, token);
         return;
       }
-      await handleStatic(request, response, token);
+      await handleStatic(request, response, token, launchMode);
     })().catch(error => {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
       response.end(error instanceof Error ? error.message : String(error));
@@ -1291,6 +1303,19 @@ async function createLaunchServer(bridge: RuntimeBridge, token: string): Promise
       await once(server, 'close');
     },
   };
+}
+
+function waitForShutdown(): Promise<void> {
+  return new Promise(resolvePromise => {
+    let resolved = false;
+    const shutdown = (): void => {
+      if (resolved) return;
+      resolved = true;
+      resolvePromise();
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+  });
 }
 
 async function runChromiumDump(url: string): Promise<string> {
@@ -1336,11 +1361,19 @@ async function main(): Promise<void> {
   const nativeAddon = await ensureNativeAddon();
   const bridge = createNativeRuntimeBridge();
   const token = randomBytes(16).toString('hex');
-  const launchServer = await createLaunchServer(bridge, token);
+  const launchServer = await createLaunchServer(bridge, token, serveMode ? 'interactive' : 'proof');
   const baseUrl = `http://${browserHost}:${launchServer.port}/`;
   await mkdir(outDir, { recursive: true });
 
   try {
+    if (serveMode) {
+      console.log('ASHA Studio native voxel server is running.');
+      console.log(`Open ${baseUrl}?provider=native`);
+      console.log('Press Ctrl+C to stop.');
+      await waitForShutdown();
+      return;
+    }
+
     const nativeDom = await runChromiumDump(`${baseUrl}?provider=native`);
     const nativeProof = readProofFromDom(nativeDom);
     assert.equal(nativeProof.status, 'complete', JSON.stringify(nativeProof, null, 2));

@@ -12,7 +12,8 @@ evidence generators are retained for review artifacts and milestone gates.
 | `pnpm run studio:dev` | Product-shaped alias for `dev`. |
 | `pnpm run dev:files` | Run the Studio project-file dev server. |
 | `pnpm run studio:files` | Product-shaped alias for `dev:files`. |
-| `pnpm run studio:dev:native-voxel` | Build Studio, rebuild the native Rust addon, launch Studio with the native provider prelude, and drive the live voxel conversion plus accepted/rejected voxel-edit smoke. |
+| `pnpm run studio:dev:native-voxel` | Build Studio, rebuild the native Rust addon, launch Studio with the native provider prelude, print a local URL, and keep the server open for interactive voxel workflow testing. |
+| `pnpm run studio:proof:native-voxel` | Run the deterministic native voxel proof and write ignored evidence artifacts. |
 | `pnpm run build` | Build all Nx projects. |
 | `pnpm run build:studio-app` | Build only the Studio app. |
 | `pnpm run studio:build` | Product-shaped alias for the Studio app build. |
@@ -48,7 +49,7 @@ does not make it part of the supported Studio path.
 | `pnpm run evidence:list -- --all` | List current, milestone, delegated, and retired catalog entries. |
 | `pnpm run evidence -- <name>` | Run one evidence generator by name. |
 | `pnpm run evidence:v2-live-backend` | Convenience alias for the current V2 selected-backend evidence aggregate. |
-| `pnpm run evidence -- native-voxel-runtime-launch` | Reproducible native Studio launch path for live voxel conversion and public voxel-edit testing. |
+| `pnpm run evidence -- native-voxel-runtime-launch` | Reproducible native Studio proof for live voxel conversion and public voxel-edit testing. |
 
 The old `proof:<name>` npm script namespace is retired from `package.json`.
 Use the same suffix with the evidence dispatcher instead:

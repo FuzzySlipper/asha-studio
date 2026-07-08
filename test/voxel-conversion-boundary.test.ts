@@ -514,6 +514,10 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /buildStudioAgentVoxelAssetReopenReadModel/);
   assert.match(storeSource, /not_silent_sessionstate_promotion/);
   assert.match(storeSource, /not_vforge_file/);
+  assert.match(proofSource, /process\.argv\.includes\('--serve'\)/);
+  assert.match(proofSource, /NativeVoxelLaunchMode = 'proof' \| 'interactive'/);
+  assert.match(proofSource, /launchMode === 'proof' \? automationPrelude\(\) : ''/);
+  assert.match(proofSource, /ASHA Studio native voxel server is running\./);
   assert.match(storeSource, /agentVoxelPreviewArtifactPathDiagnostic/);
   assert.match(storeSource, /agentVoxelAssetArtifactPathDiagnostic/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch/);

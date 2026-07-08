@@ -45,6 +45,24 @@ The latest #5065 proof artifact hash recorded from `index.json` was
 This native proof output is regenerated/ignored evidence; record the current
 hash in Den task packets rather than committing the `latest` native artifact.
 
+## Interactive Native Studio
+
+Run from `/home/dev/asha-studio`:
+
+```bash
+pnpm run studio:dev:native-voxel
+```
+
+This command builds Studio, rebuilds the native Rust bridge addon, serves the
+built app on `0.0.0.0`, injects the native Rust RuntimeBridge provider, prints a
+local URL, and keeps the server open until interrupted. It does not run the
+Chromium proof automation or write the `latest` proof artifact. Use it when a
+human or browser agent needs to click the voxel conversion/save/load controls in
+a real Studio page.
+
+Use the proof command, not the interactive command, when a task needs a
+deterministic review artifact.
+
 ## Expected Native Readbacks
 
 The native proof should record:

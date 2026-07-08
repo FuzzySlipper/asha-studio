@@ -3922,6 +3922,10 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'proof-catalog-workflow-m3.ts'),
     'utf8',
   );
+  const nativeVoxelLaunchSource = readFileSync(
+    join(repoRoot, 'scripts', 'proof-native-voxel-runtime-launch.ts'),
+    'utf8',
+  );
 
   assert.equal(Object.keys(packageJson.scripts).some(scriptName => scriptName.startsWith('proof:')), false);
   assert.equal(packageJson.scripts.evidence, 'node scripts/studio-evidence.mjs run');
@@ -3933,6 +3937,14 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'node scripts/studio-evidence.mjs run v2-live-backend-evidence',
   );
   assert.equal(packageJson.scripts['studio:dev'], 'pnpm run dev');
+  assert.equal(
+    packageJson.scripts['studio:dev:native-voxel'],
+    'pnpm exec tsx scripts/proof-native-voxel-runtime-launch.ts --serve',
+  );
+  assert.equal(
+    packageJson.scripts['studio:proof:native-voxel'],
+    'pnpm run evidence -- native-voxel-runtime-launch',
+  );
   assert.equal(packageJson.scripts.check, 'pnpm run lint && pnpm run typecheck && pnpm run test');
   assert.equal(
     packageJson.scripts['dev:files'],
@@ -3961,6 +3973,7 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'live-gameplay-debug-m4',
     'running-project-connection',
     'catalog-workflow-m3',
+    'native-voxel-runtime-launch',
   ]) {
     assert.equal(existsSync(join(repoRoot, 'scripts', `proof-${evidenceName}.ts`)), true);
   }
@@ -3971,6 +3984,7 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(catalogEntries.get('v2-live-backend-evidence')?.status, 'current_product');
   assert.equal(catalogEntries.get('live-debug-session-identity')?.lane, 'studio_live_inspection');
   assert.equal(catalogEntries.get('catalog-workflow-m3')?.lane, 'studio_authoring');
+  assert.equal(catalogEntries.get('native-voxel-runtime-launch')?.status, 'current_product');
   assert.equal(catalogEntries.get('authoring-ux-m2')?.status, 'current_milestone');
   assert.equal(catalogEntries.get('runtime-session-inspection')?.status, 'legacy_retired');
   assert.equal(catalogEntries.get('playable-loop-inspection')?.status, 'delegated_to_testing');
@@ -4039,6 +4053,9 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(runningProjectConnectionSource.includes('structured running project readout JSON is required'), true);
   assert.equal(runningProjectConnectionSource.includes('negative_private_transport_failed_closed'), true);
   assert.equal(catalogWorkflowM3Source.includes("artifactKind: 'studio_catalog_workflow_m3_browser_proof'"), true);
+  assert.equal(nativeVoxelLaunchSource.includes("process.argv.includes('--serve')"), true);
+  assert.equal(nativeVoxelLaunchSource.includes("launchMode === 'proof' ? automationPrelude() : ''"), true);
+  assert.equal(nativeVoxelLaunchSource.includes('ASHA Studio native voxel server is running.'), true);
   assert.equal(catalogWorkflowM3Source.includes('structured catalog workflow readout JSON is required'), true);
   assert.equal(catalogWorkflowM3Source.includes('negative_private_catalog_path_failed_closed'), true);
 });

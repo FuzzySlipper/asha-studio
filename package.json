@@ -24,7 +24,8 @@
     "evidence": "node scripts/studio-evidence.mjs run",
     "evidence:list": "node scripts/studio-evidence.mjs list",
     "evidence:v2-live-backend": "node scripts/studio-evidence.mjs run v2-live-backend-evidence",
-    "studio:dev:native-voxel": "pnpm run evidence -- native-voxel-runtime-launch",
+    "studio:dev:native-voxel": "pnpm exec tsx scripts/proof-native-voxel-runtime-launch.ts --serve",
+    "studio:proof:native-voxel": "pnpm run evidence -- native-voxel-runtime-launch",
     "generate:readout-fixture": "tsx scripts/generate-studio-readout-fixture.ts"
   },
   "dependencies": {
