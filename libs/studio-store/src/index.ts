@@ -92,24 +92,34 @@ import {
   type StudioWorkspaceReadModel,
 } from '@asha-studio/domain';
 import type { SceneObjectId } from '@asha/editor-tools';
-import type {
-  CommandBatch,
-  VoxelCommand,
-  VoxelConversionEvidenceRef,
-  VoxelConversionFitPolicy,
-  VoxelConversionMaterialMap,
-  VoxelConversionMode,
-  VoxelConversionOriginPolicy,
-  VoxelConversionPlan,
-  VoxelConversionPreview,
-  VoxelConversionReceipt,
-  VoxelConversionSettings,
-  VoxelConversionSourceRegistration,
-  VoxelConversionSourceRegistrationRequest,
-  VoxelConversionSourceRef,
-  VoxelConversionTargetRef,
-  VoxelModelInfoReadout,
-  VoxelModelInfoRequest,
+import {
+  VOXEL_ASSET_EXTENSION,
+  VOXEL_ASSET_MEDIA_TYPE,
+  VOXEL_ASSET_SCHEMA_VERSION,
+  type CommandBatch,
+  type VoxelCommand,
+  type VoxelConversionEvidenceRef,
+  type VoxelConversionFitPolicy,
+  type VoxelConversionMaterialMap,
+  type VoxelConversionMode,
+  type VoxelConversionOriginPolicy,
+  type VoxelConversionPlan,
+  type VoxelConversionPreview,
+  type VoxelConversionReceipt,
+  type VoxelConversionSettings,
+  type VoxelConversionSourceRegistration,
+  type VoxelConversionSourceRegistrationRequest,
+  type VoxelConversionSourceRef,
+  type VoxelConversionTargetRef,
+  type VoxelAssetContentHashes,
+  type VoxelAssetDiagnostic,
+  type VoxelAssetMaterialBinding,
+  type VoxelAssetProvenanceKind,
+  type VoxelAssetSparseRun,
+  type VoxelCoord,
+  type VoxelVolumeAsset,
+  type VoxelModelInfoReadout,
+  type VoxelModelInfoRequest,
 } from '@asha/contracts';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import {
@@ -321,6 +331,8 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'get_model_info'
   | 'view_from_angle'
   | 'publish_preview'
+  | 'persist_voxel_asset'
+  | 'reopen_voxel_asset'
   | 'submit_voxel_edit'
   | 'submit_compact_voxel_edit';
 export type StudioAgentVoxelWorkflowResultOperation =
@@ -502,6 +514,85 @@ export interface StudioAgentVoxelPreviewPublicationReadModel {
   readonly publicationHash: string;
 }
 
+export type StudioAgentVoxelAssetPersistenceSource =
+  | {
+      readonly kind: 'conversion_preview';
+      readonly modelInfo?: VoxelModelInfoReadout | null;
+    }
+  | {
+      readonly kind: 'command_batch';
+      readonly batch: CommandBatch;
+    };
+
+export interface StudioAgentVoxelAssetPersistenceRequest {
+  readonly source: StudioAgentVoxelAssetPersistenceSource;
+  readonly assetId: string;
+  readonly artifactPath?: string;
+  readonly label?: string;
+}
+
+export interface StudioAgentVoxelAssetReopenRequest {
+  readonly asset: VoxelVolumeAsset;
+  readonly artifactPath?: string;
+  readonly expectedAssetId?: string;
+  readonly expectedCanonicalJsonHash?: string;
+}
+
+export interface StudioAgentVoxelAssetPersistenceReadModel {
+  readonly artifactKind: 'studio_agent_voxel_asset_persistence';
+  readonly artifactVersion: 'studio-agent-voxel-asset-persistence.v0';
+  readonly artifactPath: string;
+  readonly label: string;
+  readonly storage: {
+    readonly extension: string;
+    readonly mediaType: string;
+    readonly schemaVersion: number;
+    readonly assetPlane: 'ProjectBundle';
+    readonly runtimePromotion: 'explicit_runtime_to_stored_export';
+  };
+  readonly source: {
+    readonly kind: 'conversion_preview' | 'command_batch';
+    readonly outputVoxelCount: number;
+    readonly boundsLabel: string;
+    readonly evidenceKinds: readonly string[];
+  };
+  readonly asset: VoxelVolumeAsset;
+  readonly serializedAsset: string;
+  readonly validation: {
+    readonly posture: 'studio_shape_check_engine_authority_required';
+    readonly authority: 'svc-voxel-asset';
+    readonly diagnostics: readonly VoxelAssetDiagnostic[];
+  };
+  readonly nonClaims: readonly [
+    'not_vforge_file',
+    'not_runtime_authority',
+    'not_engine_validation',
+    'not_silent_sessionstate_promotion',
+    'not_arbitrary_filesystem_write',
+  ];
+  readonly persistenceHash: string;
+}
+
+export interface StudioAgentVoxelAssetReopenReadModel {
+  readonly artifactKind: 'studio_agent_voxel_asset_reopen';
+  readonly artifactVersion: 'studio-agent-voxel-asset-reopen.v0';
+  readonly artifactPath: string;
+  readonly assetId: string;
+  readonly mediaType: string;
+  readonly schemaVersion: number;
+  readonly reopenedHash: string;
+  readonly expectedHash: string | null;
+  readonly roundTripMatches: boolean;
+  readonly voxelCount: number;
+  readonly boundsLabel: string;
+  readonly validationDiagnostics: readonly VoxelAssetDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_runtime_authority',
+    'not_engine_validation',
+    'not_vforge_file',
+  ];
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'register_conversion_source'; readonly registration: VoxelConversionSourceRegistrationRequest }
@@ -510,6 +601,8 @@ export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'get_model_info'; readonly request: VoxelModelInfoRequest }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
+  | { readonly kind: 'persist_voxel_asset'; readonly persistence: StudioAgentVoxelAssetPersistenceRequest }
+  | { readonly kind: 'reopen_voxel_asset'; readonly reopen: StudioAgentVoxelAssetReopenRequest }
   | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch }
   | { readonly kind: 'submit_compact_voxel_edit'; readonly edit: StudioAgentCompactVoxelEdit };
 
@@ -552,6 +645,14 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly selectedRenderableId: string | null;
     readonly evidenceKind: 'projection_view_readout';
   };
+  readonly voxelStorage: {
+    readonly extension: string;
+    readonly mediaType: string;
+    readonly schemaVersion: number;
+    readonly supportedOperations: readonly ['persist_voxel_asset', 'reopen_voxel_asset'];
+    readonly assetPlane: 'ProjectBundle';
+    readonly authority: 'svc-voxel-asset';
+  };
   readonly diagnostics: readonly string[];
   readonly nonClaims: readonly string[];
   readonly surfaceHash: string;
@@ -568,6 +669,8 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly modelInfo?: VoxelModelInfoReadout | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
+  readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
+  readonly voxelAssetReopen?: StudioAgentVoxelAssetReopenReadModel | null;
 }
 
 const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
@@ -1264,6 +1367,8 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'get_model_info',
   'view_from_angle',
   'publish_preview',
+  'persist_voxel_asset',
+  'reopen_voxel_asset',
   'submit_voxel_edit',
   'submit_compact_voxel_edit',
 ];
@@ -1451,6 +1556,420 @@ export function buildStudioAgentVoxelPreviewPublicationReadModel(options: {
   return {
     ...body,
     publicationHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-preview-publication', body),
+  };
+}
+
+function agentVoxelAssetArtifactPath(assetId: string): string {
+  const safeName = assetId.replace(/^voxel-volume\//, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
+  return `artifacts/agent-voxel-assets/latest/${safeName}.${VOXEL_ASSET_EXTENSION}`;
+}
+
+function agentVoxelAssetArtifactPathDiagnostic(path: string): string | null {
+  if (!path.startsWith('artifacts/')) {
+    return 'voxel asset artifact path must stay under artifacts/';
+  }
+  if (path.includes('..') || path.includes('\\') || path.startsWith('/')) {
+    return 'voxel asset artifact path must be a relative artifacts path without traversal';
+  }
+  if (!path.endsWith(`.${VOXEL_ASSET_EXTENSION}`)) {
+    return `voxel asset artifact path must end with .${VOXEL_ASSET_EXTENSION}`;
+  }
+  return null;
+}
+
+function normalizeVoxelVolumeAssetId(assetId: string): string {
+  if (assetId.startsWith('voxel-volume/')) {
+    return assetId;
+  }
+  if (assetId.startsWith('voxel/')) {
+    return `voxel-volume/${assetId.slice('voxel/'.length)}`;
+  }
+  return `voxel-volume/${assetId.replace(/^\/+/, '')}`;
+}
+
+function normalizeMaterialAssetId(material: number, materialAssetId: string | null | undefined): string {
+  if (typeof materialAssetId === 'string' && materialAssetId.startsWith('material/')) {
+    return materialAssetId;
+  }
+  if (typeof materialAssetId === 'string' && materialAssetId.startsWith('material.')) {
+    return `material/${materialAssetId.slice('material.'.length)}`;
+  }
+  return `material/voxel-${material}`;
+}
+
+type StudioVoxelAssetSolidVoxel = {
+  readonly coord: VoxelCoord;
+  readonly material: number;
+};
+
+function solidVoxelsFromBatch(batch: CommandBatch): readonly StudioVoxelAssetSolidVoxel[] {
+  const cells = new Map<string, StudioVoxelAssetSolidVoxel>();
+  for (const command of batch.commands) {
+    if (command.op !== 'setVoxel') {
+      continue;
+    }
+    const key = `${command.coord.x},${command.coord.y},${command.coord.z}`;
+    if (command.value.kind === 'empty') {
+      cells.delete(key);
+      continue;
+    }
+    cells.set(key, {
+      coord: command.coord,
+      material: command.value.material,
+    });
+  }
+  return Array.from(cells.values()).sort(compareSolidVoxels);
+}
+
+function compareSolidVoxels(a: StudioVoxelAssetSolidVoxel, b: StudioVoxelAssetSolidVoxel): number {
+  return a.coord.z - b.coord.z
+    || a.coord.y - b.coord.y
+    || a.coord.x - b.coord.x
+    || a.material - b.material;
+}
+
+function sparseRunsFromSolidVoxels(voxels: readonly StudioVoxelAssetSolidVoxel[]): readonly VoxelAssetSparseRun[] {
+  const sorted = [...voxels].sort(compareSolidVoxels);
+  const runs: VoxelAssetSparseRun[] = [];
+  for (const voxel of sorted) {
+    const last = runs.at(-1);
+    if (
+      last !== undefined
+      && last.start.y === voxel.coord.y
+      && last.start.z === voxel.coord.z
+      && last.material === voxel.material
+      && last.start.x + last.length === voxel.coord.x
+    ) {
+      runs[runs.length - 1] = {
+        ...last,
+        length: last.length + 1,
+      };
+      continue;
+    }
+    runs.push({
+      start: voxel.coord,
+      length: 1,
+      material: voxel.material,
+    });
+  }
+  return runs;
+}
+
+function boundsFromSolidVoxels(voxels: readonly StudioVoxelAssetSolidVoxel[]): VoxelVolumeAsset['bounds'] {
+  const first = voxels[0];
+  if (first === undefined) {
+    return { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
+  }
+  let minX = first.coord.x;
+  let minY = first.coord.y;
+  let minZ = first.coord.z;
+  let maxX = first.coord.x;
+  let maxY = first.coord.y;
+  let maxZ = first.coord.z;
+  for (const voxel of voxels) {
+    minX = Math.min(minX, voxel.coord.x);
+    minY = Math.min(minY, voxel.coord.y);
+    minZ = Math.min(minZ, voxel.coord.z);
+    maxX = Math.max(maxX, voxel.coord.x);
+    maxY = Math.max(maxY, voxel.coord.y);
+    maxZ = Math.max(maxZ, voxel.coord.z);
+  }
+  return {
+    min: { x: minX, y: minY, z: minZ },
+    max: { x: maxX, y: maxY, z: maxZ },
+  };
+}
+
+function voxelAssetBoundsLabel(bounds: VoxelVolumeAsset['bounds']): string {
+  return `[${bounds.min.x},${bounds.min.y},${bounds.min.z}] to [${bounds.max.x},${bounds.max.y},${bounds.max.z}]`;
+}
+
+function materialPaletteFromVoxels(
+  voxels: readonly StudioVoxelAssetSolidVoxel[],
+  materialAssetIds: ReadonlyMap<number, string | null>,
+): readonly VoxelAssetMaterialBinding[] {
+  return Array.from(new Set(voxels.map(voxel => voxel.material)))
+    .sort((a, b) => a - b)
+    .map(material => ({
+      voxelMaterial: material,
+      materialAssetId: normalizeMaterialAssetId(material, materialAssetIds.get(material)),
+    }));
+}
+
+function canonicalVoxelAssetValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => canonicalVoxelAssetValue(item));
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, inner]) => [key, canonicalVoxelAssetValue(inner)]),
+    );
+  }
+  return value;
+}
+
+function canonicalVoxelAssetJson(asset: VoxelVolumeAsset): string {
+  return `${JSON.stringify(canonicalVoxelAssetValue(asset), null, 2)}\n`;
+}
+
+const FNV64_OFFSET = 0xcbf29ce484222325n;
+const FNV64_PRIME = 0x100000001b3n;
+const FNV64_MASK = 0xffffffffffffffffn;
+
+function fnv1a64Bytes(bytes: readonly number[]): string {
+  let hash = FNV64_OFFSET;
+  for (const byte of bytes) {
+    hash ^= BigInt(byte & 0xff);
+    hash = (hash * FNV64_PRIME) & FNV64_MASK;
+  }
+  return `fnv1a64:${hash.toString(16).padStart(16, '0')}`;
+}
+
+function utf8Bytes(text: string): readonly number[] {
+  return Array.from(new TextEncoder().encode(text));
+}
+
+function littleEndianBytes(value: bigint, byteCount: number): number[] {
+  const bytes: number[] = [];
+  let current = value;
+  for (let index = 0; index < byteCount; index += 1) {
+    bytes.push(Number(current & 0xffn));
+    current >>= 8n;
+  }
+  return bytes;
+}
+
+function voxelAssetDataHash(runs: readonly VoxelAssetSparseRun[]): string {
+  const bytes: number[] = [];
+  for (const run of runs) {
+    bytes.push(...littleEndianBytes(BigInt.asUintN(64, BigInt(run.start.x)), 8));
+    bytes.push(...littleEndianBytes(BigInt.asUintN(64, BigInt(run.start.y)), 8));
+    bytes.push(...littleEndianBytes(BigInt.asUintN(64, BigInt(run.start.z)), 8));
+    bytes.push(...littleEndianBytes(BigInt(run.length >>> 0), 4));
+    bytes.push(...littleEndianBytes(BigInt(run.material & 0xffff), 2));
+  }
+  return fnv1a64Bytes(bytes);
+}
+
+function computeVoxelAssetHashes(asset: VoxelVolumeAsset): VoxelAssetContentHashes {
+  const normalized: VoxelVolumeAsset = {
+    ...asset,
+    contentHashes: {
+      canonicalJson: '',
+      voxelData: '',
+    },
+  };
+  return {
+    canonicalJson: fnv1a64Bytes(utf8Bytes(canonicalVoxelAssetJson(normalized))),
+    voxelData: voxelAssetDataHash(asset.representation.sparseRuns),
+  };
+}
+
+function withComputedVoxelAssetHashes(asset: VoxelVolumeAsset): VoxelVolumeAsset {
+  return {
+    ...asset,
+    contentHashes: computeVoxelAssetHashes(asset),
+  };
+}
+
+function validationDiagnostic(
+  code: VoxelAssetDiagnostic['code'],
+  reference: string,
+  message: string,
+  severity: VoxelAssetDiagnostic['severity'] = 'error',
+): VoxelAssetDiagnostic {
+  return { code, severity, reference, message };
+}
+
+function buildVoxelAssetFromSolidVoxels(options: {
+  readonly assetId: string;
+  readonly label: string;
+  readonly voxels: readonly StudioVoxelAssetSolidVoxel[];
+  readonly materialAssetIds: ReadonlyMap<number, string | null>;
+  readonly provenanceKind: VoxelAssetProvenanceKind;
+  readonly provenanceUri: string;
+  readonly provenanceHash: string;
+  readonly cellSize: number;
+  readonly origin: readonly [number, number, number];
+  readonly diagnostics?: readonly VoxelAssetDiagnostic[];
+}): VoxelVolumeAsset {
+  const runs = sparseRunsFromSolidVoxels(options.voxels);
+  const withoutHashes: VoxelVolumeAsset = {
+    assetId: normalizeVoxelVolumeAssetId(options.assetId),
+    schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
+    mediaType: VOXEL_ASSET_MEDIA_TYPE,
+    grid: {
+      origin: options.origin,
+      cellSize: options.cellSize,
+      coordinateSystem: 'asha.voxel.grid.v1',
+    },
+    bounds: boundsFromSolidVoxels(options.voxels),
+    representation: {
+      kind: 'sparse_runs',
+      sparseRuns: runs,
+    },
+    materialPalette: materialPaletteFromVoxels(options.voxels, options.materialAssetIds),
+    provenance: [{
+      kind: options.provenanceKind,
+      uri: options.provenanceUri,
+      contentHash: options.provenanceHash,
+    }],
+    authoring: {
+      label: options.label,
+      createdBy: 'codex-asha-studio',
+      sourceTool: 'asha-studio',
+    },
+    validationDiagnostics: options.diagnostics ?? [],
+    contentHashes: {
+      canonicalJson: '',
+      voxelData: '',
+    },
+  };
+  return withComputedVoxelAssetHashes(withoutHashes);
+}
+
+export function buildStudioAgentVoxelAssetPersistenceReadModel(options: {
+  readonly workspace: StudioWorkspaceReadModel;
+  readonly shell: StudioVoxelConversionWorkspaceShellReadModel;
+  readonly source: StudioAgentVoxelAssetPersistenceSource;
+  readonly assetId: string;
+  readonly artifactPath?: string;
+  readonly label?: string;
+}): StudioAgentVoxelAssetPersistenceReadModel {
+  const assetId = normalizeVoxelVolumeAssetId(options.assetId);
+  const artifactPath = options.artifactPath ?? agentVoxelAssetArtifactPath(assetId);
+  const label = options.label ?? 'Agent voxel asset';
+  let voxels: readonly StudioVoxelAssetSolidVoxel[];
+  let provenanceKind: VoxelAssetProvenanceKind;
+  let provenanceUri: string;
+  let provenanceHash: string;
+  let sourceKind: 'conversion_preview' | 'command_batch';
+  let outputVoxelCount: number;
+  let evidenceKinds: readonly string[];
+  let cellSize = options.shell.settingsDraft.voxelSize;
+  let origin = options.shell.settingsDraft.targetOrigin;
+  const materialAssetIds = new Map<number, string | null>();
+  const diagnostics: VoxelAssetDiagnostic[] = [];
+
+  for (const row of options.shell.previewProjection.materialRows) {
+    materialAssetIds.set(row.voxelMaterial, row.sourceMaterialId);
+  }
+
+  if (options.source.kind === 'conversion_preview') {
+    const preview = options.shell.workspace.preview;
+    voxels = (preview?.sampleVoxels ?? []).map(voxel => ({
+      coord: voxel.coord,
+      material: voxel.material,
+    }));
+    provenanceKind = 'converted';
+    provenanceUri = preview?.evidence.at(-1)?.uri ?? `asha://studio/voxel-conversion/${options.shell.workspace.readoutHash}`;
+    provenanceHash = preview?.outputHash ?? options.shell.workspace.readoutHash;
+    sourceKind = 'conversion_preview';
+    outputVoxelCount = preview?.outputVoxelCount ?? voxels.length;
+    evidenceKinds = Array.from(new Set(options.shell.evidenceRows.filter(row => row.status === 'available').map(row => row.kind)));
+    if (preview !== null && preview !== undefined && preview.sampleVoxels.length !== preview.outputVoxelCount) {
+      diagnostics.push(validationDiagnostic(
+        'invalid_sparse_run',
+        'representation.sparseRuns',
+        'Studio preview samples do not cover the full conversion output; Rust export must provide the complete asset before save.',
+        'warning',
+      ));
+    }
+  } else {
+    voxels = solidVoxelsFromBatch(options.source.batch);
+    provenanceKind = 'runtime_export';
+    provenanceUri = `asha://studio/runtime-session/${options.workspace.session.sessionId}/voxel-command-batch`;
+    provenanceHash = fnv1a64Bytes(utf8Bytes(JSON.stringify(options.source.batch)));
+    sourceKind = 'command_batch';
+    outputVoxelCount = voxels.length;
+    evidenceKinds = ['runtime_export'];
+    cellSize = 1;
+    origin = [0, 0, 0];
+  }
+
+  const asset = buildVoxelAssetFromSolidVoxels({
+    assetId,
+    label,
+    voxels,
+    materialAssetIds,
+    provenanceKind,
+    provenanceUri,
+    provenanceHash,
+    cellSize,
+    origin,
+    diagnostics,
+  });
+  const serializedAsset = canonicalVoxelAssetJson(asset);
+  const body = {
+    artifactKind: 'studio_agent_voxel_asset_persistence' as const,
+    artifactVersion: 'studio-agent-voxel-asset-persistence.v0' as const,
+    artifactPath,
+    label,
+    storage: {
+      extension: VOXEL_ASSET_EXTENSION,
+      mediaType: VOXEL_ASSET_MEDIA_TYPE,
+      schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
+      assetPlane: 'ProjectBundle' as const,
+      runtimePromotion: 'explicit_runtime_to_stored_export' as const,
+    },
+    source: {
+      kind: sourceKind,
+      outputVoxelCount,
+      boundsLabel: voxelAssetBoundsLabel(asset.bounds),
+      evidenceKinds,
+    },
+    asset,
+    serializedAsset,
+    validation: {
+      posture: 'studio_shape_check_engine_authority_required' as const,
+      authority: 'svc-voxel-asset' as const,
+      diagnostics: asset.validationDiagnostics,
+    },
+    nonClaims: [
+      'not_vforge_file',
+      'not_runtime_authority',
+      'not_engine_validation',
+      'not_silent_sessionstate_promotion',
+      'not_arbitrary_filesystem_write',
+    ] as const,
+  };
+  return {
+    ...body,
+    persistenceHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-asset-persistence', body),
+  };
+}
+
+export function buildStudioAgentVoxelAssetReopenReadModel(options: {
+  readonly asset: VoxelVolumeAsset;
+  readonly artifactPath?: string;
+  readonly expectedAssetId?: string;
+  readonly expectedCanonicalJsonHash?: string;
+}): StudioAgentVoxelAssetReopenReadModel {
+  const artifactPath = options.artifactPath ?? agentVoxelAssetArtifactPath(options.asset.assetId);
+  const reopenedHash = computeVoxelAssetHashes(options.asset).canonicalJson;
+  const expectedHash = options.expectedCanonicalJsonHash ?? options.asset.contentHashes.canonicalJson;
+  const expectedAssetId = options.expectedAssetId ?? options.asset.assetId;
+  const voxelCount = options.asset.representation.sparseRuns.reduce((total, run) => total + run.length, 0);
+  return {
+    artifactKind: 'studio_agent_voxel_asset_reopen',
+    artifactVersion: 'studio-agent-voxel-asset-reopen.v0',
+    artifactPath,
+    assetId: options.asset.assetId,
+    mediaType: options.asset.mediaType,
+    schemaVersion: options.asset.schemaVersion,
+    reopenedHash,
+    expectedHash,
+    roundTripMatches: options.asset.assetId === expectedAssetId && reopenedHash === expectedHash,
+    voxelCount,
+    boundsLabel: voxelAssetBoundsLabel(options.asset.bounds),
+    validationDiagnostics: options.asset.validationDiagnostics,
+    nonClaims: [
+      'not_runtime_authority',
+      'not_engine_validation',
+      'not_vforge_file',
+    ],
   };
 }
 
@@ -2578,6 +3097,14 @@ export class StudioWorkspaceStore {
         selectedRenderableId: this.workspaceState().scene.selectedRenderableId,
         evidenceKind: 'projection_view_readout' as const,
       },
+      voxelStorage: {
+        extension: VOXEL_ASSET_EXTENSION,
+        mediaType: VOXEL_ASSET_MEDIA_TYPE,
+        schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
+        supportedOperations: ['persist_voxel_asset', 'reopen_voxel_asset'] as const,
+        assetPlane: 'ProjectBundle' as const,
+        authority: 'svc-voxel-asset' as const,
+      },
       diagnostics: [
         ...(this.runtimeSessionFacadeState() === null ? ['runtime_session_not_attached'] : []),
         ...shell.readout.diagnostics.map(diagnostic => diagnostic.code),
@@ -2773,6 +3300,122 @@ export class StudioWorkspaceStore {
           diagnostic: null,
           surface: this.agentVoxelWorkflowSurface(),
           previewPublication: publication,
+        };
+      }
+      case 'persist_voxel_asset': {
+        const assetId = normalizeVoxelVolumeAssetId(operation.persistence.assetId);
+        const artifactPath = operation.persistence.artifactPath ?? agentVoxelAssetArtifactPath(assetId);
+        const pathDiagnostic = agentVoxelAssetArtifactPathDiagnostic(artifactPath);
+        if (pathDiagnostic !== null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: pathDiagnostic,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelAssetPersistence: null,
+          };
+        }
+        const shell = this.voxelConversionWorkspaceShell();
+        if (operation.persistence.source.kind === 'conversion_preview') {
+          const preview = shell.workspace.preview;
+          const availableEvidenceCount = shell.evidenceRows.filter(row => row.status === 'available').length;
+          if (shell.readout.authorityPosture !== 'authority_backed' || preview === null || availableEvidenceCount === 0) {
+            return {
+              accepted: false,
+              operation: operation.kind,
+              diagnostic: 'Persisting a converted voxel asset requires authority-backed preview/apply/export evidence.',
+              surface: this.agentVoxelWorkflowSurface(),
+              voxelAssetPersistence: null,
+            };
+          }
+          if (preview.sampleVoxels.length !== preview.outputVoxelCount) {
+            return {
+              accepted: false,
+              operation: operation.kind,
+              diagnostic: 'Persisting a converted voxel asset requires a complete voxel asset payload, not a partial preview sample.',
+              surface: this.agentVoxelWorkflowSurface(),
+              voxelAssetPersistence: null,
+            };
+          }
+        } else if (solidVoxelsFromBatch(operation.persistence.source.batch).length === 0) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Persisting a command-batch voxel asset requires at least one solid setVoxel command.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelAssetPersistence: null,
+          };
+        }
+        const persistenceOptions = {
+          workspace: this.workspaceState(),
+          shell,
+          source: operation.persistence.source,
+          assetId,
+          artifactPath,
+        };
+        const persistence = buildStudioAgentVoxelAssetPersistenceReadModel(
+          operation.persistence.label === undefined
+            ? persistenceOptions
+            : { ...persistenceOptions, label: operation.persistence.label },
+        );
+        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+          commandId: 'voxel_asset.persist',
+          label: 'Agent Voxel Asset Persist',
+          inputSummary: `path=${persistence.artifactPath};asset=${persistence.asset.assetId}`,
+          outputSummary: `Voxel asset ${persistence.asset.contentHashes.canonicalJson} prepared for ProjectBundle storage.`,
+          status: 'ok',
+        });
+        this.workspaceState.set(recorded.workspace);
+        this.menuMessageState.set('Voxel asset persistence prepared.');
+        return {
+          accepted: true,
+          operation: operation.kind,
+          diagnostic: null,
+          surface: this.agentVoxelWorkflowSurface(),
+          voxelAssetPersistence: persistence,
+        };
+      }
+      case 'reopen_voxel_asset': {
+        const artifactPath = operation.reopen.artifactPath ?? agentVoxelAssetArtifactPath(operation.reopen.asset.assetId);
+        const pathDiagnostic = agentVoxelAssetArtifactPathDiagnostic(artifactPath);
+        if (pathDiagnostic !== null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: pathDiagnostic,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelAssetReopen: null,
+          };
+        }
+        const reopenOptions = {
+          asset: operation.reopen.asset,
+          artifactPath,
+        };
+        const reopen = buildStudioAgentVoxelAssetReopenReadModel({
+          ...reopenOptions,
+          ...(operation.reopen.expectedAssetId === undefined ? {} : { expectedAssetId: operation.reopen.expectedAssetId }),
+          ...(operation.reopen.expectedCanonicalJsonHash === undefined ? {} : { expectedCanonicalJsonHash: operation.reopen.expectedCanonicalJsonHash }),
+        });
+        const accepted = reopen.roundTripMatches
+          && reopen.mediaType === VOXEL_ASSET_MEDIA_TYPE
+          && reopen.schemaVersion === VOXEL_ASSET_SCHEMA_VERSION;
+        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+          commandId: 'voxel_asset.reopen',
+          label: 'Agent Voxel Asset Reopen',
+          inputSummary: `path=${reopen.artifactPath};asset=${reopen.assetId}`,
+          outputSummary: accepted
+            ? `Voxel asset reopened with ${reopen.voxelCount} voxels.`
+            : 'Voxel asset reopen failed round-trip checks.',
+          status: accepted ? 'ok' : 'rejected',
+        });
+        this.workspaceState.set(recorded.workspace);
+        this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+        return {
+          accepted,
+          operation: operation.kind,
+          diagnostic: accepted ? null : 'Voxel asset reopen failed schema, media type, id, or hash checks.',
+          surface: this.agentVoxelWorkflowSurface(),
+          voxelAssetReopen: reopen,
         };
       }
       case 'submit_voxel_edit':

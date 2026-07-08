@@ -34,6 +34,8 @@ Current ignored output:
 
 - `artifacts/native-voxel-runtime-launch/latest/index.json`
 - `artifacts/native-voxel-runtime-launch/latest/voxel-preview-publication.json`
+- `artifacts/native-voxel-runtime-launch/latest/converted-voxel-volume.avxl.json`
+- `artifacts/native-voxel-runtime-launch/latest/authored-voxel-volume.avxl.json`
 - `artifacts/native-voxel-runtime-launch/latest/native-provider-dom.html`
 - `artifacts/native-voxel-runtime-launch/latest/missing-provider-dom.html`
 - `artifacts/native-voxel-runtime-launch/latest/invalid-provider-dom.html`
@@ -60,6 +62,11 @@ The native proof should record:
 - model-info resident readback for `voxel/generated`;
 - model-info material counts `material 1 -> 3 voxels`;
 - missing model-info diagnostic `voxel_conversion_unavailable`;
+- converted voxel asset persistence as `.avxl.json` with asset id
+  `voxel-volume/generated`;
+- authored command-batch voxel asset persistence as `.avxl.json` with asset id
+  `voxel-volume/agent-authored-edit`;
+- reopen readbacks whose canonical hashes match the persisted voxel assets;
 - accepted command counts changing from `0` to `11` after compact edits;
 - rejected command count changing to `1` after invalid material edit smoke;
 - fail-closed missing-provider and invalid-provider browser paths.
@@ -81,6 +88,8 @@ contract internals.
 | `submit_compact_voxel_edit` | supported | VoxelForge-shaped compact adapter over generated `setVoxel` commands. |
 | `view_from_angle` | projection-supported | Camera/readout evidence, not runtime authority or screenshot truth. |
 | `publish_preview` | projection-supported | Bounded JSON evidence artifact, not `.vforge` output. |
+| `persist_voxel_asset` | ProjectBundle asset proposal-supported | Emits Asha-native `.avxl.json` voxel-volume assets over public DTOs; Studio shape-check only, Rust `svc-voxel-asset` remains validation/hash authority. |
+| `reopen_voxel_asset` | ProjectBundle asset readback-supported | Reopens a supplied `VoxelVolumeAsset` DTO and verifies schema/media/id/hash round trip without mutating RuntimeSession authority. |
 
 Compact edit affordances currently supported:
 
@@ -145,7 +154,7 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 | `publish_preview` | Adapted as bounded JSON preview evidence. |
 | `new_model` | Rejected for live runtime edit surface; belongs to stored ProjectBundle/workspace flows if needed. |
 | `.vforge` save/load | Out of #4550 scope; no compatibility promise. |
-| Asha-native serialized voxel storage | Planned under #4785 follow-ups as ProjectBundle/asset work, not `.vforge` inheritance. |
+| Asha-native serialized voxel storage | Adapted under #4817 as `.avxl.json` ProjectBundle/asset proposal and reopen workflow over public `VoxelVolumeAsset` DTOs, not `.vforge` inheritance. |
 | VoxelForge MCP transport | Rejected for current successor shape; Asha/Studio already expose agent tools without carrying MCP. |
 | C# sidecar/viewer/Electron packaging | Out of #4550 scope. |
 | Region labels, frame-swap animation, spatial queries, texture tools | Out of #4550 scope; reexamine under Den task #4785. |

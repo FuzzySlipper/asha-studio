@@ -17,6 +17,8 @@ import {
   buildStudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
 import {
+  buildStudioAgentVoxelAssetPersistenceReadModel,
+  buildStudioAgentVoxelAssetReopenReadModel,
   buildStudioAgentCompactVoxelEditBatch,
   buildStudioAgentVoxelPreviewPublicationReadModel,
   buildStudioAgentVoxelViewCaptureReadModel,
@@ -492,13 +494,21 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /not_browser_screenshot/);
   assert.match(storeSource, /publish_preview/);
   assert.match(storeSource, /buildStudioAgentVoxelPreviewPublicationReadModel/);
+  assert.match(storeSource, /persist_voxel_asset/);
+  assert.match(storeSource, /reopen_voxel_asset/);
+  assert.match(storeSource, /VOXEL_ASSET_EXTENSION/);
+  assert.match(storeSource, /VOXEL_ASSET_MEDIA_TYPE/);
+  assert.match(storeSource, /buildStudioAgentVoxelAssetPersistenceReadModel/);
+  assert.match(storeSource, /buildStudioAgentVoxelAssetReopenReadModel/);
+  assert.match(storeSource, /not_silent_sessionstate_promotion/);
   assert.match(storeSource, /not_vforge_file/);
   assert.match(storeSource, /agentVoxelPreviewArtifactPathDiagnostic/);
+  assert.match(storeSource, /agentVoxelAssetArtifactPathDiagnostic/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch/);
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'register_conversion_source', 'configure_conversion', 'run_conversion', 'get_model_info', 'view_from_angle', 'publish_preview', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'register_conversion_source', 'configure_conversion', 'run_conversion', 'get_model_info', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
   assert.match(proofSource, /register_conversion_source\.facade:true/);
@@ -509,6 +519,12 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /view_from_angle_recorded_projection_camera_readout_without_screenshot_authority/);
   assert.match(proofSource, /publish_preview:true/);
   assert.match(proofSource, /publish_preview_emitted_bounded_projection_evidence_artifact/);
+  assert.match(proofSource, /persist_voxel_asset\.converted:true/);
+  assert.match(proofSource, /reopen_voxel_asset\.converted:true/);
+  assert.match(proofSource, /persist_voxel_asset\.authored:true/);
+  assert.match(proofSource, /reopen_voxel_asset\.authored:true/);
+  assert.match(proofSource, /persist_voxel_asset_emitted_asha_native_avxl_json_projection_artifacts/);
+  assert.match(proofSource, /reopen_voxel_asset_verified_round_trip_hashes_without_runtime_authority_claims/);
   for (const runtimeBridgeMethod of [
     'stepSimulation',
     'invokeGameExtensionWeaponEffect',
@@ -603,6 +619,79 @@ test('VoxelForge publish_preview parity produces a bounded projection artifact b
   assert.ok(publication.nonClaims.includes('not_runtime_authority'));
   assert.ok(publication.nonClaims.includes('not_hardware_gpu_capture'));
   assert.ok(publication.nonClaims.includes('not_arbitrary_filesystem_write'));
+});
+
+test('Asha-native voxel asset persistence readmodel emits and reopens avxl json DTOs', () => {
+  const workspace = buildInitialWorkspaceReadModel();
+  const plan = sampleStudioAuthorityPlan();
+  const preview = samplePreview(plan);
+  const receipt = sampleReceipt(plan);
+  const shell = buildStudioVoxelConversionWorkspaceShellForInputs({
+    draft: sampleStudioVoxelDraft(),
+    selectedSource: sampleStudioAsset(),
+    sessionId: workspace.session.sessionId,
+    expectedTimelineSequence: 7,
+    runtimeSession: sampleRuntimeSession(),
+    authorityState: { plan, preview, receipt, evidence: [sampleEvidence('diagnostics')] },
+  });
+  const compiled = buildStudioAgentCompactVoxelEditBatch({
+    kind: 'set_voxels',
+    grid: 1,
+    voxels: [
+      { x: 0, y: 0, z: 0, i: 1 },
+      { x: 1, y: 0, z: 0, i: 1 },
+    ],
+  });
+  assert.ok(compiled.batch);
+
+  const persistence = buildStudioAgentVoxelAssetPersistenceReadModel({
+    workspace,
+    shell,
+    source: { kind: 'command_batch', batch: compiled.batch },
+    assetId: 'voxel-volume/test-authored',
+    artifactPath: 'artifacts/native-voxel-runtime-launch/latest/test-authored.avxl.json',
+    label: 'Test authored asset',
+  });
+
+  assert.equal(persistence.artifactKind, 'studio_agent_voxel_asset_persistence');
+  assert.equal(persistence.storage.extension, 'avxl.json');
+  assert.equal(persistence.storage.mediaType, 'application/vnd.asha.voxel-volume+json;version=1');
+  assert.equal(persistence.storage.schemaVersion, 1);
+  assert.equal(persistence.storage.assetPlane, 'ProjectBundle');
+  assert.equal(persistence.asset.assetId, 'voxel-volume/test-authored');
+  assert.equal(persistence.asset.mediaType, 'application/vnd.asha.voxel-volume+json;version=1');
+  assert.equal(persistence.asset.schemaVersion, 1);
+  assert.deepEqual(persistence.asset.representation.sparseRuns, [
+    { start: { x: 0, y: 0, z: 0 }, length: 2, material: 1 },
+  ]);
+  assert.deepEqual(persistence.asset.materialPalette, [
+    { voxelMaterial: 1, materialAssetId: 'material/copper' },
+  ]);
+  assert.equal(persistence.source.kind, 'command_batch');
+  assert.equal(persistence.source.outputVoxelCount, 2);
+  assert.equal(persistence.source.boundsLabel, '[0,0,0] to [1,0,0]');
+  assert.match(persistence.asset.contentHashes.canonicalJson, /^fnv1a64:/);
+  assert.match(persistence.asset.contentHashes.voxelData, /^fnv1a64:/);
+  assert.equal(persistence.validation.authority, 'svc-voxel-asset');
+  assert.equal(persistence.validation.posture, 'studio_shape_check_engine_authority_required');
+  assert.ok(persistence.serializedAsset.includes('"mediaType": "application/vnd.asha.voxel-volume+json;version=1"'));
+  assert.ok(persistence.nonClaims.includes('not_vforge_file'));
+  assert.ok(persistence.nonClaims.includes('not_engine_validation'));
+  assert.ok(persistence.nonClaims.includes('not_silent_sessionstate_promotion'));
+
+  const reopen = buildStudioAgentVoxelAssetReopenReadModel({
+    asset: persistence.asset,
+    artifactPath: persistence.artifactPath,
+    expectedAssetId: persistence.asset.assetId,
+    expectedCanonicalJsonHash: persistence.asset.contentHashes.canonicalJson,
+  });
+
+  assert.equal(reopen.artifactKind, 'studio_agent_voxel_asset_reopen');
+  assert.equal(reopen.roundTripMatches, true);
+  assert.equal(reopen.reopenedHash, persistence.asset.contentHashes.canonicalJson);
+  assert.equal(reopen.voxelCount, 2);
+  assert.equal(reopen.boundsLabel, '[0,0,0] to [1,0,0]');
+  assert.ok(reopen.nonClaims.includes('not_vforge_file'));
 });
 
 test('VoxelForge compact voxel affordances compile to bounded generated command batches', () => {

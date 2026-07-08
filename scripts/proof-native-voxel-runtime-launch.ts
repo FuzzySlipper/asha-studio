@@ -130,6 +130,48 @@ interface BrowserProof {
       readonly nonClaims: readonly string[];
       readonly publicationHash: string;
     } | null;
+    readonly voxelAssetPersistence: {
+      readonly converted: {
+        readonly artifactPath: string;
+        readonly assetId: string;
+        readonly mediaType: string;
+        readonly schemaVersion: number;
+        readonly voxelCount: number;
+        readonly boundsLabel: string;
+        readonly canonicalJsonHash: string;
+        readonly voxelDataHash: string;
+        readonly validationDiagnosticCodes: readonly string[];
+        readonly nonClaims: readonly string[];
+        readonly serializedAsset: string;
+      } | null;
+      readonly authored: {
+        readonly artifactPath: string;
+        readonly assetId: string;
+        readonly mediaType: string;
+        readonly schemaVersion: number;
+        readonly voxelCount: number;
+        readonly boundsLabel: string;
+        readonly canonicalJsonHash: string;
+        readonly voxelDataHash: string;
+        readonly validationDiagnosticCodes: readonly string[];
+        readonly nonClaims: readonly string[];
+        readonly serializedAsset: string;
+      } | null;
+      readonly convertedReopen: {
+        readonly roundTripMatches: boolean;
+        readonly reopenedHash: string;
+        readonly expectedHash: string | null;
+        readonly voxelCount: number;
+        readonly boundsLabel: string;
+      } | null;
+      readonly authoredReopen: {
+        readonly roundTripMatches: boolean;
+        readonly reopenedHash: string;
+        readonly expectedHash: string | null;
+        readonly voxelCount: number;
+        readonly boundsLabel: string;
+      } | null;
+    };
     readonly surfaceHash: string;
   };
   readonly nativeSmoke: {
@@ -306,6 +348,12 @@ function automationPrelude(): string {
       unsupportedVoxelEdit: null,
       viewCapture: null,
       previewPublication: null,
+      voxelAssetPersistence: {
+        converted: null,
+        authored: null,
+        convertedReopen: null,
+        authoredReopen: null,
+      },
       surfaceHash: '',
     },
     nativeSmoke: {
@@ -438,6 +486,36 @@ function automationPrelude(): string {
         : null,
       diagnostic: result.diagnostic || null,
     });
+  }
+
+  function summarizeVoxelAssetPersistence(result) {
+    const persistence = result.voxelAssetPersistence;
+    if (!persistence || !persistence.asset) return null;
+    return {
+      artifactPath: persistence.artifactPath,
+      assetId: persistence.asset.assetId,
+      mediaType: persistence.asset.mediaType,
+      schemaVersion: persistence.asset.schemaVersion,
+      voxelCount: persistence.asset.representation.sparseRuns.reduce((total, run) => total + run.length, 0),
+      boundsLabel: persistence.source.boundsLabel,
+      canonicalJsonHash: persistence.asset.contentHashes.canonicalJson,
+      voxelDataHash: persistence.asset.contentHashes.voxelData,
+      validationDiagnosticCodes: persistence.asset.validationDiagnostics.map(diagnostic => diagnostic.code),
+      nonClaims: persistence.nonClaims,
+      serializedAsset: persistence.serializedAsset,
+    };
+  }
+
+  function summarizeVoxelAssetReopen(result) {
+    const reopen = result.voxelAssetReopen;
+    if (!reopen) return null;
+    return {
+      roundTripMatches: reopen.roundTripMatches,
+      reopenedHash: reopen.reopenedHash,
+      expectedHash: reopen.expectedHash,
+      voxelCount: reopen.voxelCount,
+      boundsLabel: reopen.boundsLabel,
+    };
   }
 
   function failClosedProviderDiagnostic() {
@@ -600,6 +678,28 @@ function automationPrelude(): string {
           evidenceRefs: (modelInfoResult.modelInfo?.evidence ?? []).map(ref => ({ kind: ref.kind, uri: ref.uri, contentHash: ref.contentHash })),
           diagnosticCodes: (modelInfoResult.modelInfo?.diagnostics ?? []).map(diagnostic => diagnostic.code),
         };
+        const convertedAssetResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'persist_voxel_asset',
+          persistence: {
+            source: { kind: 'conversion_preview', modelInfo: modelInfoResult.modelInfo },
+            assetId: 'voxel-volume/generated',
+            artifactPath: 'artifacts/native-voxel-runtime-launch/latest/converted-voxel-volume.avxl.json',
+            label: 'Native converted voxel volume',
+          },
+        });
+        proof.agentSurface.operationStatuses.push('persist_voxel_asset.converted:' + convertedAssetResult.accepted);
+        proof.agentSurface.voxelAssetPersistence.converted = summarizeVoxelAssetPersistence(convertedAssetResult);
+        const convertedReopenResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'reopen_voxel_asset',
+          reopen: {
+            asset: convertedAssetResult.voxelAssetPersistence?.asset,
+            artifactPath: 'artifacts/native-voxel-runtime-launch/latest/converted-voxel-volume.avxl.json',
+            expectedAssetId: convertedAssetResult.voxelAssetPersistence?.asset.assetId,
+            expectedCanonicalJsonHash: convertedAssetResult.voxelAssetPersistence?.asset.contentHashes.canonicalJson,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('reopen_voxel_asset.converted:' + convertedReopenResult.accepted);
+        proof.agentSurface.voxelAssetPersistence.convertedReopen = summarizeVoxelAssetReopen(convertedReopenResult);
         const missingModelInfoResult = store.runAgentVoxelWorkflowOperation({
           kind: 'get_model_info',
           request: {
@@ -637,6 +737,28 @@ function automationPrelude(): string {
           },
         });
         recordCompactVoxelEditResult('set_voxels', compactSetVoxels);
+        const authoredAssetResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'persist_voxel_asset',
+          persistence: {
+            source: { kind: 'command_batch', batch: compactSetVoxels.compiledVoxelEditBatch },
+            assetId: 'voxel-volume/agent-authored-edit',
+            artifactPath: 'artifacts/native-voxel-runtime-launch/latest/authored-voxel-volume.avxl.json',
+            label: 'Native authored voxel edit volume',
+          },
+        });
+        proof.agentSurface.operationStatuses.push('persist_voxel_asset.authored:' + authoredAssetResult.accepted);
+        proof.agentSurface.voxelAssetPersistence.authored = summarizeVoxelAssetPersistence(authoredAssetResult);
+        const authoredReopenResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'reopen_voxel_asset',
+          reopen: {
+            asset: authoredAssetResult.voxelAssetPersistence?.asset,
+            artifactPath: 'artifacts/native-voxel-runtime-launch/latest/authored-voxel-volume.avxl.json',
+            expectedAssetId: authoredAssetResult.voxelAssetPersistence?.asset.assetId,
+            expectedCanonicalJsonHash: authoredAssetResult.voxelAssetPersistence?.asset.contentHashes.canonicalJson,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('reopen_voxel_asset.authored:' + authoredReopenResult.accepted);
+        proof.agentSurface.voxelAssetPersistence.authoredReopen = summarizeVoxelAssetReopen(authoredReopenResult);
         const compactSetVoxelRuns = store.runAgentVoxelWorkflowOperation({
           kind: 'submit_compact_voxel_edit',
           edit: {
@@ -927,8 +1049,12 @@ async function main(): Promise<void> {
       'run_conversion.export_evidence:true',
       'publish_preview:true',
       'get_model_info:true',
+      'persist_voxel_asset.converted:true',
+      'reopen_voxel_asset.converted:true',
       'get_model_info.missing:false',
       'submit_compact_voxel_edit.set_voxels:true',
+      'persist_voxel_asset.authored:true',
+      'reopen_voxel_asset.authored:true',
       'submit_compact_voxel_edit.set_voxels_runs:true',
       'submit_compact_voxel_edit.fill_box:true',
       'submit_compact_voxel_edit.apply_voxel_primitives:true',
@@ -970,6 +1096,34 @@ async function main(): Promise<void> {
     assert.match(nativeProof.agentSurface.previewPublication?.publicationHash ?? '', /^studio-agent-voxel-preview-publication-/);
     assert.ok(nativeProof.agentSurface.previewPublication?.nonClaims.includes('not_vforge_file'));
     assert.ok(nativeProof.agentSurface.previewPublication?.nonClaims.includes('not_arbitrary_filesystem_write'));
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.converted?.assetId, 'voxel-volume/generated');
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.converted?.mediaType, 'application/vnd.asha.voxel-volume+json;version=1');
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.converted?.schemaVersion, 1);
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.converted?.voxelCount, 3);
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.converted?.boundsLabel, '[0,0,0] to [7,7,0]');
+    assert.match(nativeProof.agentSurface.voxelAssetPersistence.converted?.canonicalJsonHash ?? '', /^fnv1a64:/);
+    assert.match(nativeProof.agentSurface.voxelAssetPersistence.converted?.voxelDataHash ?? '', /^fnv1a64:/);
+    assert.deepEqual(nativeProof.agentSurface.voxelAssetPersistence.converted?.validationDiagnosticCodes, []);
+    assert.ok(nativeProof.agentSurface.voxelAssetPersistence.converted?.nonClaims.includes('not_vforge_file'));
+    assert.ok(nativeProof.agentSurface.voxelAssetPersistence.converted?.nonClaims.includes('not_engine_validation'));
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.convertedReopen?.roundTripMatches, true);
+    assert.equal(
+      nativeProof.agentSurface.voxelAssetPersistence.convertedReopen?.reopenedHash,
+      nativeProof.agentSurface.voxelAssetPersistence.converted?.canonicalJsonHash,
+    );
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.authored?.assetId, 'voxel-volume/agent-authored-edit');
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.authored?.mediaType, 'application/vnd.asha.voxel-volume+json;version=1');
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.authored?.schemaVersion, 1);
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.authored?.voxelCount, 2);
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.authored?.boundsLabel, '[0,0,0] to [1,0,0]');
+    assert.match(nativeProof.agentSurface.voxelAssetPersistence.authored?.canonicalJsonHash ?? '', /^fnv1a64:/);
+    assert.match(nativeProof.agentSurface.voxelAssetPersistence.authored?.voxelDataHash ?? '', /^fnv1a64:/);
+    assert.deepEqual(nativeProof.agentSurface.voxelAssetPersistence.authored?.validationDiagnosticCodes, []);
+    assert.equal(nativeProof.agentSurface.voxelAssetPersistence.authoredReopen?.roundTripMatches, true);
+    assert.equal(
+      nativeProof.agentSurface.voxelAssetPersistence.authoredReopen?.reopenedHash,
+      nativeProof.agentSurface.voxelAssetPersistence.authored?.canonicalJsonHash,
+    );
     assert.equal(nativeProof.agentSurface.acceptedVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedCompactVoxelEdit, true);
     assert.equal(nativeProof.agentSurface.rejectedVoxelEdit, true);
@@ -1034,15 +1188,23 @@ async function main(): Promise<void> {
     const missingDomPath = join(outDir, 'missing-provider-dom.html');
     const invalidDomPath = join(outDir, 'invalid-provider-dom.html');
     const previewPublicationPath = join(outDir, 'voxel-preview-publication.json');
+    const convertedVoxelAssetPath = join(outDir, 'converted-voxel-volume.avxl.json');
+    const authoredVoxelAssetPath = join(outDir, 'authored-voxel-volume.avxl.json');
     assert.ok(nativeProof.agentSurface.previewPublication, 'preview publication was not produced');
+    assert.ok(nativeProof.agentSurface.voxelAssetPersistence.converted, 'converted voxel asset was not produced');
+    assert.ok(nativeProof.agentSurface.voxelAssetPersistence.authored, 'authored voxel asset was not produced');
     const previewPublication = {
       ...nativeProof.agentSurface.previewPublication,
       artifactHash: sha256(nativeProof.agentSurface.previewPublication),
     };
+    const convertedVoxelAsset = nativeProof.agentSurface.voxelAssetPersistence.converted;
+    const authoredVoxelAsset = nativeProof.agentSurface.voxelAssetPersistence.authored;
     await writeFile(nativeDomPath, nativeDom);
     await writeFile(missingDomPath, missingDom);
     await writeFile(invalidDomPath, invalidDom);
     await writeFile(previewPublicationPath, `${JSON.stringify(previewPublication, null, 2)}\n`);
+    await writeFile(convertedVoxelAssetPath, convertedVoxelAsset.serializedAsset);
+    await writeFile(authoredVoxelAssetPath, authoredVoxelAsset.serializedAsset);
 
     const artifact = {
       artifactKind: 'studio_native_voxel_runtime_launch_proof',
@@ -1082,6 +1244,24 @@ async function main(): Promise<void> {
         hash: previewPublication.artifactHash,
         publicationHash: previewPublication.publicationHash,
       },
+      voxelAssetArtifacts: {
+        converted: {
+          path: relative(repoRoot, convertedVoxelAssetPath),
+          hash: sha256Buffer(convertedVoxelAsset.serializedAsset),
+          assetId: convertedVoxelAsset.assetId,
+          canonicalJsonHash: convertedVoxelAsset.canonicalJsonHash,
+          voxelDataHash: convertedVoxelAsset.voxelDataHash,
+          reopenHash: nativeProof.agentSurface.voxelAssetPersistence.convertedReopen?.reopenedHash ?? null,
+        },
+        authored: {
+          path: relative(repoRoot, authoredVoxelAssetPath),
+          hash: sha256Buffer(authoredVoxelAsset.serializedAsset),
+          assetId: authoredVoxelAsset.assetId,
+          canonicalJsonHash: authoredVoxelAsset.canonicalJsonHash,
+          voxelDataHash: authoredVoxelAsset.voxelDataHash,
+          reopenHash: nativeProof.agentSurface.voxelAssetPersistence.authoredReopen?.reopenedHash ?? null,
+        },
+      },
       proofs: {
         nativeProvider: nativeProof,
         missingProvider: missingProof,
@@ -1097,6 +1277,8 @@ async function main(): Promise<void> {
         'missing_voxel_model_info_failed_closed_through_runtime_session_facade',
         'view_from_angle_recorded_projection_camera_readout_without_screenshot_authority',
         'publish_preview_emitted_bounded_projection_evidence_artifact',
+        'persist_voxel_asset_emitted_asha_native_avxl_json_projection_artifacts',
+        'reopen_voxel_asset_verified_round_trip_hashes_without_runtime_authority_claims',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
         'all_adapted_voxelforge_compact_affordances_submitted_through_public_surface',
         'oversized_voxelforge_style_compact_edit_failed_closed_before_runtime_submission',
@@ -1108,6 +1290,7 @@ async function main(): Promise<void> {
         'not_hardware_gpu_capture',
         'not_performance_evidence',
         'not_vforge_file',
+        'not_voxelforge_import_export_compatibility',
         'not_packaged_electron_evidence',
         'not_public_remote_rpc_api',
       ],
