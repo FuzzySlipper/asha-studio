@@ -135,6 +135,7 @@ export type StudioUiEventCommandId =
   | 'voxel_view.from_angle'
   | 'voxel_preview.publish'
   | 'voxel_asset.export_volume'
+  | 'voxel_asset.save_volume'
   | 'voxel_asset.persist'
   | 'voxel_asset.reopen'
   | 'voxel_edit.submit'

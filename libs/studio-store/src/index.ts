@@ -121,6 +121,9 @@ import {
   type VoxelVolumeAsset,
   type VoxelVolumeAssetExportReceipt,
   type VoxelVolumeAssetExportRequest,
+  type VoxelVolumeAssetSaveReceipt,
+  type VoxelVolumeAssetSaveRequest,
+  type VoxelVolumeAssetStoredDiff,
   type VoxelModelInfoReadout,
   type VoxelModelInfoRequest,
 } from '@asha/contracts';
@@ -334,6 +337,7 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'run_conversion'
   | 'get_model_info'
   | 'export_voxel_volume_asset'
+  | 'save_voxel_volume_asset'
   | 'view_from_angle'
   | 'publish_preview'
   | 'persist_voxel_asset'
@@ -624,6 +628,38 @@ export interface StudioAgentVoxelVolumeExportReadModel {
   readonly exportHash: string;
 }
 
+export interface StudioAgentVoxelVolumeSaveReadModel {
+  readonly artifactKind: 'studio_agent_voxel_volume_save';
+  readonly artifactVersion: 'studio-agent-voxel-volume-save.v0';
+  readonly request: VoxelVolumeAssetSaveRequest;
+  readonly saved: boolean;
+  readonly diff: VoxelVolumeAssetStoredDiff | null;
+  readonly assetId: string | null;
+  readonly assetPath: string;
+  readonly projectBundle: string;
+  readonly operation: string | null;
+  readonly previousCanonicalJsonHash: string | null;
+  readonly nextCanonicalJsonHash: string | null;
+  readonly nextVoxelDataHash: string | null;
+  readonly expectedCanonicalJsonHash: string | null;
+  readonly expectedVoxelDataHash: string | null;
+  readonly sparseRunCount: number | null;
+  readonly voxelCount: number | null;
+  readonly materialCount: number | null;
+  readonly provenanceCount: number | null;
+  readonly runtimeSessionHash: string | null;
+  readonly validationDiagnosticCodes: readonly string[];
+  readonly serializedAsset: string | null;
+  readonly fullAssetPayload: boolean;
+  readonly nonClaims: readonly [
+    'not_vforge_file',
+    'not_browser_local_storage_save',
+    'not_silent_sessionstate_promotion',
+    'not_arbitrary_filesystem_write',
+  ];
+  readonly saveHash: string;
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'register_conversion_source'; readonly registration: VoxelConversionSourceRegistrationRequest }
@@ -632,6 +668,7 @@ export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
   | { readonly kind: 'get_model_info'; readonly request: VoxelModelInfoRequest }
   | { readonly kind: 'export_voxel_volume_asset'; readonly exportRequest: VoxelVolumeAssetExportRequest }
+  | { readonly kind: 'save_voxel_volume_asset'; readonly saveRequest: VoxelVolumeAssetSaveRequest }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
   | { readonly kind: 'persist_voxel_asset'; readonly persistence: StudioAgentVoxelAssetPersistenceRequest }
@@ -682,7 +719,7 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly extension: string;
     readonly mediaType: string;
     readonly schemaVersion: number;
-    readonly supportedOperations: readonly ['export_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'];
+    readonly supportedOperations: readonly ['export_voxel_volume_asset', 'save_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'];
     readonly assetPlane: 'ProjectBundle';
     readonly authority: 'svc-voxel-asset';
   };
@@ -701,6 +738,7 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly sourceRegistration?: VoxelConversionSourceRegistration | null;
   readonly modelInfo?: VoxelModelInfoReadout | null;
   readonly voxelVolumeExport?: StudioAgentVoxelVolumeExportReadModel | null;
+  readonly voxelVolumeSave?: StudioAgentVoxelVolumeSaveReadModel | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
   readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
@@ -1403,6 +1441,7 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'run_conversion',
   'get_model_info',
   'export_voxel_volume_asset',
+  'save_voxel_volume_asset',
   'view_from_angle',
   'publish_preview',
   'persist_voxel_asset',
@@ -2098,6 +2137,56 @@ export function buildStudioAgentVoxelVolumeExportReadModel(
   return {
     ...body,
     exportHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-volume-export', body),
+  };
+}
+
+export function buildStudioAgentVoxelVolumeSaveReadModel(
+  receipt: VoxelVolumeAssetSaveReceipt,
+): StudioAgentVoxelVolumeSaveReadModel {
+  const diff = receipt.diff;
+  const asset = receipt.asset;
+  const validationDiagnosticCodes = [
+    ...receipt.diagnostics.map(diagnostic => diagnostic.code),
+    ...(asset?.validationDiagnostics ?? []).map(diagnostic => diagnostic.code),
+  ];
+  const body = {
+    artifactKind: 'studio_agent_voxel_volume_save' as const,
+    artifactVersion: 'studio-agent-voxel-volume-save.v0' as const,
+    request: receipt.request,
+    saved: receipt.saved,
+    diff,
+    assetId: asset?.assetId ?? diff?.assetId ?? null,
+    assetPath: receipt.request.targetAssetPath,
+    projectBundle: receipt.request.targetProjectBundle,
+    operation: diff?.operation ?? null,
+    previousCanonicalJsonHash: diff?.previousCanonicalJsonHash ?? null,
+    nextCanonicalJsonHash: receipt.canonicalJsonHash ?? diff?.nextCanonicalJsonHash ?? null,
+    nextVoxelDataHash: receipt.voxelDataHash ?? diff?.nextVoxelDataHash ?? null,
+    expectedCanonicalJsonHash: receipt.request.expectedCanonicalJsonHash,
+    expectedVoxelDataHash: receipt.request.expectedVoxelDataHash,
+    sparseRunCount: diff?.sparseRunCount ?? null,
+    voxelCount: diff?.voxelCount ?? (asset === null ? null : countVoxelAssetVoxels(asset)),
+    materialCount: diff?.materialCount ?? asset?.materialPalette.length ?? null,
+    provenanceCount: diff?.provenanceCount ?? asset?.provenance.length ?? null,
+    runtimeSessionHash: diff?.runtimeSessionHash ?? null,
+    validationDiagnosticCodes,
+    serializedAsset: receipt.canonicalJson,
+    fullAssetPayload: receipt.saved
+      && diff !== null
+      && asset !== null
+      && receipt.canonicalJson !== null
+      && receipt.canonicalJsonHash !== null
+      && receipt.voxelDataHash !== null,
+    nonClaims: [
+      'not_vforge_file',
+      'not_browser_local_storage_save',
+      'not_silent_sessionstate_promotion',
+      'not_arbitrary_filesystem_write',
+    ] as const,
+  };
+  return {
+    ...body,
+    saveHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-volume-save', body),
   };
 }
 
@@ -3229,7 +3318,7 @@ export class StudioWorkspaceStore {
         extension: VOXEL_ASSET_EXTENSION,
         mediaType: VOXEL_ASSET_MEDIA_TYPE,
         schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
-        supportedOperations: ['export_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'] as const,
+        supportedOperations: ['export_voxel_volume_asset', 'save_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'] as const,
         assetPlane: 'ProjectBundle' as const,
         authority: 'svc-voxel-asset' as const,
       },
@@ -3417,6 +3506,49 @@ export class StudioWorkspaceStore {
             diagnostic: error instanceof Error ? error.message : 'Voxel volume asset export failed.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeExport: null,
+          };
+        }
+      }
+      case 'save_voxel_volume_asset': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before requesting a voxel asset diff/save transaction.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeSave: null,
+          };
+        }
+        try {
+          const receipt = facade.saveVoxelVolumeAsset(operation.saveRequest);
+          const saveReadout = buildStudioAgentVoxelVolumeSaveReadModel(receipt);
+          const accepted = receipt.saved && saveReadout.fullAssetPayload;
+          const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+            commandId: 'voxel_asset.save_volume',
+            label: 'Agent Voxel Volume Save',
+            inputSummary: `bundle=${receipt.request.targetProjectBundle};path=${receipt.request.targetAssetPath};asset=${receipt.request.exportRequest.targetAssetId}`,
+            outputSummary: accepted
+              ? `Voxel save ${saveReadout.operation ?? 'accepted'} ${saveReadout.nextCanonicalJsonHash ?? saveReadout.saveHash}.`
+              : receipt.diagnostics.at(0)?.message ?? 'Voxel asset save transaction did not return an accepted diff and asset payload.',
+            status: accepted ? 'ok' : 'rejected',
+          });
+          this.workspaceState.set(recorded.workspace);
+          this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+          return {
+            accepted,
+            operation: operation.kind,
+            diagnostic: accepted ? null : recorded.timelineEntry.outputSummary,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeSave: saveReadout,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel volume asset save transaction failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeSave: null,
           };
         }
       }

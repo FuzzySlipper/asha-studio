@@ -62,6 +62,7 @@ const rpcMethods = [
   'applyVoxelConversion',
   'exportVoxelConversionEvidence',
   'exportVoxelVolumeAsset',
+  'saveVoxelVolumeAsset',
   'getBuffer',
   'releaseBuffer',
   'loadReplayFixture',
@@ -215,6 +216,23 @@ interface BrowserProof {
         readonly boundsLabel: string | null;
         readonly canonicalJsonHash: string | null;
         readonly voxelDataHash: string | null;
+        readonly validationDiagnosticCodes: readonly string[];
+        readonly fullAssetPayload: boolean;
+      } | null;
+      readonly savedVolumeAsset: {
+        readonly saved: boolean;
+        readonly assetId: string | null;
+        readonly projectBundle: string;
+        readonly assetPath: string;
+        readonly operation: string | null;
+        readonly previousCanonicalJsonHash: string | null;
+        readonly nextCanonicalJsonHash: string | null;
+        readonly nextVoxelDataHash: string | null;
+        readonly expectedCanonicalJsonHash: string | null;
+        readonly expectedVoxelDataHash: string | null;
+        readonly voxelCount: number | null;
+        readonly materialCount: number | null;
+        readonly provenanceCount: number | null;
         readonly validationDiagnosticCodes: readonly string[];
         readonly fullAssetPayload: boolean;
       } | null;
@@ -500,6 +518,7 @@ function automationPrelude(): string {
         materialRows: [],
         exportedEvidenceRefs: [],
         exportedVolumeAsset: null,
+        savedVolumeAsset: null,
       },
       modelInfo: {
         resident: null,
@@ -646,6 +665,28 @@ function automationPrelude(): string {
       voxelDataHash: exportReadout.voxelDataHash,
       validationDiagnosticCodes: exportReadout.validationDiagnosticCodes,
       fullAssetPayload: exportReadout.fullAssetPayload,
+    };
+  }
+
+  function summarizeVoxelVolumeSave(result) {
+    const saveReadout = result.voxelVolumeSave;
+    if (!saveReadout) return null;
+    return {
+      saved: saveReadout.saved,
+      assetId: saveReadout.assetId,
+      projectBundle: saveReadout.projectBundle,
+      assetPath: saveReadout.assetPath,
+      operation: saveReadout.operation,
+      previousCanonicalJsonHash: saveReadout.previousCanonicalJsonHash,
+      nextCanonicalJsonHash: saveReadout.nextCanonicalJsonHash,
+      nextVoxelDataHash: saveReadout.nextVoxelDataHash,
+      expectedCanonicalJsonHash: saveReadout.expectedCanonicalJsonHash,
+      expectedVoxelDataHash: saveReadout.expectedVoxelDataHash,
+      voxelCount: saveReadout.voxelCount,
+      materialCount: saveReadout.materialCount,
+      provenanceCount: saveReadout.provenanceCount,
+      validationDiagnosticCodes: saveReadout.validationDiagnosticCodes,
+      fullAssetPayload: saveReadout.fullAssetPayload,
     };
   }
 
@@ -861,6 +902,29 @@ function automationPrelude(): string {
         });
         proof.agentSurface.operationStatuses.push('export_voxel_volume_asset.converted:' + exportedVolumeResult.accepted);
         proof.nativeSmoke.conversion.exportedVolumeAsset = summarizeVoxelVolumeExport(exportedVolumeResult);
+        const savedVolumeResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'save_voxel_volume_asset',
+          saveRequest: {
+            exportRequest: {
+              grid: 1,
+              volumeAssetId: 'voxel/generated',
+              targetAssetId: 'voxel-volume/generated',
+              label: 'Native converted voxel volume',
+              createdBy: 'codex-asha-studio',
+              sourceTool: 'asha-studio',
+              maxSparseRuns: 16,
+              expectedSessionHash: modelInfoResult.modelInfo?.sessionHash ?? null,
+            },
+            targetProjectBundle: 'asha-demo',
+            targetAssetPath: 'assets/voxels/generated.avxl.json',
+            representationKind: 'sparse_runs',
+            expectedExistingCanonicalJsonHash: null,
+            expectedCanonicalJsonHash: exportedVolumeResult.voxelVolumeExport?.canonicalJsonHash ?? null,
+            expectedVoxelDataHash: exportedVolumeResult.voxelVolumeExport?.voxelDataHash ?? null,
+          },
+        });
+        proof.agentSurface.operationStatuses.push('save_voxel_volume_asset.converted:' + savedVolumeResult.accepted);
+        proof.nativeSmoke.conversion.savedVolumeAsset = summarizeVoxelVolumeSave(savedVolumeResult);
         const convertedAssetResult = store.runAgentVoxelWorkflowOperation({
           kind: 'persist_voxel_asset',
           persistence: {
@@ -1234,6 +1298,7 @@ async function main(): Promise<void> {
       'publish_preview:true',
       'get_model_info:true',
       'export_voxel_volume_asset.converted:true',
+      'save_voxel_volume_asset.converted:true',
       'persist_voxel_asset.converted:true',
       'reopen_voxel_asset.converted:true',
       'get_model_info.missing:false',
@@ -1360,6 +1425,23 @@ async function main(): Promise<void> {
     });
     assert.match(nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.canonicalJsonHash ?? '', /^fnv1a64:/);
     assert.match(nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.voxelDataHash ?? '', /^fnv1a64:/);
+    assert.deepEqual(nativeProof.nativeSmoke.conversion.savedVolumeAsset, {
+      saved: true,
+      assetId: 'voxel-volume/generated',
+      projectBundle: 'asha-demo',
+      assetPath: 'assets/voxels/generated.avxl.json',
+      operation: 'create',
+      previousCanonicalJsonHash: null,
+      nextCanonicalJsonHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.canonicalJsonHash,
+      nextVoxelDataHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.voxelDataHash,
+      expectedCanonicalJsonHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.canonicalJsonHash,
+      expectedVoxelDataHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.voxelDataHash,
+      voxelCount: 3,
+      materialCount: 1,
+      provenanceCount: 1,
+      validationDiagnosticCodes: [],
+      fullAssetPayload: true,
+    });
     assert.equal(nativeProof.nativeSmoke.modelInfo.resident, true);
     assert.equal(nativeProof.nativeSmoke.modelInfo.volumeAssetId, 'voxel/generated');
     assert.equal(nativeProof.nativeSmoke.modelInfo.voxelCount, 3);
