@@ -193,7 +193,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                     <span>{{ session.sessionType }} · {{ session.status }}</span>
                     <strong>{{ session.backendMode }} · {{ session.backendCompatibilityState }}</strong>
                     <small>{{ session.attachStatus }} · {{ session.liveHash || 'no live readback' }}</small>
-                    <small>{{ session.worldHash || 'no projection' }}</small>
+                    <small>{{ session.runtimeSessionSummaryHash || 'no projection' }}</small>
                   </article>
                 }
               </div>

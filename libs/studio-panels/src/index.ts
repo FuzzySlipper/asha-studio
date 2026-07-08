@@ -152,7 +152,7 @@ function filteredHierarchyEntities(
               <small>{{ session.attachStatus }} · runtime {{ session.runtimeMode }}</small>
               <small>{{ session.backendProfile }}</small>
               @if (session.projection) {
-                <small>{{ session.projection.worldHash }} · {{ session.projection.renderDiffHash }}</small>
+                <small>{{ session.projection.runtimeSessionSummaryHash }} · {{ session.projection.renderDiffHash }}</small>
               } @else {
                 <small>{{ session.profileId }}</small>
               }

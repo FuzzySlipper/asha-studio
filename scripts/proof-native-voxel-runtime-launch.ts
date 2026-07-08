@@ -26,12 +26,12 @@ const chromium = '/usr/bin/chromium';
 
 const rpcMethods = [
   'initializeEngine',
-  'loadWorldBundle',
-  'saveCurrentWorld',
-  'unloadWorld',
+  'loadProjectBundle',
+  'saveProjectBundle',
+  'getProjectBundleCompositionStatus',
+  'unloadProjectBundle',
   'stepSimulation',
   'readRenderDiffs',
-  'getCompositionStatus',
   'submitCommands',
   'pickVoxel',
   'selectVoxel',
@@ -83,6 +83,7 @@ interface BrowserProof {
   readonly timelineStatuses: readonly string[];
   readonly agentSurface: {
     readonly operationStatuses: readonly string[];
+    readonly operationDiagnostics: readonly string[];
     readonly compactVoxelEdits: readonly {
       readonly affordance: string;
       readonly accepted: boolean;
@@ -506,6 +507,7 @@ function automationPrelude(): string {
     timelineStatuses: [],
     agentSurface: {
       operationStatuses: [],
+      operationDiagnostics: [],
       compactVoxelEdits: [],
       acceptedVoxelEdit: null,
       rejectedCompactVoxelEdit: null,
@@ -784,7 +786,7 @@ function automationPrelude(): string {
             },
             positions: [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
             triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
-            materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
+            materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material/demo-copper' }],
           },
         });
         proof.agentSurface.operationStatuses.push('register_conversion_source.facade:' + registration.accepted);
@@ -808,7 +810,7 @@ function automationPrelude(): string {
               normals: [[0, 0, 1], [0, 0, 1], [0, 0, 1]],
               indices: [0, 1, 2],
               groups: [{ materialSlot: 0, start: 0, count: 3 }],
-              materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
+              materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material/demo-copper' }],
             },
           },
         });
@@ -828,7 +830,7 @@ function automationPrelude(): string {
             },
             positions: [],
             triangles: [{ indices: [0, 1, 2], sourceMaterialSlot: 0 }],
-            materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material.demo-copper' }],
+            materialSlots: [{ sourceMaterialSlot: 0, sourceMaterialId: 'material/demo-copper' }],
           },
         });
         proof.nativeSmoke.sourceRegistration.rejectedUnsupported = rejectedRegistration.sourceRegistration?.registered === false
@@ -872,7 +874,7 @@ function automationPrelude(): string {
             targetOrigin: [0, 0, 0],
             meshPrimitive: 'default',
             materialSourceSlot: 0,
-            materialSourceId: 'material.demo-copper',
+            materialSourceId: 'material/demo-copper',
             materialVoxelId: 1,
             defaultMaterial: '1',
           },
@@ -947,6 +949,9 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.operationStatuses.push('export_voxel_volume_asset.converted:' + exportedVolumeResult.accepted);
+        if (exportedVolumeResult.diagnostic) {
+          proof.agentSurface.operationDiagnostics.push('export_voxel_volume_asset.converted:' + exportedVolumeResult.diagnostic);
+        }
         proof.nativeSmoke.conversion.exportedVolumeAsset = summarizeVoxelVolumeExport(exportedVolumeResult);
         const savedVolumeResult = store.runAgentVoxelWorkflowOperation({
           kind: 'save_voxel_volume_asset',
@@ -970,6 +975,9 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.operationStatuses.push('save_voxel_volume_asset.converted:' + savedVolumeResult.accepted);
+        if (savedVolumeResult.diagnostic) {
+          proof.agentSurface.operationDiagnostics.push('save_voxel_volume_asset.converted:' + savedVolumeResult.diagnostic);
+        }
         proof.nativeSmoke.conversion.savedVolumeAsset = summarizeVoxelVolumeSave(savedVolumeResult);
         const loadedVolumeResult = store.runAgentVoxelWorkflowOperation({
           kind: 'load_voxel_volume_asset',
@@ -984,6 +992,9 @@ function automationPrelude(): string {
           },
         });
         proof.agentSurface.operationStatuses.push('load_voxel_volume_asset.converted:' + loadedVolumeResult.accepted);
+        if (loadedVolumeResult.diagnostic) {
+          proof.agentSurface.operationDiagnostics.push('load_voxel_volume_asset.converted:' + loadedVolumeResult.diagnostic);
+        }
         proof.nativeSmoke.conversion.loadedVolumeAsset = summarizeVoxelVolumeLoad(loadedVolumeResult);
         const convertedAssetResult = store.runAgentVoxelWorkflowOperation({
           kind: 'persist_voxel_asset',
@@ -1026,7 +1037,7 @@ function automationPrelude(): string {
             commands: [{
               op: 'setVoxel',
               grid: 1,
-              coord: { x: 2, y: 0, z: 0 },
+              coord: { x: 1, y: 0, z: 0 },
               value: { kind: 'solid', material: 1 },
             }],
           },
@@ -1071,7 +1082,10 @@ function automationPrelude(): string {
           edit: {
             kind: 'set_voxels_runs',
             grid: 1,
-            runs: [{ x1: 0, x2: 2, y: 0, z: 0, i: 1 }],
+            runs: [
+              { x1: 0, x2: 1, y: 0, z: 0, i: 1 },
+              { x1: 0, x2: 0, y: 0, z: 0, i: 1 },
+            ],
           },
         });
         recordCompactVoxelEditResult('set_voxels_runs', compactSetVoxelRuns);
@@ -1096,8 +1110,9 @@ function automationPrelude(): string {
             kind: 'apply_voxel_primitives',
             grid: 1,
             primitives: [
-              { kind: 'block', at: { x: 2, y: 0, z: 0 }, palette_index: 1 },
-              { kind: 'line', from: { x: 0, y: 1, z: 0 }, to: { x: 2, y: 1, z: 0 }, palette_index: 1 },
+              { kind: 'block', at: { x: 1, y: 0, z: 0 }, palette_index: 1 },
+              { kind: 'line', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 0, z: 0 }, palette_index: 1 },
+              { kind: 'block', at: { x: 0, y: 0, z: 0 }, palette_index: 1 },
             ],
           },
         });
@@ -1334,9 +1349,9 @@ async function main(): Promise<void> {
     assert.deepEqual(nativeProof.timelineStatuses, ['complete', 'complete', 'complete', 'ready']);
     assert.deepEqual(nativeProof.agentSurface.compactVoxelEdits, [
       { affordance: 'set_voxels', accepted: true, generatedCommandCount: 2, diagnostic: null },
-      { affordance: 'set_voxels_runs', accepted: true, generatedCommandCount: 3, diagnostic: null },
+      { affordance: 'set_voxels_runs', accepted: true, generatedCommandCount: 2, diagnostic: null },
       { affordance: 'fill_box', accepted: true, generatedCommandCount: 1, diagnostic: null },
-      { affordance: 'apply_voxel_primitives', accepted: true, generatedCommandCount: 4, diagnostic: null },
+      { affordance: 'apply_voxel_primitives', accepted: true, generatedCommandCount: 2, diagnostic: null },
       {
         affordance: 'fill_box_oversized',
         accepted: false,
@@ -1370,7 +1385,7 @@ async function main(): Promise<void> {
       'submit_compact_voxel_edit.fill_box:true',
       'submit_compact_voxel_edit.apply_voxel_primitives:true',
       'submit_compact_voxel_edit.fill_box_oversized:false',
-    ]);
+    ], JSON.stringify(nativeProof.agentSurface.operationDiagnostics, null, 2));
     assert.deepEqual(nativeProof.agentSurface.viewCapture, {
       angle: 'isometric',
       target: 'selected',
@@ -1448,8 +1463,8 @@ async function main(): Promise<void> {
       'accepted voxel edits must change the authority session hash',
     );
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 11, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 11, rejected: 1 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 8, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 8, rejected: 1 });
     assert.deepEqual(nativeProof.nativeSmoke.sourceRegistration, {
       registered: true,
       meshAssetRegistered: true,
@@ -1464,7 +1479,7 @@ async function main(): Promise<void> {
     assert.deepEqual(nativeProof.nativeSmoke.conversion.materialRows, [
       {
         sourceMaterialSlot: 0,
-        sourceMaterialId: 'material.demo-copper',
+        sourceMaterialId: 'material/demo-copper',
         voxelMaterial: 1,
         samplingStatus: 'flat_material',
         textureAssetId: null,
@@ -1512,7 +1527,7 @@ async function main(): Promise<void> {
       expectedVoxelDataHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.voxelDataHash,
       voxelCount: 3,
       materialCount: 1,
-      provenanceCount: 1,
+      provenanceCount: 4,
       validationDiagnosticCodes: [],
       fullAssetPayload: true,
     });
@@ -1524,7 +1539,7 @@ async function main(): Promise<void> {
       grid: 1,
       voxelCount: 3,
       materialCounts: [{ material: 1, voxelCount: 3 }],
-      provenanceKinds: ['converted'],
+      provenanceKinds: ['converted', 'converted', 'converted', 'runtime_export'],
       canonicalJsonHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.canonicalJsonHash,
       voxelDataHash: nativeProof.nativeSmoke.conversion.exportedVolumeAsset?.voxelDataHash,
       sessionHash: nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.sessionHash,

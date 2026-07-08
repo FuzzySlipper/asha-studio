@@ -5797,7 +5797,8 @@ function isRuntimeBridge(value: unknown): value is RuntimeBridge {
   }
   const candidate = value as Partial<Record<string, unknown>>;
   return typeof candidate.initializeEngine === 'function'
-    && typeof candidate.loadWorldBundle === 'function'
+    && typeof candidate.loadProjectBundle === 'function'
+    && typeof candidate.getProjectBundleCompositionStatus === 'function'
     && typeof candidate.loadFpsRuntimeSession === 'function'
     && typeof candidate.readFpsRuntimeSession === 'function'
     && typeof candidate.applyFpsPrimaryFire === 'function'

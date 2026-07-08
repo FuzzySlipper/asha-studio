@@ -915,7 +915,7 @@ export interface StudioRuntimeSessionReadModel {
     readonly publishArtifactVersion: string;
   };
   readonly projection: {
-    readonly worldHash: string;
+    readonly runtimeSessionSummaryHash: string;
     readonly renderDiffHash: string;
     readonly entityCount: number;
     readonly tick: number;
@@ -1452,7 +1452,7 @@ export interface StudioRunningProjectDiscoveryReadModel {
     readonly backendCompatibilityState: StudioRuntimeBackendCompatibilityState;
     readonly attachStatus: StudioRuntimeSessionReadModel['attachStatus'];
     readonly liveHash: string | null;
-    readonly worldHash: string | null;
+    readonly runtimeSessionSummaryHash: string | null;
     readonly diagnostics: readonly StudioDiagnostic[];
   }[];
   readonly activeSessionId: string | null;
@@ -1505,7 +1505,7 @@ export interface StudioLiveDebugSessionIdentityReadModel {
     readonly readSequenceId: string;
     readonly readAfterAttach: boolean;
     readonly projectionTick: number | null;
-    readonly worldHash: string | null;
+    readonly runtimeSessionSummaryHash: string | null;
     readonly renderDiffHash: string | null;
     readonly telemetrySampleCount: number;
   };
@@ -1627,7 +1627,7 @@ export interface StudioLiveRuntimeTelemetryDebugInspectorReadModel {
     readonly liveHash: string;
   };
   readonly projection: {
-    readonly worldHash: string;
+    readonly runtimeSessionSummaryHash: string;
     readonly renderDiffHash: string;
     readonly entityCount: number;
     readonly tick: number;
@@ -3304,7 +3304,7 @@ export async function refreshStudioGameWorkspaceLiveReadModel(
   }
 
   const projection = await transport.exchange({ type: 'projection.pull', sinceTick: null });
-  if (projection.type !== 'projection.snapshot' || projection.summary.worldHash.length === 0) {
+  if (projection.type !== 'projection.snapshot' || projection.summary.runtimeSessionSummaryHash.length === 0) {
     return {
       ok: false,
       diagnostics: [
@@ -3705,7 +3705,7 @@ export function buildStudioRuntimeSessionList(input: {
     projection: live === null
       ? null
       : {
-          worldHash: live.projection.worldHash,
+          runtimeSessionSummaryHash: live.projection.runtimeSessionSummaryHash,
           renderDiffHash: live.projection.renderDiffHash ?? live.renderDiffHash,
           entityCount: live.projection.entityCount,
           tick: live.projection.tick,
@@ -4956,7 +4956,7 @@ export function buildStudioRunningProjectDiscovery(input: {
       backendCompatibilityState: session.backendCompatibilityState,
       attachStatus: session.attachStatus,
       liveHash: session.liveHash,
-      worldHash: session.projection?.worldHash ?? null,
+      runtimeSessionSummaryHash: session.projection?.runtimeSessionSummaryHash ?? null,
       diagnostics: sessionDiagnostics,
     };
   }) ?? [];
@@ -5088,7 +5088,7 @@ export function buildStudioLiveDebugSessionIdentity(input: {
       readSequenceId: liveHash ?? 'missing',
       readAfterAttach,
       projectionTick: projection?.tick ?? null,
-      worldHash: projection?.worldHash ?? null,
+      runtimeSessionSummaryHash: projection?.runtimeSessionSummaryHash ?? null,
       renderDiffHash: projection?.renderDiffHash ?? null,
       telemetrySampleCount: session?.evidenceRefs.some(ref => ref.kind === 'runtime-live') === true ? 1 : 0,
     },
@@ -5311,10 +5311,10 @@ export function buildStudioLiveRuntimeTelemetryDebugInspector(input: {
 
   const sampleValue = (metric: string): number | null =>
     input.live?.telemetry.find(sample => sample.metric === metric)?.value ?? null;
-  const projection = input.liveSessionIdentity.liveFreshness.worldHash === null
+  const projection = input.liveSessionIdentity.liveFreshness.runtimeSessionSummaryHash === null
     ? null
     : {
-        worldHash: input.liveSessionIdentity.liveFreshness.worldHash,
+        runtimeSessionSummaryHash: input.liveSessionIdentity.liveFreshness.runtimeSessionSummaryHash,
         renderDiffHash: input.liveSessionIdentity.liveFreshness.renderDiffHash ?? 'missing',
         entityCount: input.live?.projection.entityCount ?? 0,
         tick: input.liveSessionIdentity.liveFreshness.projectionTick ?? 0,

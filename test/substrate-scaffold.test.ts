@@ -858,7 +858,7 @@ test('game workspace live readout pulls projection render diff and telemetry thr
   assert.equal(live.live.endpoint, 'ws://127.0.0.1:7391');
   assert.equal(live.live.workspaceHash, result.workspace.workspaceHash);
   assert.equal(live.live.attachHash, attached.attach.attachHash);
-  assert.equal(live.live.projection.worldHash, 'world:demo:1');
+  assert.equal(live.live.projection.runtimeSessionSummaryHash, 'runtime-session:demo:1');
   assert.equal(live.live.projection.entityCount, 1);
   assert.equal(live.live.renderDiffHash, 'render:demo:1');
   assert.equal(live.live.renderDiff.ops.length, 0);
@@ -910,7 +910,7 @@ test('runtime session list turns attach and live evidence into an explicit sessi
   assert.equal(activeSession.attachStatus, 'attached');
   assert.equal(activeSession.attachHash, attached.attach.attachHash);
   assert.equal(activeSession.liveHash, live.live.liveHash);
-  assert.equal(activeSession.projection?.worldHash, 'world:demo:1');
+  assert.equal(activeSession.projection?.runtimeSessionSummaryHash, 'runtime-session:demo:1');
   assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-attach'), true);
   assert.equal(activeSession.evidenceRefs.some(ref => ref.kind === 'runtime-live'), true);
   assert.equal(activeSession.nonClaims.includes('not_native_runtime_authority'), true);
@@ -966,7 +966,7 @@ test('running project discovery projects connect refresh disconnect affordances'
   assert.equal(connectedDiscovery.canConnect, false);
   assert.equal(connectedDiscovery.canDisconnect, true);
   assert.equal(connectedDiscovery.commandIds.connect, 'project.connect_running');
-  assert.equal(connectedDiscovery.sessions.at(0)?.worldHash, 'world:demo:1');
+  assert.equal(connectedDiscovery.sessions.at(0)?.runtimeSessionSummaryHash, 'runtime-session:demo:1');
   assert.match(connectedDiscovery.discoveryHash, /^studio-running-project-discovery-/);
 
   const staleSessions = buildStudioRuntimeSessionList({
@@ -1026,7 +1026,7 @@ test('live debug session identity records attached session freshness and child e
   assert.equal(identity.identity.identityVersion, 'studio-live-debug-session-identity.v0');
   assert.equal(identity.identity.attachStatus, 'attached');
   assert.equal(identity.identity.liveFreshness.readAfterAttach, true);
-  assert.equal(identity.identity.liveFreshness.worldHash, 'world:demo:1');
+  assert.equal(identity.identity.liveFreshness.runtimeSessionSummaryHash, 'runtime-session:demo:1');
   assert.equal(identity.identity.liveFreshness.projectionTick, 1);
   assert.equal(identity.identity.liveFreshness.telemetrySampleCount, 1);
   assert.equal(identity.identity.childArtifacts.length, 1);
@@ -1088,7 +1088,7 @@ test('live scene/entity debug inspector projects selected scene readback without
           publishArtifactVersion: 'publish-artifact.v0',
         },
         projection: {
-          worldHash: 'world:debug',
+          runtimeSessionSummaryHash: 'runtime-session:debug',
           renderDiffHash: 'render:debug',
           entityCount: 1,
           tick: 2,
@@ -1168,7 +1168,7 @@ test('live asset/resource debug inspector projects catalog and resource readback
           publishArtifactVersion: 'publish-artifact.v0',
         },
         projection: {
-          worldHash: 'world:debug',
+          runtimeSessionSummaryHash: 'runtime-session:debug',
           renderDiffHash: 'render:debug',
           entityCount: 1,
           tick: 2,
@@ -1279,7 +1279,7 @@ test('live runtime/telemetry debug inspector projects runtime and command metric
   assert.equal(inspector.ok, true);
   assert.equal(inspector.inspector.inspectorVersion, 'studio-live-runtime-telemetry-debug-inspector.v0');
   assert.equal(inspector.inspector.runtime.runtimeMode, 'reference');
-  assert.equal(inspector.inspector.projection?.worldHash, 'world:demo:1');
+  assert.equal(inspector.inspector.projection?.runtimeSessionSummaryHash, 'runtime-session:demo:1');
   assert.equal(inspector.inspector.telemetry.sampleCount, live.live.telemetry.length);
   assert.ok(inspector.inspector.telemetry.sampleMetrics.includes('command_queue_depth'));
   assert.equal(inspector.inspector.telemetry.commandQueueDepth, 0);
@@ -1771,7 +1771,7 @@ test('game workspace attach evidence artifact correlates attach live and command
   assert.equal(artifact.generatedFrom.liveHash, live.live.liveHash);
   assert.deepEqual(artifact.generatedFrom.commandProposalHashes, [proposal.proposal.proposalHash]);
   assert.equal(artifact.attach.runtime.gameId, loadDemoPackageName());
-  assert.equal(artifact.live?.projection.worldHash, 'world:demo:1');
+  assert.equal(artifact.live?.projection.runtimeSessionSummaryHash, 'runtime-session:demo:1');
   assert.equal(artifact.commandProposals.at(0)?.status, 'accepted');
   assert.deepEqual(artifact.nonClaims, [
     'not_native_runtime_authority',
