@@ -48,6 +48,10 @@ compact edits, bounded `view_from_angle` camera/readout evidence,
 `publish_preview` JSON evidence export, plus runtime-rejected and
 preflight-rejected edit paths.
 
+For the current runnable workflow, expected artifact readbacks, and
+Studio-versus-engine task ownership, use
+`docs/voxel-live-testing-agent-runbook.md`.
+
 ## Verification Tiers
 
 Use the lightest tier that proves the behavior.

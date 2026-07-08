@@ -50,7 +50,8 @@ import and local-link policy.
   file writer.
 - Detailed scope accounting lives in
   `docs/voxel-conversion-phase4-proof-posture.md` and
-  `docs/voxelforge-voxel-authoring-adaptation.md`.
+  `docs/voxelforge-voxel-authoring-adaptation.md`. The current agent runbook is
+  `docs/voxel-live-testing-agent-runbook.md`.
 
 ## Proof Commands And Historical Names
 
