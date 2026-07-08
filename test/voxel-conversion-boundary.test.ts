@@ -661,6 +661,7 @@ test('Asha-native voxel asset persistence readmodel emits and reopens avxl json 
   assert.equal(persistence.asset.assetId, 'voxel-volume/test-authored');
   assert.equal(persistence.asset.mediaType, 'application/vnd.asha.voxel-volume+json;version=1');
   assert.equal(persistence.asset.schemaVersion, 1);
+  assert.equal(persistence.asset.grid.coordinateSystem, 'y_up_right_handed');
   assert.deepEqual(persistence.asset.representation.sparseRuns, [
     { start: { x: 0, y: 0, z: 0 }, length: 2, material: 1 },
   ]);
@@ -675,6 +676,8 @@ test('Asha-native voxel asset persistence readmodel emits and reopens avxl json 
   assert.equal(persistence.validation.authority, 'svc-voxel-asset');
   assert.equal(persistence.validation.posture, 'studio_shape_check_engine_authority_required');
   assert.ok(persistence.serializedAsset.includes('"mediaType": "application/vnd.asha.voxel-volume+json;version=1"'));
+  assert.ok(persistence.serializedAsset.includes('"cellSize": 1.0'));
+  assert.ok(persistence.serializedAsset.includes('    0.0'));
   assert.ok(persistence.nonClaims.includes('not_vforge_file'));
   assert.ok(persistence.nonClaims.includes('not_engine_validation'));
   assert.ok(persistence.nonClaims.includes('not_silent_sessionstate_promotion'));

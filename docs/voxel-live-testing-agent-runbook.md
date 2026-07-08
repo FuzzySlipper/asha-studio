@@ -66,6 +66,8 @@ The native proof should record:
   `voxel-volume/generated`;
 - authored command-batch voxel asset persistence as `.avxl.json` with asset id
   `voxel-volume/agent-authored-edit`;
+- Rust `svc-voxel-asset` authority validation for both emitted `.avxl.json`
+  files with no diagnostics and matching canonical/voxel-data hashes;
 - reopen readbacks whose canonical hashes match the persisted voxel assets;
 - accepted command counts changing from `0` to `11` after compact edits;
 - rejected command count changing to `1` after invalid material edit smoke;
@@ -88,7 +90,7 @@ contract internals.
 | `submit_compact_voxel_edit` | supported | VoxelForge-shaped compact adapter over generated `setVoxel` commands. |
 | `view_from_angle` | projection-supported | Camera/readout evidence, not runtime authority or screenshot truth. |
 | `publish_preview` | projection-supported | Bounded JSON evidence artifact, not `.vforge` output. |
-| `persist_voxel_asset` | ProjectBundle asset proposal-supported | Emits Asha-native `.avxl.json` voxel-volume assets over public DTOs; Studio shape-check only, Rust `svc-voxel-asset` remains validation/hash authority. |
+| `persist_voxel_asset` | ProjectBundle asset proposal-supported | Emits Asha-native `.avxl.json` voxel-volume assets over public DTOs; the live proof validates emitted files with Rust `svc-voxel-asset` authority. |
 | `reopen_voxel_asset` | ProjectBundle asset readback-supported | Reopens a supplied `VoxelVolumeAsset` DTO and verifies schema/media/id/hash round trip without mutating RuntimeSession authority. |
 
 Compact edit affordances currently supported:

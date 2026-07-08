@@ -1696,22 +1696,66 @@ function materialPaletteFromVoxels(
     }));
 }
 
-function canonicalVoxelAssetValue(value: unknown): unknown {
+const VOXEL_ASSET_COORDINATE_SYSTEM = 'y_up_right_handed';
+
+function isVoxelAssetFloatPath(path: readonly string[]): boolean {
+  return (
+    (path.length === 3 && path[0] === 'grid' && path[1] === 'origin')
+    || (path.length === 2 && path[0] === 'grid' && path[1] === 'cellSize')
+  );
+}
+
+function canonicalVoxelAssetNumber(value: number, path: readonly string[]): string {
+  if (!Number.isFinite(value)) {
+    throw new Error(`voxel asset JSON number must be finite at ${path.join('.') || '<root>'}`);
+  }
+  if (isVoxelAssetFloatPath(path) && Number.isInteger(value)) {
+    return `${value.toString()}.0`;
+  }
+  return value.toString();
+}
+
+function canonicalVoxelAssetJsonValue(value: unknown, indent = 0, path: readonly string[] = []): string {
+  const padding = ' '.repeat(indent);
+  const childPadding = ' '.repeat(indent + 2);
   if (Array.isArray(value)) {
-    return value.map(item => canonicalVoxelAssetValue(item));
+    if (value.length === 0) {
+      return '[]';
+    }
+    return [
+      '[',
+      value
+        .map((item, index) => `${childPadding}${canonicalVoxelAssetJsonValue(item, indent + 2, [...path, String(index)])}`)
+        .join(',\n'),
+      `${padding}]`,
+    ].join('\n');
   }
   if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, inner]) => [key, canonicalVoxelAssetValue(inner)]),
-    );
+    const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    if (entries.length === 0) {
+      return '{}';
+    }
+    return [
+      '{',
+      entries
+        .map(([key, inner]) => (
+          `${childPadding}${JSON.stringify(key)}: ${canonicalVoxelAssetJsonValue(inner, indent + 2, [...path, key])}`
+        ))
+        .join(',\n'),
+      `${padding}}`,
+    ].join('\n');
   }
-  return value;
+  if (typeof value === 'number') {
+    return canonicalVoxelAssetNumber(value, path);
+  }
+  if (typeof value === 'string' || typeof value === 'boolean' || value === null) {
+    return JSON.stringify(value);
+  }
+  throw new Error(`unsupported voxel asset JSON value at ${path.join('.') || '<root>'}`);
 }
 
 function canonicalVoxelAssetJson(asset: VoxelVolumeAsset): string {
-  return `${JSON.stringify(canonicalVoxelAssetValue(asset), null, 2)}\n`;
+  return `${canonicalVoxelAssetJsonValue(asset)}\n`;
 }
 
 const FNV64_OFFSET = 0xcbf29ce484222325n;
@@ -1803,7 +1847,7 @@ function buildVoxelAssetFromSolidVoxels(options: {
     grid: {
       origin: options.origin,
       cellSize: options.cellSize,
-      coordinateSystem: 'asha.voxel.grid.v1',
+      coordinateSystem: VOXEL_ASSET_COORDINATE_SYSTEM,
     },
     bounds: boundsFromSolidVoxels(options.voxels),
     representation: {

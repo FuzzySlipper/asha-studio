@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -223,6 +224,14 @@ interface BrowserProof {
   readonly textSample: string;
 }
 
+interface VoxelAssetAuthorityValidation {
+  readonly path: string;
+  readonly isValid: boolean;
+  readonly canonicalJsonHash: string;
+  readonly voxelDataHash: string;
+  readonly diagnosticCodes: readonly string[];
+}
+
 function sha256Buffer(buffer: Buffer | string): string {
   return `sha256:${createHash('sha256').update(buffer).digest('hex')}`;
 }
@@ -254,6 +263,102 @@ async function run(command: string, args: readonly string[], cwd: string, timeou
   clearTimeout(timer);
   assert.equal(signal, null, `${command} ${args.join(' ')} was terminated by ${signal}`);
   assert.equal(code, 0, `${command} ${args.join(' ')} exited with ${code}`);
+}
+
+async function runCapture(command: string, args: readonly string[], cwd: string, timeoutMs: number): Promise<string> {
+  const child = spawn(command, [...args], {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }) as ChildProcessWithoutNullStreams;
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', chunk => {
+    stdout += chunk;
+  });
+  child.stderr.on('data', chunk => {
+    stderr += chunk;
+  });
+  const timer = setTimeout(() => {
+    child.kill('SIGTERM');
+  }, timeoutMs);
+  const [code, signal] = await once(child, 'exit') as [number | null, NodeJS.Signals | null];
+  clearTimeout(timer);
+  assert.equal(signal, null, `${command} ${args.join(' ')} was terminated by ${signal}\n${stderr}`);
+  assert.equal(code, 0, `${command} ${args.join(' ')} exited with ${code}\n${stdout}\n${stderr}`);
+  return stdout;
+}
+
+async function validateVoxelAssetsWithRustAuthority(
+  assetPaths: readonly string[],
+): Promise<readonly VoxelAssetAuthorityValidation[]> {
+  const harnessRoot = await mkdtemp(join(tmpdir(), 'asha-studio-voxel-asset-authority-'));
+  try {
+    await mkdir(join(harnessRoot, 'src'), { recursive: true });
+    await writeFile(
+      join(harnessRoot, 'Cargo.toml'),
+      [
+        '[package]',
+        'name = "validate-studio-voxel-assets"',
+        'version = "0.1.0"',
+        'edition = "2021"',
+        '',
+        '[dependencies]',
+        `svc-voxel-asset = { path = ${
+          JSON.stringify(join(engineRoot, 'engine-rs', 'crates', 'services', 'svc-voxel-asset'))
+        } }`,
+        'serde_json = "1"',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(harnessRoot, 'src/main.rs'),
+      String.raw`
+use std::{env, fs};
+
+use serde_json::json;
+use svc_voxel_asset::{decode_asset, validate_asset, VoxelAssetDecodeError};
+
+fn diagnostic_codes(report: &svc_voxel_asset::VoxelAssetValidationReport) -> Vec<serde_json::Value> {
+    report
+        .diagnostics
+        .iter()
+        .map(|diagnostic| serde_json::to_value(&diagnostic.code).expect("diagnostic code serializes"))
+        .collect()
+}
+
+fn main() {
+    let mut reports = Vec::new();
+    for path in env::args().skip(1) {
+        let text = fs::read_to_string(&path).expect("voxel asset can be read");
+        let report = match decode_asset(&text) {
+            Ok(asset) => validate_asset(&asset),
+            Err(VoxelAssetDecodeError::Invalid(report)) => report,
+            Err(error) => panic!("{path}: {error}"),
+        };
+        reports.push(json!({
+            "path": path,
+            "isValid": report.is_valid(),
+            "canonicalJsonHash": report.canonical_json_hash.clone(),
+            "voxelDataHash": report.voxel_data_hash.clone(),
+            "diagnosticCodes": diagnostic_codes(&report),
+        }));
+    }
+    println!("{}", serde_json::to_string_pretty(&reports).expect("reports serialize"));
+}
+`,
+    );
+    const stdout = await runCapture(
+      'cargo',
+      ['run', '--quiet', '--manifest-path', join(harnessRoot, 'Cargo.toml'), '--', ...assetPaths],
+      harnessRoot,
+      120000,
+    );
+    return JSON.parse(stdout) as readonly VoxelAssetAuthorityValidation[];
+  } finally {
+    await rm(harnessRoot, { recursive: true, force: true });
+  }
 }
 
 async function ensureNativeAddon(): Promise<{ readonly artifact: string; readonly destination: string }> {
@@ -1205,6 +1310,22 @@ async function main(): Promise<void> {
     await writeFile(previewPublicationPath, `${JSON.stringify(previewPublication, null, 2)}\n`);
     await writeFile(convertedVoxelAssetPath, convertedVoxelAsset.serializedAsset);
     await writeFile(authoredVoxelAssetPath, authoredVoxelAsset.serializedAsset);
+    const voxelAssetAuthorityValidation = await validateVoxelAssetsWithRustAuthority([
+      convertedVoxelAssetPath,
+      authoredVoxelAssetPath,
+    ]);
+    const convertedAuthorityValidation = voxelAssetAuthorityValidation.find(report => report.path === convertedVoxelAssetPath);
+    const authoredAuthorityValidation = voxelAssetAuthorityValidation.find(report => report.path === authoredVoxelAssetPath);
+    assert.ok(convertedAuthorityValidation, 'converted voxel asset authority validation missing');
+    assert.ok(authoredAuthorityValidation, 'authored voxel asset authority validation missing');
+    assert.equal(convertedAuthorityValidation.isValid, true, JSON.stringify(convertedAuthorityValidation, null, 2));
+    assert.equal(authoredAuthorityValidation.isValid, true, JSON.stringify(authoredAuthorityValidation, null, 2));
+    assert.deepEqual(convertedAuthorityValidation.diagnosticCodes, []);
+    assert.deepEqual(authoredAuthorityValidation.diagnosticCodes, []);
+    assert.equal(convertedAuthorityValidation.canonicalJsonHash, convertedVoxelAsset.canonicalJsonHash);
+    assert.equal(convertedAuthorityValidation.voxelDataHash, convertedVoxelAsset.voxelDataHash);
+    assert.equal(authoredAuthorityValidation.canonicalJsonHash, authoredVoxelAsset.canonicalJsonHash);
+    assert.equal(authoredAuthorityValidation.voxelDataHash, authoredVoxelAsset.voxelDataHash);
 
     const artifact = {
       artifactKind: 'studio_native_voxel_runtime_launch_proof',
@@ -1252,6 +1373,10 @@ async function main(): Promise<void> {
           canonicalJsonHash: convertedVoxelAsset.canonicalJsonHash,
           voxelDataHash: convertedVoxelAsset.voxelDataHash,
           reopenHash: nativeProof.agentSurface.voxelAssetPersistence.convertedReopen?.reopenedHash ?? null,
+          authorityValidation: {
+            ...convertedAuthorityValidation,
+            path: relative(repoRoot, convertedAuthorityValidation.path),
+          },
         },
         authored: {
           path: relative(repoRoot, authoredVoxelAssetPath),
@@ -1260,6 +1385,10 @@ async function main(): Promise<void> {
           canonicalJsonHash: authoredVoxelAsset.canonicalJsonHash,
           voxelDataHash: authoredVoxelAsset.voxelDataHash,
           reopenHash: nativeProof.agentSurface.voxelAssetPersistence.authoredReopen?.reopenedHash ?? null,
+          authorityValidation: {
+            ...authoredAuthorityValidation,
+            path: relative(repoRoot, authoredAuthorityValidation.path),
+          },
         },
       },
       proofs: {
@@ -1278,6 +1407,7 @@ async function main(): Promise<void> {
         'view_from_angle_recorded_projection_camera_readout_without_screenshot_authority',
         'publish_preview_emitted_bounded_projection_evidence_artifact',
         'persist_voxel_asset_emitted_asha_native_avxl_json_projection_artifacts',
+        'svc_voxel_asset_validated_persisted_avxl_json_artifacts',
         'reopen_voxel_asset_verified_round_trip_hashes_without_runtime_authority_claims',
         'agent_voxel_workflow_surface_drove_conversion_and_bounded_voxel_edits',
         'all_adapted_voxelforge_compact_affordances_submitted_through_public_surface',
