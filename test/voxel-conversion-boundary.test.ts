@@ -1125,6 +1125,16 @@ test('studio voxel history panel uses RuntimeSession history projections without
   assert.match(proofSource, /readVoxelHistoryPanel/);
   assert.match(proofSource, /proof\.agentSurface\.voxelHistory/);
   assert.match(proofSource, /studio-voxel-history-panel-/);
+
+  for (const method of [
+    'readVoxelEditHistory',
+    'previewVoxelEditRevert',
+    'applyVoxelEditRevert',
+    'undoVoxelEdit',
+    'redoVoxelEdit',
+  ]) {
+    assert.match(proofSource, new RegExp(`'${method}'`));
+  }
 });
 
 test('studio voxel transcript evaluation rejects VoxelForge import compatibility and routes Asha-native replay', () => {
