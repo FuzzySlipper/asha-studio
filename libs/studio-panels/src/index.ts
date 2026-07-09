@@ -2716,6 +2716,36 @@ export class StudioInspectorPanelComponent {
             </strong>
             <small>{{ store.voxelCompactEditControl().message }}</small>
           </article>
+          <article
+            class="voxel-compact-edit__placement"
+            [attr.data-voxel-edit-placement-status]="store.voxelCompactEditPlacement().status"
+          >
+            <span>Viewport Target</span>
+            <strong>{{ store.voxelCompactEditPlacement().previewLabel }}</strong>
+            <small>{{ store.voxelCompactEditPlacement().message }}</small>
+            <div class="voxel-compact-edit__placement-actions">
+              <button
+                type="button"
+                data-voxel-edit-placement-action="use_start"
+                title="Copy the latest viewport voxel hit into X1 Y1 Z1"
+                [disabled]="!store.voxelCompactEditPlacement().canUseViewportHit"
+                (click)="store.applyViewportHitToVoxelCompactEditControl('start')"
+              >
+                <span>Use X1</span>
+                <small>{{ store.voxelCompactEditPlacement().sourceFace ?? 'no hit' }}</small>
+              </button>
+              <button
+                type="button"
+                data-voxel-edit-placement-action="use_end"
+                title="Copy the latest viewport voxel hit into X2 Y2 Z2"
+                [disabled]="!store.voxelCompactEditPlacement().canUseViewportHit"
+                (click)="store.applyViewportHitToVoxelCompactEditControl('end')"
+              >
+                <span>Use X2</span>
+                <small>{{ store.voxelCompactEditPlacement().sourceRenderableId ?? 'no voxel' }}</small>
+              </button>
+            </div>
+          </article>
           <div class="voxel-compact-edit__inputs">
             <label>
               Grid
@@ -3090,7 +3120,7 @@ export class StudioInspectorPanelComponent {
 
       .voxel-compact-edit {
         border: 1px solid var(--asha-color-border);
-        grid-template-columns: minmax(13rem, 0.7fr) minmax(20rem, 1.2fr) minmax(14rem, 0.75fr) minmax(11rem, 0.55fr);
+        grid-template-columns: minmax(13rem, 0.65fr) minmax(15rem, 0.8fr) minmax(20rem, 1.2fr) minmax(14rem, 0.75fr) minmax(11rem, 0.55fr);
         padding: 0.55rem;
       }
 
@@ -3131,6 +3161,11 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-compact-edit[data-voxel-edit-status='rejected'] {
+        border-color: var(--asha-color-warning);
+      }
+
+      .voxel-compact-edit__placement[data-voxel-edit-placement-status='unavailable'],
+      .voxel-compact-edit__placement[data-voxel-edit-placement-status='unsupported_hit'] {
         border-color: var(--asha-color-warning);
       }
 
@@ -3220,6 +3255,14 @@ export class StudioInspectorPanelComponent {
 
       .voxel-asset-workflow__target-controls button {
         grid-column: 1 / -1;
+      }
+
+      .voxel-compact-edit__placement-actions {
+        display: grid;
+        gap: 0.35rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 0.25rem;
+        min-width: 0;
       }
 
       .voxel-compact-edit__inputs {

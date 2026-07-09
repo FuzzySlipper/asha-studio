@@ -965,9 +965,14 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   assert.match(storeSource, /setVoxelCompactEditControlField/);
   assert.match(storeSource, /setVoxelCompactEditControlAction/);
   assert.match(storeSource, /setVoxelCompactEditControlBoxMode/);
+  assert.match(storeSource, /voxelCompactEditPlacement = computed/);
+  assert.match(storeSource, /applyViewportHitToVoxelCompactEditControl/);
+  assert.match(storeSource, /StudioVoxelCompactEditPlacementReadModel/);
+  assert.match(storeSource, /does_not_render_authoritative_brush_mesh/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch\(edit\)/);
   assert.match(storeSource, /buildStudioCompactVoxelEditFromControl/);
   assert.match(storeSource, /refreshStudioCompactVoxelEditPreflight/);
+  assert.match(storeSource, /buildStudioVoxelCompactEditPlacementReadModel/);
   assert.match(storeSource, /kind: 'submit_compact_voxel_edit'/);
   assert.match(storeSource, /kind: 'set_voxels'/);
   assert.match(storeSource, /kind: 'fill_box'/);
@@ -1011,6 +1016,13 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   assert.match(panelSource, /setVoxelCompactEditControlField\('maxGeneratedVoxels'/);
   assert.match(panelSource, /setVoxelCompactEditControlAction/);
   assert.match(panelSource, /setVoxelCompactEditControlBoxMode/);
+  assert.match(panelSource, /data-voxel-edit-placement-status/);
+  assert.match(panelSource, /data-voxel-edit-placement-action="use_start"/);
+  assert.match(panelSource, /data-voxel-edit-placement-action="use_end"/);
+  assert.match(panelSource, /applyViewportHitToVoxelCompactEditControl\('start'\)/);
+  assert.match(panelSource, /applyViewportHitToVoxelCompactEditControl\('end'\)/);
+  assert.match(panelSource, /voxelCompactEditPlacement\(\)\.previewLabel/);
+  assert.match(panelSource, /voxelCompactEditPlacement\(\)\.canUseViewportHit/);
   assert.match(panelSource, /data-voxel-edit-preflight/);
   assert.match(panelSource, /preflightGeneratedCommandCount/);
   assert.match(panelSource, /preflightDiagnostic/);
@@ -1019,6 +1031,25 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
     assert.match(panelSource, new RegExp(`data-voxel-edit-action="${action}"`));
     assert.match(panelSource, new RegExp(`runVoxelCompactEditControl\\('${action}'\\)`));
   }
+});
+
+test('studio voxel viewport exposes compact edit placement preview from public hit readout', () => {
+  const viewportSource = readFileSync(join(repoRoot, 'libs/studio-viewport/src/index.ts'), 'utf8');
+  const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
+
+  assert.match(viewportSource, /data-voxel-brush-preview-status/);
+  assert.match(viewportSource, /voxelCompactEditPlacement\(\)\.status/);
+  assert.match(viewportSource, /voxelCompactEditPlacement\(\)\.previewLabel/);
+  assert.match(viewportSource, /voxelCompactEditPlacement\(\)\.readoutHash/);
+  assert.match(viewportSource, /store\.selectViewportHit/);
+  assert.match(viewportSource, /buildStudioViewportHitReadModel/);
+  assert.match(viewportSource, /raycastDebugGroup/);
+
+  assert.match(proofSource, /compactVoxelEditPlacementReadout/);
+  assert.match(proofSource, /data-voxel-edit-placement-action/);
+  assert.match(proofSource, /useViewportHitForCompactVoxelEdit\('start'\)/);
+  assert.match(proofSource, /useViewportHitForCompactVoxelEdit\('end'\)/);
+  assert.match(proofSource, /studio-voxel-compact-edit-placement-/);
 });
 
 test('studio voxel conversion shell maps catalog static meshes to authority mesh refs', () => {

@@ -165,6 +165,30 @@ interface BrowserProof {
         readonly diagnostic: string | null;
       } | null;
     };
+    readonly compactVoxelPlacement: {
+      readonly start: {
+        readonly status: string;
+        readonly canUseViewportHit: boolean;
+        readonly sourceRenderableId: string | null;
+        readonly sourceFace: string | null;
+        readonly sourceVoxelCoord: { readonly x: number; readonly y: number; readonly z: number } | null;
+        readonly targetStart: { readonly x: number; readonly y: number; readonly z: number };
+        readonly targetEnd: { readonly x: number; readonly y: number; readonly z: number };
+        readonly previewLabel: string;
+        readonly readoutHash: string;
+      } | null;
+      readonly end: {
+        readonly status: string;
+        readonly canUseViewportHit: boolean;
+        readonly sourceRenderableId: string | null;
+        readonly sourceFace: string | null;
+        readonly sourceVoxelCoord: { readonly x: number; readonly y: number; readonly z: number } | null;
+        readonly targetStart: { readonly x: number; readonly y: number; readonly z: number };
+        readonly targetEnd: { readonly x: number; readonly y: number; readonly z: number };
+        readonly previewLabel: string;
+        readonly readoutHash: string;
+      } | null;
+    };
     readonly acceptedVoxelEdit: boolean | null;
     readonly rejectedCompactVoxelEdit: boolean | null;
     readonly rejectedVoxelEdit: boolean | null;
@@ -592,6 +616,10 @@ function automationPrelude(): string {
         primitiveLineOverMax: null,
         oversizedFillBox: null,
       },
+      compactVoxelPlacement: {
+        start: null,
+        end: null,
+      },
       acceptedVoxelEdit: null,
       rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
@@ -764,6 +792,59 @@ function automationPrelude(): string {
       rejectedCommandCount: control.rejectedCommandCount,
       diagnostic: control.diagnostic,
     };
+  }
+
+  function compactVoxelEditPlacementReadout() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const placement = store && typeof store.voxelCompactEditPlacement === 'function'
+      ? store.voxelCompactEditPlacement()
+      : null;
+    if (!placement) {
+      throw new Error('Compact voxel edit placement readout unavailable');
+    }
+    return {
+      status: placement.status,
+      canUseViewportHit: placement.canUseViewportHit,
+      sourceRenderableId: placement.sourceRenderableId,
+      sourceFace: placement.sourceFace,
+      sourceVoxelCoord: placement.sourceVoxelCoord,
+      targetStart: placement.targetStart,
+      targetEnd: placement.targetEnd,
+      previewLabel: placement.previewLabel,
+      readoutHash: placement.readoutHash,
+    };
+  }
+
+  function setViewportVoxelHit(coord, face) {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    if (!store || typeof store.selectViewportHit !== 'function') {
+      throw new Error('Viewport hit store method unavailable');
+    }
+    store.selectViewportHit({
+      renderableId: 'selected-voxel:0,0,0',
+      face,
+      worldPosition: { x: coord.x + 0.25, y: coord.y + 0.25, z: coord.z + 0.25 },
+      voxelCoord: coord,
+      hitHash: 'viewport-hit-proof-' + coord.x + '-' + coord.y + '-' + coord.z + '-' + face,
+    });
+  }
+
+  async function useViewportHitForCompactVoxelEdit(endpoint) {
+    const button = document.querySelector('[data-voxel-edit-placement-action="use_' + endpoint + '"]');
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error('Missing compact voxel edit placement action ' + endpoint);
+    }
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    if (!store || typeof store.applyViewportHitToVoxelCompactEditControl !== 'function') {
+      throw new Error('Compact voxel edit placement store method unavailable');
+    }
+    store.applyViewportHitToVoxelCompactEditControl(endpoint);
+    return waitFor(() => {
+      const placement = compactVoxelEditPlacementReadout();
+      if (endpoint === 'start' && placement.targetStart.x === placement.sourceVoxelCoord?.x) return placement;
+      if (endpoint === 'end' && placement.targetEnd.x === placement.sourceVoxelCoord?.x) return placement;
+      return null;
+    }, 'compact voxel edit placement ' + endpoint);
   }
 
   function setCompactVoxelEditControl(name, value) {
@@ -1306,9 +1387,21 @@ function automationPrelude(): string {
         proof.agentSurface.surfaceHash = unsupportedEdit.surface.surfaceHash;
         setCompactVoxelEditControl('grid', 1);
         setCompactVoxelEditControl('material', 1);
-        setCompactVoxelEditControl('x1', 0);
-        setCompactVoxelEditControl('y1', 0);
-        setCompactVoxelEditControl('z1', 0);
+        setCompactVoxelEditControl('x1', 5);
+        setCompactVoxelEditControl('y1', 5);
+        setCompactVoxelEditControl('z1', 5);
+        setCompactVoxelEditControl('x2', 1);
+        setCompactVoxelEditControl('y2', 0);
+        setCompactVoxelEditControl('z2', 0);
+        setViewportVoxelHit({ x: 0, y: 0, z: 0 }, 'z_max');
+        await waitFor(() => compactVoxelEditPlacementReadout().canUseViewportHit ? compactVoxelEditPlacementReadout() : null, 'compact voxel edit placement ready');
+        proof.agentSurface.compactVoxelPlacement.start = await useViewportHitForCompactVoxelEdit('start');
+        setViewportVoxelHit({ x: 1, y: 0, z: 0 }, 'x_max');
+        await waitFor(() => {
+          const placement = compactVoxelEditPlacementReadout();
+          return placement.sourceVoxelCoord?.x === 1 ? placement : null;
+        }, 'compact voxel edit placement second hit');
+        proof.agentSurface.compactVoxelPlacement.end = await useViewportHitForCompactVoxelEdit('end');
         proof.agentSurface.compactVoxelEditControls.block = await submitCompactVoxelEditControl('block');
         setCompactVoxelEditControl('x1', 1);
         setCompactVoxelEditControl('y1', 1);
@@ -1644,6 +1737,19 @@ async function main(): Promise<void> {
         diagnostic: 'compact voxel edit exceeds 64 generated commands',
       },
     }, JSON.stringify(nativeProof.agentSurface.compactVoxelEditControls, null, 2));
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.start?.status, 'ready');
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.start?.canUseViewportHit, true);
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.start?.sourceRenderableId, 'selected-voxel:0,0,0');
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.start?.sourceFace, 'z_max');
+    assert.deepEqual(nativeProof.agentSurface.compactVoxelPlacement.start?.sourceVoxelCoord, { x: 0, y: 0, z: 0 });
+    assert.deepEqual(nativeProof.agentSurface.compactVoxelPlacement.start?.targetStart, { x: 0, y: 0, z: 0 });
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.end?.status, 'ready');
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.end?.canUseViewportHit, true);
+    assert.equal(nativeProof.agentSurface.compactVoxelPlacement.end?.sourceFace, 'x_max');
+    assert.deepEqual(nativeProof.agentSurface.compactVoxelPlacement.end?.sourceVoxelCoord, { x: 1, y: 0, z: 0 });
+    assert.deepEqual(nativeProof.agentSurface.compactVoxelPlacement.end?.targetEnd, { x: 1, y: 0, z: 0 });
+    assert.match(nativeProof.agentSurface.compactVoxelPlacement.start?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
+    assert.match(nativeProof.agentSurface.compactVoxelPlacement.end?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
       'register_conversion_source.facade:true',
       'register_conversion_mesh_asset.facade:true',

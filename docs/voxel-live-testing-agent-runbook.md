@@ -134,6 +134,11 @@ coverage for live testing:
 - set primitive line radius `0..4`;
 - set the max generated voxel guardrail and inspect the preflight generated
   count/diagnostic before submitting.
+- pick a voxel in the viewport, then use `Use X1` or `Use X2` in the compact
+  edit target readout to copy the latest public `viewportHit.voxelCoord` into
+  the compact edit coordinates.
+- confirm the viewport compact edit HUD updates with the draft placement label
+  and readout hash before submitting.
 
 Compact edit limits:
 

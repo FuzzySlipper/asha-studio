@@ -86,6 +86,7 @@ import {
   type StudioViewportCameraControlDelta,
   type StudioViewportAdapterReadModel,
   type StudioViewportCameraReadModel,
+  type StudioVoxelCoord,
   type StudioViewportHitReadModel,
   type StudioViewportToolMode,
   type StudioViewportToolReadModel,
@@ -844,6 +845,8 @@ export type StudioVoxelCompactEditControlAction = 'block' | 'fill_box' | 'primit
 
 export type StudioVoxelCompactEditBoxMode = 'filled' | 'shell' | 'edges';
 
+export type StudioVoxelCompactEditPlacementEndpoint = 'start' | 'end';
+
 export type StudioVoxelCompactEditControlField =
   | 'grid'
   | 'x1'
@@ -918,6 +921,21 @@ export interface StudioVoxelCompactEditControlReadModel {
   readonly acceptedCommandCount: number | null;
   readonly rejectedCommandCount: number | null;
   readonly diagnostic: string | null;
+}
+
+export interface StudioVoxelCompactEditPlacementReadModel {
+  readonly controlVersion: 'studio-voxel-compact-edit-placement.v0';
+  readonly status: 'ready' | 'unavailable' | 'unsupported_hit';
+  readonly canUseViewportHit: boolean;
+  readonly sourceRenderableId: string | null;
+  readonly sourceFace: StudioViewportHitReadModel['face'] | null;
+  readonly sourceVoxelCoord: StudioVoxelCoord | null;
+  readonly targetStart: StudioVoxelCoord;
+  readonly targetEnd: StudioVoxelCoord;
+  readonly previewLabel: string;
+  readonly message: string;
+  readonly readoutHash: string;
+  readonly nonClaims: readonly string[];
 }
 
 export interface StudioVoxelMaterialAuthoringRow {
@@ -2908,6 +2926,68 @@ function refreshStudioCompactVoxelEditPreflight(
   };
 }
 
+function compactVoxelControlStartCoord(draft: StudioVoxelCompactEditControlReadModel): StudioVoxelCoord {
+  return { x: draft.x1, y: draft.y1, z: draft.z1 };
+}
+
+function compactVoxelControlEndCoord(draft: StudioVoxelCompactEditControlReadModel): StudioVoxelCoord {
+  return { x: draft.x2, y: draft.y2, z: draft.z2 };
+}
+
+function formatStudioVoxelCoord(coord: StudioVoxelCoord | null): string {
+  return coord === null ? 'none' : `${coord.x},${coord.y},${coord.z}`;
+}
+
+function buildStudioVoxelCompactEditPlacementReadModel(
+  draft: StudioVoxelCompactEditControlReadModel,
+  latestViewportHit: StudioViewportHitReadModel | null,
+): StudioVoxelCompactEditPlacementReadModel {
+  const targetStart = compactVoxelControlStartCoord(draft);
+  const targetEnd = compactVoxelControlEndCoord(draft);
+  const status = latestViewportHit === null
+    ? 'unavailable'
+    : latestViewportHit.voxelCoord === null ? 'unsupported_hit' : 'ready';
+  const sourceVoxelCoord = latestViewportHit?.voxelCoord ?? null;
+  const previewLabel = status === 'ready'
+    ? `hit ${formatStudioVoxelCoord(sourceVoxelCoord)} -> ${draft.draftAction} ${formatStudioVoxelCoord(targetStart)} to ${formatStudioVoxelCoord(targetEnd)}`
+    : `${draft.draftAction} ${formatStudioVoxelCoord(targetStart)} to ${formatStudioVoxelCoord(targetEnd)}`;
+  const message = status === 'ready'
+    ? `Viewport ${latestViewportHit?.face ?? 'hit'} can populate compact edit coordinates.`
+    : status === 'unsupported_hit'
+      ? 'Latest viewport hit is not a voxel coordinate.'
+      : 'Pick a voxel in the viewport to populate compact edit coordinates.';
+  const body = {
+    status,
+    sourceRenderableId: latestViewportHit?.renderableId ?? null,
+    sourceFace: latestViewportHit?.face ?? null,
+    sourceVoxelCoord,
+    targetStart,
+    targetEnd,
+    draftAction: draft.draftAction,
+    preflightAccepted: draft.preflightAccepted,
+    preflightGeneratedCommandCount: draft.preflightGeneratedCommandCount,
+  };
+
+  return {
+    controlVersion: 'studio-voxel-compact-edit-placement.v0',
+    status,
+    canUseViewportHit: status === 'ready',
+    sourceRenderableId: body.sourceRenderableId,
+    sourceFace: body.sourceFace,
+    sourceVoxelCoord,
+    targetStart,
+    targetEnd,
+    previewLabel,
+    message,
+    readoutHash: stableAgentVoxelWorkflowHash('studio-voxel-compact-edit-placement', body),
+    nonClaims: [
+      'not_runtime_authority',
+      'not_scene_authority',
+      'does_not_render_authoritative_brush_mesh',
+    ],
+  };
+}
+
 function voxelConversionSourceOptions(
   entries: readonly StudioAssetInventoryEntryReadModel[],
   selectedSourceAssetId: string | null,
@@ -3620,6 +3700,12 @@ export class StudioWorkspaceStore {
     };
   });
   readonly voxelCompactEditControl = this.voxelCompactEditControlState.asReadonly();
+  readonly voxelCompactEditPlacement = computed<StudioVoxelCompactEditPlacementReadModel>(() =>
+    buildStudioVoxelCompactEditPlacementReadModel(
+      this.voxelCompactEditControlState(),
+      this.viewportHitState(),
+    ),
+  );
   readonly voxelMaterialAuthoring = computed<StudioVoxelMaterialAuthoringReadModel>(() =>
     buildStudioVoxelMaterialAuthoringReadModel({
       shell: this.voxelConversionWorkspaceShell(),
@@ -5063,6 +5149,52 @@ export class StudioWorkspaceStore {
       rejectedCommandCount: null,
       diagnostic: null,
     }));
+  }
+
+  applyViewportHitToVoxelCompactEditControl(endpoint: StudioVoxelCompactEditPlacementEndpoint): void {
+    const placement = this.voxelCompactEditPlacement();
+    const coord = placement.sourceVoxelCoord;
+    if (!placement.canUseViewportHit || coord === null) {
+      this.voxelCompactEditControlState.update(current => ({
+        ...current,
+        status: 'rejected',
+        message: placement.message,
+        diagnostic: placement.message,
+      }));
+      return;
+    }
+    this.voxelCompactEditControlState.update(current => {
+      const offset = {
+        x: current.x2 - current.x1,
+        y: current.y2 - current.y1,
+        z: current.z2 - current.z1,
+      };
+      const next = endpoint === 'start'
+        ? {
+            ...current,
+            x1: coord.x,
+            y1: coord.y,
+            z1: coord.z,
+            x2: coord.x + offset.x,
+            y2: coord.y + offset.y,
+            z2: coord.z + offset.z,
+          }
+        : {
+            ...current,
+            x2: coord.x,
+            y2: coord.y,
+            z2: coord.z,
+          };
+      return refreshStudioCompactVoxelEditPreflight({
+        ...next,
+        status: 'idle',
+        message: `Viewport voxel ${formatStudioVoxelCoord(coord)} copied to compact edit ${endpoint}.`,
+        generatedCommandCount: null,
+        acceptedCommandCount: null,
+        rejectedCommandCount: null,
+        diagnostic: null,
+      });
+    });
   }
 
   runVoxelCompactEditControl(action: StudioVoxelCompactEditControlAction): void {

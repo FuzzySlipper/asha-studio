@@ -287,6 +287,15 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
           <small>{{ store.voxelConversionWorkspaceShell().previewProjection.inputReadoutHash }}</small>
         </div>
 
+        <div
+          class="voxel-brush-preview-overlay"
+          [attr.data-voxel-brush-preview-status]="store.voxelCompactEditPlacement().status"
+        >
+          <span>compact edit</span>
+          <strong>{{ store.voxelCompactEditPlacement().previewLabel }}</strong>
+          <small>{{ store.voxelCompactEditPlacement().readoutHash }}</small>
+        </div>
+
         <div class="axis-gizmo" aria-hidden="true">
           <span class="axis-gizmo__x">X</span>
           <span class="axis-gizmo__y">Y</span>
@@ -419,6 +428,39 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
 
       .voxel-preview-overlay[data-voxel-viewport-preview-status='unavailable'],
       .voxel-preview-overlay[data-voxel-viewport-preview-status='stale'] {
+        border-color: var(--asha-color-warning);
+      }
+
+      .voxel-brush-preview-overlay {
+        background: rgba(11, 17, 23, 0.88);
+        border: 1px solid rgba(84, 199, 189, 0.5);
+        color: var(--asha-color-muted);
+        display: grid;
+        font-size: 0.68rem;
+        gap: 0.16rem;
+        left: 1rem;
+        max-width: min(24rem, calc(100% - 2rem));
+        min-width: 14rem;
+        padding: 0.4rem 0.55rem;
+        position: absolute;
+        top: 1rem;
+      }
+
+      .voxel-brush-preview-overlay strong,
+      .voxel-brush-preview-overlay small {
+        color: var(--asha-color-ink);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voxel-brush-preview-overlay small {
+        color: var(--asha-color-muted);
+      }
+
+      .voxel-brush-preview-overlay[data-voxel-brush-preview-status='unavailable'],
+      .voxel-brush-preview-overlay[data-voxel-brush-preview-status='unsupported_hit'] {
         border-color: var(--asha-color-warning);
       }
 
