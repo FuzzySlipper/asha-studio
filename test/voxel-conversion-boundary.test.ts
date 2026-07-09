@@ -1045,6 +1045,79 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   }
 });
 
+test('studio voxel history panel uses RuntimeSession history projections without a local undo stack', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+  const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
+
+  assert.match(storeSource, /StudioVoxelHistoryPanelReadModel/);
+  assert.match(storeSource, /voxelHistoryControlState/);
+  assert.match(storeSource, /voxelHistoryPanel = computed/);
+  assert.match(storeSource, /buildStudioVoxelHistoryPanelReadModel/);
+  assert.match(storeSource, /not_studio_authoritative_undo_stack/);
+  assert.match(storeSource, /not_row_level_revert_without_rust_replayable_marker/);
+  assert.match(storeSource, /not_compacted_entry_reconstruction/);
+
+  for (const method of [
+    'readVoxelEditHistory',
+    'previewVoxelEditRevert',
+    'applyVoxelEditRevert',
+    'undoVoxelEdit',
+    'redoVoxelEdit',
+  ]) {
+    assert.match(storeSource, new RegExp(`facade\\.${method}\\(`));
+  }
+
+  for (const requestBuilder of [
+    'voxelHistoryReadRequest',
+    'voxelHistoryRevertRequest',
+    'voxelHistoryUndoRequest',
+    'voxelHistoryRedoRequest',
+  ]) {
+    assert.match(storeSource, new RegExp(requestBuilder));
+  }
+
+  assert.match(storeSource, /expectedHistoryHash: this\.voxelHistoryExpectedHistoryHash\(\)/);
+  assert.match(storeSource, /expectedCursorHash: this\.voxelHistoryExpectedCursorHash\(\)/);
+  assert.match(storeSource, /partial: diff\.partial/);
+  assert.match(storeSource, /actionability: 'summary_only'/);
+  assert.doesNotMatch(storeSource, /localUndoStack/);
+  assert.doesNotMatch(storeSource, /Studio.*undo.*push/i);
+
+  assert.match(panelSource, /data-voxel-history-status/);
+  assert.match(panelSource, /data-voxel-history-runtime-attached/);
+  assert.match(panelSource, /data-voxel-history-target/);
+  assert.match(panelSource, /data-voxel-history-diff-status/);
+  assert.match(panelSource, /data-voxel-history-entry-actionability/);
+  assert.match(panelSource, /data-voxel-history-diagnostic-code/);
+  assert.match(panelSource, /selectVoxelHistoryTarget/);
+
+  for (const control of [
+    'history_id',
+    'cursor_id',
+    'target_transaction_id',
+    'target_cursor_id',
+    'target_cursor_index',
+    'max_entries',
+    'max_replay_steps',
+    'max_diff_voxels',
+    'include_redo_tail',
+    'include_sample_window',
+  ]) {
+    assert.match(panelSource, new RegExp(`data-voxel-history-control="${control}"`));
+  }
+
+  for (const action of ['read', 'preview_revert', 'apply_revert', 'undo', 'redo']) {
+    assert.match(panelSource, new RegExp(`data-voxel-history-action="${action}"`));
+    assert.match(panelSource, new RegExp(`runVoxelHistoryControl\\('${action}'\\)`));
+  }
+
+  assert.match(proofSource, /voxelHistoryPanelReadout/);
+  assert.match(proofSource, /readVoxelHistoryPanel/);
+  assert.match(proofSource, /proof\.agentSurface\.voxelHistory/);
+  assert.match(proofSource, /studio-voxel-history-panel-/);
+});
+
 test('studio voxel viewport exposes compact edit placement preview from public hit readout', () => {
   const viewportSource = readFileSync(join(repoRoot, 'libs/studio-viewport/src/index.ts'), 'utf8');
   const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');

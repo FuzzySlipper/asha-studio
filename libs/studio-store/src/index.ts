@@ -113,6 +113,17 @@ import {
   type VoxelConversionSourceRegistrationRequest,
   type VoxelConversionSourceRef,
   type VoxelConversionTargetRef,
+  type VoxelEditHistoryCursor,
+  type VoxelEditHistoryDiagnostic,
+  type VoxelEditHistoryDiffSummary,
+  type VoxelEditHistoryEntry,
+  type VoxelEditHistoryReadRequest,
+  type VoxelEditHistoryRedoRequest,
+  type VoxelEditHistoryRevertMode,
+  type VoxelEditHistoryRevertReceipt,
+  type VoxelEditHistoryRevertRequest,
+  type VoxelEditHistorySummary,
+  type VoxelEditHistoryUndoRequest,
   type VoxelAssetContentHashes,
   type VoxelAssetDiagnostic,
   type VoxelAssetMaterialBinding,
@@ -231,6 +242,26 @@ const DEFAULT_VOXEL_COMPACT_EDIT_CONTROL: StudioVoxelCompactEditControlReadModel
   acceptedCommandCount: null,
   rejectedCommandCount: null,
   diagnostic: null,
+};
+
+const DEFAULT_VOXEL_HISTORY_CONTROL: StudioVoxelHistoryControlState = {
+  controlVersion: 'studio-voxel-history-control.v0',
+  historyId: 'history/default',
+  cursorId: null,
+  targetTransactionId: null,
+  targetCursorId: null,
+  targetCursorIndex: null,
+  maxEntries: 12,
+  maxReplaySteps: 64,
+  maxDiffVoxels: 256,
+  includeRedoTail: true,
+  includeSampleWindow: false,
+  lastAction: null,
+  status: 'idle',
+  message: 'Voxel history panel ready.',
+  diagnostic: null,
+  summary: null,
+  receipt: null,
 };
 
 export interface StudioProjectFileEntry {
@@ -970,6 +1001,102 @@ export interface StudioVoxelCompactEditPlacementReadModel {
   readonly message: string;
   readonly readoutHash: string;
   readonly nonClaims: readonly string[];
+}
+
+export type StudioVoxelHistoryAction =
+  | 'read'
+  | 'preview_revert'
+  | 'apply_revert'
+  | 'undo'
+  | 'redo';
+
+export type StudioVoxelHistoryTextControlField =
+  | 'historyId'
+  | 'cursorId'
+  | 'targetTransactionId'
+  | 'targetCursorId';
+
+export type StudioVoxelHistoryNumberControlField =
+  | 'targetCursorIndex'
+  | 'maxEntries'
+  | 'maxReplaySteps'
+  | 'maxDiffVoxels';
+
+export type StudioVoxelHistoryBooleanControlField =
+  | 'includeRedoTail'
+  | 'includeSampleWindow';
+
+export interface StudioVoxelHistoryControlState {
+  readonly controlVersion: 'studio-voxel-history-control.v0';
+  readonly historyId: string;
+  readonly cursorId: string | null;
+  readonly targetTransactionId: string | null;
+  readonly targetCursorId: string | null;
+  readonly targetCursorIndex: number | null;
+  readonly maxEntries: number;
+  readonly maxReplaySteps: number;
+  readonly maxDiffVoxels: number;
+  readonly includeRedoTail: boolean;
+  readonly includeSampleWindow: boolean;
+  readonly lastAction: StudioVoxelHistoryAction | null;
+  readonly status: 'idle' | 'ready' | 'accepted' | 'rejected';
+  readonly message: string;
+  readonly diagnostic: string | null;
+  readonly summary: VoxelEditHistorySummary | null;
+  readonly receipt: VoxelEditHistoryRevertReceipt | null;
+}
+
+export interface StudioVoxelHistoryEntryRowReadModel {
+  readonly transactionId: string;
+  readonly cursorId: string;
+  readonly entryKind: string;
+  readonly operationLabel: string;
+  readonly provenance: string;
+  readonly commandCount: number;
+  readonly eventCount: number;
+  readonly touchedVoxelCount: number;
+  readonly boundsLabel: string;
+  readonly diffLabel: string;
+  readonly diagnosticCodes: readonly string[];
+  readonly actionability: 'summary_only';
+}
+
+export interface StudioVoxelHistoryDiffReadModel {
+  readonly status: 'none' | 'summary' | 'partial';
+  readonly diffLevel: string | null;
+  readonly partial: boolean;
+  readonly changedVoxelCount: number | null;
+  readonly boundsLabel: string;
+  readonly materialDeltaLabel: string;
+  readonly sampleWindowRef: string | null;
+  readonly diagnosticCodes: readonly string[];
+}
+
+export interface StudioVoxelHistoryPanelReadModel {
+  readonly panelVersion: 'studio-voxel-history-panel.v0';
+  readonly runtimeAttached: boolean;
+  readonly control: StudioVoxelHistoryControlState;
+  readonly cursor: VoxelEditHistoryCursor | null;
+  readonly historyHash: string | null;
+  readonly cursorHash: string | null;
+  readonly entryCount: number;
+  readonly retainedRedoCount: number;
+  readonly canRead: boolean;
+  readonly canPreviewRevert: boolean;
+  readonly canApplyRevert: boolean;
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  readonly targetLabel: string;
+  readonly entries: readonly StudioVoxelHistoryEntryRowReadModel[];
+  readonly diff: StudioVoxelHistoryDiffReadModel;
+  readonly receipt: VoxelEditHistoryRevertReceipt | null;
+  readonly diagnostics: readonly VoxelEditHistoryDiagnostic[];
+  readonly nonClaims: readonly [
+    'not_studio_authoritative_undo_stack',
+    'not_row_level_revert_without_rust_replayable_marker',
+    'not_compacted_entry_reconstruction',
+  ];
+  readonly readoutHash: string;
 }
 
 export interface StudioVoxelMaterialAuthoringRow {
@@ -3024,6 +3151,143 @@ function buildStudioVoxelCompactEditPlacementReadModel(
   };
 }
 
+function clampHistoryInteger(value: number, fallback: number, min: number, max: number): number {
+  return Number.isSafeInteger(value) && value >= min && value <= max ? value : fallback;
+}
+
+function nullableTrimmed(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+function formatVoxelHistoryBounds(bounds: VoxelEditHistoryDiffSummary['touchedBounds']): string {
+  if (bounds === null) return 'unbounded';
+  return `${bounds.min.x},${bounds.min.y},${bounds.min.z} to ${bounds.max.x},${bounds.max.y},${bounds.max.z}`;
+}
+
+function formatVoxelHistoryMaterialDeltas(diff: VoxelEditHistoryDiffSummary | null): string {
+  if (diff === null || diff.materialDeltas.length === 0) return 'no material deltas';
+  return diff.materialDeltas
+    .map(delta => `${delta.material}:${delta.beforeCount}->${delta.afterCount} (${delta.delta >= 0 ? '+' : ''}${delta.delta})`)
+    .join(', ');
+}
+
+function voxelHistoryDiffReadModel(diff: VoxelEditHistoryDiffSummary | null): StudioVoxelHistoryDiffReadModel {
+  if (diff === null) {
+    return {
+      status: 'none',
+      diffLevel: null,
+      partial: false,
+      changedVoxelCount: null,
+      boundsLabel: 'no diff summary',
+      materialDeltaLabel: 'no material deltas',
+      sampleWindowRef: null,
+      diagnosticCodes: [],
+    };
+  }
+  return {
+    status: diff.partial ? 'partial' : 'summary',
+    diffLevel: diff.diffLevel,
+    partial: diff.partial,
+    changedVoxelCount: diff.changedVoxelCount,
+    boundsLabel: formatVoxelHistoryBounds(diff.touchedBounds),
+    materialDeltaLabel: formatVoxelHistoryMaterialDeltas(diff),
+    sampleWindowRef: diff.sampleWindowRef,
+    diagnosticCodes: diff.diagnostics.map(diagnostic => diagnostic.code),
+  };
+}
+
+function voxelHistoryEntryRow(entry: VoxelEditHistoryEntry): StudioVoxelHistoryEntryRowReadModel {
+  return {
+    transactionId: entry.transactionId,
+    cursorId: entry.cursorId,
+    entryKind: entry.entryKind,
+    operationLabel: entry.operationLabel,
+    provenance: entry.provenance,
+    commandCount: entry.commandCount,
+    eventCount: entry.eventCount,
+    touchedVoxelCount: entry.touchedVoxelCount,
+    boundsLabel: formatVoxelHistoryBounds(entry.touchedBounds),
+    diffLabel: entry.diffSummary === null
+      ? 'no bounded diff'
+      : `${entry.diffSummary.diffLevel}${entry.diffSummary.partial ? ' partial' : ''} · ${entry.diffSummary.changedVoxelCount} voxels`,
+    diagnosticCodes: [
+      ...entry.diagnostics.map(diagnostic => diagnostic.code),
+      ...(entry.diffSummary?.diagnostics.map(diagnostic => diagnostic.code) ?? []),
+    ],
+    actionability: 'summary_only',
+  };
+}
+
+function buildStudioVoxelHistoryPanelReadModel(
+  control: StudioVoxelHistoryControlState,
+  runtimeAttached: boolean,
+): StudioVoxelHistoryPanelReadModel {
+  const summary = control.summary;
+  const receipt = control.receipt;
+  const cursor = receipt?.cursorAfter ?? summary?.cursor ?? null;
+  const targetTransactionId = nullableTrimmed(control.targetTransactionId);
+  const targetCursorId = nullableTrimmed(control.targetCursorId);
+  const targetSet = targetTransactionId !== null || targetCursorId !== null || control.targetCursorIndex !== null;
+  const receiptDiff = receipt?.diffSummary ?? receipt?.previewEvidence?.diffSummary ?? null;
+  const diagnostics = [
+    ...(summary?.diagnostics ?? []),
+    ...(receipt?.diagnostics ?? []),
+    ...(receiptDiff?.diagnostics ?? []),
+  ];
+  const body = {
+    runtimeAttached,
+    historyId: control.historyId,
+    cursorId: control.cursorId,
+    targetTransactionId: control.targetTransactionId,
+    targetCursorId: control.targetCursorId,
+    targetCursorIndex: control.targetCursorIndex,
+    historyHash: summary?.historyHash ?? null,
+    cursorHash: cursor?.historyHash ?? null,
+    entryCount: summary?.entries.length ?? 0,
+    redoDepth: cursor?.redoDepth ?? 0,
+    undoDepth: cursor?.undoDepth ?? 0,
+    lastAction: control.lastAction,
+    receiptMode: receipt?.request.mode ?? null,
+    receiptApplied: receipt?.applied ?? null,
+    receiptPreview: receipt?.preview ?? null,
+    diagnostics: diagnostics.map(diagnostic => diagnostic.code),
+  };
+
+  return {
+    panelVersion: 'studio-voxel-history-panel.v0',
+    runtimeAttached,
+    control,
+    cursor,
+    historyHash: summary?.historyHash ?? null,
+    cursorHash: cursor?.historyHash ?? null,
+    entryCount: summary?.entries.length ?? 0,
+    retainedRedoCount: summary?.retainedRedoTransactionIds.length ?? 0,
+    canRead: runtimeAttached && control.historyId.trim().length > 0,
+    canPreviewRevert: runtimeAttached && summary !== null && targetSet,
+    canApplyRevert: runtimeAttached && summary !== null && targetSet,
+    canUndo: runtimeAttached && summary !== null && (cursor?.undoDepth ?? 0) > 0,
+    canRedo: runtimeAttached && summary !== null && (cursor?.redoDepth ?? 0) > 0,
+    targetLabel: targetSet
+      ? [
+          targetTransactionId === null ? null : `tx ${targetTransactionId}`,
+          targetCursorId === null ? null : `cursor ${targetCursorId}`,
+          control.targetCursorIndex === null ? null : `index ${control.targetCursorIndex}`,
+        ].filter((part): part is string => part !== null).join(' · ')
+      : 'no revert target selected',
+    entries: summary?.entries.map(voxelHistoryEntryRow) ?? [],
+    diff: voxelHistoryDiffReadModel(receiptDiff),
+    receipt,
+    diagnostics,
+    nonClaims: [
+      'not_studio_authoritative_undo_stack',
+      'not_row_level_revert_without_rust_replayable_marker',
+      'not_compacted_entry_reconstruction',
+    ],
+    readoutHash: stableAgentVoxelWorkflowHash('studio-voxel-history-panel', body),
+  };
+}
+
 function voxelConversionSourceOptions(
   entries: readonly StudioAssetInventoryEntryReadModel[],
   selectedSourceAssetId: string | null,
@@ -3763,6 +4027,9 @@ export class StudioWorkspaceStore {
   private readonly voxelCompactEditControlState = signal<StudioVoxelCompactEditControlReadModel>(
     DEFAULT_VOXEL_COMPACT_EDIT_CONTROL,
   );
+  private readonly voxelHistoryControlState = signal<StudioVoxelHistoryControlState>(
+    DEFAULT_VOXEL_HISTORY_CONTROL,
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
@@ -3798,6 +4065,12 @@ export class StudioWorkspaceStore {
     buildStudioVoxelCompactEditPlacementReadModel(
       this.voxelCompactEditControlState(),
       this.viewportHitState(),
+    ),
+  );
+  readonly voxelHistoryPanel = computed<StudioVoxelHistoryPanelReadModel>(() =>
+    buildStudioVoxelHistoryPanelReadModel(
+      this.voxelHistoryControlState(),
+      this.runtimeSessionFacadeState() !== null,
     ),
   );
   readonly voxelMaterialAuthoring = computed<StudioVoxelMaterialAuthoringReadModel>(() =>
@@ -5333,6 +5606,120 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(message);
   }
 
+  setVoxelHistoryTextControlField(field: StudioVoxelHistoryTextControlField, value: string): void {
+    this.voxelHistoryControlState.update(current => {
+      const trimmed = value.trim();
+      const nextValue = field === 'historyId'
+        ? trimmed
+        : trimmed.length === 0 ? null : trimmed;
+      return {
+        ...current,
+        [field]: nextValue,
+        status: 'idle',
+        message: 'Voxel history request draft updated.',
+        diagnostic: null,
+      };
+    });
+  }
+
+  setVoxelHistoryNumberControlField(field: StudioVoxelHistoryNumberControlField, value: number): void {
+    if (!Number.isFinite(value)) return;
+    this.voxelHistoryControlState.update(current => {
+      const fallback = current[field];
+      const nextValue = field === 'targetCursorIndex'
+        ? (Number.isSafeInteger(value) && value >= 0 ? value : null)
+        : field === 'maxEntries'
+          ? clampHistoryInteger(value, fallback ?? 12, 1, 100)
+          : field === 'maxReplaySteps'
+            ? clampHistoryInteger(value, fallback ?? 64, 1, 2048)
+            : clampHistoryInteger(value, fallback ?? 256, 1, 100000);
+      return {
+        ...current,
+        [field]: nextValue,
+        status: 'idle',
+        message: 'Voxel history request limits updated.',
+        diagnostic: null,
+      };
+    });
+  }
+
+  setVoxelHistoryBooleanControlField(field: StudioVoxelHistoryBooleanControlField, value: boolean): void {
+    this.voxelHistoryControlState.update(current => ({
+      ...current,
+      [field]: value,
+      status: 'idle',
+      message: 'Voxel history request options updated.',
+      diagnostic: null,
+    }));
+  }
+
+  selectVoxelHistoryTarget(transactionId: string, cursorId: string, cursorIndex: number): void {
+    this.voxelHistoryControlState.update(current => ({
+      ...current,
+      targetTransactionId: transactionId,
+      targetCursorId: cursorId,
+      targetCursorIndex: cursorIndex,
+      status: 'idle',
+      message: `Voxel history target selected: ${transactionId}.`,
+      diagnostic: null,
+    }));
+  }
+
+  runVoxelHistoryControl(action: StudioVoxelHistoryAction): void {
+    const facade = this.runtimeSessionFacadeState();
+    if (facade === null) {
+      this.recordVoxelHistoryRejected(action, 'Attach RuntimeSession before reading voxel edit history.');
+      return;
+    }
+    if (this.voxelHistoryControlState().historyId.trim().length === 0) {
+      this.recordVoxelHistoryRejected(action, 'Enter a voxel history id before reading history.');
+      return;
+    }
+
+    try {
+      if (action === 'read') {
+        const request = this.voxelHistoryReadRequest();
+        const summary = facade.readVoxelEditHistory(request);
+        const message = `Voxel history ${summary.historyId} read with ${summary.entries.length} entries.`;
+        this.voxelHistoryControlState.update(current => ({
+          ...current,
+          lastAction: action,
+          status: summary.diagnostics.length === 0 ? 'ready' : 'rejected',
+          message,
+          diagnostic: summary.diagnostics.at(0)?.message ?? null,
+          summary,
+          receipt: null,
+          cursorId: summary.cursor.cursorId,
+        }));
+        this.recordVoxelHistoryRuntimeResult(action, request.historyId, message, summary.diagnostics.length === 0 ? 'ok' : 'rejected');
+        return;
+      }
+
+      if (action === 'undo') {
+        const request = this.voxelHistoryUndoRequest();
+        const undoReceipt = facade.undoVoxelEdit(request);
+        this.recordVoxelHistoryReceipt(action, undoReceipt.receipt);
+        return;
+      }
+
+      if (action === 'redo') {
+        const request = this.voxelHistoryRedoRequest();
+        const redoReceipt = facade.redoVoxelEdit(request);
+        this.recordVoxelHistoryReceipt(action, redoReceipt.receipt);
+        return;
+      }
+
+      const request = this.voxelHistoryRevertRequest(action);
+      const receipt = action === 'preview_revert'
+        ? facade.previewVoxelEditRevert(request)
+        : facade.applyVoxelEditRevert(request);
+      this.recordVoxelHistoryReceipt(action, receipt);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Voxel history RuntimeSession operation failed.';
+      this.recordVoxelHistoryRejected(action, message);
+    }
+  }
+
   setVoxelAssetWorkflowTargetProjectBundle(value: string): void {
     this.voxelAssetWorkflowTargetDraftState.update(draft => ({
       ...draft,
@@ -5680,6 +6067,114 @@ export class StudioWorkspaceStore {
     if ('materialSourceId' in patch) this.setVoxelConversionMaterialSourceId(patch.materialSourceId ?? '');
     if (patch.materialVoxelId !== undefined) this.setVoxelConversionMaterialVoxelId(patch.materialVoxelId);
     if (patch.defaultMaterial !== undefined) this.setVoxelConversionDefaultMaterial(patch.defaultMaterial);
+  }
+
+  private voxelHistoryReadRequest(): VoxelEditHistoryReadRequest {
+    const state = this.voxelHistoryControlState();
+    return {
+      historyId: state.historyId.trim(),
+      cursorId: nullableTrimmed(state.cursorId),
+      maxEntries: clampHistoryInteger(state.maxEntries, DEFAULT_VOXEL_HISTORY_CONTROL.maxEntries, 1, 100),
+      includeRedoTail: state.includeRedoTail,
+      expectedHistoryHash: state.summary?.historyHash ?? null,
+    };
+  }
+
+  private voxelHistoryExpectedHistoryHash(): string {
+    return this.voxelHistoryControlState().summary?.historyHash ?? '';
+  }
+
+  private voxelHistoryExpectedCursorHash(): string {
+    const state = this.voxelHistoryControlState();
+    return state.receipt?.cursorAfter?.historyHash
+      ?? state.summary?.cursor.historyHash
+      ?? state.summary?.historyHash
+      ?? '';
+  }
+
+  private voxelHistoryRevertRequest(action: Extract<StudioVoxelHistoryAction, 'preview_revert' | 'apply_revert'>): VoxelEditHistoryRevertRequest {
+    const state = this.voxelHistoryControlState();
+    const mode: VoxelEditHistoryRevertMode = action === 'preview_revert' ? 'preview_revert' : 'apply_revert';
+    return {
+      historyId: state.historyId.trim(),
+      mode,
+      target: {
+        transactionId: nullableTrimmed(state.targetTransactionId),
+        cursorId: nullableTrimmed(state.targetCursorId),
+        cursorIndex: state.targetCursorIndex,
+      },
+      expectedHistoryHash: this.voxelHistoryExpectedHistoryHash(),
+      expectedCursorHash: this.voxelHistoryExpectedCursorHash(),
+      maxReplaySteps: clampHistoryInteger(state.maxReplaySteps, DEFAULT_VOXEL_HISTORY_CONTROL.maxReplaySteps, 1, 2048),
+      maxDiffVoxels: clampHistoryInteger(state.maxDiffVoxels, DEFAULT_VOXEL_HISTORY_CONTROL.maxDiffVoxels, 1, 100000),
+      includeSampleWindow: state.includeSampleWindow,
+    };
+  }
+
+  private voxelHistoryUndoRequest(): VoxelEditHistoryUndoRequest {
+    const state = this.voxelHistoryControlState();
+    return {
+      historyId: state.historyId.trim(),
+      expectedHistoryHash: this.voxelHistoryExpectedHistoryHash(),
+      expectedCursorHash: this.voxelHistoryExpectedCursorHash(),
+      maxReplaySteps: clampHistoryInteger(state.maxReplaySteps, DEFAULT_VOXEL_HISTORY_CONTROL.maxReplaySteps, 1, 2048),
+      maxDiffVoxels: clampHistoryInteger(state.maxDiffVoxels, DEFAULT_VOXEL_HISTORY_CONTROL.maxDiffVoxels, 1, 100000),
+    };
+  }
+
+  private voxelHistoryRedoRequest(): VoxelEditHistoryRedoRequest {
+    const state = this.voxelHistoryControlState();
+    return {
+      historyId: state.historyId.trim(),
+      expectedHistoryHash: this.voxelHistoryExpectedHistoryHash(),
+      expectedCursorHash: this.voxelHistoryExpectedCursorHash(),
+      maxReplaySteps: clampHistoryInteger(state.maxReplaySteps, DEFAULT_VOXEL_HISTORY_CONTROL.maxReplaySteps, 1, 2048),
+      maxDiffVoxels: clampHistoryInteger(state.maxDiffVoxels, DEFAULT_VOXEL_HISTORY_CONTROL.maxDiffVoxels, 1, 100000),
+    };
+  }
+
+  private recordVoxelHistoryReceipt(action: StudioVoxelHistoryAction, receipt: VoxelEditHistoryRevertReceipt): void {
+    const accepted = receipt.applied || receipt.preview;
+    const diff = receipt.diffSummary ?? receipt.previewEvidence?.diffSummary ?? null;
+    const message = `${action} ${accepted ? 'accepted' : 'rejected'} for ${receipt.historyId}; diff ${diff?.changedVoxelCount ?? 'n/a'} voxels.`;
+    this.voxelHistoryControlState.update(current => ({
+      ...current,
+      lastAction: action,
+      status: accepted ? 'accepted' : 'rejected',
+      message,
+      diagnostic: receipt.diagnostics.at(0)?.message ?? diff?.diagnostics.at(0)?.message ?? null,
+      receipt,
+      cursorId: receipt.cursorAfter?.cursorId ?? receipt.cursorBefore.cursorId,
+    }));
+    this.recordVoxelHistoryRuntimeResult(action, receipt.historyId, message, accepted ? 'ok' : 'rejected');
+  }
+
+  private recordVoxelHistoryRejected(action: StudioVoxelHistoryAction, message: string): void {
+    this.voxelHistoryControlState.update(current => ({
+      ...current,
+      lastAction: action,
+      status: 'rejected',
+      message,
+      diagnostic: message,
+    }));
+    this.recordVoxelHistoryRuntimeResult(action, this.voxelHistoryControlState().historyId, message, 'rejected');
+  }
+
+  private recordVoxelHistoryRuntimeResult(
+    action: StudioVoxelHistoryAction,
+    historyId: string,
+    message: string,
+    status: 'ok' | 'rejected' | 'failed',
+  ): void {
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId: `voxel_history.${action}`,
+      label: `Voxel History ${action}`,
+      inputSummary: `history=${historyId};panel=${this.voxelHistoryPanel().readoutHash}`,
+      outputSummary: message,
+      status,
+    });
+    this.workspaceState.set(recorded.workspace);
+    this.menuMessageState.set(message);
   }
 
   private submitAgentVoxelEdit(

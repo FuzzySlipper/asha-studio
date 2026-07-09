@@ -189,6 +189,20 @@ interface BrowserProof {
         readonly readoutHash: string;
       } | null;
     };
+    readonly voxelHistory: {
+      readonly status: string;
+      readonly runtimeAttached: boolean;
+      readonly message: string;
+      readonly diagnostic: string | null;
+      readonly historyHash: string | null;
+      readonly cursorHash: string | null;
+      readonly entryCount: number;
+      readonly retainedRedoCount: number;
+      readonly diffStatus: string;
+      readonly diagnosticCodes: readonly string[];
+      readonly readoutHash: string;
+      readonly nonClaims: readonly string[];
+    } | null;
     readonly acceptedVoxelEdit: boolean | null;
     readonly rejectedCompactVoxelEdit: boolean | null;
     readonly rejectedVoxelEdit: boolean | null;
@@ -620,6 +634,7 @@ function automationPrelude(): string {
         start: null,
         end: null,
       },
+      voxelHistory: null,
       acceptedVoxelEdit: null,
       rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
@@ -813,6 +828,41 @@ function automationPrelude(): string {
       previewLabel: placement.previewLabel,
       readoutHash: placement.readoutHash,
     };
+  }
+
+  function voxelHistoryPanelReadout() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const panel = store && typeof store.voxelHistoryPanel === 'function'
+      ? store.voxelHistoryPanel()
+      : null;
+    if (!panel) {
+      throw new Error('Voxel history panel readout unavailable');
+    }
+    return {
+      status: panel.control.status,
+      runtimeAttached: panel.runtimeAttached,
+      message: panel.control.message,
+      diagnostic: panel.control.diagnostic,
+      historyHash: panel.historyHash,
+      cursorHash: panel.cursorHash,
+      entryCount: panel.entryCount,
+      retainedRedoCount: panel.retainedRedoCount,
+      diffStatus: panel.diff.status,
+      diagnosticCodes: Array.isArray(panel.diagnostics)
+        ? panel.diagnostics.map(diagnostic => diagnostic.code)
+        : [],
+      readoutHash: panel.readoutHash,
+      nonClaims: panel.nonClaims,
+    };
+  }
+
+  function readVoxelHistoryPanel() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    if (!store || typeof store.runVoxelHistoryControl !== 'function') {
+      throw new Error('Voxel history store method unavailable');
+    }
+    store.runVoxelHistoryControl('read');
+    return voxelHistoryPanelReadout();
   }
 
   function setViewportVoxelHit(coord, face) {
@@ -1440,6 +1490,7 @@ function automationPrelude(): string {
         setCompactVoxelEditControl('z2', 0);
         setCompactVoxelEditControl('max_generated_voxels', 64);
         proof.agentSurface.compactVoxelEditControls.oversizedFillBox = await submitCompactVoxelEditControl('fill_box');
+        proof.agentSurface.voxelHistory = readVoxelHistoryPanel();
         await waitFor(() => document.querySelector('[data-voxel-evidence-kind="apply_receipt"]'), 'apply receipt evidence');
         proof.status = 'complete';
         proof.message = 'native provider attached and voxel conversion commands completed';
@@ -1750,6 +1801,12 @@ async function main(): Promise<void> {
     assert.deepEqual(nativeProof.agentSurface.compactVoxelPlacement.end?.targetEnd, { x: 1, y: 0, z: 0 });
     assert.match(nativeProof.agentSurface.compactVoxelPlacement.start?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
     assert.match(nativeProof.agentSurface.compactVoxelPlacement.end?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
+    assert.equal(nativeProof.agentSurface.voxelHistory?.runtimeAttached, true);
+    assert.match(nativeProof.agentSurface.voxelHistory?.readoutHash ?? '', /^studio-voxel-history-panel-/);
+    assert.ok(nativeProof.agentSurface.voxelHistory?.nonClaims.includes('not_studio_authoritative_undo_stack'));
+    if (nativeProof.agentSurface.voxelHistory?.status === 'rejected') {
+      assert.match(nativeProof.agentSurface.voxelHistory.diagnostic ?? '', /read_voxel_edit_history|readVoxelEditHistory|unimplemented/i);
+    }
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
       'register_conversion_source.facade:true',
       'register_conversion_mesh_asset.facade:true',

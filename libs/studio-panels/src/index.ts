@@ -2979,6 +2979,253 @@ export class StudioInspectorPanelComponent {
           </div>
         </section>
 
+        <section
+          class="voxel-history-panel"
+          aria-label="Voxel edit history"
+          [attr.data-voxel-history-status]="store.voxelHistoryPanel().control.status"
+          [attr.data-voxel-history-runtime-attached]="store.voxelHistoryPanel().runtimeAttached"
+        >
+          <article>
+            <span>Voxel History</span>
+            <strong>
+              {{ store.voxelHistoryPanel().control.status }} ·
+              {{ store.voxelHistoryPanel().control.lastAction ?? 'draft' }}
+            </strong>
+            <small>{{ store.voxelHistoryPanel().control.message }}</small>
+          </article>
+          <div class="voxel-history-panel__inputs">
+            <label>
+              History
+              <input
+                type="text"
+                data-voxel-history-control="history_id"
+                [value]="store.voxelHistoryPanel().control.historyId"
+                (input)="store.setVoxelHistoryTextControlField('historyId', $any($event.target).value)"
+              />
+            </label>
+            <label>
+              Cursor
+              <input
+                type="text"
+                data-voxel-history-control="cursor_id"
+                [value]="store.voxelHistoryPanel().control.cursorId ?? ''"
+                (input)="store.setVoxelHistoryTextControlField('cursorId', $any($event.target).value)"
+              />
+            </label>
+            <label>
+              Target Tx
+              <input
+                type="text"
+                data-voxel-history-control="target_transaction_id"
+                [value]="store.voxelHistoryPanel().control.targetTransactionId ?? ''"
+                (input)="store.setVoxelHistoryTextControlField('targetTransactionId', $any($event.target).value)"
+              />
+            </label>
+            <label>
+              Target Cursor
+              <input
+                type="text"
+                data-voxel-history-control="target_cursor_id"
+                [value]="store.voxelHistoryPanel().control.targetCursorId ?? ''"
+                (input)="store.setVoxelHistoryTextControlField('targetCursorId', $any($event.target).value)"
+              />
+            </label>
+            <label>
+              Target Index
+              <input
+                type="number"
+                min="0"
+                step="1"
+                data-voxel-history-control="target_cursor_index"
+                [value]="store.voxelHistoryPanel().control.targetCursorIndex ?? ''"
+                (input)="store.setVoxelHistoryNumberControlField('targetCursorIndex', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Entries
+              <input
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                data-voxel-history-control="max_entries"
+                [value]="store.voxelHistoryPanel().control.maxEntries"
+                (input)="store.setVoxelHistoryNumberControlField('maxEntries', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Replay
+              <input
+                type="number"
+                min="1"
+                step="1"
+                data-voxel-history-control="max_replay_steps"
+                [value]="store.voxelHistoryPanel().control.maxReplaySteps"
+                (input)="store.setVoxelHistoryNumberControlField('maxReplaySteps', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Diff
+              <input
+                type="number"
+                min="1"
+                step="1"
+                data-voxel-history-control="max_diff_voxels"
+                [value]="store.voxelHistoryPanel().control.maxDiffVoxels"
+                (input)="store.setVoxelHistoryNumberControlField('maxDiffVoxels', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Redo Tail
+              <input
+                type="checkbox"
+                data-voxel-history-control="include_redo_tail"
+                [checked]="store.voxelHistoryPanel().control.includeRedoTail"
+                (change)="store.setVoxelHistoryBooleanControlField('includeRedoTail', $any($event.target).checked)"
+              />
+            </label>
+            <label>
+              Samples
+              <input
+                type="checkbox"
+                data-voxel-history-control="include_sample_window"
+                [checked]="store.voxelHistoryPanel().control.includeSampleWindow"
+                (change)="store.setVoxelHistoryBooleanControlField('includeSampleWindow', $any($event.target).checked)"
+              />
+            </label>
+          </div>
+          <dl>
+            <dt>history hash</dt>
+            <dd>{{ store.voxelHistoryPanel().historyHash ?? 'no history' }}</dd>
+            <dt>cursor hash</dt>
+            <dd>{{ store.voxelHistoryPanel().cursorHash ?? 'no cursor' }}</dd>
+            <dt>target</dt>
+            <dd data-voxel-history-target>{{ store.voxelHistoryPanel().targetLabel }}</dd>
+            <dt>entries</dt>
+            <dd>{{ store.voxelHistoryPanel().entryCount }}</dd>
+            <dt>undo / redo</dt>
+            <dd>
+              {{ store.voxelHistoryPanel().cursor?.undoDepth ?? 0 }} /
+              {{ store.voxelHistoryPanel().cursor?.redoDepth ?? 0 }}
+            </dd>
+            <dt>diagnostic</dt>
+            <dd data-voxel-history-diagnostic>
+              {{ store.voxelHistoryPanel().control.diagnostic ?? 'none' }}
+            </dd>
+          </dl>
+          <div class="voxel-history-panel__actions">
+            <button
+              type="button"
+              data-voxel-history-action="read"
+              [disabled]="!store.voxelHistoryPanel().canRead"
+              (click)="store.runVoxelHistoryControl('read')"
+            >
+              <span>Read</span>
+              <small>history</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-history-action="preview_revert"
+              [disabled]="!store.voxelHistoryPanel().canPreviewRevert"
+              (click)="store.runVoxelHistoryControl('preview_revert')"
+            >
+              <span>Preview</span>
+              <small>bounded diff</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-history-action="apply_revert"
+              [disabled]="!store.voxelHistoryPanel().canApplyRevert"
+              (click)="store.runVoxelHistoryControl('apply_revert')"
+            >
+              <span>Revert</span>
+              <small>typed request</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-history-action="undo"
+              [disabled]="!store.voxelHistoryPanel().canUndo"
+              (click)="store.runVoxelHistoryControl('undo')"
+            >
+              <span>Undo</span>
+              <small>cursor</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-history-action="redo"
+              [disabled]="!store.voxelHistoryPanel().canRedo"
+              (click)="store.runVoxelHistoryControl('redo')"
+            >
+              <span>Redo</span>
+              <small>tail {{ store.voxelHistoryPanel().retainedRedoCount }}</small>
+            </button>
+          </div>
+          <section
+            class="voxel-history-panel__diff"
+            [attr.data-voxel-history-diff-status]="store.voxelHistoryPanel().diff.status"
+          >
+            <article>
+              <span>Diff</span>
+              <strong>
+                {{ store.voxelHistoryPanel().diff.changedVoxelCount ?? 'none' }}
+                · {{ store.voxelHistoryPanel().diff.diffLevel ?? 'no level' }}
+              </strong>
+              <small>
+                {{ store.voxelHistoryPanel().diff.boundsLabel }}
+                @if (store.voxelHistoryPanel().diff.partial) {
+                  · partial
+                }
+              </small>
+            </article>
+            <article>
+              <span>Materials</span>
+              <strong>{{ store.voxelHistoryPanel().diff.materialDeltaLabel }}</strong>
+              <small>{{ store.voxelHistoryPanel().diff.sampleWindowRef ?? 'no sample window' }}</small>
+            </article>
+          </section>
+          <section class="voxel-history-panel__entries" aria-label="Voxel edit history entries">
+            @for (entry of store.voxelHistoryPanel().entries; track entry.transactionId) {
+              <article
+                [attr.data-voxel-history-entry]="entry.transactionId"
+                [attr.data-voxel-history-entry-actionability]="entry.actionability"
+              >
+                <span>{{ entry.entryKind }} · {{ entry.operationLabel }}</span>
+                <strong>{{ entry.transactionId }}</strong>
+                <small>
+                  cursor {{ entry.cursorId }} · voxels {{ entry.touchedVoxelCount }} · {{ entry.diffLabel }}
+                </small>
+                <button
+                  type="button"
+                  [attr.data-voxel-history-target-action]="entry.transactionId"
+                  title="Use this entry as the typed revert target"
+                  (click)="store.selectVoxelHistoryTarget(entry.transactionId, entry.cursorId, $index)"
+                >
+                  <span>Target</span>
+                  <small>{{ entry.actionability }}</small>
+                </button>
+              </article>
+            } @empty {
+              <article data-voxel-history-entry="empty">
+                <span>timeline</span>
+                <strong>empty</strong>
+                <small>No engine history entries have been read.</small>
+              </article>
+            }
+          </section>
+          @if (store.voxelHistoryPanel().diagnostics.length > 0) {
+            <section class="voxel-history-panel__diagnostics" aria-label="Voxel history diagnostics">
+              @for (diagnostic of store.voxelHistoryPanel().diagnostics; track diagnostic.code + diagnostic.reference + diagnostic.message) {
+                <span
+                  [attr.data-voxel-history-diagnostic-code]="diagnostic.code"
+                  [attr.data-voxel-history-diagnostic-severity]="diagnostic.severity"
+                >
+                  {{ diagnostic.code }} · {{ diagnostic.message }}
+                </span>
+              }
+            </section>
+          }
+        </section>
+
         <section class="voxel-action-row" aria-label="Voxel conversion actions">
           @for (action of shell.actions; track action.commandId) {
             <button
