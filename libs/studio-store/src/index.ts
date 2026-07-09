@@ -6127,12 +6127,12 @@ export class StudioWorkspaceStore {
     }));
   }
 
-  selectVoxelHistoryTarget(transactionId: string, cursorId: string, cursorIndex: number): void {
+  selectVoxelHistoryTarget(transactionId: string): void {
     this.voxelHistoryControlState.update(current => ({
       ...current,
       targetTransactionId: transactionId,
-      targetCursorId: cursorId,
-      targetCursorIndex: cursorIndex,
+      targetCursorId: null,
+      targetCursorIndex: null,
       status: 'idle',
       message: `Voxel history target selected: ${transactionId}.`,
       diagnostic: null,

@@ -196,6 +196,7 @@ interface BrowserProof {
     };
     readonly voxelHistory: {
       readonly status: string;
+      readonly lastAction: string | null;
       readonly runtimeAttached: boolean;
       readonly message: string;
       readonly diagnostic: string | null;
@@ -204,9 +205,13 @@ interface BrowserProof {
       readonly entryCount: number;
       readonly retainedRedoCount: number;
       readonly diffStatus: string;
+      readonly receiptMode: string | null;
+      readonly receiptPreview: boolean | null;
+      readonly receiptApplied: boolean | null;
       readonly diagnosticCodes: readonly string[];
       readonly readoutHash: string;
       readonly nonClaims: readonly string[];
+      readonly entries: readonly { readonly transactionId: string; readonly cursorId: string }[];
     } | null;
     readonly acceptedVoxelEdit: boolean | null;
     readonly rejectedCompactVoxelEdit: boolean | null;
@@ -870,6 +875,7 @@ function automationPrelude(): string {
     }
     return {
       status: panel.control.status,
+      lastAction: panel.control.lastAction,
       runtimeAttached: panel.runtimeAttached,
       message: panel.control.message,
       diagnostic: panel.control.diagnostic,
@@ -878,21 +884,40 @@ function automationPrelude(): string {
       entryCount: panel.entryCount,
       retainedRedoCount: panel.retainedRedoCount,
       diffStatus: panel.diff.status,
+      receiptMode: panel.receipt?.request.mode ?? null,
+      receiptPreview: panel.receipt?.preview ?? null,
+      receiptApplied: panel.receipt?.applied ?? null,
       diagnosticCodes: Array.isArray(panel.diagnostics)
         ? panel.diagnostics.map(diagnostic => diagnostic.code)
         : [],
       readoutHash: panel.readoutHash,
       nonClaims: panel.nonClaims,
+      entries: panel.entries.map(entry => ({ transactionId: entry.transactionId, cursorId: entry.cursorId })),
     };
   }
 
-  function readVoxelHistoryPanel() {
+  function runVoxelHistoryControl(action) {
     const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
     if (!store || typeof store.runVoxelHistoryControl !== 'function') {
       throw new Error('Voxel history store method unavailable');
     }
-    store.runVoxelHistoryControl('read');
+    store.runVoxelHistoryControl(action);
     return voxelHistoryPanelReadout();
+  }
+
+  function readVoxelHistoryPanel() {
+    return runVoxelHistoryControl('read');
+  }
+
+  function previewVoxelHistoryRevert() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const panel = voxelHistoryPanelReadout();
+    const target = panel.entries.at(-1);
+    if (!store || typeof store.selectVoxelHistoryTarget !== 'function' || !target) {
+      throw new Error('Voxel history replayable target unavailable');
+    }
+    store.selectVoxelHistoryTarget(target.transactionId);
+    return runVoxelHistoryControl('preview_revert');
   }
 
   function setViewportVoxelHit(coord, face) {
@@ -1587,7 +1612,12 @@ function automationPrelude(): string {
         setCompactVoxelEditControl('z2', 0);
         setCompactVoxelEditControl('max_generated_voxels', 64);
         proof.agentSurface.compactVoxelEditControls.oversizedFillBox = await submitCompactVoxelEditControl('fill_box');
-        proof.agentSurface.voxelHistory = readVoxelHistoryPanel();
+        const voxelHistoryReadout = readVoxelHistoryPanel();
+        if (voxelHistoryReadout.status === 'ready' && voxelHistoryReadout.entryCount > 0) {
+          proof.agentSurface.voxelHistory = previewVoxelHistoryRevert();
+        } else {
+          proof.agentSurface.voxelHistory = voxelHistoryReadout;
+        }
         await waitFor(() => document.querySelector('[data-voxel-evidence-kind="apply_receipt"]'), 'apply receipt evidence');
         proof.status = 'complete';
         proof.message = 'native provider attached and voxel conversion commands completed';
@@ -1899,6 +1929,15 @@ async function main(): Promise<void> {
     assert.match(nativeProof.agentSurface.compactVoxelPlacement.start?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
     assert.match(nativeProof.agentSurface.compactVoxelPlacement.end?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
     assert.equal(nativeProof.agentSurface.voxelHistory?.runtimeAttached, true);
+    assert.equal(
+      nativeProof.agentSurface.voxelHistory?.status,
+      'accepted',
+      JSON.stringify(nativeProof.agentSurface.voxelHistory, null, 2),
+    );
+    assert.equal(nativeProof.agentSurface.voxelHistory?.lastAction, 'preview_revert');
+    assert.equal(nativeProof.agentSurface.voxelHistory?.receiptMode, 'preview_revert');
+    assert.equal(nativeProof.agentSurface.voxelHistory?.receiptPreview, true);
+    assert.equal(nativeProof.agentSurface.voxelHistory?.receiptApplied, false);
     assert.match(nativeProof.agentSurface.voxelHistory?.readoutHash ?? '', /^studio-voxel-history-panel-/);
     assert.ok(nativeProof.agentSurface.voxelHistory?.nonClaims.includes('not_studio_authoritative_undo_stack'));
     if (nativeProof.agentSurface.voxelHistory?.status === 'rejected') {

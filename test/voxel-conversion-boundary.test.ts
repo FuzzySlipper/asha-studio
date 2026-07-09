@@ -1088,6 +1088,9 @@ test('studio voxel history panel uses RuntimeSession history projections without
 
   assert.match(storeSource, /expectedHistoryHash: this\.voxelHistoryExpectedHistoryHash\(\)/);
   assert.match(storeSource, /expectedCursorHash: this\.voxelHistoryExpectedCursorHash\(\)/);
+  assert.match(storeSource, /targetTransactionId: transactionId/);
+  assert.match(storeSource, /targetCursorId: null/);
+  assert.match(storeSource, /targetCursorIndex: null/);
   assert.match(storeSource, /partial: diff\.partial/);
   assert.match(storeSource, /actionability: 'summary_only'/);
   assert.doesNotMatch(storeSource, /localUndoStack/);
@@ -1123,6 +1126,8 @@ test('studio voxel history panel uses RuntimeSession history projections without
 
   assert.match(proofSource, /voxelHistoryPanelReadout/);
   assert.match(proofSource, /readVoxelHistoryPanel/);
+  assert.match(proofSource, /previewVoxelHistoryRevert/);
+  assert.match(proofSource, /runVoxelHistoryControl\('preview_revert'\)/);
   assert.match(proofSource, /proof\.agentSurface\.voxelHistory/);
   assert.match(proofSource, /studio-voxel-history-panel-/);
 

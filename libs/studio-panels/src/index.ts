@@ -3198,7 +3198,7 @@ export class StudioInspectorPanelComponent {
                   type="button"
                   [attr.data-voxel-history-target-action]="entry.transactionId"
                   title="Use this entry as the typed revert target"
-                  (click)="store.selectVoxelHistoryTarget(entry.transactionId, entry.cursorId, $index)"
+                (click)="store.selectVoxelHistoryTarget(entry.transactionId)"
                 >
                   <span>Target</span>
                   <small>{{ entry.actionability }}</small>
