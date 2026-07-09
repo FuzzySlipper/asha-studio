@@ -147,6 +147,20 @@ Compact edit limits:
 - palette/material index: integer `0..255`;
 - unsupported or oversized requests fail closed before runtime submission.
 
+Mesh conversion source controls now expose the Studio-known source metadata and
+transform hints:
+
+- source path, source hash, publish key, mesh primitive, known material slot
+  count, and source status;
+- conversion transform controls for uniform scale and XYZ translation, mapped
+  into the public `VoxelConversionSettings.transform` matrix;
+- material source slot/source id to voxel material mapping, plus preview
+  material rows after authority preview evidence exists.
+
+The source metadata readout deliberately lists unavailable public fields such
+as mesh group bounds, primitive lists, and source transform readback. Treat those
+as planning inputs for engine work, not as Studio authority.
+
 ## Fixture-Backed Proof
 
 Run:

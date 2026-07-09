@@ -2289,8 +2289,16 @@ export class StudioInspectorPanelComponent {
               />
             </label>
             <dl>
+              <dt>path</dt>
+              <dd>{{ shell.sourceMetadata.sourcePath ?? 'missing' }}</dd>
               <dt>source hash</dt>
               <dd>{{ shell.workspace.source.sourceHash ?? 'missing' }}</dd>
+              <dt>publish key</dt>
+              <dd>{{ shell.sourceMetadata.publishOutputKey ?? 'missing' }}</dd>
+              <dt>mesh primitive</dt>
+              <dd>{{ shell.sourceMetadata.meshPrimitive ?? 'all' }}</dd>
+              <dt>material slots</dt>
+              <dd>{{ shell.sourceMetadata.knownMaterialSlotCount ?? 'unknown' }}</dd>
               <dt>source status</dt>
               <dd>{{ shell.workspace.source.status }}</dd>
             </dl>
@@ -2366,7 +2374,38 @@ export class StudioInspectorPanelComponent {
                   data-voxel-control="max-output-voxels"
                 />
               </label>
+              <label>
+                Scale
+                <input
+                  type="number"
+                  step="0.01"
+                  [value]="shell.settingsDraft.transformScale"
+                  (input)="store.setVoxelConversionTransformScale($any($event.target).valueAsNumber)"
+                  data-voxel-control="transform-scale"
+                />
+              </label>
+              @for (axis of [0, 1, 2]; track axis) {
+                <label>
+                  Translate {{ axis }}
+                  <input
+                    type="number"
+                    step="0.01"
+                    [value]="shell.settingsDraft.transformTranslation[axis]"
+                    (input)="store.setVoxelConversionTransformTranslationAxis(axis, $any($event.target).valueAsNumber)"
+                    [attr.data-voxel-control]="'transform-translation-' + axis"
+                  />
+                </label>
+              }
             </div>
+            <dl>
+              <dt>transform</dt>
+              <dd data-voxel-source-transform-readout>
+                scale {{ shell.sourceMetadata.transformScale }} ·
+                translate {{ shell.sourceMetadata.transformTranslation.join(',') }}
+              </dd>
+              <dt>missing</dt>
+              <dd data-voxel-source-missing-fields>{{ shell.sourceMetadata.missingPublicFields.join(', ') }}</dd>
+            </dl>
           </article>
 
           <article class="voxel-target-editor">

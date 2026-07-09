@@ -271,7 +271,15 @@ export interface StudioVoxelConversionSourceOption {
   readonly assetId: string;
   readonly label: string;
   readonly kind: string;
+  readonly sourcePath: string;
   readonly sourceHash: string | null;
+  readonly devCacheKey: string | null;
+  readonly importStatus: string | null;
+  readonly publishOutputKey: string | null;
+  readonly packedHash: string | null;
+  readonly packedBytes: number | null;
+  readonly dependencies: readonly string[];
+  readonly referencedRenderableIds: readonly string[];
   readonly supported: boolean;
   readonly selected: boolean;
 }
@@ -284,6 +292,8 @@ export interface StudioVoxelConversionSettingsDraftReadModel {
   readonly resolution: readonly [number, number, number];
   readonly voxelSize: number;
   readonly maxOutputVoxels: number;
+  readonly transformScale: number;
+  readonly transformTranslation: readonly [number, number, number];
   readonly targetGrid: number;
   readonly targetVolumeAssetId: string;
   readonly targetOrigin: readonly [number, number, number];
@@ -333,6 +343,25 @@ export interface StudioVoxelConversionPreviewProjectionReadModel {
   readonly states: readonly StudioVoxelConversionPreviewState[];
 }
 
+export interface StudioVoxelConversionSourceMetadataReadModel {
+  readonly selectedSourceAssetId: string | null;
+  readonly sourcePath: string | null;
+  readonly sourceHash: string | null;
+  readonly importStatus: string | null;
+  readonly publishOutputKey: string | null;
+  readonly packedHash: string | null;
+  readonly packedBytes: number | null;
+  readonly dependencyCount: number;
+  readonly referencedRenderableCount: number;
+  readonly meshPrimitive: string | null;
+  readonly materialMapEntryCount: number;
+  readonly knownMaterialSlotCount: number | null;
+  readonly transformScale: number;
+  readonly transformTranslation: readonly [number, number, number];
+  readonly missingPublicFields: readonly string[];
+  readonly readoutHash: string;
+}
+
 export interface StudioVoxelConversionTimelineRow {
   readonly commandId: StudioVoxelConversionCommandId;
   readonly label: string;
@@ -362,6 +391,7 @@ export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly applyProposal: StudioVoxelConversionProposalResult<unknown>;
   readonly exportProposal: StudioVoxelConversionProposalResult<unknown>;
   readonly previewProjection: StudioVoxelConversionPreviewProjectionReadModel;
+  readonly sourceMetadata: StudioVoxelConversionSourceMetadataReadModel;
   readonly commandTimeline: readonly StudioVoxelConversionTimelineRow[];
   readonly evidenceRows: readonly StudioVoxelConversionEvidenceRow[];
   readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
@@ -386,6 +416,8 @@ export interface StudioVoxelConversionSettingsDraft {
   readonly resolution: readonly [number, number, number];
   readonly voxelSize: number;
   readonly maxOutputVoxels: number;
+  readonly transformScale: number;
+  readonly transformTranslation: readonly [number, number, number];
   readonly targetGrid: number;
   readonly targetVolumeAssetId: string;
   readonly targetOrigin: readonly [number, number, number];
@@ -421,6 +453,8 @@ export interface StudioAgentVoxelConversionSettingsPatch {
   readonly resolution?: readonly [number, number, number];
   readonly voxelSize?: number;
   readonly maxOutputVoxels?: number;
+  readonly transformScale?: number;
+  readonly transformTranslation?: readonly [number, number, number];
   readonly targetGrid?: number;
   readonly targetVolumeAssetId?: string;
   readonly targetOrigin?: readonly [number, number, number];
@@ -1655,6 +1689,8 @@ const DEFAULT_VOXEL_CONVERSION_DRAFT: StudioVoxelConversionSettingsDraft = {
   resolution: [8, 8, 8],
   voxelSize: 0.25,
   maxOutputVoxels: 1024,
+  transformScale: 1,
+  transformTranslation: [0, 0, 0],
   targetGrid: 1,
   targetVolumeAssetId: 'voxel/generated',
   targetOrigin: [0, 0, 0],
@@ -2996,7 +3032,15 @@ function voxelConversionSourceOptions(
     assetId: entry.assetId,
     label: `${entry.assetId} · ${entry.kind}`,
     kind: entry.kind,
+    sourcePath: entry.sourcePath,
     sourceHash: entry.devResolution?.sourceHash ?? null,
+    devCacheKey: entry.devResolution?.devCacheKey ?? null,
+    importStatus: entry.devResolution?.importStatus ?? null,
+    publishOutputKey: entry.devResolution?.publishOutputKey ?? entry.publishResolution?.outputKey ?? null,
+    packedHash: entry.publishResolution?.packedHash ?? null,
+    packedBytes: entry.publishResolution?.packedBytes ?? null,
+    dependencies: entry.dependencies,
+    referencedRenderableIds: entry.referencedRenderableIds,
     supported: SUPPORTED_VOXEL_CONVERSION_CATALOG_SOURCE_KINDS.includes(entry.kind as 'static_mesh'),
     selected: entry.assetId === selectedSourceAssetId,
   }));
@@ -3038,7 +3082,12 @@ function voxelConversionSettings(draft: StudioVoxelConversionSettingsDraft): Vox
     resolution: draft.resolution,
     voxelSize: draft.voxelSize,
     maxOutputVoxels: draft.maxOutputVoxels,
-    transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    transform: [
+      draft.transformScale, 0, 0, 0,
+      0, draft.transformScale, 0, 0,
+      0, 0, draft.transformScale, 0,
+      draft.transformTranslation[0], draft.transformTranslation[1], draft.transformTranslation[2], 1,
+    ],
     materialMap: draft.materialMap,
   };
 }
@@ -3203,6 +3252,44 @@ function buildVoxelConversionEvidenceRows(
   }));
 }
 
+function buildVoxelConversionSourceMetadataReadModel(options: {
+  readonly draft: StudioVoxelConversionSettingsDraft;
+  readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
+  readonly selectedSource: StudioAssetInventoryEntryReadModel | null;
+  readonly previewProjection: StudioVoxelConversionPreviewProjectionReadModel;
+}): StudioVoxelConversionSourceMetadataReadModel {
+  const option = options.sourceOptions.find(entry => entry.assetId === options.draft.selectedSourceAssetId) ?? null;
+  const knownMaterialSlotCount = options.previewProjection.materialRows.length > 0
+    ? options.previewProjection.materialRows.length
+    : options.draft.materialMap.entries.length > 0 ? options.draft.materialMap.entries.length : null;
+  const missingPublicFields = [
+    'mesh_asset_group_bounds',
+    'mesh_primitive_list',
+    'source_transform_readback',
+  ];
+  const body = {
+    selectedSourceAssetId: options.draft.selectedSourceAssetId,
+    sourcePath: option?.sourcePath ?? options.selectedSource?.sourcePath ?? null,
+    sourceHash: option?.sourceHash ?? options.selectedSource?.devResolution?.sourceHash ?? null,
+    importStatus: option?.importStatus ?? options.selectedSource?.devResolution?.importStatus ?? null,
+    publishOutputKey: option?.publishOutputKey ?? options.selectedSource?.devResolution?.publishOutputKey ?? null,
+    packedHash: option?.packedHash ?? options.selectedSource?.publishResolution?.packedHash ?? null,
+    packedBytes: option?.packedBytes ?? options.selectedSource?.publishResolution?.packedBytes ?? null,
+    dependencyCount: option?.dependencies.length ?? options.selectedSource?.dependencies?.length ?? 0,
+    referencedRenderableCount: option?.referencedRenderableIds.length ?? options.selectedSource?.referencedRenderableIds?.length ?? 0,
+    meshPrimitive: options.draft.meshPrimitive,
+    materialMapEntryCount: options.draft.materialMap.entries.length,
+    knownMaterialSlotCount,
+    transformScale: options.draft.transformScale,
+    transformTranslation: options.draft.transformTranslation,
+    missingPublicFields,
+  };
+  return {
+    ...body,
+    readoutHash: stableAgentVoxelWorkflowHash('studio-voxel-conversion-source-metadata', body),
+  };
+}
+
 function buildVoxelConversionWorkspaceShellReadModel(options: {
   readonly draft: StudioVoxelConversionSettingsDraft;
   readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
@@ -3251,6 +3338,12 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     runtimeSession: options.runtimeSession,
   });
   const previewProjection = buildVoxelConversionPreviewProjection(workspace);
+  const sourceMetadata = buildVoxelConversionSourceMetadataReadModel({
+    draft: options.draft,
+    sourceOptions: options.sourceOptions,
+    selectedSource: options.selectedSource,
+    previewProjection,
+  });
   const commandTimeline = buildVoxelConversionTimelineRows({
     workspace,
     planProposal,
@@ -3420,13 +3513,14 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     applyProposal,
     exportProposal,
     previewProjection,
+    sourceMetadata,
     commandTimeline,
     evidenceRows,
     states,
     regions,
     actions,
     runtimeAttached: options.runtimeSession !== null,
-    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProposal.accepted}:${applyProposal.accepted}:${exportProposal.accepted}:${previewProjection.status}:${commandTimeline.length}:${evidenceRows.length}`,
+    shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProposal.accepted}:${applyProposal.accepted}:${exportProposal.accepted}:${previewProjection.status}:${sourceMetadata.readoutHash}:${commandTimeline.length}:${evidenceRows.length}`,
   };
 }
 
@@ -5026,6 +5120,17 @@ export class StudioWorkspaceStore {
     this.voxelConversionDraftState.update(draft => ({ ...draft, maxOutputVoxels }));
   }
 
+  setVoxelConversionTransformScale(transformScale: number): void {
+    this.voxelConversionDraftState.update(draft => ({ ...draft, transformScale }));
+  }
+
+  setVoxelConversionTransformTranslationAxis(axis: number, value: number): void {
+    this.voxelConversionDraftState.update(draft => ({
+      ...draft,
+      transformTranslation: tupleWithIndex(draft.transformTranslation, axis, value),
+    }));
+  }
+
   setVoxelConversionTargetGrid(targetGrid: number): void {
     this.voxelConversionDraftState.update(draft => ({ ...draft, targetGrid }));
   }
@@ -5561,6 +5666,10 @@ export class StudioWorkspaceStore {
     }
     if (patch.voxelSize !== undefined) this.setVoxelConversionVoxelSize(patch.voxelSize);
     if (patch.maxOutputVoxels !== undefined) this.setVoxelConversionMaxOutputVoxels(patch.maxOutputVoxels);
+    if (patch.transformScale !== undefined) this.setVoxelConversionTransformScale(patch.transformScale);
+    if (patch.transformTranslation !== undefined) {
+      patch.transformTranslation.forEach((value, axis) => this.setVoxelConversionTransformTranslationAxis(axis, value));
+    }
     if (patch.targetGrid !== undefined) this.setVoxelConversionTargetGrid(patch.targetGrid);
     if (patch.targetVolumeAssetId !== undefined) this.setVoxelConversionTargetVolumeAssetId(patch.targetVolumeAssetId);
     if (patch.targetOrigin !== undefined) {

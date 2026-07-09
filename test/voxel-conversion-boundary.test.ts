@@ -373,6 +373,8 @@ function sampleStudioVoxelDraft(overrides: Partial<StudioVoxelConversionSettings
     resolution: [8, 8, 8],
     voxelSize: 0.25,
     maxOutputVoxels: 1024,
+    transformScale: 1,
+    transformTranslation: [0, 0, 0],
     targetGrid: 1,
     targetVolumeAssetId: 'voxel/generated',
     targetOrigin: [0, 0, 0],
@@ -884,6 +886,8 @@ test('studio voxel conversion workspace wires source and settings controls to re
     'setVoxelConversionOriginPolicy',
     'setVoxelConversionResolutionAxis',
     'setVoxelConversionMaxOutputVoxels',
+    'setVoxelConversionTransformScale',
+    'setVoxelConversionTransformTranslationAxis',
     'setVoxelConversionMaterialVoxelId',
   ]) {
     assert.match(storeSource, new RegExp(`${setter}\\(`));
@@ -897,6 +901,8 @@ test('studio voxel conversion workspace wires source and settings controls to re
     'origin-policy',
     'resolution-',
     'max-output-voxels',
+    'transform-scale',
+    'transform-translation-',
     'target-grid',
     'target-volume',
     'material-source-slot',
@@ -908,6 +914,12 @@ test('studio voxel conversion workspace wires source and settings controls to re
 
   assert.match(panelSource, /data-voxel-proposal-diagnostic-code/);
   assert.match(panelSource, /unsupported/);
+  assert.match(storeSource, /StudioVoxelConversionSourceMetadataReadModel/);
+  assert.match(storeSource, /buildVoxelConversionSourceMetadataReadModel/);
+  assert.match(storeSource, /mesh_asset_group_bounds/);
+  assert.match(panelSource, /data-voxel-source-transform-readout/);
+  assert.match(panelSource, /data-voxel-source-missing-fields/);
+  assert.match(panelSource, /shell\.sourceMetadata/);
 });
 
 test('studio voxel conversion workspace exposes voxel asset save/load controls', () => {
@@ -1066,6 +1078,14 @@ test('studio voxel conversion shell maps catalog static meshes to authority mesh
   assert.equal(shell.workspace.source.source?.assetId, 'mesh.preview-cube');
   assert.equal(shell.workspace.source.source?.assetKind, 'mesh');
   assert.equal(shell.workspace.source.source?.meshPrimitive, 'default');
+  assert.equal(shell.workspace.settings.settings?.transform[0], 1);
+  assert.equal(shell.workspace.settings.settings?.transform[12], 0);
+  assert.equal(shell.sourceMetadata.selectedSourceAssetId, 'mesh.preview-cube');
+  assert.equal(shell.sourceMetadata.sourcePath, 'assets/meshes/preview-cube.mesh.json');
+  assert.equal(shell.sourceMetadata.sourceHash, 'sha256:source-v1');
+  assert.equal(shell.sourceMetadata.transformScale, 1);
+  assert.deepEqual(shell.sourceMetadata.transformTranslation, [0, 0, 0]);
+  assert.ok(shell.sourceMetadata.missingPublicFields.includes('mesh_primitive_list'));
   assert.equal(shell.workspace.target?.volumeAssetId, 'voxel/generated');
   assert.equal(shell.planProposal.accepted, true);
   assert.equal(shell.planProposal.proposal?.input.request.source.assetKind, 'mesh');
