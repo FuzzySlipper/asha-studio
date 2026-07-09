@@ -1,0 +1,72 @@
+name: ASHA Studio CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: asha-studio-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-asha-studio:
+    name: Verify ASHA Studio
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out ASHA Studio
+        uses: actions/checkout@v4
+        with:
+          path: asha-studio
+
+      - name: Check out ASHA engine
+        uses: actions/checkout@v4
+        with:
+          repository: FuzzySlipper/asha-engine
+          ref: main
+          path: asha-engine
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: |
+            asha-studio/pnpm-lock.yaml
+            asha-engine/ts/pnpm-lock.yaml
+
+      - name: Install ASHA engine TS dependencies
+        working-directory: asha-engine/ts
+        run: pnpm install --frozen-lockfile
+
+      - name: Build ASHA engine TS packages used by Studio
+        working-directory: asha-engine/ts
+        run: >
+          pnpm
+          --filter @asha/contracts
+          --filter @asha/runtime-session
+          --filter @asha/native-bridge
+          --filter @asha/runtime-bridge
+          --filter @asha/command-registry
+          --filter @asha/game-workspace
+          --filter @asha/catalog-core
+          --filter @asha/devtools
+          --filter @asha/editor-tools
+          --filter @asha/render-projection
+          run build
+
+      - name: Install ASHA Studio dependencies
+        working-directory: asha-studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ASHA Studio verification
+        working-directory: asha-studio
+        run: pnpm run verify
