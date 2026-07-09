@@ -904,6 +904,80 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly voxelAssetReopen?: StudioAgentVoxelAssetReopenReadModel | null;
 }
 
+export interface StudioAgentVoxelOperationTranscriptEntry {
+  readonly operationId: string;
+  readonly kind: StudioAgentVoxelWorkflowOperationKind;
+  readonly input?: Readonly<Record<string, unknown>>;
+  readonly expected?: {
+    readonly accepted?: boolean;
+  };
+}
+
+export interface StudioAgentVoxelOperationTranscript {
+  readonly artifactKind: 'studio_agent_voxel_operation_transcript';
+  readonly artifactVersion: 'studio-agent-voxel-operation-transcript.v0';
+  readonly producer: {
+    readonly kind: string;
+    readonly id: string;
+    readonly label?: string;
+  };
+  readonly target: {
+    readonly studioSurfaceVersion: 'studio-agent-voxel-workflow.v0';
+    readonly projectBundle?: string;
+    readonly runtimeMode?: string;
+  };
+  readonly operations: readonly StudioAgentVoxelOperationTranscriptEntry[];
+  readonly nonClaims: readonly [
+    'not_vforge_file',
+    'not_mcp_transport',
+    'not_raw_runtime_bridge_dispatch',
+    'not_runtime_authority',
+    'not_private_studio_state_mutation',
+  ];
+}
+
+export interface StudioAgentVoxelOperationTranscriptValidationResult {
+  readonly accepted: boolean;
+  readonly diagnostic: string | null;
+  readonly transcript: StudioAgentVoxelOperationTranscript | null;
+  readonly transcriptHash: string;
+}
+
+export interface StudioAgentVoxelOperationTranscriptReplayOperationReceipt {
+  readonly operationId: string;
+  readonly kind: StudioAgentVoxelWorkflowOperationKind;
+  readonly accepted: boolean;
+  readonly expectedAccepted: boolean | null;
+  readonly expectationMatched: boolean;
+  readonly diagnostic: string | null;
+  readonly surfaceHash: string;
+  readonly resultHash: string;
+}
+
+export interface StudioAgentVoxelOperationTranscriptReplayReceipt {
+  readonly artifactKind: 'studio_agent_voxel_operation_transcript_replay';
+  readonly artifactVersion: 'studio-agent-voxel-operation-transcript-replay.v0';
+  readonly transcriptArtifactKind: 'studio_agent_voxel_operation_transcript' | null;
+  readonly transcriptArtifactVersion: 'studio-agent-voxel-operation-transcript.v0' | null;
+  readonly transcriptHash: string;
+  readonly replayed: boolean;
+  readonly accepted: boolean;
+  readonly diagnostic: string | null;
+  readonly producerId: string | null;
+  readonly operationCount: number;
+  readonly acceptedOperationCount: number;
+  readonly rejectedOperationCount: number;
+  readonly operations: readonly StudioAgentVoxelOperationTranscriptReplayOperationReceipt[];
+  readonly nonClaims: readonly [
+    'not_vforge_file',
+    'not_mcp_transport',
+    'not_raw_runtime_bridge_dispatch',
+    'not_runtime_authority',
+    'not_private_studio_state_mutation',
+  ];
+  readonly receiptHash: string;
+}
+
 export type StudioVoxelAssetWorkflowControlAction = 'model_info' | 'export_volume' | 'save_volume' | 'load_volume';
 
 export type StudioVoxelCompactEditControlAction = 'block' | 'fill_box' | 'primitive_box' | 'primitive_line';
@@ -1869,6 +1943,43 @@ const AGENT_VOXEL_VIEW_ANGLES: readonly StudioAgentVoxelViewAngle[] = [
   'top',
   'isometric',
 ];
+const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS = [
+  'not_vforge_file',
+  'not_mcp_transport',
+  'not_raw_runtime_bridge_dispatch',
+  'not_runtime_authority',
+  'not_private_studio_state_mutation',
+] as const;
+const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_KIND = 'studio_agent_voxel_operation_transcript' as const;
+const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_VERSION = 'studio-agent-voxel-operation-transcript.v0' as const;
+const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_KIND = 'studio_agent_voxel_operation_transcript_replay' as const;
+const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_VERSION = 'studio-agent-voxel-operation-transcript-replay.v0' as const;
+const AGENT_VOXEL_TRANSCRIPT_ALLOWED_TOP_LEVEL_KEYS = [
+  'artifactKind',
+  'artifactVersion',
+  'producer',
+  'target',
+  'operations',
+  'nonClaims',
+] as const;
+const AGENT_VOXEL_TRANSCRIPT_ALLOWED_OPERATION_KEYS = ['operationId', 'kind', 'input', 'expected'] as const;
+const AGENT_VOXEL_TRANSCRIPT_INPUT_KEYS: Readonly<Record<StudioAgentVoxelWorkflowOperationKind, readonly string[]>> = {
+  inspect: [],
+  register_conversion_source: ['registration'],
+  register_conversion_mesh_asset: ['registration'],
+  configure_conversion: ['patch'],
+  run_conversion: ['commandId'],
+  get_model_info: ['request'],
+  export_voxel_volume_asset: ['exportRequest'],
+  save_voxel_volume_asset: ['saveRequest'],
+  load_voxel_volume_asset: ['loadRequest'],
+  view_from_angle: ['view'],
+  publish_preview: ['publication'],
+  persist_voxel_asset: ['persistence'],
+  reopen_voxel_asset: ['reopen'],
+  submit_voxel_edit: ['batch'],
+  submit_compact_voxel_edit: ['edit'],
+};
 
 function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
   const text = JSON.stringify(value);
@@ -1877,6 +1988,328 @@ function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
     hash = ((hash * 31) + text.charCodeAt(index)) >>> 0;
   }
   return `${label}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function isAgentVoxelTranscriptRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function agentVoxelTranscriptRecordKeysDiagnostic(
+  value: Readonly<Record<string, unknown>>,
+  allowedKeys: readonly string[],
+  label: string,
+): string | null {
+  const disallowed = Object.keys(value).find(key => !allowedKeys.includes(key));
+  return disallowed === undefined ? null : `${label} contains unsupported field ${disallowed}`;
+}
+
+function agentVoxelTranscriptForbiddenShapeDiagnostic(value: unknown, path = 'transcript'): string | null {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const diagnostic = agentVoxelTranscriptForbiddenShapeDiagnostic(value[index], `${path}[${index}]`);
+      if (diagnostic !== null) return diagnostic;
+    }
+    return null;
+  }
+  if (isAgentVoxelTranscriptRecord(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      const lowerKey = key.toLowerCase();
+      if (['method', 'methodname', 'args', 'rpc', 'rawmethod', 'rawruntimebridgecall'].includes(lowerKey)) {
+        return `raw RuntimeBridge or method dispatch is not accepted in voxel transcripts (${path}.${key})`;
+      }
+      if (['privatepath', 'storepath', 'privateimport', 'generatedcontractimport'].includes(lowerKey)) {
+        return `private Studio or generated-contract paths are not accepted in voxel transcripts (${path}.${key})`;
+      }
+      if (['mcptool', 'mcptransport', 'mcpcall'].includes(lowerKey)) {
+        return `MCP transport calls are not accepted in voxel transcripts (${path}.${key})`;
+      }
+      if (['vforgepath', 'vforgefile'].includes(lowerKey)) {
+        return `VoxelForge .vforge files are not accepted in voxel transcripts (${path}.${key})`;
+      }
+      const diagnostic = agentVoxelTranscriptForbiddenShapeDiagnostic(child, `${path}.${key}`);
+      if (diagnostic !== null) return diagnostic;
+    }
+    return null;
+  }
+  if (typeof value === 'string') {
+    if (value.includes('.vforge')) {
+      return `VoxelForge .vforge files are not accepted in voxel transcripts (${path})`;
+    }
+    if (value.startsWith('mcp://') || value === 'voxelforge_mcp_transport') {
+      return `MCP transport calls are not accepted in voxel transcripts (${path})`;
+    }
+    if (
+      value.includes('@asha/contracts/private')
+      || value.includes('/src/generated')
+      || value.includes('\\src\\generated')
+    ) {
+      return `generated-contract import paths are not accepted in voxel transcripts (${path})`;
+    }
+    if (value.includes('RuntimeBridge.') || value.includes('runtimeSessionFacadeState') || value.includes('workspaceState.')) {
+      return `private RuntimeBridge or Studio store paths are not accepted in voxel transcripts (${path})`;
+    }
+  }
+  return null;
+}
+
+function isAgentVoxelTranscriptOperationKind(value: unknown): value is StudioAgentVoxelWorkflowOperationKind {
+  return typeof value === 'string'
+    && AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS.includes(value as StudioAgentVoxelWorkflowOperationKind);
+}
+
+function agentVoxelTranscriptExpectedAccepted(value: unknown): boolean | null {
+  if (!isAgentVoxelTranscriptRecord(value)) return null;
+  const expected = value['accepted'];
+  return typeof expected === 'boolean' ? expected : null;
+}
+
+function agentVoxelTranscriptOperationToWorkflowOperation(
+  operation: StudioAgentVoxelOperationTranscriptEntry,
+): StudioAgentVoxelWorkflowOperation {
+  const input = operation.input ?? {};
+  return {
+    kind: operation.kind,
+    ...input,
+  } as StudioAgentVoxelWorkflowOperation;
+}
+
+export function parseStudioAgentVoxelOperationTranscript(
+  value: unknown,
+): StudioAgentVoxelOperationTranscriptValidationResult {
+  const transcriptHash = stableAgentVoxelWorkflowHash('studio-agent-voxel-operation-transcript-input', value);
+  const forbiddenDiagnostic = agentVoxelTranscriptForbiddenShapeDiagnostic(value);
+  if (forbiddenDiagnostic !== null) {
+    return { accepted: false, diagnostic: forbiddenDiagnostic, transcript: null, transcriptHash };
+  }
+  if (!isAgentVoxelTranscriptRecord(value)) {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript must be a JSON object',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+  const topLevelDiagnostic = agentVoxelTranscriptRecordKeysDiagnostic(
+    value,
+    AGENT_VOXEL_TRANSCRIPT_ALLOWED_TOP_LEVEL_KEYS,
+    'voxel operation transcript',
+  );
+  if (topLevelDiagnostic !== null) {
+    return { accepted: false, diagnostic: topLevelDiagnostic, transcript: null, transcriptHash };
+  }
+  if (value['artifactKind'] !== STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_KIND) {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript artifactKind must be studio_agent_voxel_operation_transcript',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+  if (value['artifactVersion'] !== STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_VERSION) {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript artifactVersion must be studio-agent-voxel-operation-transcript.v0',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+  const producer = value['producer'];
+  if (!isAgentVoxelTranscriptRecord(producer) || typeof producer['kind'] !== 'string' || typeof producer['id'] !== 'string') {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript producer must include string kind and id',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+  const target = value['target'];
+  if (
+    !isAgentVoxelTranscriptRecord(target)
+    || target['studioSurfaceVersion'] !== 'studio-agent-voxel-workflow.v0'
+  ) {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript target must use studio-agent-voxel-workflow.v0',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+  const operationsValue = value['operations'];
+  if (!Array.isArray(operationsValue) || operationsValue.length === 0) {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript requires at least one operation',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+  const nonClaims = value['nonClaims'];
+  if (
+    !Array.isArray(nonClaims)
+    || !STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS.every(claim => nonClaims.includes(claim))
+  ) {
+    return {
+      accepted: false,
+      diagnostic: 'voxel operation transcript must carry the ASHA-native non-claims',
+      transcript: null,
+      transcriptHash,
+    };
+  }
+
+  const operations: StudioAgentVoxelOperationTranscriptEntry[] = [];
+  for (let index = 0; index < operationsValue.length; index += 1) {
+    const operationValue = operationsValue[index];
+    if (!isAgentVoxelTranscriptRecord(operationValue)) {
+      return {
+        accepted: false,
+        diagnostic: `voxel operation transcript operation ${index} must be an object`,
+        transcript: null,
+        transcriptHash,
+      };
+    }
+    const operationKeysDiagnostic = agentVoxelTranscriptRecordKeysDiagnostic(
+      operationValue,
+      AGENT_VOXEL_TRANSCRIPT_ALLOWED_OPERATION_KEYS,
+      `voxel operation transcript operation ${index}`,
+    );
+    if (operationKeysDiagnostic !== null) {
+      return { accepted: false, diagnostic: operationKeysDiagnostic, transcript: null, transcriptHash };
+    }
+    const kind = operationValue['kind'];
+    if (!isAgentVoxelTranscriptOperationKind(kind)) {
+      return {
+        accepted: false,
+        diagnostic: `voxel operation transcript operation ${index} has unsupported kind ${String(kind)}`,
+        transcript: null,
+        transcriptHash,
+      };
+    }
+    const operationId = operationValue['operationId'];
+    if (typeof operationId !== 'string' || operationId.length === 0) {
+      return {
+        accepted: false,
+        diagnostic: `voxel operation transcript operation ${index} requires a non-empty operationId`,
+        transcript: null,
+        transcriptHash,
+      };
+    }
+    const inputValue = operationValue['input'];
+    if (inputValue !== undefined && !isAgentVoxelTranscriptRecord(inputValue)) {
+      return {
+        accepted: false,
+        diagnostic: `voxel operation transcript operation ${operationId} input must be an object`,
+        transcript: null,
+        transcriptHash,
+      };
+    }
+    const input = inputValue === undefined ? {} : inputValue;
+    const allowedInputKeys = AGENT_VOXEL_TRANSCRIPT_INPUT_KEYS[kind];
+    const disallowedInputKey = Object.keys(input).find(key => !allowedInputKeys.includes(key));
+    if (disallowedInputKey !== undefined) {
+      return {
+        accepted: false,
+        diagnostic: `voxel operation transcript operation ${operationId} has unsupported input field ${disallowedInputKey}`,
+        transcript: null,
+        transcriptHash,
+      };
+    }
+    const missingInputKey = allowedInputKeys.find(key => kind !== 'publish_preview' && input[key] === undefined);
+    if (missingInputKey !== undefined) {
+      return {
+        accepted: false,
+        diagnostic: `voxel operation transcript operation ${operationId} is missing input field ${missingInputKey}`,
+        transcript: null,
+        transcriptHash,
+      };
+    }
+    const expectedValue = operationValue['expected'];
+    if (expectedValue !== undefined) {
+      if (!isAgentVoxelTranscriptRecord(expectedValue)) {
+        return {
+          accepted: false,
+          diagnostic: `voxel operation transcript operation ${operationId} expected must be an object`,
+          transcript: null,
+          transcriptHash,
+        };
+      }
+      const expectedKeysDiagnostic = agentVoxelTranscriptRecordKeysDiagnostic(
+        expectedValue,
+        ['accepted'],
+        `voxel operation transcript operation ${operationId} expected`,
+      );
+      if (expectedKeysDiagnostic !== null) {
+        return { accepted: false, diagnostic: expectedKeysDiagnostic, transcript: null, transcriptHash };
+      }
+      if (expectedValue['accepted'] !== undefined && typeof expectedValue['accepted'] !== 'boolean') {
+        return {
+          accepted: false,
+          diagnostic: `voxel operation transcript operation ${operationId} expected.accepted must be boolean`,
+          transcript: null,
+          transcriptHash,
+        };
+      }
+    }
+    operations.push({
+      operationId,
+      kind,
+      input,
+      ...(expectedValue === undefined ? {} : { expected: expectedValue as { readonly accepted?: boolean } }),
+    });
+  }
+
+  const transcript: StudioAgentVoxelOperationTranscript = {
+    artifactKind: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_KIND,
+    artifactVersion: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_VERSION,
+    producer: {
+      kind: producer['kind'],
+      id: producer['id'],
+      ...(typeof producer['label'] === 'string' ? { label: producer['label'] } : {}),
+    },
+    target: {
+      studioSurfaceVersion: 'studio-agent-voxel-workflow.v0',
+      ...(typeof target['projectBundle'] === 'string' ? { projectBundle: target['projectBundle'] } : {}),
+      ...(typeof target['runtimeMode'] === 'string' ? { runtimeMode: target['runtimeMode'] } : {}),
+    },
+    operations,
+    nonClaims: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS,
+  };
+  return {
+    accepted: true,
+    diagnostic: null,
+    transcript,
+    transcriptHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-operation-transcript', transcript),
+  };
+}
+
+function buildStudioAgentVoxelTranscriptReplayReceipt(options: {
+  readonly validation: StudioAgentVoxelOperationTranscriptValidationResult;
+  readonly operations: readonly StudioAgentVoxelOperationTranscriptReplayOperationReceipt[];
+}): StudioAgentVoxelOperationTranscriptReplayReceipt {
+  const transcript = options.validation.transcript;
+  const operationCount = options.operations.length;
+  const acceptedOperationCount = options.operations.filter(operation => operation.accepted).length;
+  const body = {
+    artifactKind: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_KIND,
+    artifactVersion: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_VERSION,
+    transcriptArtifactKind: transcript?.artifactKind ?? null,
+    transcriptArtifactVersion: transcript?.artifactVersion ?? null,
+    transcriptHash: options.validation.transcriptHash,
+    replayed: options.validation.accepted,
+    accepted: options.validation.accepted && options.operations.every(operation => operation.expectationMatched),
+    diagnostic: options.validation.accepted
+      ? options.operations.find(operation => !operation.expectationMatched)?.diagnostic ?? null
+      : options.validation.diagnostic,
+    producerId: transcript?.producer.id ?? null,
+    operationCount,
+    acceptedOperationCount,
+    rejectedOperationCount: operationCount - acceptedOperationCount,
+    operations: options.operations,
+    nonClaims: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS,
+  };
+  return {
+    ...body,
+    receiptHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-operation-transcript-replay', body),
+  };
 }
 
 function viewportDistance(camera: StudioViewportCameraReadModel): number {
@@ -4767,6 +5200,47 @@ export class StudioWorkspaceStore {
         };
       }
     }
+  }
+
+  runAgentVoxelOperationTranscriptReplay(
+    transcriptInput: unknown,
+  ): StudioAgentVoxelOperationTranscriptReplayReceipt {
+    const validation = parseStudioAgentVoxelOperationTranscript(transcriptInput);
+    if (!validation.accepted || validation.transcript === null) {
+      return buildStudioAgentVoxelTranscriptReplayReceipt({ validation, operations: [] });
+    }
+    const operations = validation.transcript.operations.map(transcriptOperation => {
+      const result = this.runAgentVoxelWorkflowOperation(
+        agentVoxelTranscriptOperationToWorkflowOperation(transcriptOperation),
+      );
+      const expectedAccepted = agentVoxelTranscriptExpectedAccepted(transcriptOperation.expected);
+      const expectationMatched = expectedAccepted === null ? true : result.accepted === expectedAccepted;
+      const resultSummary = {
+        operation: result.operation,
+        accepted: result.accepted,
+        diagnostic: result.diagnostic,
+        surfaceHash: result.surface.surfaceHash,
+        voxelEditReceiptHash: result.voxelEditReceipt === undefined || result.voxelEditReceipt === null
+          ? null
+          : stableAgentVoxelWorkflowHash('studio-agent-voxel-transcript-voxel-edit-receipt', result.voxelEditReceipt),
+      };
+      return {
+        operationId: transcriptOperation.operationId,
+        kind: transcriptOperation.kind,
+        accepted: result.accepted,
+        expectedAccepted,
+        expectationMatched,
+        diagnostic: expectationMatched
+          ? result.diagnostic
+          : [
+              result.diagnostic,
+              `Expected accepted=${String(expectedAccepted)} but replay returned accepted=${String(result.accepted)}`,
+            ].filter((message): message is string => typeof message === 'string' && message.length > 0).join('; '),
+        surfaceHash: result.surface.surfaceHash,
+        resultHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-transcript-operation-result', resultSummary),
+      };
+    });
+    return buildStudioAgentVoxelTranscriptReplayReceipt({ validation, operations });
   }
   readonly workspaceCockpitEvidence = computed(() => {
     const assetInventory = this.assetInventoryState().inventory;

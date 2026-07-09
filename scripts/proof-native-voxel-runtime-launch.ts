@@ -291,6 +291,30 @@ interface BrowserProof {
         readonly boundsLabel: string;
       } | null;
     };
+    readonly transcriptReplay: {
+      readonly artifactKind: string;
+      readonly artifactVersion: string;
+      readonly transcriptHash: string;
+      readonly replayed: boolean;
+      readonly accepted: boolean;
+      readonly diagnostic: string | null;
+      readonly producerId: string | null;
+      readonly operationCount: number;
+      readonly acceptedOperationCount: number;
+      readonly rejectedOperationCount: number;
+      readonly operations: readonly {
+        readonly operationId: string;
+        readonly kind: string;
+        readonly accepted: boolean;
+        readonly expectedAccepted: boolean | null;
+        readonly expectationMatched: boolean;
+        readonly diagnostic: string | null;
+        readonly surfaceHash: string;
+        readonly resultHash: string;
+      }[];
+      readonly nonClaims: readonly string[];
+      readonly receiptHash: string;
+    } | null;
     readonly surfaceHash: string;
   };
   readonly nativeSmoke: {
@@ -647,6 +671,7 @@ function automationPrelude(): string {
         convertedReopen: null,
         authoredReopen: null,
       },
+      transcriptReplay: null,
       surfaceHash: '',
     },
     nativeSmoke: {
@@ -1384,6 +1409,73 @@ function automationPrelude(): string {
           },
         });
         recordCompactVoxelEditResult('apply_voxel_primitives', compactPrimitives);
+        const transcriptReplay = store.runAgentVoxelOperationTranscriptReplay({
+          artifactKind: 'studio_agent_voxel_operation_transcript',
+          artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
+          producer: {
+            kind: 'agent',
+            id: 'codex-asha-studio',
+            label: 'Native voxel launch proof',
+          },
+          target: {
+            studioSurfaceVersion: 'studio-agent-voxel-workflow.v0',
+            projectBundle: 'asha-demo',
+            runtimeMode: 'native_rust',
+          },
+          operations: [
+            {
+              operationId: 'proof-configure-conversion',
+              kind: 'configure_conversion',
+              input: {
+                patch: {
+                  sourceAssetId: 'mesh.demo-cube',
+                  mode: 'surface',
+                  fitPolicy: 'contain',
+                  originPolicy: 'target_min',
+                  resolution: [8, 8, 8],
+                  voxelSize: 0.25,
+                  maxOutputVoxels: 1024,
+                  targetGrid: 1,
+                  targetVolumeAssetId: 'voxel/generated',
+                  targetOrigin: [0, 0, 0],
+                  meshPrimitive: 'default',
+                  materialSourceSlot: 0,
+                  materialSourceId: 'material/demo-copper',
+                  materialVoxelId: 1,
+                  defaultMaterial: '1',
+                },
+              },
+              expected: { accepted: true },
+            },
+            {
+              operationId: 'proof-compact-voxel-edit',
+              kind: 'submit_compact_voxel_edit',
+              input: {
+                edit: {
+                  kind: 'apply_voxel_primitives',
+                  grid: 1,
+                  maxGeneratedVoxels: 64,
+                  primitives: [
+                    { kind: 'box', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 1, z: 1 }, palette_index: 1, mode: 'shell' },
+                  ],
+                },
+              },
+              expected: { accepted: true },
+            },
+          ],
+          nonClaims: [
+            'not_vforge_file',
+            'not_mcp_transport',
+            'not_raw_runtime_bridge_dispatch',
+            'not_runtime_authority',
+            'not_private_studio_state_mutation',
+          ],
+        });
+        proof.agentSurface.operationStatuses.push('transcript_replay:' + transcriptReplay.accepted);
+        if (transcriptReplay.diagnostic) {
+          proof.agentSurface.operationDiagnostics.push('transcript_replay:' + transcriptReplay.diagnostic);
+        }
+        proof.agentSurface.transcriptReplay = transcriptReplay;
         const inspectionAfterAcceptedVoxelEdits = store.runtimeSessionInspection();
         proof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits = inspectionAfterAcceptedVoxelEdits.sessionHash;
         proof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits = commandCounts(inspectionAfterAcceptedVoxelEdits);
@@ -1807,6 +1899,24 @@ async function main(): Promise<void> {
     if (nativeProof.agentSurface.voxelHistory?.status === 'rejected') {
       assert.match(nativeProof.agentSurface.voxelHistory.diagnostic ?? '', /read_voxel_edit_history|readVoxelEditHistory|unimplemented/i);
     }
+    assert.equal(nativeProof.agentSurface.transcriptReplay?.artifactKind, 'studio_agent_voxel_operation_transcript_replay');
+    assert.equal(nativeProof.agentSurface.transcriptReplay?.artifactVersion, 'studio-agent-voxel-operation-transcript-replay.v0');
+    assert.equal(
+      nativeProof.agentSurface.transcriptReplay?.accepted,
+      true,
+      JSON.stringify(nativeProof.agentSurface.transcriptReplay, null, 2),
+    );
+    assert.equal(nativeProof.agentSurface.transcriptReplay?.replayed, true);
+    assert.equal(nativeProof.agentSurface.transcriptReplay?.operationCount, 2);
+    assert.equal(nativeProof.agentSurface.transcriptReplay?.acceptedOperationCount, 2);
+    assert.deepEqual(
+      nativeProof.agentSurface.transcriptReplay?.operations.map(operation => operation.kind),
+      ['configure_conversion', 'submit_compact_voxel_edit'],
+    );
+    assert.ok(nativeProof.agentSurface.transcriptReplay?.operations.every(operation => operation.expectationMatched));
+    assert.ok(nativeProof.agentSurface.transcriptReplay?.nonClaims.includes('not_vforge_file'));
+    assert.ok(nativeProof.agentSurface.transcriptReplay?.nonClaims.includes('not_raw_runtime_bridge_dispatch'));
+    assert.match(nativeProof.agentSurface.transcriptReplay?.receiptHash ?? '', /^studio-agent-voxel-operation-transcript-replay-/);
     assert.deepEqual(nativeProof.agentSurface.operationStatuses, [
       'register_conversion_source.facade:true',
       'register_conversion_mesh_asset.facade:true',
@@ -1832,6 +1942,7 @@ async function main(): Promise<void> {
       'submit_compact_voxel_edit.set_voxels_runs:true',
       'submit_compact_voxel_edit.fill_box:true',
       'submit_compact_voxel_edit.apply_voxel_primitives:true',
+      'transcript_replay:true',
       'submit_compact_voxel_edit.fill_box_oversized:false',
     ], JSON.stringify(nativeProof.agentSurface.operationDiagnostics, null, 2));
     assert.deepEqual(nativeProof.agentSurface.viewCapture, {
@@ -1911,8 +2022,8 @@ async function main(): Promise<void> {
       'accepted voxel edits must change the authority session hash',
     );
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 8, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 8, rejected: 1 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 16, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 16, rejected: 1 });
     assert.deepEqual(nativeProof.nativeSmoke.sourceRegistration, {
       registered: true,
       meshAssetRegistered: true,
@@ -2029,9 +2140,11 @@ async function main(): Promise<void> {
     const previewPublicationPath = join(outDir, 'voxel-preview-publication.json');
     const convertedVoxelAssetPath = join(outDir, 'converted-voxel-volume.avxl.json');
     const authoredVoxelAssetPath = join(outDir, 'authored-voxel-volume.avxl.json');
+    const transcriptReplayReceiptPath = join(outDir, 'voxel-transcript-replay-receipt.json');
     assert.ok(nativeProof.agentSurface.previewPublication, 'preview publication was not produced');
     assert.ok(nativeProof.agentSurface.voxelAssetPersistence.converted, 'converted voxel asset was not produced');
     assert.ok(nativeProof.agentSurface.voxelAssetPersistence.authored, 'authored voxel asset was not produced');
+    assert.ok(nativeProof.agentSurface.transcriptReplay, 'transcript replay receipt was not produced');
     const previewPublication = {
       ...nativeProof.agentSurface.previewPublication,
       artifactHash: sha256(nativeProof.agentSurface.previewPublication),
@@ -2044,6 +2157,7 @@ async function main(): Promise<void> {
     await writeFile(previewPublicationPath, `${JSON.stringify(previewPublication, null, 2)}\n`);
     await writeFile(convertedVoxelAssetPath, convertedVoxelAsset.serializedAsset);
     await writeFile(authoredVoxelAssetPath, authoredVoxelAsset.serializedAsset);
+    await writeFile(transcriptReplayReceiptPath, `${JSON.stringify(nativeProof.agentSurface.transcriptReplay, null, 2)}\n`);
     const voxelAssetAuthorityValidation = await validateVoxelAssetsWithRustAuthority([
       convertedVoxelAssetPath,
       authoredVoxelAssetPath,
@@ -2099,6 +2213,13 @@ async function main(): Promise<void> {
         hash: previewPublication.artifactHash,
         publicationHash: previewPublication.publicationHash,
       },
+      transcriptReplayArtifact: {
+        path: relative(repoRoot, transcriptReplayReceiptPath),
+        hash: sha256(nativeProof.agentSurface.transcriptReplay),
+        receiptHash: nativeProof.agentSurface.transcriptReplay.receiptHash,
+        operationCount: nativeProof.agentSurface.transcriptReplay.operationCount,
+        acceptedOperationCount: nativeProof.agentSurface.transcriptReplay.acceptedOperationCount,
+      },
       voxelAssetArtifacts: {
         converted: {
           path: relative(repoRoot, convertedVoxelAssetPath),
@@ -2140,6 +2261,7 @@ async function main(): Promise<void> {
         'missing_voxel_model_info_failed_closed_through_runtime_session_facade',
         'view_from_angle_recorded_projection_camera_readout_without_screenshot_authority',
         'publish_preview_emitted_bounded_projection_evidence_artifact',
+        'studio_agent_voxel_operation_transcript_replayed_with_deterministic_receipt',
         'persist_voxel_asset_emitted_asha_native_avxl_json_projection_artifacts',
         'svc_voxel_asset_validated_persisted_avxl_json_artifacts',
         'reopen_voxel_asset_verified_round_trip_hashes_without_runtime_authority_claims',

@@ -24,6 +24,7 @@ import {
   buildStudioAgentVoxelViewCaptureReadModel,
   buildStudioVoxelMaterialAuthoringReadModel,
   buildStudioVoxelConversionWorkspaceShellForInputs,
+  parseStudioAgentVoxelOperationTranscript,
   type StudioVoxelConversionSettingsDraft,
 } from '@asha-studio/store';
 import {
@@ -487,6 +488,10 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /StudioAgentVoxelWorkflowOperation/);
   assert.match(storeSource, /agentVoxelWorkflowSurface\(\)/);
   assert.match(storeSource, /runAgentVoxelWorkflowOperation/);
+  assert.match(storeSource, /parseStudioAgentVoxelOperationTranscript/);
+  assert.match(storeSource, /runAgentVoxelOperationTranscriptReplay/);
+  assert.match(storeSource, /studio_agent_voxel_operation_transcript_replay/);
+  assert.match(storeSource, /agentVoxelTranscriptOperationToWorkflowOperation/);
   assert.match(storeSource, /unsupported agent voxel workflow operation/);
   assert.match(storeSource, /register_conversion_mesh_asset/);
   assert.match(storeSource, /export_voxel_volume_asset/);
@@ -524,6 +529,10 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /agentVoxelPreviewArtifactPathDiagnostic/);
   assert.match(storeSource, /agentVoxelAssetArtifactPathDiagnostic/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch/);
+  assert.match(storeSource, /not_raw_runtime_bridge_dispatch/);
+  assert.match(storeSource, /generated-contract import paths are not accepted/);
+  assert.match(proofSource, /voxel-transcript-replay-receipt\.json/);
+  assert.match(proofSource, /transcript_replay:true/);
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
@@ -1132,6 +1141,85 @@ test('studio voxel transcript evaluation rejects VoxelForge import compatibility
   assert.match(transcriptDoc, /No VoxelForge compatibility task is needed/);
   assert.match(runbook, /voxel-agent-operation-transcript-evaluation/);
   assert.match(runbook, /VoxelForge LLM operation import\/replay/);
+});
+
+test('studio voxel operation transcript parser accepts only Asha-native workflow operations', () => {
+  const valid = parseStudioAgentVoxelOperationTranscript({
+    artifactKind: 'studio_agent_voxel_operation_transcript',
+    artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
+    producer: { kind: 'agent', id: 'codex-asha-studio' },
+    target: { studioSurfaceVersion: 'studio-agent-voxel-workflow.v0', projectBundle: 'asha-testing' },
+    operations: [
+      {
+        operationId: 'configure',
+        kind: 'configure_conversion',
+        input: {
+          patch: {
+            sourceAssetId: 'mesh.demo-cube',
+            mode: 'surface',
+            resolution: [8, 8, 8],
+          },
+        },
+        expected: { accepted: true },
+      },
+      {
+        operationId: 'compact-edit',
+        kind: 'submit_compact_voxel_edit',
+        input: {
+          edit: {
+            kind: 'apply_voxel_primitives',
+            grid: 1,
+            maxGeneratedVoxels: 64,
+            primitives: [
+              { kind: 'box', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 1, z: 1 }, palette_index: 1, mode: 'shell' },
+            ],
+          },
+        },
+        expected: { accepted: true },
+      },
+    ],
+    nonClaims: [
+      'not_vforge_file',
+      'not_mcp_transport',
+      'not_raw_runtime_bridge_dispatch',
+      'not_runtime_authority',
+      'not_private_studio_state_mutation',
+    ],
+  });
+  assert.equal(valid.accepted, true, valid.diagnostic ?? undefined);
+  assert.equal(valid.transcript?.operations.length, 2);
+  assert.match(valid.transcriptHash, /^studio-agent-voxel-operation-transcript-/);
+
+  for (const rejected of [
+    {
+      artifactKind: 'studio_agent_voxel_operation_transcript',
+      artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
+      producer: { kind: 'agent', id: 'codex-asha-studio' },
+      target: { studioSurfaceVersion: 'studio-agent-voxel-workflow.v0' },
+      operations: [{ operationId: 'raw', kind: 'configure_conversion', input: { methodName: 'readVoxelModelInfo' } }],
+      nonClaims: ['not_vforge_file', 'not_mcp_transport', 'not_raw_runtime_bridge_dispatch', 'not_runtime_authority', 'not_private_studio_state_mutation'],
+    },
+    {
+      artifactKind: 'studio_agent_voxel_operation_transcript',
+      artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
+      producer: { kind: 'agent', id: 'codex-asha-studio' },
+      target: { studioSurfaceVersion: 'studio-agent-voxel-workflow.v0' },
+      operations: [{ operationId: 'vforge', kind: 'inspect', input: { vforgePath: 'fixtures/demo.vforge' } }],
+      nonClaims: ['not_vforge_file', 'not_mcp_transport', 'not_raw_runtime_bridge_dispatch', 'not_runtime_authority', 'not_private_studio_state_mutation'],
+    },
+    {
+      artifactKind: 'studio_agent_voxel_operation_transcript',
+      artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
+      producer: { kind: 'agent', id: 'codex-asha-studio' },
+      target: { studioSurfaceVersion: 'studio-agent-voxel-workflow.v0' },
+      operations: [{ operationId: 'private', kind: 'inspect', input: { privateImport: '@asha/contracts/private/src/generated/voxel' } }],
+      nonClaims: ['not_vforge_file', 'not_mcp_transport', 'not_raw_runtime_bridge_dispatch', 'not_runtime_authority', 'not_private_studio_state_mutation'],
+    },
+  ]) {
+    const parsed = parseStudioAgentVoxelOperationTranscript(rejected);
+    assert.equal(parsed.accepted, false);
+    assert.match(parsed.diagnostic ?? '', /not accepted|unsupported|private|generated|VoxelForge|RuntimeBridge/);
+  }
 });
 
 test('studio voxel viewport exposes compact edit placement preview from public hit readout', () => {
