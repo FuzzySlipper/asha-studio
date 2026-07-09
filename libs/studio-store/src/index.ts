@@ -138,6 +138,15 @@ import {
   type VoxelVolumeAssetSaveReceipt,
   type VoxelVolumeAssetSaveRequest,
   type VoxelVolumeAssetStoredDiff,
+  type VoxelAnnotationEditOperation,
+  type VoxelAnnotationEditReceipt,
+  type VoxelAnnotationKind,
+  type VoxelAnnotationLayer,
+  type VoxelAnnotationLayerExportReceipt,
+  type VoxelAnnotationLayerLoadReceipt,
+  type VoxelAnnotationQueryReadout,
+  type VoxelAnnotationRegion,
+  type VoxelAnnotationSparseRun,
   type VoxelModelInfoReadout,
   type VoxelModelInfoRequest,
 } from '@asha/contracts';
@@ -262,6 +271,32 @@ const DEFAULT_VOXEL_HISTORY_CONTROL: StudioVoxelHistoryControlState = {
   diagnostic: null,
   summary: null,
   receipt: null,
+};
+
+const DEFAULT_VOXEL_ANNOTATION_CONTROL: StudioVoxelAnnotationControlReadModel = {
+  controlVersion: 'studio-voxel-annotation-control.v0',
+  status: 'idle',
+  message: 'Export or save a voxel volume asset before loading an annotation layer.',
+  layerId: 'voxel-annotation/studio-layer',
+  runtimeLayerId: null,
+  expectedLayerHash: null,
+  regionId: 'region/studio-selection',
+  label: 'Studio selection',
+  kind: 'selection',
+  tags: 'studio',
+  parentRegionId: '',
+  x1: 0,
+  y1: 0,
+  z1: 0,
+  x2: 0,
+  y2: 0,
+  z2: 0,
+  diagnostics: [],
+  query: null,
+  editReceipt: null,
+  exportReceipt: null,
+  canSubmit: false,
+  readoutHash: 'studio-voxel-annotation-control-draft',
 };
 
 export interface StudioProjectFileEntry {
@@ -1205,6 +1240,32 @@ export interface StudioVoxelMaterialAuthoringReadModel {
     'multi_material_compact_edit_controls',
   ];
   readonly canAuthorCatalogBindings: false;
+  readonly readoutHash: string;
+}
+
+export interface StudioVoxelAnnotationControlReadModel {
+  readonly controlVersion: 'studio-voxel-annotation-control.v0';
+  readonly status: 'idle' | 'accepted' | 'rejected';
+  readonly message: string;
+  readonly layerId: string;
+  readonly runtimeLayerId: string | null;
+  readonly expectedLayerHash: string | null;
+  readonly regionId: string;
+  readonly label: string;
+  readonly kind: VoxelAnnotationKind;
+  readonly tags: string;
+  readonly parentRegionId: string;
+  readonly x1: number;
+  readonly y1: number;
+  readonly z1: number;
+  readonly x2: number;
+  readonly y2: number;
+  readonly z2: number;
+  readonly diagnostics: readonly string[];
+  readonly query: VoxelAnnotationQueryReadout | null;
+  readonly editReceipt: VoxelAnnotationEditReceipt | null;
+  readonly exportReceipt: VoxelAnnotationLayerExportReceipt | null;
+  readonly canSubmit: boolean;
   readonly readoutHash: string;
 }
 
@@ -4463,6 +4524,9 @@ export class StudioWorkspaceStore {
   private readonly voxelHistoryControlState = signal<StudioVoxelHistoryControlState>(
     DEFAULT_VOXEL_HISTORY_CONTROL,
   );
+  private readonly voxelAnnotationControlState = signal<StudioVoxelAnnotationControlReadModel>(
+    DEFAULT_VOXEL_ANNOTATION_CONTROL,
+  );
 
   readonly workspace = this.workspaceState.asReadonly();
   readonly viewportCamera = this.viewportCameraState.asReadonly();
@@ -4506,6 +4570,28 @@ export class StudioWorkspaceStore {
       this.runtimeSessionFacadeState() !== null,
     ),
   );
+  readonly voxelAnnotationControl = computed<StudioVoxelAnnotationControlReadModel>(() => {
+    const control = this.voxelAnnotationControlState();
+    const asset = this.voxelAssetWorkflowControl().lastAsset;
+    const canSubmit = this.runtimeSessionFacadeState() !== null && asset !== null;
+    return {
+      ...control,
+      canSubmit,
+      readoutHash: stableAgentVoxelWorkflowHash('studio-voxel-annotation-control', {
+        layerId: control.layerId,
+        runtimeLayerId: control.runtimeLayerId,
+        expectedLayerHash: control.expectedLayerHash,
+        regionId: control.regionId,
+        label: control.label,
+        kind: control.kind,
+        tags: control.tags,
+        parentRegionId: control.parentRegionId,
+        bounds: [control.x1, control.y1, control.z1, control.x2, control.y2, control.z2],
+        assetHash: asset?.contentHashes.voxelData ?? null,
+        diagnostics: control.diagnostics,
+      }),
+    };
+  });
   readonly voxelMaterialAuthoring = computed<StudioVoxelMaterialAuthoringReadModel>(() =>
     buildStudioVoxelMaterialAuthoringReadModel({
       shell: this.voxelConversionWorkspaceShell(),
@@ -6080,6 +6166,85 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(message);
   }
 
+  setVoxelAnnotationTextField(field: 'layerId' | 'regionId' | 'label' | 'tags' | 'parentRegionId', value: string): void {
+    this.voxelAnnotationControlState.update(current => ({
+      ...current,
+      [field]: value,
+      status: 'idle',
+      message: 'Voxel annotation draft updated.',
+      diagnostics: [],
+    }));
+  }
+
+  setVoxelAnnotationKind(kind: VoxelAnnotationKind): void {
+    this.voxelAnnotationControlState.update(current => ({ ...current, kind, status: 'idle', diagnostics: [] }));
+  }
+
+  setVoxelAnnotationCoordinate(field: 'x1' | 'y1' | 'z1' | 'x2' | 'y2' | 'z2', value: number): void {
+    if (!Number.isInteger(value)) return;
+    this.voxelAnnotationControlState.update(current => ({ ...current, [field]: value, status: 'idle', diagnostics: [] }));
+  }
+
+  runVoxelAnnotationControl(action: 'load' | 'upsert_region' | 'add_runs' | 'remove_runs' | 'replace_selection' | 'set_parent' | 'set_tags' | 'set_label' | 'set_kind' | 'query_cell' | 'query_bounds' | 'export'): void {
+    const facade = this.runtimeSessionFacadeState();
+    const asset = this.voxelAssetWorkflowControl().lastAsset;
+    const control = this.voxelAnnotationControlState();
+    if (facade === null || asset === null) {
+      this.recordVoxelAnnotationResult(control, false, 'Attach RuntimeSession and export a voxel asset before annotation authoring.', [], null, null, null);
+      return;
+    }
+    const bounds = { min: { x: control.x1, y: control.y1, z: control.z1 }, max: { x: control.x2, y: control.y2, z: control.z2 } };
+    const sparseRuns: readonly VoxelAnnotationSparseRun[] = [{
+      start: { x: control.x1, y: control.y1, z: control.z1 },
+      length: control.x2 - control.x1 + 1,
+    }];
+    const tags = control.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+    const region: VoxelAnnotationRegion = {
+      regionId: control.regionId.trim(), label: control.label.trim(), kind: control.kind, tags,
+      parentRegionId: control.parentRegionId.trim() || null, bounds, selection: { sparseRuns },
+    };
+    const layer: VoxelAnnotationLayer = {
+      layerId: control.layerId.trim(), schemaVersion: 1,
+      mediaType: 'application/vnd.asha.voxel-annotation+json;version=1',
+      targetVoxelVolumeAssetId: asset.assetId, targetVoxelDataHash: asset.contentHashes.voxelData,
+      targetBounds: asset.bounds, regions: [region], provenance: [],
+      contentHashes: { canonicalJson: control.expectedLayerHash ?? '', membershipData: '' }, validationDiagnostics: [],
+    };
+    try {
+      if (action === 'load') {
+        const validation = facade.validateVoxelAnnotationLayer({ layer, expectedTargetVoxelVolumeAssetId: asset.assetId, expectedTargetVoxelDataHash: asset.contentHashes.voxelData, maxRegions: 64, maxSparseRunsPerRegion: 256, maxTotalAssignedCells: 100000 });
+        if (!validation.valid || validation.canonicalJsonHash === null) {
+          this.recordVoxelAnnotationResult(control, false, 'Voxel annotation layer rejected by Rust validation.', validation.diagnostics.map(item => item.message), null, null, null);
+          return;
+        }
+        const normalizedLayer = { ...layer, contentHashes: { canonicalJson: validation.canonicalJsonHash, membershipData: validation.membershipDataHash ?? '' } };
+        const receipt = facade.loadVoxelAnnotationLayer({ layer: normalizedLayer, targetGrid: 1, replaceExisting: true, expectedSessionHash: null });
+        this.recordVoxelAnnotationResult(control, receipt.loaded, receipt.loaded ? `Loaded annotation layer ${receipt.requestLayerId}.` : 'Annotation layer load rejected.', receipt.diagnostics.map(item => item.message), receipt, null, null);
+        return;
+      }
+      const expectedLayerHash = control.expectedLayerHash;
+      if (control.runtimeLayerId === null || expectedLayerHash === null) {
+        this.recordVoxelAnnotationResult(control, false, 'Load the annotation layer before applying edits, queries, or export.', [], null, null, null);
+        return;
+      }
+      if (action === 'query_cell' || action === 'query_bounds') {
+        const query = facade.readVoxelAnnotationQuery({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, mode: action === 'query_cell' ? 'cell' : 'bounds', cell: action === 'query_cell' ? { x: control.x1, y: control.y1, z: control.z1 } : null, bounds: action === 'query_bounds' ? bounds : null, regionId: null, maxRegions: 64, expectedLayerHash });
+        this.recordVoxelAnnotationResult(control, query.diagnostics.length === 0, `Annotation query returned ${query.matchedRegions.length} regions.`, query.diagnostics.map(item => item.message), null, query, null);
+        return;
+      }
+      if (action === 'export') {
+        const receipt = facade.exportVoxelAnnotationLayer({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash, includeDiagnostics: true });
+        this.recordVoxelAnnotationResult(control, receipt.exported, receipt.exported ? `Exported annotation layer ${control.layerId}.` : 'Annotation export rejected.', receipt.diagnostics.map(item => item.message), null, null, receipt);
+        return;
+      }
+      const operation: VoxelAnnotationEditOperation = action;
+      const receipt = facade.applyVoxelAnnotationEdit({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash, operation, regionId: control.regionId.trim() || null, region: action === 'upsert_region' ? region : null, sparseRuns: ['add_runs', 'remove_runs', 'replace_selection'].includes(action) ? sparseRuns : [], tags: action === 'set_tags' ? tags : [], label: action === 'set_label' ? control.label.trim() : null, kind: action === 'set_kind' ? control.kind : null, parentRegionId: action === 'set_parent' ? (control.parentRegionId.trim() || null) : null });
+      this.recordVoxelAnnotationResult(control, receipt.edited, receipt.edited ? `${operation} accepted for ${control.regionId}.` : `${operation} rejected for ${control.regionId}.`, receipt.diagnostics.map(item => item.message), null, null, receipt);
+    } catch (error) {
+      this.recordVoxelAnnotationResult(control, false, error instanceof Error ? error.message : 'Voxel annotation RuntimeSession operation failed.', [], null, null, null);
+    }
+  }
+
   setVoxelHistoryTextControlField(field: StudioVoxelHistoryTextControlField, value: string): void {
     this.voxelHistoryControlState.update(current => {
       const trimmed = value.trim();
@@ -6648,6 +6813,35 @@ export class StudioWorkspaceStore {
       status,
     });
     this.workspaceState.set(recorded.workspace);
+    this.menuMessageState.set(message);
+  }
+
+  private recordVoxelAnnotationResult(
+    control: StudioVoxelAnnotationControlReadModel,
+    accepted: boolean,
+    message: string,
+    diagnostics: readonly string[],
+    loadReceipt: VoxelAnnotationLayerLoadReceipt | null,
+    query: VoxelAnnotationQueryReadout | null,
+    receipt: VoxelAnnotationEditReceipt | VoxelAnnotationLayerExportReceipt | null,
+  ): void {
+    const expectedLayerHash = loadReceipt?.layerHash
+      ?? (receipt !== null && 'layerHashAfter' in receipt
+        ? receipt.layerHashAfter
+        : receipt !== null && 'canonicalJsonHash' in receipt
+          ? receipt.canonicalJsonHash
+          : control.expectedLayerHash);
+    this.voxelAnnotationControlState.set({
+      ...control,
+      status: accepted ? 'accepted' : 'rejected',
+      message,
+      runtimeLayerId: loadReceipt?.runtimeLayerId ?? control.runtimeLayerId,
+      expectedLayerHash,
+      diagnostics,
+      query,
+      editReceipt: receipt && 'edited' in receipt ? receipt : null,
+      exportReceipt: receipt && 'exported' in receipt ? receipt : null,
+    });
     this.menuMessageState.set(message);
   }
 

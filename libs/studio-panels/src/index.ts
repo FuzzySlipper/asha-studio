@@ -2979,6 +2979,39 @@ export class StudioInspectorPanelComponent {
           </div>
         </section>
 
+        <section class="voxel-annotation-panel" aria-label="Voxel annotation authoring" [attr.data-voxel-annotation-status]="store.voxelAnnotationControl().status">
+          <header><span>Voxel Annotations</span><strong>{{ store.voxelAnnotationControl().status }}</strong><small>{{ store.voxelAnnotationControl().message }}</small></header>
+          <div class="voxel-history-panel__inputs">
+            <label>Layer <input data-voxel-annotation-control="layer_id" [value]="store.voxelAnnotationControl().layerId" (input)="store.setVoxelAnnotationTextField('layerId', $any($event.target).value)" /></label>
+            <label>Region <input data-voxel-annotation-control="region_id" [value]="store.voxelAnnotationControl().regionId" (input)="store.setVoxelAnnotationTextField('regionId', $any($event.target).value)" /></label>
+            <label>Label <input data-voxel-annotation-control="label" [value]="store.voxelAnnotationControl().label" (input)="store.setVoxelAnnotationTextField('label', $any($event.target).value)" /></label>
+            <label>Kind <select data-voxel-annotation-control="kind" [value]="store.voxelAnnotationControl().kind" (change)="store.setVoxelAnnotationKind($any($event.target).value)"><option value="selection">Selection</option><option value="room">Room</option><option value="portal">Portal</option><option value="spawn_area">Spawn</option><option value="cover">Cover</option><option value="hazard">Hazard</option><option value="nav_hint">Nav hint</option><option value="custom">Custom</option></select></label>
+            <label>Tags <input data-voxel-annotation-control="tags" [value]="store.voxelAnnotationControl().tags" (input)="store.setVoxelAnnotationTextField('tags', $any($event.target).value)" /></label>
+            <label>Parent <input data-voxel-annotation-control="parent_region_id" [value]="store.voxelAnnotationControl().parentRegionId" (input)="store.setVoxelAnnotationTextField('parentRegionId', $any($event.target).value)" /></label>
+            <label>X1 <input type="number" [value]="store.voxelAnnotationControl().x1" (input)="store.setVoxelAnnotationCoordinate('x1', $any($event.target).valueAsNumber)" /></label>
+            <label>Y1 <input type="number" [value]="store.voxelAnnotationControl().y1" (input)="store.setVoxelAnnotationCoordinate('y1', $any($event.target).valueAsNumber)" /></label>
+            <label>Z1 <input type="number" [value]="store.voxelAnnotationControl().z1" (input)="store.setVoxelAnnotationCoordinate('z1', $any($event.target).valueAsNumber)" /></label>
+            <label>X2 <input type="number" [value]="store.voxelAnnotationControl().x2" (input)="store.setVoxelAnnotationCoordinate('x2', $any($event.target).valueAsNumber)" /></label>
+            <label>Y2 <input type="number" [value]="store.voxelAnnotationControl().y2" (input)="store.setVoxelAnnotationCoordinate('y2', $any($event.target).valueAsNumber)" /></label>
+            <label>Z2 <input type="number" [value]="store.voxelAnnotationControl().z2" (input)="store.setVoxelAnnotationCoordinate('z2', $any($event.target).valueAsNumber)" /></label>
+          </div>
+          <div class="voxel-history-panel__actions">
+            <button data-voxel-annotation-action="load" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('load')">Load</button>
+            <button data-voxel-annotation-action="upsert_region" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('upsert_region')">Upsert</button>
+            <button data-voxel-annotation-action="add_runs" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('add_runs')">Add</button>
+            <button data-voxel-annotation-action="remove_runs" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('remove_runs')">Remove</button>
+            <button data-voxel-annotation-action="replace_selection" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('replace_selection')">Replace</button>
+            <button data-voxel-annotation-action="set_label" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('set_label')">Label</button>
+            <button data-voxel-annotation-action="set_kind" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('set_kind')">Kind</button>
+            <button data-voxel-annotation-action="set_tags" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('set_tags')">Tags</button>
+            <button data-voxel-annotation-action="set_parent" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('set_parent')">Parent</button>
+            <button data-voxel-annotation-action="query_cell" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('query_cell')">Cell</button>
+            <button data-voxel-annotation-action="query_bounds" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('query_bounds')">Bounds</button>
+            <button data-voxel-annotation-action="export" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('export')">Export</button>
+          </div>
+          <small data-voxel-annotation-diagnostics>{{ store.voxelAnnotationControl().diagnostics.join(' · ') || 'no diagnostics' }}</small>
+        </section>
+
         <section
           class="voxel-history-panel"
           aria-label="Voxel edit history"

@@ -1142,6 +1142,39 @@ test('studio voxel history panel uses RuntimeSession history projections without
   }
 });
 
+test('studio voxel annotation authoring uses public RuntimeSession annotation operations', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+
+  assert.match(storeSource, /StudioVoxelAnnotationControlReadModel/);
+  assert.match(storeSource, /validateVoxelAnnotationLayer/);
+  assert.match(storeSource, /loadVoxelAnnotationLayer/);
+  assert.match(storeSource, /readVoxelAnnotationQuery/);
+  assert.match(storeSource, /applyVoxelAnnotationEdit/);
+  assert.match(storeSource, /exportVoxelAnnotationLayer/);
+  assert.match(storeSource, /expectedLayerHash/);
+  assert.doesNotMatch(storeSource, /annotationAuthorityStore/);
+
+  for (const action of [
+    'load', 'upsert_region', 'add_runs', 'remove_runs', 'replace_selection',
+    'set_label', 'set_kind', 'set_tags', 'set_parent', 'query_cell', 'query_bounds', 'export',
+  ]) {
+    assert.match(panelSource, new RegExp(`data-voxel-annotation-action="${action}"`));
+    assert.match(panelSource, new RegExp(`runVoxelAnnotationControl\\('${action}'\\)`));
+  }
+
+  for (const control of ['layer_id', 'region_id', 'label', 'kind', 'tags', 'parent_region_id']) {
+    assert.match(panelSource, new RegExp(`data-voxel-annotation-control="${control}"`));
+  }
+
+  for (const method of [
+    'validateVoxelAnnotationLayer', 'loadVoxelAnnotationLayer', 'readVoxelAnnotationQuery',
+    'applyVoxelAnnotationEdit', 'exportVoxelAnnotationLayer',
+  ]) {
+    assert.match(readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8'), new RegExp(`'${method}'`));
+  }
+});
+
 test('studio voxel transcript evaluation rejects VoxelForge import compatibility and routes Asha-native replay', () => {
   const transcriptDoc = readFileSync(join(repoRoot, 'docs/voxel-agent-operation-transcript-evaluation.md'), 'utf8');
   const runbook = readFileSync(join(repoRoot, 'docs/voxel-live-testing-agent-runbook.md'), 'utf8');
