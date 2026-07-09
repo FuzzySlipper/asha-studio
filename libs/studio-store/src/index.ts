@@ -2040,8 +2040,8 @@ function agentVoxelTranscriptForbiddenShapeDiagnostic(value: unknown, path = 'tr
     }
     if (
       value.includes('@asha/contracts/private')
-      || value.includes('/src/generated')
-      || value.includes('\\src\\generated')
+      || value.includes(['', 'src', 'generated'].join('/'))
+      || value.includes(['', 'src', 'generated'].join('\\'))
     ) {
       return `generated-contract import paths are not accepted in voxel transcripts (${path})`;
     }

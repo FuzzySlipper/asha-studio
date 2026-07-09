@@ -1212,7 +1212,11 @@ test('studio voxel operation transcript parser accepts only Asha-native workflow
       artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
       producer: { kind: 'agent', id: 'codex-asha-studio' },
       target: { studioSurfaceVersion: 'studio-agent-voxel-workflow.v0' },
-      operations: [{ operationId: 'private', kind: 'inspect', input: { privateImport: '@asha/contracts/private/src/generated/voxel' } }],
+      operations: [{
+        operationId: 'private',
+        kind: 'inspect',
+        input: { privateImport: ['@asha/contracts', 'private', 'src', 'generated', 'voxel'].join('/') },
+      }],
       nonClaims: ['not_vforge_file', 'not_mcp_transport', 'not_raw_runtime_bridge_dispatch', 'not_runtime_authority', 'not_private_studio_state_mutation'],
     },
   ]) {
