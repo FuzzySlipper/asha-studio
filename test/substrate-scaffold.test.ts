@@ -189,6 +189,175 @@ function sampleCatalog() {
   };
 }
 
+function sampleAssetInventoryArtifact() {
+  return {
+    artifactKind: 'asha_demo_asset_inventory',
+    artifactVersion: 'asset-inventory.v1',
+    status: 'ok',
+    sourceManifest: {
+      path: 'asha.game.toml',
+      hash: 'sha256:manifest',
+    },
+    catalog: {
+      path: 'packages/game-catalogs/catalog.json',
+      hash: 'sha256:catalog',
+    },
+    diagnostics: [],
+    dependencyOrder: ['texture.demo-checker', 'material.demo-copper', 'mesh.demo-cube'],
+    entries: [
+      {
+        assetId: 'mesh.demo-cube',
+        kind: 'static_mesh',
+        sourcePath: 'assets/meshes/demo-cube.mesh.json',
+        dependencies: ['material.demo-copper'],
+        devResolution: {
+          sourceHash: 'sha256:mesh',
+          devCacheKey: 'dev-cache/static_mesh/mesh.demo-cube/mesh',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'meshes/demo-cube.mesh.json',
+        },
+        publishResolution: {
+          outputKey: 'meshes/demo-cube.mesh.json',
+          packedPath: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
+          packedHash: 'sha256:packed-mesh',
+          packedBytes: 702,
+        },
+        diagnostics: [],
+        evidenceRefs: [{ kind: 'source', path: 'assets/meshes/demo-cube.mesh.json', sha256: 'sha256:mesh' }],
+      },
+      {
+        assetId: 'material.demo-copper',
+        kind: 'material',
+        sourcePath: 'assets/materials/demo-copper.material.json',
+        dependencies: ['texture.demo-checker'],
+        devResolution: {
+          sourceHash: 'sha256:material',
+          devCacheKey: 'dev-cache/material/material.demo-copper/material',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'materials/demo-copper.material.json',
+        },
+        publishResolution: {
+          outputKey: 'materials/demo-copper.material.json',
+          packedPath: 'harness/out/publish/resources/materials/demo-copper.material.json',
+          packedHash: 'sha256:packed-material',
+          packedBytes: 214,
+        },
+        diagnostics: [],
+        evidenceRefs: [{ kind: 'source', path: 'assets/materials/demo-copper.material.json', sha256: 'sha256:material' }],
+      },
+      {
+        assetId: 'texture.demo-checker',
+        kind: 'texture',
+        sourcePath: 'assets/textures/demo-checker.texture.json',
+        dependencies: [],
+        devResolution: {
+          sourceHash: 'sha256:texture',
+          devCacheKey: 'dev-cache/texture/texture.demo-checker/texture',
+          generatedArtifactVersion: 'asset-import.v1',
+          importStatus: 'clean',
+          publishOutputKey: 'textures/demo-checker.texture.json',
+        },
+        publishResolution: {
+          outputKey: 'textures/demo-checker.texture.json',
+          packedPath: 'harness/out/publish/resources/textures/demo-checker.texture.json',
+          packedHash: 'sha256:packed-texture',
+          packedBytes: 367,
+        },
+        diagnostics: [],
+        evidenceRefs: [{ kind: 'source', path: 'assets/textures/demo-checker.texture.json', sha256: 'sha256:texture' }],
+      },
+    ],
+  };
+}
+
+function samplePublishEvidenceArtifact() {
+  const packedResources = [
+    {
+      assetId: 'mesh.demo-cube',
+      outputKey: 'meshes/demo-cube.mesh.json',
+      sourceHash: 'sha256:mesh',
+      packedHash: 'sha256:packed-mesh',
+      runnableHash: 'sha256:runnable-mesh',
+    },
+    {
+      assetId: 'material.demo-copper',
+      outputKey: 'materials/demo-copper.material.json',
+      sourceHash: 'sha256:material',
+      packedHash: 'sha256:packed-material',
+      runnableHash: 'sha256:runnable-material',
+    },
+    {
+      assetId: 'texture.demo-checker',
+      outputKey: 'textures/demo-checker.texture.json',
+      sourceHash: 'sha256:texture',
+      packedHash: 'sha256:packed-texture',
+      runnableHash: 'sha256:runnable-texture',
+    },
+  ];
+  return {
+    evidenceKind: 'asha_demo_publish_evidence_manifest',
+    evidenceVersion: 'publish-evidence.v1',
+    evidenceId: 'asha-demo-publish-evidence:sha256:evidence',
+    evidenceHash: 'sha256:evidence',
+    publishArtifact: {
+      path: 'harness/out/publish/latest/index.json',
+      fileHash: 'sha256:publish-file',
+      artifactId: 'asha-demo-publish:sha256:publish',
+      artifactHash: 'sha256:publish',
+      artifactVersion: 'publish-artifact.v0',
+      compiledAssetCount: 3,
+      publishAssetCount: 3,
+      runnableTarget: 'asha-demo-static-reference.v1',
+      runnableEntrypointPath: 'harness/out/publish/runnable/latest/index.html',
+      runnableEntrypointHash: 'sha256:entrypoint',
+      resourcePackManifestPath: 'harness/out/publish/resources/manifest.json',
+      resourcePackManifestHash: 'sha256:manifest',
+    },
+    publishSmoke: {
+      path: 'harness/out/publish-smoke/latest/index.json',
+      fileHash: 'sha256:publish-smoke',
+      checks: ['runnable_dependency_guard_passed'],
+      readback: {
+        status: 'ok',
+        artifactPath: 'harness/out/publish/latest/index.json',
+        artifactHash: 'sha256:publish',
+        publishDependencyGuard: 'no-studio-dev-only-fragments',
+        compiledAssetCount: 3,
+        publishAssetCount: 3,
+        packedResources,
+        dependencyGuard: {
+          inspectedRunnableFiles: ['index.html'],
+          forbiddenFragments: [],
+        },
+      },
+    },
+    publishRunSmoke: {
+      path: 'harness/out/publish-run-smoke/latest/index.json',
+      fileHash: 'sha256:publish-run-smoke',
+      runtime: {
+        runtimeMode: 'reference',
+        launcherName: 'reference-game-runtime-launcher',
+      },
+      projection: {
+        worldHash: 'runtime-session:reference',
+      },
+      commandProof: {
+        acceptedCommand: { status: 'accepted' },
+        rejectedCommand: { status: 'rejected' },
+      },
+      resolvedResourceCount: 3,
+      checks: ['runtime_projection_readback_present', 'packaged_command_proof_present'],
+    },
+    validations: [
+      'runtime_projection_readback_present',
+      'packaged_command_proof_present',
+    ],
+    nonClaims: ['not_store_submission'],
+  };
+}
+
 test('selection intent maps through the public command identity before read model update', () => {
   const initialReadModel = buildInitialWorkspaceReadModel();
   const modelEntity = initialReadModel.entities.find(
@@ -3309,7 +3478,7 @@ test('publish evidence read model loads latest asha-demo publish proof status', 
   assert.equal(workspaceResult.ok, true);
   if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
   const evidencePath = 'harness/out/publish-evidence/latest/index.json';
-  const evidence = JSON.parse(readFileSync(join(demoRoot, evidencePath), 'utf8')) as unknown;
+  const evidence = samplePublishEvidenceArtifact();
 
   const result = loadStudioPublishEvidence(evidence, {
     workspace: workspaceResult.workspace,
@@ -3342,9 +3511,7 @@ test('publish evidence read model fails closed for stale or missing evidence', (
   assert.equal(workspaceResult.ok, true);
   if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
   const evidencePath = 'harness/out/publish-evidence/latest/index.json';
-  const staleEvidence = JSON.parse(readFileSync(join(demoRoot, evidencePath), 'utf8')) as {
-    publishArtifact: { artifactVersion: string };
-  };
+  const staleEvidence = samplePublishEvidenceArtifact();
   staleEvidence.publishArtifact.artifactVersion = 'publish-artifact.old';
 
   const stale = loadStudioPublishEvidence(staleEvidence, {
@@ -3372,9 +3539,7 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
   });
   assert.equal(workspaceResult.ok, true);
   if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
-  const inventory = loadStudioAssetInventory(
-    JSON.parse(readFileSync(join(demoRoot, 'harness/out/asset-inventory/latest/index.json'), 'utf8')),
-  );
+  const inventory = loadStudioAssetInventory(sampleAssetInventoryArtifact());
   assert.equal(inventory.ok, true);
   if (!inventory.ok) throw new Error('inventory should load');
   const proofScenes = buildStudioProofSceneList({
@@ -3410,7 +3575,7 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
     commandProposals: [commandProposal],
   });
   const publishEvidence = loadStudioPublishEvidence(
-    JSON.parse(readFileSync(join(demoRoot, 'harness/out/publish-evidence/latest/index.json'), 'utf8')),
+    samplePublishEvidenceArtifact(),
     {
       workspace: workspaceResult.workspace,
       evidencePath: 'harness/out/publish-evidence/latest/index.json',
