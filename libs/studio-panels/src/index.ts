@@ -2524,6 +2524,47 @@ export class StudioInspectorPanelComponent {
           }
         </section>
 
+        <section
+          class="voxel-material-authoring"
+          aria-label="Voxel material authoring readout"
+          [attr.data-voxel-material-authoring-can-catalog-bind]="store.voxelMaterialAuthoring().canAuthorCatalogBindings"
+          [attr.data-voxel-material-authoring-hash]="store.voxelMaterialAuthoring().readoutHash"
+        >
+          <header>
+            <span>Material Authoring</span>
+            <strong>compact {{ store.voxelMaterialAuthoring().currentCompactMaterial }}</strong>
+            <small>
+              default {{ store.voxelMaterialAuthoring().defaultVoxelMaterial ?? 'none' }}
+            </small>
+          </header>
+          @for (row of store.voxelMaterialAuthoring().rows; track row.source + ':' + row.voxelMaterial + ':' + (row.materialAssetId ?? row.sourceMaterialId ?? 'draft')) {
+            <article
+              [attr.data-voxel-material-authoring-source]="row.source"
+              [attr.data-voxel-material-authoring-material]="row.voxelMaterial"
+              [attr.data-voxel-material-authoring-status]="row.status"
+            >
+              <span>{{ row.source }}</span>
+              <strong>
+                {{ row.voxelMaterial }}
+                @if (row.materialAssetId !== null) {
+                  · {{ row.materialAssetId }}
+                }
+              </strong>
+              <small>
+                {{ row.message }}
+                @if (row.voxelCount !== null) {
+                  · voxels {{ row.voxelCount }}
+                }
+              </small>
+            </article>
+          }
+          <article data-voxel-material-authoring-source="unsupported">
+            <span>Catalog Binding</span>
+            <strong>{{ store.voxelMaterialAuthoring().canAuthorCatalogBindings ? 'available' : 'needs engine surface' }}</strong>
+            <small>{{ store.voxelMaterialAuthoring().missingEngineFields.join(', ') }}</small>
+          </article>
+        </section>
+
         <section class="voxel-command-timeline" aria-label="Voxel conversion command timeline">
           @for (row of shell.commandTimeline; track row.commandId) {
             <article
@@ -2925,6 +2966,7 @@ export class StudioInspectorPanelComponent {
       .voxel-region-grid,
       .voxel-preview-readout,
       .voxel-material-readout,
+      .voxel-material-authoring,
       .voxel-command-timeline,
       .voxel-evidence-readout,
       .voxel-asset-workflow,
@@ -2955,6 +2997,10 @@ export class StudioInspectorPanelComponent {
         grid-template-columns: 13rem repeat(auto-fit, minmax(10rem, 1fr));
       }
 
+      .voxel-material-authoring {
+        grid-template-columns: 13rem repeat(auto-fit, minmax(12rem, 1fr));
+      }
+
       .voxel-command-timeline,
       .voxel-evidence-readout {
         grid-template-columns: repeat(4, minmax(12rem, 1fr));
@@ -2978,6 +3024,8 @@ export class StudioInspectorPanelComponent {
       .voxel-preview-readout article,
       .voxel-material-readout article,
       .voxel-material-readout header,
+      .voxel-material-authoring article,
+      .voxel-material-authoring header,
       .voxel-command-timeline article,
       .voxel-evidence-readout article,
       .voxel-asset-workflow article,
@@ -2996,6 +3044,7 @@ export class StudioInspectorPanelComponent {
       .voxel-region-grid article[data-voxel-region-status='missing'],
       .voxel-preview-readout[data-voxel-preview-status='unavailable'],
       .voxel-preview-readout[data-voxel-preview-status='stale'],
+      .voxel-material-authoring article[data-voxel-material-authoring-source='unsupported'],
       .voxel-command-timeline article[data-voxel-proposal-accepted='false'],
       .voxel-evidence-readout article[data-voxel-evidence-status='missing'] {
         border-color: var(--asha-color-warning);
@@ -3014,6 +3063,7 @@ export class StudioInspectorPanelComponent {
       .voxel-editor-grid > article > span,
       .voxel-preview-readout span,
       .voxel-material-readout span,
+      .voxel-material-authoring span,
       .voxel-command-timeline span,
       .voxel-evidence-readout span,
       .voxel-asset-workflow span,
@@ -3027,6 +3077,8 @@ export class StudioInspectorPanelComponent {
       .voxel-preview-readout small,
       .voxel-material-readout strong,
       .voxel-material-readout small,
+      .voxel-material-authoring strong,
+      .voxel-material-authoring small,
       .voxel-command-timeline strong,
       .voxel-command-timeline small,
       .voxel-evidence-readout strong,
@@ -3151,6 +3203,7 @@ export class StudioInspectorPanelComponent {
         .voxel-region-grid,
         .voxel-preview-readout,
         .voxel-material-readout,
+        .voxel-material-authoring,
         .voxel-command-timeline,
         .voxel-evidence-readout,
         .voxel-asset-workflow,

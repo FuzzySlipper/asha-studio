@@ -900,6 +900,41 @@ export interface StudioVoxelCompactEditControlReadModel {
   readonly diagnostic: string | null;
 }
 
+export interface StudioVoxelMaterialAuthoringRow {
+  readonly source: 'conversion_map' | 'stored_asset_palette' | 'compact_edit_material';
+  readonly voxelMaterial: number;
+  readonly materialAssetId: string | null;
+  readonly sourceMaterialSlot: number | null;
+  readonly sourceMaterialId: string | null;
+  readonly voxelCount: number | null;
+  readonly status: 'draft' | 'stored' | 'runtime_count';
+  readonly message: string;
+}
+
+export interface StudioVoxelMaterialAuthoringReadModel {
+  readonly readoutVersion: 'studio-voxel-material-authoring.v0';
+  readonly currentCompactMaterial: number;
+  readonly defaultVoxelMaterial: number | null;
+  readonly conversionRows: readonly StudioVoxelMaterialAuthoringRow[];
+  readonly storedRows: readonly StudioVoxelMaterialAuthoringRow[];
+  readonly compactRow: StudioVoxelMaterialAuthoringRow;
+  readonly rows: readonly StudioVoxelMaterialAuthoringRow[];
+  readonly supportedFields: readonly [
+    'conversion_material_map',
+    'texture_sampling_readout',
+    'voxel_asset_material_palette',
+    'runtime_material_counts',
+    'compact_material_index',
+  ];
+  readonly missingEngineFields: readonly [
+    'material_catalog_binding_mutation',
+    'named_voxel_palette_entries',
+    'multi_material_compact_edit_controls',
+  ];
+  readonly canAuthorCatalogBindings: false;
+  readonly readoutHash: string;
+}
+
 interface StudioVoxelAssetWorkflowTarget {
   readonly grid: number;
   readonly volumeAssetId: string;
@@ -2274,6 +2309,100 @@ function materialCountsSummary(
     : counts.map(count => `${count.material}:${count.voxelCount}`).join(', ');
 }
 
+export function buildStudioVoxelMaterialAuthoringReadModel(options: {
+  readonly shell: StudioVoxelConversionWorkspaceShellReadModel;
+  readonly assetWorkflow: StudioVoxelAssetWorkflowControlReadModel;
+  readonly compactEdit: StudioVoxelCompactEditControlReadModel;
+}): StudioVoxelMaterialAuthoringReadModel {
+  const runtimeCounts = new Map<number, number>();
+  for (const segment of options.assetWorkflow.materialSummary.split(',')) {
+    const [materialText, countText] = segment.trim().split(':');
+    const material = Number(materialText);
+    const count = Number(countText);
+    if (Number.isInteger(material) && Number.isInteger(count)) {
+      runtimeCounts.set(material, count);
+    }
+  }
+
+  const conversionRows = options.shell.previewProjection.materialRows.map((row): StudioVoxelMaterialAuthoringRow => ({
+    source: 'conversion_map',
+    voxelMaterial: row.voxelMaterial,
+    materialAssetId: row.sourceMaterialId,
+    sourceMaterialSlot: row.sourceMaterialSlot,
+    sourceMaterialId: row.sourceMaterialId,
+    voxelCount: runtimeCounts.get(row.voxelMaterial) ?? null,
+    status: 'draft',
+    message: row.samplingStatus === 'texture_sampled'
+      ? `slot ${row.sourceMaterialSlot} samples ${row.textureAssetId ?? 'texture'} through ${row.uvAttributeName ?? 'uv'}`
+      : `slot ${row.sourceMaterialSlot} maps to voxel material ${row.voxelMaterial}`,
+  }));
+
+  const storedRows = (options.assetWorkflow.lastAsset?.materialPalette ?? []).map((binding): StudioVoxelMaterialAuthoringRow => ({
+    source: 'stored_asset_palette',
+    voxelMaterial: binding.voxelMaterial,
+    materialAssetId: binding.materialAssetId,
+    sourceMaterialSlot: null,
+    sourceMaterialId: null,
+    voxelCount: runtimeCounts.get(binding.voxelMaterial) ?? null,
+    status: 'stored',
+    message: `stored binding ${binding.voxelMaterial} -> ${binding.materialAssetId}`,
+  }));
+
+  const compactRow: StudioVoxelMaterialAuthoringRow = {
+    source: 'compact_edit_material',
+    voxelMaterial: options.compactEdit.material,
+    materialAssetId: null,
+    sourceMaterialSlot: null,
+    sourceMaterialId: null,
+    voxelCount: runtimeCounts.get(options.compactEdit.material) ?? null,
+    status: 'runtime_count',
+    message: `compact edits will write palette index ${options.compactEdit.material}`,
+  };
+
+  const rows = [...conversionRows, ...storedRows, compactRow];
+  const body = {
+    compactMaterial: options.compactEdit.material,
+    defaultVoxelMaterial: options.shell.settingsDraft.materialMap.defaultVoxelMaterial,
+    conversionRows: conversionRows.map(row => [
+      row.sourceMaterialSlot,
+      row.sourceMaterialId,
+      row.voxelMaterial,
+      row.voxelCount,
+      row.message,
+    ]),
+    storedRows: storedRows.map(row => [
+      row.voxelMaterial,
+      row.materialAssetId,
+      row.voxelCount,
+    ]),
+    assetHash: options.assetWorkflow.lastAsset?.contentHashes.canonicalJson ?? null,
+  };
+
+  return {
+    readoutVersion: 'studio-voxel-material-authoring.v0',
+    currentCompactMaterial: options.compactEdit.material,
+    defaultVoxelMaterial: options.shell.settingsDraft.materialMap.defaultVoxelMaterial,
+    conversionRows,
+    storedRows,
+    compactRow,
+    rows,
+    supportedFields: [
+      'conversion_material_map',
+      'texture_sampling_readout',
+      'voxel_asset_material_palette',
+      'runtime_material_counts',
+      'compact_material_index',
+    ],
+    missingEngineFields: [
+      'material_catalog_binding_mutation',
+      'named_voxel_palette_entries',
+      'multi_material_compact_edit_controls',
+    ],
+    canAuthorCatalogBindings: false,
+    readoutHash: stableAgentVoxelWorkflowHash('studio-voxel-material-authoring', body),
+  };
+}
+
 export function buildStudioAgentVoxelVolumeExportReadModel(
   receipt: VoxelVolumeAssetExportReceipt,
 ): StudioAgentVoxelVolumeExportReadModel {
@@ -3397,6 +3526,13 @@ export class StudioWorkspaceStore {
     };
   });
   readonly voxelCompactEditControl = this.voxelCompactEditControlState.asReadonly();
+  readonly voxelMaterialAuthoring = computed<StudioVoxelMaterialAuthoringReadModel>(() =>
+    buildStudioVoxelMaterialAuthoringReadModel({
+      shell: this.voxelConversionWorkspaceShell(),
+      assetWorkflow: this.voxelAssetWorkflowControl(),
+      compactEdit: this.voxelCompactEditControl(),
+    }),
+  );
   readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
   readonly saveAsPath = this.saveAsPathState.asReadonly();

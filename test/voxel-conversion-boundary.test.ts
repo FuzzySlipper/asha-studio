@@ -22,6 +22,7 @@ import {
   buildStudioAgentCompactVoxelEditBatch,
   buildStudioAgentVoxelPreviewPublicationReadModel,
   buildStudioAgentVoxelViewCaptureReadModel,
+  buildStudioVoxelMaterialAuthoringReadModel,
   buildStudioVoxelConversionWorkspaceShellForInputs,
   type StudioVoxelConversionSettingsDraft,
 } from '@asha-studio/store';
@@ -702,6 +703,87 @@ test('Asha-native voxel asset persistence readmodel emits and reopens avxl json 
   assert.ok(persistence.nonClaims.includes('not_engine_validation'));
   assert.ok(persistence.nonClaims.includes('not_silent_sessionstate_promotion'));
 
+  const materialAuthoring = buildStudioVoxelMaterialAuthoringReadModel({
+    shell,
+    assetWorkflow: {
+      controlVersion: 'studio-voxel-asset-workflow-control.v0',
+      lastAction: 'export_volume',
+      status: 'accepted',
+      message: 'Exported test authored asset.',
+      targetAssetId: 'voxel-volume/test-authored',
+      targetProjectBundle: 'asha-demo',
+      targetAssetPath: 'assets/voxels/test-authored.avxl.json',
+      residentModelId: 'voxel-model:test-authored',
+      volumeAssetId: 'voxel/test-authored',
+      voxelCount: 2,
+      materialSummary: '1:2',
+      canonicalJsonHash: persistence.asset.contentHashes.canonicalJson,
+      voxelDataHash: persistence.asset.contentHashes.voxelData,
+      validationDiagnosticCodes: [],
+      canLoadLastAsset: true,
+      lastAssetId: persistence.asset.assetId,
+      lastAsset: persistence.asset,
+    },
+    compactEdit: {
+      controlVersion: 'studio-voxel-compact-edit-control.v0',
+      lastAction: 'block',
+      status: 'accepted',
+      message: 'Compact block accepted.',
+      grid: 1,
+      x1: 0,
+      y1: 0,
+      z1: 0,
+      x2: 1,
+      y2: 0,
+      z2: 0,
+      material: 1,
+      generatedCommandCount: 1,
+      acceptedCommandCount: 1,
+      rejectedCommandCount: 0,
+      diagnostic: null,
+    },
+  });
+
+  assert.equal(materialAuthoring.readoutVersion, 'studio-voxel-material-authoring.v0');
+  assert.equal(materialAuthoring.currentCompactMaterial, 1);
+  assert.equal(materialAuthoring.defaultVoxelMaterial, 1);
+  assert.equal(materialAuthoring.canAuthorCatalogBindings, false);
+  assert.ok(materialAuthoring.supportedFields.includes('conversion_material_map'));
+  assert.ok(materialAuthoring.supportedFields.includes('voxel_asset_material_palette'));
+  assert.ok(materialAuthoring.supportedFields.includes('compact_material_index'));
+  assert.ok(materialAuthoring.missingEngineFields.includes('material_catalog_binding_mutation'));
+  assert.deepEqual(materialAuthoring.conversionRows.map(row => ({
+    source: row.source,
+    voxelMaterial: row.voxelMaterial,
+    materialAssetId: row.materialAssetId,
+    sourceMaterialSlot: row.sourceMaterialSlot,
+    voxelCount: row.voxelCount,
+  })), [
+    {
+      source: 'conversion_map',
+      voxelMaterial: 1,
+      materialAssetId: 'material.copper',
+      sourceMaterialSlot: 0,
+      voxelCount: 2,
+    },
+  ]);
+  assert.deepEqual(materialAuthoring.storedRows.map(row => ({
+    source: row.source,
+    voxelMaterial: row.voxelMaterial,
+    materialAssetId: row.materialAssetId,
+    voxelCount: row.voxelCount,
+  })), [
+    {
+      source: 'stored_asset_palette',
+      voxelMaterial: 1,
+      materialAssetId: 'material/copper',
+      voxelCount: 2,
+    },
+  ]);
+  assert.equal(materialAuthoring.compactRow.source, 'compact_edit_material');
+  assert.equal(materialAuthoring.compactRow.voxelMaterial, 1);
+  assert.match(materialAuthoring.readoutHash, /^studio-voxel-material-authoring-/);
+
   const reopen = buildStudioAgentVoxelAssetReopenReadModel({
     asset: persistence.asset,
     artifactPath: persistence.artifactPath,
@@ -1016,6 +1098,11 @@ test('studio voxel conversion workspace exposes projection-only preview and mate
   assert.match(panelSource, /data-voxel-material-sampling/);
   assert.match(panelSource, /data-voxel-material-texture/);
   assert.match(panelSource, /data-voxel-material-uv/);
+  assert.match(panelSource, /data-voxel-material-authoring-can-catalog-bind/);
+  assert.match(panelSource, /data-voxel-material-authoring-source/);
+  assert.match(panelSource, /data-voxel-material-authoring-material/);
+  assert.match(panelSource, /data-voxel-material-authoring-status/);
+  assert.match(panelSource, /missingEngineFields/);
   assert.match(viewportSource, /data-voxel-viewport-preview-status/);
   assert.match(viewportSource, /no upstream preview evidence/);
 });
