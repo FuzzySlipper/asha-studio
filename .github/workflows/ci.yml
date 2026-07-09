@@ -29,6 +29,13 @@ jobs:
           ref: main
           path: asha-engine
 
+      - name: Check out ASHA testing
+        uses: actions/checkout@v4
+        with:
+          repository: FuzzySlipper/asha-testing
+          ref: main
+          path: asha-testing
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
