@@ -207,6 +207,7 @@ const DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT: StudioVoxelAssetWorkflowTargetD
 
 const DEFAULT_VOXEL_COMPACT_EDIT_CONTROL: StudioVoxelCompactEditControlReadModel = {
   controlVersion: 'studio-voxel-compact-edit-control.v0',
+  draftAction: 'block',
   lastAction: null,
   status: 'idle',
   message: 'Compact voxel edit controls ready.',
@@ -218,6 +219,13 @@ const DEFAULT_VOXEL_COMPACT_EDIT_CONTROL: StudioVoxelCompactEditControlReadModel
   y2: 1,
   z2: 0,
   material: 1,
+  boxMode: 'filled',
+  lineRadius: 0,
+  maxGeneratedVoxels: 64,
+  preflightAction: 'block',
+  preflightAccepted: true,
+  preflightGeneratedCommandCount: 1,
+  preflightDiagnostic: null,
   generatedCommandCount: null,
   acceptedCommandCount: null,
   rejectedCommandCount: null,
@@ -832,7 +840,9 @@ export interface StudioAgentVoxelWorkflowResult {
 
 export type StudioVoxelAssetWorkflowControlAction = 'model_info' | 'export_volume' | 'save_volume' | 'load_volume';
 
-export type StudioVoxelCompactEditControlAction = 'block' | 'fill_box';
+export type StudioVoxelCompactEditControlAction = 'block' | 'fill_box' | 'primitive_box' | 'primitive_line';
+
+export type StudioVoxelCompactEditBoxMode = 'filled' | 'shell' | 'edges';
 
 export type StudioVoxelCompactEditControlField =
   | 'grid'
@@ -842,7 +852,9 @@ export type StudioVoxelCompactEditControlField =
   | 'x2'
   | 'y2'
   | 'z2'
-  | 'material';
+  | 'material'
+  | 'lineRadius'
+  | 'maxGeneratedVoxels';
 
 export interface StudioVoxelAssetWorkflowControlReadModel {
   readonly controlVersion: 'studio-voxel-asset-workflow-control.v0';
@@ -883,6 +895,7 @@ export interface StudioVoxelAssetWorkflowTargetReadModel {
 
 export interface StudioVoxelCompactEditControlReadModel {
   readonly controlVersion: 'studio-voxel-compact-edit-control.v0';
+  readonly draftAction: StudioVoxelCompactEditControlAction;
   readonly lastAction: StudioVoxelCompactEditControlAction | null;
   readonly status: 'idle' | 'accepted' | 'rejected';
   readonly message: string;
@@ -894,6 +907,13 @@ export interface StudioVoxelCompactEditControlReadModel {
   readonly y2: number;
   readonly z2: number;
   readonly material: number;
+  readonly boxMode: StudioVoxelCompactEditBoxMode;
+  readonly lineRadius: number;
+  readonly maxGeneratedVoxels: number;
+  readonly preflightAction: StudioVoxelCompactEditControlAction;
+  readonly preflightAccepted: boolean;
+  readonly preflightGeneratedCommandCount: number;
+  readonly preflightDiagnostic: string | null;
   readonly generatedCommandCount: number | null;
   readonly acceptedCommandCount: number | null;
   readonly rejectedCommandCount: number | null;
@@ -1970,10 +1990,19 @@ function materialPaletteFromVoxels(
 ): readonly VoxelAssetMaterialBinding[] {
   return Array.from(new Set(voxels.map(voxel => voxel.material)))
     .sort((a, b) => a - b)
-    .map(material => ({
-      voxelMaterial: material,
-      materialAssetId: normalizeMaterialAssetId(material, materialAssetIds.get(material)),
-    }));
+    .map(material => {
+      const materialAssetId = normalizeMaterialAssetId(material, materialAssetIds.get(material));
+      const materialSlug = materialAssetId.replace(/^material\//, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
+      return {
+        voxelMaterial: material,
+        paletteEntryId: `voxel-material/${materialSlug}`,
+        displayName: `Voxel material ${material}`,
+        materialAssetId,
+        materialCatalogBindingId: materialAssetIds.get(material) === null || materialAssetIds.get(material) === undefined
+          ? null
+          : `catalog-binding/${materialSlug}`,
+      };
+    });
 }
 
 const VOXEL_ASSET_COORDINATE_SYSTEM = 'y_up_right_handed';
@@ -2811,6 +2840,71 @@ export function buildStudioAgentCompactVoxelEditBatch(
     batch: { commands: Array.from(commands.values()) },
     affordance: edit.kind,
     generatedVoxelCount: commands.size,
+  };
+}
+
+function buildStudioCompactVoxelEditFromControl(
+  draft: StudioVoxelCompactEditControlReadModel,
+  action: StudioVoxelCompactEditControlAction = draft.draftAction,
+): StudioAgentCompactVoxelEdit {
+  switch (action) {
+    case 'block':
+      return {
+        kind: 'set_voxels',
+        grid: draft.grid,
+        voxels: [{ x: draft.x1, y: draft.y1, z: draft.z1, i: draft.material }],
+      };
+    case 'fill_box':
+      return {
+        kind: 'fill_box',
+        grid: draft.grid,
+        x1: draft.x1,
+        y1: draft.y1,
+        z1: draft.z1,
+        x2: draft.x2,
+        y2: draft.y2,
+        z2: draft.z2,
+        palette_index: draft.material,
+      };
+    case 'primitive_box':
+      return {
+        kind: 'apply_voxel_primitives',
+        grid: draft.grid,
+        maxGeneratedVoxels: draft.maxGeneratedVoxels,
+        primitives: [{
+          kind: 'box',
+          from: { x: draft.x1, y: draft.y1, z: draft.z1 },
+          to: { x: draft.x2, y: draft.y2, z: draft.z2 },
+          palette_index: draft.material,
+          mode: draft.boxMode,
+        }],
+      };
+    case 'primitive_line':
+      return {
+        kind: 'apply_voxel_primitives',
+        grid: draft.grid,
+        maxGeneratedVoxels: draft.maxGeneratedVoxels,
+        primitives: [{
+          kind: 'line',
+          from: { x: draft.x1, y: draft.y1, z: draft.z1 },
+          to: { x: draft.x2, y: draft.y2, z: draft.z2 },
+          palette_index: draft.material,
+          radius: draft.lineRadius,
+        }],
+      };
+  }
+}
+
+function refreshStudioCompactVoxelEditPreflight(
+  draft: StudioVoxelCompactEditControlReadModel,
+): StudioVoxelCompactEditControlReadModel {
+  const compiled = buildStudioAgentCompactVoxelEditBatch(buildStudioCompactVoxelEditFromControl(draft));
+  return {
+    ...draft,
+    preflightAction: draft.draftAction,
+    preflightAccepted: compiled.accepted,
+    preflightGeneratedCommandCount: compiled.generatedVoxelCount,
+    preflightDiagnostic: compiled.diagnostic,
   };
 }
 
@@ -4931,7 +5025,7 @@ export class StudioWorkspaceStore {
       if (!Number.isFinite(value)) {
         return current;
       }
-      return {
+      return refreshStudioCompactVoxelEditPreflight({
         ...current,
         [field]: value,
         status: 'idle',
@@ -4940,29 +5034,43 @@ export class StudioWorkspaceStore {
         acceptedCommandCount: null,
         rejectedCommandCount: null,
         diagnostic: null,
-      };
+      });
     });
   }
 
+  setVoxelCompactEditControlAction(action: StudioVoxelCompactEditControlAction): void {
+    this.voxelCompactEditControlState.update(current => refreshStudioCompactVoxelEditPreflight({
+      ...current,
+      draftAction: action,
+      status: 'idle',
+      message: 'Compact voxel edit draft action updated.',
+      generatedCommandCount: null,
+      acceptedCommandCount: null,
+      rejectedCommandCount: null,
+      diagnostic: null,
+    }));
+  }
+
+  setVoxelCompactEditControlBoxMode(mode: StudioVoxelCompactEditBoxMode): void {
+    this.voxelCompactEditControlState.update(current => refreshStudioCompactVoxelEditPreflight({
+      ...current,
+      boxMode: mode,
+      draftAction: current.draftAction === 'primitive_line' ? 'primitive_box' : current.draftAction,
+      status: 'idle',
+      message: 'Compact voxel primitive box mode updated.',
+      generatedCommandCount: null,
+      acceptedCommandCount: null,
+      rejectedCommandCount: null,
+      diagnostic: null,
+    }));
+  }
+
   runVoxelCompactEditControl(action: StudioVoxelCompactEditControlAction): void {
-    const draft = this.voxelCompactEditControlState();
-    const edit: StudioAgentCompactVoxelEdit = action === 'block'
-      ? {
-          kind: 'set_voxels',
-          grid: draft.grid,
-          voxels: [{ x: draft.x1, y: draft.y1, z: draft.z1, i: draft.material }],
-        }
-      : {
-          kind: 'fill_box',
-          grid: draft.grid,
-          x1: draft.x1,
-          y1: draft.y1,
-          z1: draft.z1,
-          x2: draft.x2,
-          y2: draft.y2,
-          z2: draft.z2,
-          palette_index: draft.material,
-        };
+    const draft = refreshStudioCompactVoxelEditPreflight({
+      ...this.voxelCompactEditControlState(),
+      draftAction: action,
+    });
+    const edit = buildStudioCompactVoxelEditFromControl(draft, action);
     const compiled = buildStudioAgentCompactVoxelEditBatch(edit);
     const result = this.runAgentVoxelWorkflowOperation({
       kind: 'submit_compact_voxel_edit',
@@ -4975,7 +5083,7 @@ export class StudioWorkspaceStore {
     const message = result.accepted
       ? `Compact ${action} accepted ${acceptedCount ?? 0}, rejected ${rejectedCount ?? 0}.`
       : result.diagnostic ?? 'Compact voxel edit rejected.';
-    this.voxelCompactEditControlState.set({
+    this.voxelCompactEditControlState.set(refreshStudioCompactVoxelEditPreflight({
       ...draft,
       lastAction: action,
       status: result.accepted ? 'accepted' : 'rejected',
@@ -4984,7 +5092,7 @@ export class StudioWorkspaceStore {
       acceptedCommandCount: acceptedCount,
       rejectedCommandCount: rejectedCount,
       diagnostic: result.diagnostic ?? compiled.diagnostic,
-    });
+    }));
     this.menuMessageState.set(message);
   }
 

@@ -126,6 +126,15 @@ Compact edit affordances currently supported:
 - `fill_box`
 - `apply_voxel_primitives` for block, box, and line primitives
 
+The visible Studio compact voxel edit panel now exposes the same primitive
+coverage for live testing:
+
+- choose a draft action: block, fill box, primitive box, or primitive line;
+- choose primitive box mode: `filled`, `shell`, or `edges`;
+- set primitive line radius `0..4`;
+- set the max generated voxel guardrail and inspect the preflight generated
+  count/diagnostic before submitting.
+
 Compact edit limits:
 
 - maximum generated commands: `64`;

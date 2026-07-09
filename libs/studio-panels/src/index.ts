@@ -2740,6 +2740,55 @@ export class StudioInspectorPanelComponent {
               />
             </label>
             <label>
+              Draft
+              <select
+                data-voxel-edit-control="draft_action"
+                [value]="store.voxelCompactEditControl().draftAction"
+                (change)="store.setVoxelCompactEditControlAction($any($event.target).value)"
+              >
+                <option value="block">Block</option>
+                <option value="fill_box">Fill box</option>
+                <option value="primitive_box">Primitive box</option>
+                <option value="primitive_line">Primitive line</option>
+              </select>
+            </label>
+            <label>
+              Box
+              <select
+                data-voxel-edit-control="box_mode"
+                [value]="store.voxelCompactEditControl().boxMode"
+                (change)="store.setVoxelCompactEditControlBoxMode($any($event.target).value)"
+              >
+                <option value="filled">Filled</option>
+                <option value="shell">Shell</option>
+                <option value="edges">Edges</option>
+              </select>
+            </label>
+            <label>
+              Radius
+              <input
+                type="number"
+                min="0"
+                max="4"
+                step="1"
+                data-voxel-edit-control="line_radius"
+                [value]="store.voxelCompactEditControl().lineRadius"
+                (input)="store.setVoxelCompactEditControlField('lineRadius', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
+              Max
+              <input
+                type="number"
+                min="1"
+                max="64"
+                step="1"
+                data-voxel-edit-control="max_generated_voxels"
+                [value]="store.voxelCompactEditControl().maxGeneratedVoxels"
+                (input)="store.setVoxelCompactEditControlField('maxGeneratedVoxels', $any($event.target).valueAsNumber)"
+              />
+            </label>
+            <label>
               X1
               <input
                 type="number"
@@ -2803,13 +2852,22 @@ export class StudioInspectorPanelComponent {
           <dl>
             <dt>generated</dt>
             <dd>{{ store.voxelCompactEditControl().generatedCommandCount ?? 'n/a' }}</dd>
+            <dt>preflight</dt>
+            <dd data-voxel-edit-preflight>
+              {{ store.voxelCompactEditControl().preflightGeneratedCommandCount }} /
+              {{ store.voxelCompactEditControl().maxGeneratedVoxels }}
+            </dd>
             <dt>accepted</dt>
             <dd>{{ store.voxelCompactEditControl().acceptedCommandCount ?? 'n/a' }}</dd>
             <dt>rejected</dt>
             <dd>{{ store.voxelCompactEditControl().rejectedCommandCount ?? 'n/a' }}</dd>
             <dt>diagnostic</dt>
             <dd data-voxel-edit-diagnostic>
-              {{ store.voxelCompactEditControl().diagnostic ?? 'none' }}
+              {{
+                store.voxelCompactEditControl().diagnostic
+                ?? store.voxelCompactEditControl().preflightDiagnostic
+                ?? 'none'
+              }}
             </dd>
           </dl>
           <div class="voxel-compact-edit__actions">
@@ -2830,6 +2888,24 @@ export class StudioInspectorPanelComponent {
             >
               <span>Fill</span>
               <small>x1/y1/z1 to x2/y2/z2</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-edit-action="primitive_box"
+              title="Submit a compact primitive box edit with the selected box mode"
+              (click)="store.runVoxelCompactEditControl('primitive_box')"
+            >
+              <span>Box</span>
+              <small>{{ store.voxelCompactEditControl().boxMode }}</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-edit-action="primitive_line"
+              title="Submit a compact primitive line edit with the selected radius"
+              (click)="store.runVoxelCompactEditControl('primitive_line')"
+            >
+              <span>Line</span>
+              <small>r{{ store.voxelCompactEditControl().lineRadius }}</small>
             </button>
           </div>
         </section>
@@ -3109,6 +3185,7 @@ export class StudioInspectorPanelComponent {
       .voxel-editor-grid input,
       .voxel-editor-grid select,
       .voxel-asset-workflow input,
+      .voxel-compact-edit select,
       .voxel-compact-edit input {
         background: var(--asha-color-control);
         border: 1px solid var(--asha-color-border);
@@ -3161,7 +3238,7 @@ export class StudioInspectorPanelComponent {
       }
 
       .voxel-compact-edit__actions {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
       .voxel-action-row button,

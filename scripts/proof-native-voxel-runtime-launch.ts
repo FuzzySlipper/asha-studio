@@ -95,6 +95,10 @@ interface BrowserProof {
       readonly block: {
         readonly status: string;
         readonly lastAction: string | null;
+        readonly preflightAction: string | null;
+        readonly preflightGeneratedCommandCount: number | null;
+        readonly preflightAccepted: boolean | null;
+        readonly preflightDiagnostic: string | null;
         readonly generatedCommandCount: number | null;
         readonly acceptedCommandCount: number | null;
         readonly rejectedCommandCount: number | null;
@@ -103,6 +107,46 @@ interface BrowserProof {
       readonly fillBox: {
         readonly status: string;
         readonly lastAction: string | null;
+        readonly preflightAction: string | null;
+        readonly preflightGeneratedCommandCount: number | null;
+        readonly preflightAccepted: boolean | null;
+        readonly preflightDiagnostic: string | null;
+        readonly generatedCommandCount: number | null;
+        readonly acceptedCommandCount: number | null;
+        readonly rejectedCommandCount: number | null;
+        readonly diagnostic: string | null;
+      } | null;
+      readonly primitiveBoxShell: {
+        readonly status: string;
+        readonly lastAction: string | null;
+        readonly preflightAction: string | null;
+        readonly preflightGeneratedCommandCount: number | null;
+        readonly preflightAccepted: boolean | null;
+        readonly preflightDiagnostic: string | null;
+        readonly generatedCommandCount: number | null;
+        readonly acceptedCommandCount: number | null;
+        readonly rejectedCommandCount: number | null;
+        readonly diagnostic: string | null;
+      } | null;
+      readonly primitiveLineRadius: {
+        readonly status: string;
+        readonly lastAction: string | null;
+        readonly preflightAction: string | null;
+        readonly preflightGeneratedCommandCount: number | null;
+        readonly preflightAccepted: boolean | null;
+        readonly preflightDiagnostic: string | null;
+        readonly generatedCommandCount: number | null;
+        readonly acceptedCommandCount: number | null;
+        readonly rejectedCommandCount: number | null;
+        readonly diagnostic: string | null;
+      } | null;
+      readonly primitiveLineOverMax: {
+        readonly status: string;
+        readonly lastAction: string | null;
+        readonly preflightAction: string | null;
+        readonly preflightGeneratedCommandCount: number | null;
+        readonly preflightAccepted: boolean | null;
+        readonly preflightDiagnostic: string | null;
         readonly generatedCommandCount: number | null;
         readonly acceptedCommandCount: number | null;
         readonly rejectedCommandCount: number | null;
@@ -111,6 +155,10 @@ interface BrowserProof {
       readonly oversizedFillBox: {
         readonly status: string;
         readonly lastAction: string | null;
+        readonly preflightAction: string | null;
+        readonly preflightGeneratedCommandCount: number | null;
+        readonly preflightAccepted: boolean | null;
+        readonly preflightDiagnostic: string | null;
         readonly generatedCommandCount: number | null;
         readonly acceptedCommandCount: number | null;
         readonly rejectedCommandCount: number | null;
@@ -539,6 +587,9 @@ function automationPrelude(): string {
       compactVoxelEditControls: {
         block: null,
         fillBox: null,
+        primitiveBoxShell: null,
+        primitiveLineRadius: null,
+        primitiveLineOverMax: null,
         oversizedFillBox: null,
       },
       acceptedVoxelEdit: null,
@@ -704,6 +755,10 @@ function automationPrelude(): string {
     return {
       status: control.status,
       lastAction: control.lastAction,
+      preflightAction: control.preflightAction,
+      preflightGeneratedCommandCount: control.preflightGeneratedCommandCount,
+      preflightAccepted: control.preflightAccepted,
+      preflightDiagnostic: control.preflightDiagnostic,
       generatedCommandCount: control.generatedCommandCount,
       acceptedCommandCount: control.acceptedCommandCount,
       rejectedCommandCount: control.rejectedCommandCount,
@@ -718,6 +773,15 @@ function automationPrelude(): string {
     }
     input.value = String(value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function selectCompactVoxelEditControl(name, value) {
+    const input = document.querySelector('[data-voxel-edit-control="' + name + '"]');
+    if (!(input instanceof HTMLSelectElement)) {
+      throw new Error('Missing compact voxel edit select ' + name);
+    }
+    input.value = String(value);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   async function submitCompactVoxelEditControl(action) {
@@ -1256,9 +1320,32 @@ function automationPrelude(): string {
         setCompactVoxelEditControl('x1', 0);
         setCompactVoxelEditControl('y1', 0);
         setCompactVoxelEditControl('z1', 0);
+        setCompactVoxelEditControl('x2', 1);
+        setCompactVoxelEditControl('y2', 1);
+        setCompactVoxelEditControl('z2', 1);
+        setCompactVoxelEditControl('max_generated_voxels', 64);
+        selectCompactVoxelEditControl('draft_action', 'primitive_box');
+        selectCompactVoxelEditControl('box_mode', 'shell');
+        proof.agentSurface.compactVoxelEditControls.primitiveBoxShell = await submitCompactVoxelEditControl('primitive_box');
+        setCompactVoxelEditControl('x1', 0);
+        setCompactVoxelEditControl('y1', 0);
+        setCompactVoxelEditControl('z1', 0);
+        setCompactVoxelEditControl('x2', 1);
+        setCompactVoxelEditControl('y2', 0);
+        setCompactVoxelEditControl('z2', 0);
+        setCompactVoxelEditControl('line_radius', 0);
+        setCompactVoxelEditControl('max_generated_voxels', 64);
+        selectCompactVoxelEditControl('draft_action', 'primitive_line');
+        proof.agentSurface.compactVoxelEditControls.primitiveLineRadius = await submitCompactVoxelEditControl('primitive_line');
+        setCompactVoxelEditControl('max_generated_voxels', 1);
+        proof.agentSurface.compactVoxelEditControls.primitiveLineOverMax = await submitCompactVoxelEditControl('primitive_line');
+        setCompactVoxelEditControl('x1', 0);
+        setCompactVoxelEditControl('y1', 0);
+        setCompactVoxelEditControl('z1', 0);
         setCompactVoxelEditControl('x2', 8);
         setCompactVoxelEditControl('y2', 8);
         setCompactVoxelEditControl('z2', 0);
+        setCompactVoxelEditControl('max_generated_voxels', 64);
         proof.agentSurface.compactVoxelEditControls.oversizedFillBox = await submitCompactVoxelEditControl('fill_box');
         await waitFor(() => document.querySelector('[data-voxel-evidence-kind="apply_receipt"]'), 'apply receipt evidence');
         proof.status = 'complete';
@@ -1487,6 +1574,10 @@ async function main(): Promise<void> {
       block: {
         status: 'accepted',
         lastAction: 'block',
+        preflightAction: 'block',
+        preflightGeneratedCommandCount: 1,
+        preflightAccepted: true,
+        preflightDiagnostic: null,
         generatedCommandCount: 1,
         acceptedCommandCount: 1,
         rejectedCommandCount: 0,
@@ -1495,14 +1586,58 @@ async function main(): Promise<void> {
       fillBox: {
         status: 'accepted',
         lastAction: 'fill_box',
+        preflightAction: 'fill_box',
+        preflightGeneratedCommandCount: 1,
+        preflightAccepted: true,
+        preflightDiagnostic: null,
         generatedCommandCount: 1,
         acceptedCommandCount: 1,
         rejectedCommandCount: 0,
         diagnostic: null,
       },
+      primitiveBoxShell: {
+        status: 'accepted',
+        lastAction: 'primitive_box',
+        preflightAction: 'primitive_box',
+        preflightGeneratedCommandCount: 8,
+        preflightAccepted: true,
+        preflightDiagnostic: null,
+        generatedCommandCount: 8,
+        acceptedCommandCount: 8,
+        rejectedCommandCount: 0,
+        diagnostic: null,
+      },
+      primitiveLineRadius: {
+        status: 'accepted',
+        lastAction: 'primitive_line',
+        preflightAction: 'primitive_line',
+        preflightGeneratedCommandCount: 2,
+        preflightAccepted: true,
+        preflightDiagnostic: null,
+        generatedCommandCount: 2,
+        acceptedCommandCount: 2,
+        rejectedCommandCount: 0,
+        diagnostic: null,
+      },
+      primitiveLineOverMax: {
+        status: 'rejected',
+        lastAction: 'primitive_line',
+        preflightAction: 'primitive_line',
+        preflightGeneratedCommandCount: 2,
+        preflightAccepted: false,
+        preflightDiagnostic: 'compact voxel edit exceeds 1 generated commands',
+        generatedCommandCount: 2,
+        acceptedCommandCount: null,
+        rejectedCommandCount: null,
+        diagnostic: 'compact voxel edit exceeds 1 generated commands',
+      },
       oversizedFillBox: {
         status: 'rejected',
         lastAction: 'fill_box',
+        preflightAction: 'fill_box',
+        preflightGeneratedCommandCount: 65,
+        preflightAccepted: false,
+        preflightDiagnostic: 'compact voxel edit exceeds 64 generated commands',
         generatedCommandCount: 65,
         acceptedCommandCount: null,
         rejectedCommandCount: null,

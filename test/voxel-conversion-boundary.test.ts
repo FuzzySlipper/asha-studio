@@ -687,7 +687,13 @@ test('Asha-native voxel asset persistence readmodel emits and reopens avxl json 
     { start: { x: 0, y: 0, z: 0 }, length: 2, material: 1 },
   ]);
   assert.deepEqual(persistence.asset.materialPalette, [
-    { voxelMaterial: 1, materialAssetId: 'material/copper' },
+    {
+      voxelMaterial: 1,
+      paletteEntryId: 'voxel-material/copper',
+      displayName: 'Voxel material 1',
+      materialAssetId: 'material/copper',
+      materialCatalogBindingId: 'catalog-binding/copper',
+    },
   ]);
   assert.equal(persistence.source.kind, 'command_batch');
   assert.equal(persistence.source.outputVoxelCount, 2);
@@ -957,10 +963,21 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   assert.match(storeSource, /voxelCompactEditControl =/);
   assert.match(storeSource, /runVoxelCompactEditControl/);
   assert.match(storeSource, /setVoxelCompactEditControlField/);
+  assert.match(storeSource, /setVoxelCompactEditControlAction/);
+  assert.match(storeSource, /setVoxelCompactEditControlBoxMode/);
   assert.match(storeSource, /buildStudioAgentCompactVoxelEditBatch\(edit\)/);
+  assert.match(storeSource, /buildStudioCompactVoxelEditFromControl/);
+  assert.match(storeSource, /refreshStudioCompactVoxelEditPreflight/);
   assert.match(storeSource, /kind: 'submit_compact_voxel_edit'/);
   assert.match(storeSource, /kind: 'set_voxels'/);
   assert.match(storeSource, /kind: 'fill_box'/);
+  assert.match(storeSource, /kind: 'apply_voxel_primitives'/);
+  assert.match(storeSource, /draftAction: 'block'/);
+  assert.match(storeSource, /boxMode: 'filled'/);
+  assert.match(storeSource, /lineRadius: 0/);
+  assert.match(storeSource, /maxGeneratedVoxels: 64/);
+  assert.match(storeSource, /preflightGeneratedCommandCount/);
+  assert.match(storeSource, /preflightDiagnostic/);
   assert.match(storeSource, /generatedCommandCount/);
   assert.match(storeSource, /acceptedCommandCount/);
   assert.match(storeSource, /rejectedCommandCount/);
@@ -969,12 +986,36 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   assert.match(panelSource, /data-voxel-edit-status/);
   assert.match(panelSource, /data-voxel-edit-diagnostic/);
 
-  for (const control of ['grid', 'material', 'x1', 'y1', 'z1', 'x2', 'y2', 'z2']) {
+  for (const control of [
+    'grid',
+    'material',
+    'draft_action',
+    'box_mode',
+    'line_radius',
+    'max_generated_voxels',
+    'x1',
+    'y1',
+    'z1',
+    'x2',
+    'y2',
+    'z2',
+  ]) {
     assert.match(panelSource, new RegExp(`data-voxel-edit-control="${control}"`));
+  }
+
+  for (const control of ['grid', 'material', 'x1', 'y1', 'z1', 'x2', 'y2', 'z2']) {
     assert.match(panelSource, new RegExp(`setVoxelCompactEditControlField\\('${control}'`));
   }
 
-  for (const action of ['block', 'fill_box']) {
+  assert.match(panelSource, /setVoxelCompactEditControlField\('lineRadius'/);
+  assert.match(panelSource, /setVoxelCompactEditControlField\('maxGeneratedVoxels'/);
+  assert.match(panelSource, /setVoxelCompactEditControlAction/);
+  assert.match(panelSource, /setVoxelCompactEditControlBoxMode/);
+  assert.match(panelSource, /data-voxel-edit-preflight/);
+  assert.match(panelSource, /preflightGeneratedCommandCount/);
+  assert.match(panelSource, /preflightDiagnostic/);
+
+  for (const action of ['block', 'fill_box', 'primitive_box', 'primitive_line']) {
     assert.match(panelSource, new RegExp(`data-voxel-edit-action="${action}"`));
     assert.match(panelSource, new RegExp(`runVoxelCompactEditControl\\('${action}'\\)`));
   }
