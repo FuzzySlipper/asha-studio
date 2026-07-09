@@ -215,6 +215,7 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 | `.vforge` save/load | Out of #4550 scope; no compatibility promise. |
 | Asha-native serialized voxel storage | Adapted under #4817 as `.avxl.json` ProjectBundle/asset proposal and reopen workflow over public `VoxelVolumeAsset` DTOs, not `.vforge` inheritance. |
 | VoxelForge MCP transport | Rejected for current successor shape; Asha/Studio already expose agent tools without carrying MCP. |
+| VoxelForge LLM operation import/replay | Rejected as compatibility work; proposed ASHA-native transcript envelope over Studio workflow operations lives in `docs/voxel-agent-operation-transcript-evaluation.md`. |
 | C# sidecar/viewer/Electron packaging | Out of #4550 scope. |
 | Region labels, frame-swap animation, spatial queries, texture tools | Out of #4550 scope; reexamine under Den task #4785. |
 
@@ -228,6 +229,8 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
   predecessor-asset provenance notes.
 - `docs/voxelforge-broader-feature-reexamination.md`: #4785 broader
   VoxelForge feature matrix and follow-up routing.
+- `docs/voxel-agent-operation-transcript-evaluation.md`: #5269 decision on
+  ASHA-native agent operation transcript import/replay.
 - `docs/studio-limitations.md`: durable non-claims.
 - `scripts/proof-native-voxel-runtime-launch.ts`: live native proof.
 - `scripts/proof-voxel-conversion-phase4-product.ts`: fixture-backed product

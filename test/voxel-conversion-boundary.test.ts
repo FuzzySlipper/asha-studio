@@ -1118,6 +1118,22 @@ test('studio voxel history panel uses RuntimeSession history projections without
   assert.match(proofSource, /studio-voxel-history-panel-/);
 });
 
+test('studio voxel transcript evaluation rejects VoxelForge import compatibility and routes Asha-native replay', () => {
+  const transcriptDoc = readFileSync(join(repoRoot, 'docs/voxel-agent-operation-transcript-evaluation.md'), 'utf8');
+  const runbook = readFileSync(join(repoRoot, 'docs/voxel-live-testing-agent-runbook.md'), 'utf8');
+
+  assert.match(transcriptDoc, /studio_agent_voxel_operation_transcript/);
+  assert.match(transcriptDoc, /StudioAgentVoxelWorkflowOperation/);
+  assert.match(transcriptDoc, /runAgentVoxelWorkflowOperation/);
+  assert.match(transcriptDoc, /not_vforge_file/);
+  assert.match(transcriptDoc, /not_mcp_transport/);
+  assert.match(transcriptDoc, /not_raw_runtime_bridge_dispatch/);
+  assert.match(transcriptDoc, /codex-asha-studio/);
+  assert.match(transcriptDoc, /No VoxelForge compatibility task is needed/);
+  assert.match(runbook, /voxel-agent-operation-transcript-evaluation/);
+  assert.match(runbook, /VoxelForge LLM operation import\/replay/);
+});
+
 test('studio voxel viewport exposes compact edit placement preview from public hit readout', () => {
   const viewportSource = readFileSync(join(repoRoot, 'libs/studio-viewport/src/index.ts'), 'utf8');
   const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
