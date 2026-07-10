@@ -235,6 +235,7 @@ interface BrowserProof {
       readonly queryMatchedRegionIds: readonly string[];
       readonly exportCanonicalJsonHash: string | null;
       readonly exportRegionIds: readonly string[];
+      readonly partialRemovalSparseRuns: readonly { readonly start: { readonly x: number; readonly y: number; readonly z: number }; readonly length: number }[];
       readonly diagnostics: readonly string[];
       readonly readoutHash: string;
       readonly actions: readonly { readonly action: string; readonly accepted: boolean; readonly message: string }[];
@@ -1037,6 +1038,9 @@ function automationPrelude(): string {
       exportRegionIds: Array.isArray(control.exportReceipt?.layer?.regions)
         ? control.exportReceipt.layer.regions.map(region => region.regionId)
         : [],
+      exportSelectionSparseRuns: Array.isArray(control.exportReceipt?.layer?.regions)
+        ? control.exportReceipt.layer.regions.find(region => region.regionId === control.regionId)?.selection.sparseRuns ?? []
+        : [],
       diagnostics: control.diagnostics,
       readoutHash: control.readoutHash,
     };
@@ -1526,9 +1530,11 @@ function automationPrelude(): string {
         recordAnnotationAction('set_tags', await submitVoxelAnnotationControl('set_tags'));
         recordAnnotationAction('set_parent', await submitVoxelAnnotationControl('set_parent'));
 
-        setVoxelAnnotationControl('x1', 0);
-        setVoxelAnnotationControl('x2', 2);
+        setVoxelAnnotationControl('x1', 1);
+        setVoxelAnnotationControl('x2', 1);
         recordAnnotationAction('remove_runs', await submitVoxelAnnotationControl('remove_runs'));
+        const partialRemovalExport = await submitVoxelAnnotationControl('export');
+        recordAnnotationAction('export_after_partial_removal', partialRemovalExport);
         recordAnnotationAction('add_runs', await submitVoxelAnnotationControl('add_runs'));
         setVoxelAnnotationControl('x1', 0);
         setVoxelAnnotationControl('x2', 1);
@@ -1543,6 +1549,7 @@ function automationPrelude(): string {
         proof.agentSurface.voxelAnnotations = {
           ...exportedAnnotation,
           queryMatchedRegionIds: boundsQuery.queryMatchedRegionIds,
+          partialRemovalSparseRuns: partialRemovalExport.exportSelectionSparseRuns,
           actions: annotationActions,
         };
         const convertedAssetResult = store.runAgentVoxelWorkflowOperation({
@@ -2188,9 +2195,13 @@ async function main(): Promise<void> {
     assert.match(nativeProof.agentSurface.voxelAnnotations?.readoutHash ?? '', /^studio-voxel-annotation-control-/);
     assert.deepEqual(
       nativeProof.agentSurface.voxelAnnotations?.actions.map(action => action.action),
-      ['load', 'upsert_region', 'set_label', 'set_kind', 'set_tags', 'set_parent', 'remove_runs', 'add_runs', 'replace_selection', 'query_cell', 'query_bounds', 'export'],
+      ['load', 'upsert_region', 'set_label', 'set_kind', 'set_tags', 'set_parent', 'remove_runs', 'export_after_partial_removal', 'add_runs', 'replace_selection', 'query_cell', 'query_bounds', 'export'],
     );
     assert.ok(nativeProof.agentSurface.voxelAnnotations?.actions.every(action => action.accepted));
+    assert.deepEqual(nativeProof.agentSurface.voxelAnnotations?.partialRemovalSparseRuns, [
+      { start: { x: 0, y: 0, z: 0 }, length: 1 },
+      { start: { x: 2, y: 0, z: 0 }, length: 1 },
+    ]);
     assert.deepEqual([...(nativeProof.agentSurface.voxelAnnotations?.queryMatchedRegionIds ?? [])].sort(), [
       'region/studio-parent',
       'region/studio-selection',

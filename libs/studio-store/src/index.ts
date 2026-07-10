@@ -2653,6 +2653,42 @@ function sparseRunsFromSolidVoxels(voxels: readonly StudioVoxelAssetSolidVoxel[]
   return runs;
 }
 
+function subtractVoxelAnnotationSparseRuns(
+  sourceRuns: readonly VoxelAnnotationSparseRun[],
+  removals: readonly VoxelAnnotationSparseRun[],
+): readonly VoxelAnnotationSparseRun[] {
+  const remaining: VoxelAnnotationSparseRun[] = [];
+  for (const source of sourceRuns) {
+    let fragments: readonly { readonly start: number; readonly end: number }[] = [{
+      start: source.start.x,
+      end: source.start.x + source.length - 1,
+    }];
+    for (const removal of removals) {
+      if (removal.length <= 0 || removal.start.y !== source.start.y || removal.start.z !== source.start.z) continue;
+      const removalStart = removal.start.x;
+      const removalEnd = removal.start.x + removal.length - 1;
+      fragments = fragments.flatMap(fragment => {
+        if (removalEnd < fragment.start || removalStart > fragment.end) return [fragment];
+        const next: { start: number; end: number }[] = [];
+        if (fragment.start < removalStart) next.push({ start: fragment.start, end: removalStart - 1 });
+        if (removalEnd < fragment.end) next.push({ start: removalEnd + 1, end: fragment.end });
+        return next;
+      });
+    }
+    for (const fragment of fragments) {
+      remaining.push({
+        start: { x: fragment.start, y: source.start.y, z: source.start.z },
+        length: fragment.end - fragment.start + 1,
+      });
+    }
+  }
+  return remaining.sort((left, right) =>
+    left.start.z - right.start.z
+    || left.start.y - right.start.y
+    || left.start.x - right.start.x,
+  );
+}
+
 function boundsFromSolidVoxels(voxels: readonly StudioVoxelAssetSolidVoxel[]): VoxelVolumeAsset['bounds'] {
   const first = voxels[0];
   if (first === undefined) {
@@ -6285,6 +6321,26 @@ export class StudioWorkspaceStore {
       if (action === 'export') {
         const receipt = facade.exportVoxelAnnotationLayer({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash, includeDiagnostics: true });
         this.recordVoxelAnnotationResult(control, receipt.exported, receipt.exported ? `Exported annotation layer ${control.layerId}.` : 'Annotation export rejected.', receipt.diagnostics.map(item => item.message), null, null, receipt);
+        return;
+      }
+      if (action === 'remove_runs') {
+        const exported = facade.exportVoxelAnnotationLayer({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash, includeDiagnostics: true });
+        if (!exported.exported || exported.layer === null) {
+          this.recordVoxelAnnotationResult(control, false, 'Unable to read the authoritative annotation selection for bounded removal.', exported.diagnostics.map(item => item.message), null, null, exported);
+          return;
+        }
+        const existingRegion = exported.layer.regions.find(item => item.regionId === control.regionId.trim());
+        if (existingRegion === undefined) {
+          this.recordVoxelAnnotationResult(control, false, `Annotation region ${control.regionId} was not found in the authoritative layer.`, [], null, null, exported);
+          return;
+        }
+        const replacementRuns = subtractVoxelAnnotationSparseRuns(existingRegion.selection.sparseRuns, sparseRuns);
+        if (replacementRuns.length === existingRegion.selection.sparseRuns.length && replacementRuns.every((run, index) => run.start.x === existingRegion.selection.sparseRuns[index]?.start.x && run.start.y === existingRegion.selection.sparseRuns[index]?.start.y && run.start.z === existingRegion.selection.sparseRuns[index]?.start.z && run.length === existingRegion.selection.sparseRuns[index]?.length)) {
+          this.recordVoxelAnnotationResult(control, false, 'Bounded removal does not overlap the authoritative region selection.', [], null, null, exported);
+          return;
+        }
+        const receipt = facade.applyVoxelAnnotationEdit({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash: exported.canonicalJsonHash ?? expectedLayerHash, operation: 'replace_selection', regionId: control.regionId.trim() || null, region: null, sparseRuns: replacementRuns, tags: [], label: null, kind: null, parentRegionId: null });
+        this.recordVoxelAnnotationResult(control, receipt.edited, receipt.edited ? `Bounded removal accepted for ${control.regionId}.` : `Bounded removal rejected for ${control.regionId}.`, receipt.diagnostics.map(item => item.message), null, null, receipt);
         return;
       }
       const operation: VoxelAnnotationEditOperation = action;
