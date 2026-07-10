@@ -1345,7 +1345,7 @@ function automationPrelude(): string {
             resolution: [8, 8, 8],
             voxelSize: 0.25,
             maxOutputVoxels: 1024,
-            targetGrid: 1,
+            targetGrid: 2,
             targetVolumeAssetId: 'voxel/generated',
             targetOrigin: [0, 0, 0],
             meshPrimitive: 'default',
@@ -1395,7 +1395,7 @@ function automationPrelude(): string {
         const modelInfoResult = store.runAgentVoxelWorkflowOperation({
           kind: 'get_model_info',
           request: {
-            grid: 1,
+            grid: 2,
             volumeAssetId: 'voxel/generated',
             includeMaterialCounts: true,
           },
@@ -1414,7 +1414,7 @@ function automationPrelude(): string {
         const exportedVolumeResult = store.runAgentVoxelWorkflowOperation({
           kind: 'export_voxel_volume_asset',
           exportRequest: {
-            grid: 1,
+            grid: 2,
             volumeAssetId: 'voxel/generated',
             targetAssetId: 'voxel-volume/generated',
             label: 'Native converted voxel volume',
@@ -1433,7 +1433,7 @@ function automationPrelude(): string {
           kind: 'save_voxel_volume_asset',
           saveRequest: {
             exportRequest: {
-              grid: 1,
+              grid: 2,
               volumeAssetId: 'voxel/generated',
               targetAssetId: 'voxel-volume/generated',
               label: 'Native converted voxel volume',
@@ -1484,7 +1484,7 @@ function automationPrelude(): string {
             asset: savedVolumeResult.voxelVolumeSave && savedVolumeResult.voxelVolumeSave.asset
               ? savedVolumeResult.voxelVolumeSave.asset
               : exportedVolumeResult.voxelVolumeExport?.asset,
-            targetGrid: 1,
+            targetGrid: 2,
             targetVolumeAssetId: 'voxel/generated',
             replaceExisting: true,
             includeMaterialCounts: true,
@@ -1585,7 +1585,7 @@ function automationPrelude(): string {
           batch: {
             commands: [{
               op: 'setVoxel',
-              grid: 1,
+              grid: 2,
               coord: { x: 1, y: 0, z: 0 },
               value: { kind: 'solid', material: 1 },
             }],
@@ -1596,7 +1596,7 @@ function automationPrelude(): string {
           kind: 'submit_compact_voxel_edit',
           edit: {
             kind: 'set_voxels',
-            grid: 1,
+            grid: 2,
             voxels: [
               { x: 0, y: 0, z: 0, i: 1 },
               { x: 1, y: 0, z: 0, i: 1 },
@@ -1630,7 +1630,7 @@ function automationPrelude(): string {
           kind: 'submit_compact_voxel_edit',
           edit: {
             kind: 'set_voxels_runs',
-            grid: 1,
+            grid: 2,
             runs: [
               { x1: 0, x2: 1, y: 0, z: 0, i: 1 },
               { x1: 0, x2: 0, y: 0, z: 0, i: 1 },
@@ -1642,7 +1642,7 @@ function automationPrelude(): string {
           kind: 'submit_compact_voxel_edit',
           edit: {
             kind: 'fill_box',
-            grid: 1,
+            grid: 2,
             x1: 0,
             y1: 1,
             z1: 0,
@@ -1657,7 +1657,7 @@ function automationPrelude(): string {
           kind: 'submit_compact_voxel_edit',
           edit: {
             kind: 'apply_voxel_primitives',
-            grid: 1,
+            grid: 2,
             primitives: [
               { kind: 'block', at: { x: 1, y: 0, z: 0 }, palette_index: 1 },
               { kind: 'line', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 0, z: 0 }, palette_index: 1 },
@@ -1692,7 +1692,7 @@ function automationPrelude(): string {
                   resolution: [8, 8, 8],
                   voxelSize: 0.25,
                   maxOutputVoxels: 1024,
-                  targetGrid: 1,
+                  targetGrid: 2,
                   targetVolumeAssetId: 'voxel/generated',
                   targetOrigin: [0, 0, 0],
                   meshPrimitive: 'default',
@@ -1710,7 +1710,7 @@ function automationPrelude(): string {
               input: {
                 edit: {
                   kind: 'apply_voxel_primitives',
-                  grid: 1,
+                  grid: 2,
                   maxGeneratedVoxels: 64,
                   primitives: [
                     { kind: 'box', from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 1, z: 1 }, palette_index: 1, mode: 'shell' },
@@ -1740,7 +1740,7 @@ function automationPrelude(): string {
           kind: 'submit_compact_voxel_edit',
           edit: {
             kind: 'fill_box',
-            grid: 1,
+            grid: 2,
             x1: 0,
             y1: 0,
             z1: 0,
@@ -1760,7 +1760,7 @@ function automationPrelude(): string {
           batch: {
             commands: [{
               op: 'setVoxel',
-              grid: 1,
+              grid: 2,
               coord: { x: 3, y: 0, z: 0 },
               value: { kind: 'solid', material: 999 },
             }],
@@ -1775,7 +1775,7 @@ function automationPrelude(): string {
           batch: {
             commands: [{
               op: 'fillRegion',
-              grid: 1,
+              grid: 2,
               min: { x: 0, y: 0, z: 0 },
               max: { x: 1, y: 1, z: 1 },
               value: { kind: 'solid', material: 1 },
@@ -2396,7 +2396,7 @@ async function main(): Promise<void> {
       requestAssetId: 'voxel-volume/generated',
       modelId: nativeProof.nativeSmoke.conversion.loadedVolumeAsset?.modelId,
       volumeAssetId: 'voxel/generated',
-      grid: 1,
+      grid: 2,
       voxelCount: 3,
       materialCounts: [{ material: 1, voxelCount: 3 }],
       provenanceKinds: ['converted', 'converted', 'converted', 'runtime_export'],

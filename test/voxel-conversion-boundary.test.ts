@@ -1189,6 +1189,7 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
 
   const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
   assert.match(proofSource, /voxelAnnotations/);
+  assert.match(proofSource, /targetGrid: 2/);
   assert.match(proofSource, /submitVoxelAnnotationControl\('load'\)/);
   assert.match(proofSource, /submitVoxelAnnotationControl\('export'\)/);
 
