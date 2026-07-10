@@ -1167,6 +1167,9 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
   assert.match(storeSource, /applyVoxelAnnotationEdit/);
   assert.match(storeSource, /exportVoxelAnnotationLayer/);
   assert.match(storeSource, /expectedLayerHash/);
+  assert.match(storeSource, /const targetVoxelVolumeAssetId = asset\.assetId/);
+  assert.match(storeSource, /loadVoxelVolumeAsset\(\{/);
+  assert.match(storeSource, /new Set\(control\.tags\.split\(','\)/);
   assert.match(storeSource, /input: \{ kind: 'draft', draft: layerDraft \}/);
   assert.match(storeSource, /layer: validation\.normalizedLayer/);
   assert.doesNotMatch(storeSource, /annotationAuthorityStore/);
@@ -1179,15 +1182,20 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
     assert.match(panelSource, new RegExp(`runVoxelAnnotationControl\\('${action}'\\)`));
   }
 
-  for (const control of ['layer_id', 'region_id', 'label', 'kind', 'tags', 'parent_region_id']) {
+  for (const control of ['layer_id', 'region_id', 'label', 'kind', 'tags', 'parent_region_id', 'x1', 'y1', 'z1', 'x2', 'y2', 'z2']) {
     assert.match(panelSource, new RegExp(`data-voxel-annotation-control="${control}"`));
   }
+
+  const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
+  assert.match(proofSource, /voxelAnnotations/);
+  assert.match(proofSource, /submitVoxelAnnotationControl\('load'\)/);
+  assert.match(proofSource, /submitVoxelAnnotationControl\('export'\)/);
 
   for (const method of [
     'validateVoxelAnnotationLayer', 'loadVoxelAnnotationLayer', 'readVoxelAnnotationQuery',
     'applyVoxelAnnotationEdit', 'exportVoxelAnnotationLayer',
   ]) {
-    assert.match(readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8'), new RegExp(`'${method}'`));
+    assert.match(proofSource, new RegExp(`'${method}'`));
   }
 });
 

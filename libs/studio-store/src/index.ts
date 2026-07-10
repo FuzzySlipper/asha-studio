@@ -6225,7 +6225,9 @@ export class StudioWorkspaceStore {
 
   runVoxelAnnotationControl(action: 'load' | 'upsert_region' | 'add_runs' | 'remove_runs' | 'replace_selection' | 'set_parent' | 'set_tags' | 'set_label' | 'set_kind' | 'query_cell' | 'query_bounds' | 'export'): void {
     const facade = this.runtimeSessionFacadeState();
-    const asset = this.voxelAssetWorkflowControl().lastAsset;
+    const assetWorkflow = this.voxelAssetWorkflowControl();
+    const asset = assetWorkflow.lastAsset;
+    const assetWorkflowTarget = this.voxelAssetWorkflowTargetForCurrentDraft();
     const control = this.voxelAnnotationControlState();
     if (facade === null || asset === null) {
       this.recordVoxelAnnotationResult(control, false, 'Attach RuntimeSession and export a voxel asset before annotation authoring.', [], null, null, null);
@@ -6236,20 +6238,32 @@ export class StudioWorkspaceStore {
       start: { x: control.x1, y: control.y1, z: control.z1 },
       length: control.x2 - control.x1 + 1,
     }];
-    const tags = control.tags.split(',').map(tag => tag.trim()).filter(Boolean);
+    const tags = [...new Set(control.tags.split(',').map(tag => tag.trim()).filter(Boolean))].sort();
     const region: VoxelAnnotationRegion = {
       regionId: control.regionId.trim(), label: control.label.trim(), kind: control.kind, tags,
       parentRegionId: control.parentRegionId.trim() || null, bounds, selection: { sparseRuns },
     };
+    const targetVoxelVolumeAssetId = asset.assetId;
     const layerDraft: VoxelAnnotationLayerDraft = {
       layerId: control.layerId.trim(), schemaVersion: 1,
       mediaType: 'application/vnd.asha.voxel-annotation+json;version=1',
-      targetVoxelVolumeAssetId: asset.assetId, targetVoxelDataHash: asset.contentHashes.voxelData,
+      targetVoxelVolumeAssetId, targetVoxelDataHash: asset.contentHashes.voxelData,
       targetBounds: asset.bounds, regions: [region], provenance: [],
     };
     try {
       if (action === 'load') {
-        const validation = facade.validateVoxelAnnotationLayer({ input: { kind: 'draft', draft: layerDraft }, expectedTargetVoxelVolumeAssetId: asset.assetId, expectedTargetVoxelDataHash: asset.contentHashes.voxelData, maxRegions: 64, maxSparseRunsPerRegion: 256, maxTotalAssignedCells: 100000 });
+        const targetLoad = facade.loadVoxelVolumeAsset({
+          asset,
+          targetGrid: assetWorkflowTarget.grid,
+          targetVolumeAssetId: targetVoxelVolumeAssetId,
+          replaceExisting: true,
+          includeMaterialCounts: false,
+        });
+        if (!targetLoad.loaded) {
+          this.recordVoxelAnnotationResult(control, false, 'Voxel annotation target load rejected.', targetLoad.diagnostics.map(diagnostic => diagnostic.message), null, null, null);
+          return;
+        }
+        const validation = facade.validateVoxelAnnotationLayer({ input: { kind: 'draft', draft: layerDraft }, expectedTargetVoxelVolumeAssetId: targetVoxelVolumeAssetId, expectedTargetVoxelDataHash: asset.contentHashes.voxelData, maxRegions: 64, maxSparseRunsPerRegion: 256, maxTotalAssignedCells: 100000 });
         if (!validation.valid || validation.normalizedLayer === null) {
           this.recordVoxelAnnotationResult(control, false, 'Voxel annotation layer rejected by Rust validation.', validation.diagnostics.map(item => item.message), null, null, null);
           return;

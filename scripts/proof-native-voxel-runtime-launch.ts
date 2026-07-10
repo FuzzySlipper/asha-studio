@@ -228,6 +228,17 @@ interface BrowserProof {
       readonly diagnostics: readonly string[];
       readonly assetCanonicalJsonHash: string | null;
     } | null;
+    readonly voxelAnnotations: {
+      readonly status: string;
+      readonly runtimeLayerId: string | null;
+      readonly expectedLayerHash: string | null;
+      readonly queryMatchedRegionIds: readonly string[];
+      readonly exportCanonicalJsonHash: string | null;
+      readonly exportRegionIds: readonly string[];
+      readonly diagnostics: readonly string[];
+      readonly readoutHash: string;
+      readonly actions: readonly { readonly action: string; readonly accepted: boolean; readonly message: string }[];
+    } | null;
     readonly acceptedVoxelEdit: boolean | null;
     readonly rejectedCompactVoxelEdit: boolean | null;
     readonly rejectedVoxelEdit: boolean | null;
@@ -685,6 +696,7 @@ function automationPrelude(): string {
       },
       voxelHistory: null,
       voxelPalette: null,
+      voxelAnnotations: null,
       acceptedVoxelEdit: null,
       rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
@@ -1002,6 +1014,64 @@ function automationPrelude(): string {
       const editor = voxelPaletteEditorReadout();
       return editor.status !== 'idle' && editor.message !== before.message ? editor : null;
     }, 'voxel palette update');
+  }
+
+  function voxelAnnotationControlReadout() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const control = store && typeof store.voxelAnnotationControl === 'function'
+      ? store.voxelAnnotationControl()
+      : null;
+    if (!control) {
+      throw new Error('Voxel annotation control readout unavailable');
+    }
+    return {
+      status: control.status,
+      message: control.message,
+      canSubmit: control.canSubmit,
+      runtimeLayerId: control.runtimeLayerId,
+      expectedLayerHash: control.expectedLayerHash,
+      queryMatchedRegionIds: Array.isArray(control.query?.matchedRegions)
+        ? control.query.matchedRegions.map(region => region.regionId)
+        : [],
+      exportCanonicalJsonHash: control.exportReceipt?.canonicalJsonHash ?? null,
+      exportRegionIds: Array.isArray(control.exportReceipt?.layer?.regions)
+        ? control.exportReceipt.layer.regions.map(region => region.regionId)
+        : [],
+      diagnostics: control.diagnostics,
+      readoutHash: control.readoutHash,
+    };
+  }
+
+  function setVoxelAnnotationControl(name, value) {
+    const input = document.querySelector('[data-voxel-annotation-control="' + name + '"]');
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error('Missing voxel annotation input ' + name);
+    }
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function selectVoxelAnnotationControl(name, value) {
+    const input = document.querySelector('[data-voxel-annotation-control="' + name + '"]');
+    if (!(input instanceof HTMLSelectElement)) {
+      throw new Error('Missing voxel annotation select ' + name);
+    }
+    input.value = String(value);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  async function submitVoxelAnnotationControl(action) {
+    const button = document.querySelector('[data-voxel-annotation-action="' + action + '"]');
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error('Missing voxel annotation action ' + action);
+    }
+    await waitFor(() => !button.disabled && voxelAnnotationControlReadout().canSubmit ? true : null, 'voxel annotation controls ready');
+    const before = voxelAnnotationControlReadout();
+    button.click();
+    return waitFor(() => {
+      const control = voxelAnnotationControlReadout();
+      return control.status !== 'idle' && control.message !== before.message ? control : null;
+    }, 'voxel annotation control ' + action);
   }
 
   function setViewportVoxelHit(coord, face) {
@@ -1425,6 +1495,56 @@ function automationPrelude(): string {
           proof.agentSurface.operationDiagnostics.push('load_voxel_volume_asset.converted:' + loadedVolumeResult.diagnostic);
         }
         proof.nativeSmoke.conversion.loadedVolumeAsset = summarizeVoxelVolumeLoad(loadedVolumeResult);
+        const annotationActions = [];
+        const recordAnnotationAction = (action, control) => {
+          annotationActions.push({ action, accepted: control.status === 'accepted', message: control.message });
+          if (control.status !== 'accepted') {
+            throw new Error('Voxel annotation ' + action + ' rejected: ' + control.message + ' ' + control.diagnostics.join(' · '));
+          }
+        };
+        setVoxelAnnotationControl('x1', 0);
+        setVoxelAnnotationControl('x2', 2);
+        recordAnnotationAction('load', await submitVoxelAnnotationControl('load'));
+
+        setVoxelAnnotationControl('region_id', 'region/studio-parent');
+        setVoxelAnnotationControl('label', 'Studio volume group');
+        setVoxelAnnotationControl('tags', 'studio,group');
+        setVoxelAnnotationControl('x1', 1);
+        setVoxelAnnotationControl('x2', 1);
+        selectVoxelAnnotationControl('kind', 'custom');
+        recordAnnotationAction('upsert_region', await submitVoxelAnnotationControl('upsert_region'));
+
+        setVoxelAnnotationControl('region_id', 'region/studio-selection');
+        setVoxelAnnotationControl('label', 'Studio selection edited');
+        setVoxelAnnotationControl('tags', 'studio,proof');
+        setVoxelAnnotationControl('parent_region_id', 'region/studio-parent');
+        setVoxelAnnotationControl('x1', 0);
+        setVoxelAnnotationControl('x2', 2);
+        selectVoxelAnnotationControl('kind', 'room');
+        recordAnnotationAction('set_label', await submitVoxelAnnotationControl('set_label'));
+        recordAnnotationAction('set_kind', await submitVoxelAnnotationControl('set_kind'));
+        recordAnnotationAction('set_tags', await submitVoxelAnnotationControl('set_tags'));
+        recordAnnotationAction('set_parent', await submitVoxelAnnotationControl('set_parent'));
+
+        setVoxelAnnotationControl('x1', 0);
+        setVoxelAnnotationControl('x2', 2);
+        recordAnnotationAction('remove_runs', await submitVoxelAnnotationControl('remove_runs'));
+        recordAnnotationAction('add_runs', await submitVoxelAnnotationControl('add_runs'));
+        setVoxelAnnotationControl('x1', 0);
+        setVoxelAnnotationControl('x2', 1);
+        recordAnnotationAction('replace_selection', await submitVoxelAnnotationControl('replace_selection'));
+        setVoxelAnnotationControl('x2', 0);
+        recordAnnotationAction('query_cell', await submitVoxelAnnotationControl('query_cell'));
+        setVoxelAnnotationControl('x2', 1);
+        const boundsQuery = await submitVoxelAnnotationControl('query_bounds');
+        recordAnnotationAction('query_bounds', boundsQuery);
+        const exportedAnnotation = await submitVoxelAnnotationControl('export');
+        recordAnnotationAction('export', exportedAnnotation);
+        proof.agentSurface.voxelAnnotations = {
+          ...exportedAnnotation,
+          queryMatchedRegionIds: boundsQuery.queryMatchedRegionIds,
+          actions: annotationActions,
+        };
         const convertedAssetResult = store.runAgentVoxelWorkflowOperation({
           kind: 'persist_voxel_asset',
           persistence: {
@@ -2061,6 +2181,25 @@ async function main(): Promise<void> {
     });
     assert.match(nativeProof.agentSurface.voxelPalette?.assetCanonicalJsonHash ?? '', /^fnv1a64:/);
     assert.ok(nativeProof.agentSurface.voxelPalette?.rejectedDiagnostics.length);
+    assert.equal(nativeProof.agentSurface.voxelAnnotations?.status, 'accepted');
+    assert.ok(nativeProof.agentSurface.voxelAnnotations?.runtimeLayerId);
+    assert.match(nativeProof.agentSurface.voxelAnnotations?.expectedLayerHash ?? '', /^fnv1a64:/);
+    assert.deepEqual(nativeProof.agentSurface.voxelAnnotations?.diagnostics, []);
+    assert.match(nativeProof.agentSurface.voxelAnnotations?.readoutHash ?? '', /^studio-voxel-annotation-control-/);
+    assert.deepEqual(
+      nativeProof.agentSurface.voxelAnnotations?.actions.map(action => action.action),
+      ['load', 'upsert_region', 'set_label', 'set_kind', 'set_tags', 'set_parent', 'remove_runs', 'add_runs', 'replace_selection', 'query_cell', 'query_bounds', 'export'],
+    );
+    assert.ok(nativeProof.agentSurface.voxelAnnotations?.actions.every(action => action.accepted));
+    assert.deepEqual([...(nativeProof.agentSurface.voxelAnnotations?.queryMatchedRegionIds ?? [])].sort(), [
+      'region/studio-parent',
+      'region/studio-selection',
+    ]);
+    assert.match(nativeProof.agentSurface.voxelAnnotations?.exportCanonicalJsonHash ?? '', /^fnv1a64:/);
+    assert.deepEqual([...(nativeProof.agentSurface.voxelAnnotations?.exportRegionIds ?? [])].sort(), [
+      'region/studio-parent',
+      'region/studio-selection',
+    ]);
     assert.equal(nativeProof.agentSurface.transcriptReplay?.artifactKind, 'studio_agent_voxel_operation_transcript_replay');
     assert.equal(nativeProof.agentSurface.transcriptReplay?.artifactVersion, 'studio-agent-voxel-operation-transcript-replay.v0');
     assert.equal(

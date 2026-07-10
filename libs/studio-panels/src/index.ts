@@ -3021,12 +3021,12 @@ export class StudioInspectorPanelComponent {
             <label>Kind <select data-voxel-annotation-control="kind" [value]="store.voxelAnnotationControl().kind" (change)="store.setVoxelAnnotationKind($any($event.target).value)"><option value="selection">Selection</option><option value="room">Room</option><option value="portal">Portal</option><option value="spawn_area">Spawn</option><option value="cover">Cover</option><option value="hazard">Hazard</option><option value="nav_hint">Nav hint</option><option value="custom">Custom</option></select></label>
             <label>Tags <input data-voxel-annotation-control="tags" [value]="store.voxelAnnotationControl().tags" (input)="store.setVoxelAnnotationTextField('tags', $any($event.target).value)" /></label>
             <label>Parent <input data-voxel-annotation-control="parent_region_id" [value]="store.voxelAnnotationControl().parentRegionId" (input)="store.setVoxelAnnotationTextField('parentRegionId', $any($event.target).value)" /></label>
-            <label>X1 <input type="number" [value]="store.voxelAnnotationControl().x1" (input)="store.setVoxelAnnotationCoordinate('x1', $any($event.target).valueAsNumber)" /></label>
-            <label>Y1 <input type="number" [value]="store.voxelAnnotationControl().y1" (input)="store.setVoxelAnnotationCoordinate('y1', $any($event.target).valueAsNumber)" /></label>
-            <label>Z1 <input type="number" [value]="store.voxelAnnotationControl().z1" (input)="store.setVoxelAnnotationCoordinate('z1', $any($event.target).valueAsNumber)" /></label>
-            <label>X2 <input type="number" [value]="store.voxelAnnotationControl().x2" (input)="store.setVoxelAnnotationCoordinate('x2', $any($event.target).valueAsNumber)" /></label>
-            <label>Y2 <input type="number" [value]="store.voxelAnnotationControl().y2" (input)="store.setVoxelAnnotationCoordinate('y2', $any($event.target).valueAsNumber)" /></label>
-            <label>Z2 <input type="number" [value]="store.voxelAnnotationControl().z2" (input)="store.setVoxelAnnotationCoordinate('z2', $any($event.target).valueAsNumber)" /></label>
+            <label>X1 <input type="number" data-voxel-annotation-control="x1" [value]="store.voxelAnnotationControl().x1" (input)="store.setVoxelAnnotationCoordinate('x1', $any($event.target).valueAsNumber)" /></label>
+            <label>Y1 <input type="number" data-voxel-annotation-control="y1" [value]="store.voxelAnnotationControl().y1" (input)="store.setVoxelAnnotationCoordinate('y1', $any($event.target).valueAsNumber)" /></label>
+            <label>Z1 <input type="number" data-voxel-annotation-control="z1" [value]="store.voxelAnnotationControl().z1" (input)="store.setVoxelAnnotationCoordinate('z1', $any($event.target).valueAsNumber)" /></label>
+            <label>X2 <input type="number" data-voxel-annotation-control="x2" [value]="store.voxelAnnotationControl().x2" (input)="store.setVoxelAnnotationCoordinate('x2', $any($event.target).valueAsNumber)" /></label>
+            <label>Y2 <input type="number" data-voxel-annotation-control="y2" [value]="store.voxelAnnotationControl().y2" (input)="store.setVoxelAnnotationCoordinate('y2', $any($event.target).valueAsNumber)" /></label>
+            <label>Z2 <input type="number" data-voxel-annotation-control="z2" [value]="store.voxelAnnotationControl().z2" (input)="store.setVoxelAnnotationCoordinate('z2', $any($event.target).valueAsNumber)" /></label>
           </div>
           <div class="voxel-history-panel__actions">
             <button data-voxel-annotation-action="load" [disabled]="!store.voxelAnnotationControl().canSubmit" (click)="store.runVoxelAnnotationControl('load')">Load</button>
