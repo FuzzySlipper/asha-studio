@@ -494,9 +494,14 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /agentVoxelTranscriptOperationToWorkflowOperation/);
   assert.match(storeSource, /unsupported agent voxel workflow operation/);
   assert.match(storeSource, /register_conversion_mesh_asset/);
+  assert.match(storeSource, /import_conversion_mesh_source/);
   assert.match(storeSource, /export_voxel_volume_asset/);
   assert.match(storeSource, /save_voxel_volume_asset/);
   assert.match(storeSource, /load_voxel_volume_asset/);
+  assert.match(storeSource, /unload_voxel_volume_asset/);
+  assert.match(storeSource, /buildStudioAgentVoxelMeshSourceImportReadModel/);
+  assert.match(storeSource, /buildStudioAgentVoxelVolumeUnloadReadModel/);
+  assert.match(storeSource, /imported_static_mesh/);
   assert.match(storeSource, /buildStudioAgentVoxelVolumeExportReadModel/);
   assert.match(storeSource, /buildStudioAgentVoxelVolumeSaveReadModel/);
   assert.match(storeSource, /buildStudioAgentVoxelVolumeLoadReadModel/);

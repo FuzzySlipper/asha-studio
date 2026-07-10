@@ -109,6 +109,8 @@ import {
   type VoxelConversionReceipt,
   type VoxelConversionSettings,
   type VoxelConversionMeshAssetRegistrationRequest,
+  type VoxelConversionMeshSourceImportReceipt,
+  type VoxelConversionMeshSourceImportRequest,
   type VoxelConversionSourceRegistration,
   type VoxelConversionSourceRegistrationRequest,
   type VoxelConversionSourceRef,
@@ -140,6 +142,8 @@ import {
   type VoxelVolumeAssetSaveReceipt,
   type VoxelVolumeAssetSaveRequest,
   type VoxelVolumeAssetStoredDiff,
+  type VoxelVolumeAssetUnloadReceipt,
+  type VoxelVolumeAssetUnloadRequest,
   type VoxelAnnotationEditOperation,
   type VoxelAnnotationEditReceipt,
   type VoxelAnnotationKind,
@@ -508,16 +512,26 @@ export interface StudioVoxelConversionSettingsDraft {
   readonly materialMap: VoxelConversionMaterialMap;
 }
 
+export interface StudioImportedVoxelConversionSource {
+  readonly source: VoxelConversionMeshSourceImportReceipt['source'];
+  readonly sourcePath: string;
+  readonly sourceByteCount: number;
+  readonly groupCount: number;
+  readonly materialSlotCount: number;
+}
+
 export type StudioAgentVoxelWorkflowOperationKind =
   | 'inspect'
   | 'register_conversion_source'
   | 'register_conversion_mesh_asset'
+  | 'import_conversion_mesh_source'
   | 'configure_conversion'
   | 'run_conversion'
   | 'get_model_info'
   | 'export_voxel_volume_asset'
   | 'save_voxel_volume_asset'
   | 'load_voxel_volume_asset'
+  | 'unload_voxel_volume_asset'
   | 'view_from_angle'
   | 'publish_preview'
   | 'persist_voxel_asset'
@@ -869,16 +883,62 @@ export interface StudioAgentVoxelVolumeLoadReadModel {
   readonly loadHash: string;
 }
 
+export interface StudioAgentVoxelMeshSourceImportReadModel {
+  readonly artifactKind: 'studio_agent_voxel_mesh_source_import';
+  readonly artifactVersion: 'studio-agent-voxel-mesh-source-import.v0';
+  readonly sourceAssetId: string;
+  readonly imported: boolean;
+  readonly sourcePath: string;
+  readonly format: string;
+  readonly sourceByteCount: number;
+  readonly sourceHash: string;
+  readonly meshAssetId: string | null;
+  readonly sourceBounds: VoxelConversionMeshSourceImportReceipt['sourceBounds'];
+  readonly vertexCount: number;
+  readonly triangleCount: number;
+  readonly groupCount: number;
+  readonly materialSlotCount: number;
+  readonly evidenceKinds: readonly string[];
+  readonly diagnosticCodes: readonly string[];
+  readonly nonClaims: readonly [
+    'not_studio_mesh_parsing',
+    'not_browser_filesystem_import',
+    'not_raw_runtime_bridge_dispatch',
+  ];
+  readonly importHash: string;
+}
+
+export interface StudioAgentVoxelVolumeUnloadReadModel {
+  readonly artifactKind: 'studio_agent_voxel_volume_unload';
+  readonly artifactVersion: 'studio-agent-voxel-volume-unload.v0';
+  readonly grid: number;
+  readonly volumeAssetId: string | null;
+  readonly unloaded: boolean;
+  readonly modelId: string;
+  readonly removedVoxelCount: number;
+  readonly sessionHash: string;
+  readonly replayHash: string;
+  readonly diagnosticCodes: readonly string[];
+  readonly nonClaims: readonly [
+    'not_projectbundle_asset_delete',
+    'not_browser_local_storage_delete',
+    'not_raw_runtime_bridge_dispatch',
+  ];
+  readonly unloadHash: string;
+}
+
 export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'inspect' }
   | { readonly kind: 'register_conversion_source'; readonly registration: VoxelConversionSourceRegistrationRequest }
   | { readonly kind: 'register_conversion_mesh_asset'; readonly registration: VoxelConversionMeshAssetRegistrationRequest }
+  | { readonly kind: 'import_conversion_mesh_source'; readonly importRequest: VoxelConversionMeshSourceImportRequest }
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
   | { readonly kind: 'get_model_info'; readonly request: VoxelModelInfoRequest }
   | { readonly kind: 'export_voxel_volume_asset'; readonly exportRequest: VoxelVolumeAssetExportRequest }
   | { readonly kind: 'save_voxel_volume_asset'; readonly saveRequest: VoxelVolumeAssetSaveRequest }
   | { readonly kind: 'load_voxel_volume_asset'; readonly loadRequest: VoxelVolumeAssetLoadRequest }
+  | { readonly kind: 'unload_voxel_volume_asset'; readonly unloadRequest: VoxelVolumeAssetUnloadRequest }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
   | { readonly kind: 'persist_voxel_asset'; readonly persistence: StudioAgentVoxelAssetPersistenceRequest }
@@ -946,10 +1006,12 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
   readonly compiledVoxelEditBatch?: CommandBatch | null;
   readonly sourceRegistration?: VoxelConversionSourceRegistration | null;
+  readonly meshSourceImport?: StudioAgentVoxelMeshSourceImportReadModel | null;
   readonly modelInfo?: VoxelModelInfoReadout | null;
   readonly voxelVolumeExport?: StudioAgentVoxelVolumeExportReadModel | null;
   readonly voxelVolumeSave?: StudioAgentVoxelVolumeSaveReadModel | null;
   readonly voxelVolumeLoad?: StudioAgentVoxelVolumeLoadReadModel | null;
+  readonly voxelVolumeUnload?: StudioAgentVoxelVolumeUnloadReadModel | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
   readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
@@ -1998,12 +2060,14 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'inspect',
   'register_conversion_source',
   'register_conversion_mesh_asset',
+  'import_conversion_mesh_source',
   'configure_conversion',
   'run_conversion',
   'get_model_info',
   'export_voxel_volume_asset',
   'save_voxel_volume_asset',
   'load_voxel_volume_asset',
+  'unload_voxel_volume_asset',
   'view_from_angle',
   'publish_preview',
   'persist_voxel_asset',
@@ -2051,12 +2115,14 @@ const AGENT_VOXEL_TRANSCRIPT_INPUT_KEYS: Readonly<Record<StudioAgentVoxelWorkflo
   inspect: [],
   register_conversion_source: ['registration'],
   register_conversion_mesh_asset: ['registration'],
+  import_conversion_mesh_source: ['importRequest'],
   configure_conversion: ['patch'],
   run_conversion: ['commandId'],
   get_model_info: ['request'],
   export_voxel_volume_asset: ['exportRequest'],
   save_voxel_volume_asset: ['saveRequest'],
   load_voxel_volume_asset: ['loadRequest'],
+  unload_voxel_volume_asset: ['unloadRequest'],
   view_from_angle: ['view'],
   publish_preview: ['publication'],
   persist_voxel_asset: ['persistence'],
@@ -3303,6 +3369,64 @@ export function buildStudioAgentVoxelVolumeLoadReadModel(
   };
 }
 
+export function buildStudioAgentVoxelMeshSourceImportReadModel(
+  receipt: VoxelConversionMeshSourceImportReceipt,
+): StudioAgentVoxelMeshSourceImportReadModel {
+  const body = {
+    artifactKind: 'studio_agent_voxel_mesh_source_import' as const,
+    artifactVersion: 'studio-agent-voxel-mesh-source-import.v0' as const,
+    sourceAssetId: receipt.source.assetId,
+    imported: receipt.imported,
+    sourcePath: receipt.sourcePath,
+    format: receipt.format,
+    sourceByteCount: receipt.sourceByteCount,
+    sourceHash: receipt.source.sourceHash,
+    meshAssetId: receipt.meshAsset?.assetId ?? null,
+    sourceBounds: receipt.sourceBounds,
+    vertexCount: receipt.vertexCount,
+    triangleCount: receipt.triangleCount,
+    groupCount: receipt.groups.length,
+    materialSlotCount: receipt.materialSlots.length,
+    evidenceKinds: receipt.evidence.map(ref => ref.kind),
+    diagnosticCodes: receipt.diagnostics.map(diagnostic => diagnostic.code),
+    nonClaims: [
+      'not_studio_mesh_parsing',
+      'not_browser_filesystem_import',
+      'not_raw_runtime_bridge_dispatch',
+    ] as const,
+  };
+  return {
+    ...body,
+    importHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-mesh-source-import', body),
+  };
+}
+
+export function buildStudioAgentVoxelVolumeUnloadReadModel(
+  receipt: VoxelVolumeAssetUnloadReceipt,
+): StudioAgentVoxelVolumeUnloadReadModel {
+  const body = {
+    artifactKind: 'studio_agent_voxel_volume_unload' as const,
+    artifactVersion: 'studio-agent-voxel-volume-unload.v0' as const,
+    grid: receipt.grid,
+    volumeAssetId: receipt.volumeAssetId,
+    unloaded: receipt.unloaded,
+    modelId: receipt.modelId,
+    removedVoxelCount: receipt.removedVoxelCount,
+    sessionHash: receipt.sessionHash,
+    replayHash: receipt.replayHash,
+    diagnosticCodes: receipt.diagnostics.map(diagnostic => diagnostic.code),
+    nonClaims: [
+      'not_projectbundle_asset_delete',
+      'not_browser_local_storage_delete',
+      'not_raw_runtime_bridge_dispatch',
+    ] as const,
+  };
+  return {
+    ...body,
+    unloadHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-volume-unload', body),
+  };
+}
+
 function agentVoxelEditDiagnostic(batch: CommandBatch): string | null {
   if (batch.commands.length === 0) {
     return 'voxel edit batch must include at least one command';
@@ -3855,8 +3979,9 @@ function buildStudioVoxelHistoryPanelReadModel(
 function voxelConversionSourceOptions(
   entries: readonly StudioAssetInventoryEntryReadModel[],
   selectedSourceAssetId: string | null,
+  importedSource: StudioImportedVoxelConversionSource | null,
 ): readonly StudioVoxelConversionSourceOption[] {
-  return entries.map(entry => ({
+  const options = entries.map(entry => ({
     assetId: entry.assetId,
     label: `${entry.assetId} · ${entry.kind}`,
     kind: entry.kind,
@@ -3872,12 +3997,41 @@ function voxelConversionSourceOptions(
     supported: SUPPORTED_VOXEL_CONVERSION_CATALOG_SOURCE_KINDS.includes(entry.kind as 'static_mesh'),
     selected: entry.assetId === selectedSourceAssetId,
   }));
+  if (importedSource === null || options.some(option => option.assetId === importedSource.source.assetId)) {
+    return options;
+  }
+  return [
+    ...options,
+    {
+      assetId: importedSource.source.assetId,
+      label: `${importedSource.source.assetId} · imported_static_mesh`,
+      kind: 'imported_static_mesh',
+      sourcePath: importedSource.sourcePath,
+      sourceHash: importedSource.source.sourceHash,
+      devCacheKey: null,
+      importStatus: `authority_imported:${importedSource.sourceByteCount}_bytes`,
+      publishOutputKey: null,
+      packedHash: null,
+      packedBytes: importedSource.sourceByteCount,
+      dependencies: [],
+      referencedRenderableIds: [],
+      supported: true,
+      selected: importedSource.source.assetId === selectedSourceAssetId,
+    },
+  ];
 }
 
 function voxelConversionSourceRef(
   selectedSource: StudioAssetInventoryEntryReadModel | null,
   draft: StudioVoxelConversionSettingsDraft,
+  importedSource: StudioImportedVoxelConversionSource | null,
 ): VoxelConversionSourceRef | null {
+  if (importedSource !== null && importedSource.source.assetId === draft.selectedSourceAssetId) {
+    return {
+      ...importedSource.source,
+      meshPrimitive: draft.meshPrimitive,
+    };
+  }
   if (selectedSource === null) {
     return null;
   }
@@ -4122,13 +4276,14 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
   readonly draft: StudioVoxelConversionSettingsDraft;
   readonly sourceOptions: readonly StudioVoxelConversionSourceOption[];
   readonly selectedSource: StudioAssetInventoryEntryReadModel | null;
+  readonly importedSource: StudioImportedVoxelConversionSource | null;
   readonly sessionId: string;
   readonly expectedTimelineSequence: number;
   readonly runtimeSession: Partial<Pick<RuntimeSessionFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
   readonly authorityState: StudioVoxelConversionAuthorityState;
 }): StudioVoxelConversionWorkspaceShellReadModel {
   const workspace = buildStudioVoxelConversionWorkspaceReadModel({
-    source: voxelConversionSourceRef(options.selectedSource, options.draft),
+    source: voxelConversionSourceRef(options.selectedSource, options.draft, options.importedSource),
     target: voxelConversionTargetRef(options.draft),
     settings: voxelConversionSettings(options.draft),
     plan: options.authorityState.plan,
@@ -4356,6 +4511,7 @@ export function buildStudioVoxelConversionWorkspaceShellForInputs(options: {
   readonly draft: StudioVoxelConversionSettingsDraft;
   readonly sourceOptions?: readonly StudioVoxelConversionSourceOption[];
   readonly selectedSource: StudioAssetInventoryEntryReadModel | null;
+  readonly importedSource?: StudioImportedVoxelConversionSource | null;
   readonly sessionId: string;
   readonly expectedTimelineSequence: number;
   readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
@@ -4365,6 +4521,7 @@ export function buildStudioVoxelConversionWorkspaceShellForInputs(options: {
     draft: options.draft,
     sourceOptions: options.sourceOptions ?? [],
     selectedSource: options.selectedSource,
+    importedSource: options.importedSource ?? null,
     sessionId: options.sessionId,
     expectedTimelineSequence: options.expectedTimelineSequence,
     runtimeSession: options.runtimeSession ?? null,
@@ -4582,6 +4739,7 @@ export class StudioWorkspaceStore {
   private readonly voxelConversionAuthorityState = signal<StudioVoxelConversionAuthorityState>(
     EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE,
   );
+  private readonly importedVoxelConversionSourceState = signal<StudioImportedVoxelConversionSource | null>(null);
   private readonly voxelAssetWorkflowTargetDraftState = signal<StudioVoxelAssetWorkflowTargetDraft>(
     DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT,
   );
@@ -4796,12 +4954,14 @@ export class StudioWorkspaceStore {
     const draft = this.voxelConversionDraftState();
     const assetInventory = this.assetInventoryState().inventory;
     const assetEntries = assetInventory?.entries ?? [];
-    const sourceOptions = voxelConversionSourceOptions(assetEntries, draft.selectedSourceAssetId);
+    const importedSource = this.importedVoxelConversionSourceState();
+    const sourceOptions = voxelConversionSourceOptions(assetEntries, draft.selectedSourceAssetId, importedSource);
     const selectedSource = assetEntries.find(entry => entry.assetId === draft.selectedSourceAssetId) ?? null;
     return buildVoxelConversionWorkspaceShellReadModel({
       draft,
       sourceOptions,
       selectedSource,
+      importedSource,
       sessionId: this.workspaceState().session.sessionId,
       expectedTimelineSequence: this.workspaceState().timelineSequence + 1,
       runtimeSession: this.runtimeSessionFacadeState(),
@@ -4951,7 +5111,60 @@ export class StudioWorkspaceStore {
           };
         }
       }
+      case 'import_conversion_mesh_source': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before importing a bounded mesh source for voxel conversion.',
+            surface: this.agentVoxelWorkflowSurface(),
+            meshSourceImport: null,
+          };
+        }
+        try {
+          const receipt = facade.importVoxelConversionMeshSource(operation.importRequest);
+          const importReadout = buildStudioAgentVoxelMeshSourceImportReadModel(receipt);
+          const accepted = receipt.imported && receipt.meshAsset !== null;
+          if (accepted) {
+            this.importedVoxelConversionSourceState.set({
+              source: receipt.source,
+              sourcePath: receipt.sourcePath,
+              sourceByteCount: receipt.sourceByteCount,
+              groupCount: receipt.groups.length,
+              materialSlotCount: receipt.materialSlots.length,
+            });
+          }
+          const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+            commandId: 'voxel_conversion.import_mesh_source',
+            label: 'Agent Voxel Mesh Source Import',
+            inputSummary: `asset=${receipt.source.assetId};format=${receipt.format};bytes=${receipt.sourceByteCount}`,
+            outputSummary: accepted
+              ? `Imported ${receipt.vertexCount} vertices and ${receipt.triangleCount} triangles for voxel conversion.`
+              : receipt.diagnostics.at(0)?.message ?? 'Voxel conversion mesh source import was rejected.',
+            status: accepted ? 'ok' : 'rejected',
+          });
+          this.workspaceState.set(recorded.workspace);
+          this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+          return {
+            accepted,
+            operation: operation.kind,
+            diagnostic: accepted ? null : recorded.timelineEntry.outputSummary,
+            surface: this.agentVoxelWorkflowSurface(),
+            meshSourceImport: importReadout,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel conversion mesh source import failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            meshSourceImport: null,
+          };
+        }
+      }
       case 'configure_conversion': {
+        this.voxelConversionAuthorityState.set(EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE);
         this.applyAgentVoxelConversionPatch(operation.patch);
         return {
           accepted: true,
@@ -5130,6 +5343,49 @@ export class StudioWorkspaceStore {
             diagnostic: error instanceof Error ? error.message : 'Voxel volume asset load failed.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeLoad: null,
+          };
+        }
+      }
+      case 'unload_voxel_volume_asset': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before unloading a resident voxel volume.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeUnload: null,
+          };
+        }
+        try {
+          const receipt = facade.unloadVoxelVolumeAsset(operation.unloadRequest);
+          const unloadReadout = buildStudioAgentVoxelVolumeUnloadReadModel(receipt);
+          const accepted = receipt.unloaded;
+          const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+            commandId: 'voxel_asset.unload_volume',
+            label: 'Agent Voxel Volume Unload',
+            inputSummary: `grid=${receipt.grid};volume=${receipt.volumeAssetId ?? 'default'}`,
+            outputSummary: accepted
+              ? `Unloaded ${receipt.removedVoxelCount} resident voxels from ${receipt.modelId}.`
+              : receipt.diagnostics.at(0)?.message ?? 'Voxel volume unload was rejected.',
+            status: accepted ? 'ok' : 'rejected',
+          });
+          this.workspaceState.set(recorded.workspace);
+          this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+          return {
+            accepted,
+            operation: operation.kind,
+            diagnostic: accepted ? null : recorded.timelineEntry.outputSummary,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeUnload: unloadReadout,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel volume unload failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeUnload: null,
           };
         }
       }
