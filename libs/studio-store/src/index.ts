@@ -6268,7 +6268,7 @@ export class StudioWorkspaceStore {
           this.recordVoxelAnnotationResult(control, false, 'Voxel annotation layer rejected by Rust validation.', validation.diagnostics.map(item => item.message), null, null, null);
           return;
         }
-        const receipt = facade.loadVoxelAnnotationLayer({ layer: validation.normalizedLayer, targetGrid: 1, replaceExisting: true, expectedSessionHash: null });
+        const receipt = facade.loadVoxelAnnotationLayer({ layer: validation.normalizedLayer, targetGrid: targetLoad.grid, replaceExisting: true, expectedSessionHash: null });
         this.recordVoxelAnnotationResult(control, receipt.loaded, receipt.loaded ? `Loaded annotation layer ${receipt.requestLayerId}.` : 'Annotation layer load rejected.', receipt.diagnostics.map(item => item.message), receipt, null, null);
         return;
       }
@@ -7476,7 +7476,11 @@ export class StudioWorkspaceStore {
             sessionHash: receipt.sessionHashAfter,
           });
       this.refreshRuntimeSessionInspectionReadout(facade);
-      this.runtimeConnectionMessageState.set(`Generated-level regenerate ${receipt.status}: ${receipt.reason}.`);
+      this.runtimeConnectionMessageState.set(
+        receipt.status === 'unsupported'
+          ? `Generated-level regenerate unsupported: ${receipt.reason}.`
+          : 'Generated-level regenerate applied.',
+      );
       this.menuMessageState.set('Generated-level regenerate used typed public RuntimeSession control.');
     } catch (error) {
       this.runtimeConnectionMessageState.set(

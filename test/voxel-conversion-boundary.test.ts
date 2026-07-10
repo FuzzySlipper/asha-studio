@@ -1169,6 +1169,7 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
   assert.match(storeSource, /expectedLayerHash/);
   assert.match(storeSource, /const targetVoxelVolumeAssetId = asset\.assetId/);
   assert.match(storeSource, /loadVoxelVolumeAsset\(\{/);
+  assert.match(storeSource, /loadVoxelAnnotationLayer\(\{ layer: validation\.normalizedLayer, targetGrid: targetLoad\.grid/);
   assert.match(storeSource, /new Set\(control\.tags\.split\(','\)/);
   assert.match(storeSource, /input: \{ kind: 'draft', draft: layerDraft \}/);
   assert.match(storeSource, /layer: validation\.normalizedLayer/);

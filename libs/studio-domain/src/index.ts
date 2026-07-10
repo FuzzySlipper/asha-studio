@@ -1421,7 +1421,7 @@ export interface StudioGeneratedLevelLiveReadModel {
     readonly disabledReason: string | null;
     readonly lastReceipt: {
       readonly operation: 'regenerate' | 'apply_to_runtime_world';
-      readonly status: 'accepted' | 'unsupported';
+      readonly status: 'applied' | 'unsupported';
       readonly reason: string | null;
       readonly sequenceId: number;
       readonly sessionHashAfter: string;
@@ -4875,7 +4875,9 @@ export function buildStudioGeneratedLevelInspectionReadModel(input: {
         : {
             operation: input.regenerateReceipt.operation,
             status: input.regenerateReceipt.status,
-            reason: input.regenerateReceipt.reason,
+            reason: input.regenerateReceipt.status === 'unsupported'
+              ? input.regenerateReceipt.reason
+              : null,
             sequenceId: input.regenerateReceipt.sequenceId,
             sessionHashAfter: input.regenerateReceipt.sessionHashAfter,
           },
