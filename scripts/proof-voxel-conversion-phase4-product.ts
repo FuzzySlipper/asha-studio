@@ -22,7 +22,7 @@ import type {
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
 } from '@asha/contracts';
-import type { RuntimeSessionFacade } from '@asha/runtime-bridge';
+import type { RuntimeSessionFacade } from '@asha/runtime-session';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const fixturePath = join(repoRoot, 'fixtures/voxel-conversion/phase4-cases.json');

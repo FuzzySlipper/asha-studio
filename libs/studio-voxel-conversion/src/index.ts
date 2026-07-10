@@ -20,7 +20,7 @@ import type {
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
 } from '@asha/contracts';
-import type { RuntimeSessionFacade } from '@asha/runtime-bridge';
+import type { RuntimeSessionFacade } from '@asha/runtime-session';
 
 export type StudioVoxelConversionCommandId =
   | 'voxel_conversion.plan'

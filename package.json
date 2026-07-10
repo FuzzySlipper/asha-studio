@@ -44,6 +44,7 @@
     "@asha/game-workspace": "link:../asha-engine/ts/packages/game-workspace",
     "@asha/render-projection": "link:../asha-engine/ts/packages/render-projection",
     "@asha/runtime-bridge": "link:../asha-engine/ts/packages/runtime-bridge",
+    "@asha/runtime-session": "link:../asha-engine/ts/packages/runtime-session",
     "rxjs": "~7.8.0",
     "three": "^0.184.0"
   },

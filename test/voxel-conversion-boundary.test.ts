@@ -43,7 +43,7 @@ import type {
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
 } from '@asha/contracts';
-import type { RuntimeSessionFacade } from '@asha/runtime-bridge';
+import type { RuntimeSessionFacade } from '@asha/runtime-session';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const boundaryScript = join(repoRoot, 'scripts/check-boundaries.mjs');
@@ -1153,6 +1153,8 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
   assert.match(storeSource, /applyVoxelAnnotationEdit/);
   assert.match(storeSource, /exportVoxelAnnotationLayer/);
   assert.match(storeSource, /expectedLayerHash/);
+  assert.match(storeSource, /input: \{ kind: 'draft', draft: layerDraft \}/);
+  assert.match(storeSource, /layer: validation\.normalizedLayer/);
   assert.doesNotMatch(storeSource, /annotationAuthorityStore/);
 
   for (const action of [
@@ -1173,6 +1175,28 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
   ]) {
     assert.match(readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8'), new RegExp(`'${method}'`));
   }
+});
+
+test('studio imports RuntimeSession semantics from their public package root', () => {
+  const semanticConsumerPaths = [
+    'libs/studio-domain/src/index.ts',
+    'libs/studio-store/src/index.ts',
+    'libs/studio-voxel-conversion/src/index.ts',
+    'scripts/proof-voxel-conversion-phase4-product.ts',
+  ];
+
+  for (const relativePath of semanticConsumerPaths) {
+    const source = readFileSync(join(repoRoot, relativePath), 'utf8');
+    assert.match(source, /from '@asha\/runtime-session';/);
+    assert.doesNotMatch(
+      source,
+      /import(?: type)? \{[^}]*\bRuntimeSessionFacade\b[^}]*\} from '@asha\/runtime-bridge';/s,
+    );
+    assert.doesNotMatch(source, /@asha\/runtime-bridge:RuntimeSessionFacade/);
+  }
+
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  assert.match(storeSource, /createRuntimeSessionFacade,[\s\S]*from '@asha\/runtime-bridge';/);
 });
 
 test('studio voxel transcript evaluation rejects VoxelForge import compatibility and routes Asha-native replay', () => {

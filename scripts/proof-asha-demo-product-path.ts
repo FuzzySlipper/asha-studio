@@ -11,10 +11,10 @@ import {
 } from '@asha-studio/domain';
 import {
   type CameraCreateRequest,
-  type RuntimeSessionStateSummary,
   type WorldLoadRequest,
 } from '@asha/runtime-bridge';
 import { createMockRuntimeSession } from '@asha/runtime-bridge/reference';
+import type { RuntimeSessionStateSummary } from '@asha/runtime-session';
 
 const repoRoot = process.cwd();
 const demoRoot = join(repoRoot, '..', 'asha-demo');

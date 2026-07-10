@@ -8,7 +8,7 @@
   "dependencies": {
     "@asha/command-registry": "link:../../../asha-engine/ts/packages/command-registry",
     "@asha/contracts": "link:../../../asha-engine/ts/packages/contracts",
-    "@asha/runtime-bridge": "link:../../../asha-engine/ts/packages/runtime-bridge",
+    "@asha/runtime-session": "link:../../../asha-engine/ts/packages/runtime-session",
     "tslib": "^2.3.0"
   }
 }

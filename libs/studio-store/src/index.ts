@@ -141,7 +141,7 @@ import {
   type VoxelAnnotationEditOperation,
   type VoxelAnnotationEditReceipt,
   type VoxelAnnotationKind,
-  type VoxelAnnotationLayer,
+  type VoxelAnnotationLayerDraft,
   type VoxelAnnotationLayerExportReceipt,
   type VoxelAnnotationLayerLoadReceipt,
   type VoxelAnnotationQueryReadout,
@@ -155,23 +155,25 @@ import {
   RuntimeBridgeError,
   createRuntimeSessionFacade,
   type CameraCreateRequest,
-  type CombatFeedbackProjection,
-  type EncounterDirectorReadout,
-  type GeneratedTunnelReadout,
-  type NavProjectionReadout,
-  type RuntimeBridge,
-  type RuntimeSessionAutonomousPolicyTickReadout,
-  type RuntimeSessionEncounterTransitionReceipt,
-  type RuntimeSessionFacade,
-  type RuntimeSessionGeneratedTunnelOperationReceipt,
-  type RuntimeSessionLifecycleRestartReceipt,
-  type RuntimeSessionLifecycleStatusReadout,
-  type RuntimeSessionCommandReceipt,
-  type RuntimeSessionProjectionSummary,
-  type RuntimeSessionStateSummary,
-  type RuntimeSessionTelemetrySummary,
   type ProjectBundleLoadRequest,
+  type RuntimeBridge,
 } from '@asha/runtime-bridge';
+import type {
+  CombatFeedbackProjection,
+  EncounterDirectorReadout,
+  GeneratedTunnelReadout,
+  NavProjectionReadout,
+  RuntimeSessionAutonomousPolicyTickReadout,
+  RuntimeSessionEncounterTransitionReceipt,
+  RuntimeSessionFacade,
+  RuntimeSessionGeneratedTunnelOperationReceipt,
+  RuntimeSessionLifecycleRestartReceipt,
+  RuntimeSessionLifecycleStatusReadout,
+  RuntimeSessionCommandReceipt,
+  RuntimeSessionProjectionSummary,
+  RuntimeSessionStateSummary,
+  RuntimeSessionTelemetrySummary,
+} from '@asha/runtime-session';
 import type {
   VoxelConversionApplyCommandInput,
   VoxelConversionEvidenceExportInput,
@@ -6203,22 +6205,20 @@ export class StudioWorkspaceStore {
       regionId: control.regionId.trim(), label: control.label.trim(), kind: control.kind, tags,
       parentRegionId: control.parentRegionId.trim() || null, bounds, selection: { sparseRuns },
     };
-    const layer: VoxelAnnotationLayer = {
+    const layerDraft: VoxelAnnotationLayerDraft = {
       layerId: control.layerId.trim(), schemaVersion: 1,
       mediaType: 'application/vnd.asha.voxel-annotation+json;version=1',
       targetVoxelVolumeAssetId: asset.assetId, targetVoxelDataHash: asset.contentHashes.voxelData,
       targetBounds: asset.bounds, regions: [region], provenance: [],
-      contentHashes: { canonicalJson: control.expectedLayerHash ?? '', membershipData: '' }, validationDiagnostics: [],
     };
     try {
       if (action === 'load') {
-        const validation = facade.validateVoxelAnnotationLayer({ layer, expectedTargetVoxelVolumeAssetId: asset.assetId, expectedTargetVoxelDataHash: asset.contentHashes.voxelData, maxRegions: 64, maxSparseRunsPerRegion: 256, maxTotalAssignedCells: 100000 });
-        if (!validation.valid || validation.canonicalJsonHash === null) {
+        const validation = facade.validateVoxelAnnotationLayer({ input: { kind: 'draft', draft: layerDraft }, expectedTargetVoxelVolumeAssetId: asset.assetId, expectedTargetVoxelDataHash: asset.contentHashes.voxelData, maxRegions: 64, maxSparseRunsPerRegion: 256, maxTotalAssignedCells: 100000 });
+        if (!validation.valid || validation.normalizedLayer === null) {
           this.recordVoxelAnnotationResult(control, false, 'Voxel annotation layer rejected by Rust validation.', validation.diagnostics.map(item => item.message), null, null, null);
           return;
         }
-        const normalizedLayer = { ...layer, contentHashes: { canonicalJson: validation.canonicalJsonHash, membershipData: validation.membershipDataHash ?? '' } };
-        const receipt = facade.loadVoxelAnnotationLayer({ layer: normalizedLayer, targetGrid: 1, replaceExisting: true, expectedSessionHash: null });
+        const receipt = facade.loadVoxelAnnotationLayer({ layer: validation.normalizedLayer, targetGrid: 1, replaceExisting: true, expectedSessionHash: null });
         this.recordVoxelAnnotationResult(control, receipt.loaded, receipt.loaded ? `Loaded annotation layer ${receipt.requestLayerId}.` : 'Annotation layer load rejected.', receipt.diagnostics.map(item => item.message), receipt, null, null);
         return;
       }

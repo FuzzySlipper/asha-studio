@@ -56,7 +56,7 @@ The current local ASHA package linkage uses package-root links to `/home/dev/ash
 
 `boundary-policy.json` is the local boundary configuration used by `pnpm run check:boundaries`; ASHA package allow/deny policy comes from the engine manifest it references.
 
-Current source imports may use only the public package roots approved for `asha-studio` in the ASHA manifest: `@asha/command-registry`, `@asha/catalog-core`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, `@asha/runtime-bridge`, and `@asha/ui-dom`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
+Current source imports may use only the public package roots approved for `asha-studio` in the ASHA manifest: `@asha/command-registry`, `@asha/catalog-core`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, `@asha/runtime-bridge`, `@asha/runtime-session`, and `@asha/ui-dom`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha-engine`, or arbitrary `call(methodName, json)` command hatches.
 

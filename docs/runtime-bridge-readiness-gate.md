@@ -12,10 +12,12 @@ not permission to import raw transports or make browser projection authoritative
 Current Studio keeps browser/reference projection evidence separate from the V2
 selected-backend runtime-authority proof path:
 
-- `@asha/contracts`, `@asha/command-registry`, `@asha/editor-tools`, and
-  `@asha/runtime-bridge` are approved ASHA package roots in Studio source.
-- `@asha/runtime-bridge` is approved only as the public facade package root for
-  selected-backend/native proof paths.
+- `@asha/contracts`, `@asha/command-registry`, `@asha/editor-tools`,
+  `@asha/runtime-bridge`, and `@asha/runtime-session` are approved ASHA package
+  roots in Studio source.
+- `@asha/runtime-bridge` owns concrete bridge/provider construction for
+  selected-backend/native proof paths. `@asha/runtime-session` owns the
+  transport-neutral facade and semantic readout/receipt contracts.
 - `native` runtime mode is enabled/ready only when Studio records
   `runtime-bridge.v0` metadata, backend proof refs, accepted/rejected command
   evidence, and satisfies the proof obligations in this gate.
@@ -41,11 +43,13 @@ session/readout/proof artifacts:
 |---|---:|---:|---|
 | `@asha/contracts` | `contracts.v0` | `0.1.0` | Generated semantic DTO/type border. Import root only. |
 | `@asha/command-registry` | `command-registry.v0` | `0.1.0` | Public command identity/catalog surface. Import root only. |
-| `@asha/runtime-bridge` | `runtime-bridge.v0` | `0.1.0` | Public runtime facade for the narrow post-`asha#3220` authority path. Import root only. |
+| `@asha/runtime-bridge` | `runtime-bridge.v0` | `0.1.0` | Concrete provider and bridge-backed facade construction. Import root only. |
+| `@asha/runtime-session` | `runtime-session.v0` | `0.1.0` | Transport-neutral facade and semantic RuntimeSession contracts. Import root only. |
 
 `@asha/native-bridge` and `@asha/wasm-replay-bridge` remain forbidden Studio
 imports. Runtime/native/replay details must be hidden behind the
-`@asha/runtime-bridge` facade.
+`@asha/runtime-bridge` construction surface and the `@asha/runtime-session`
+facade contract.
 
 ## Required public DTOs
 
@@ -64,10 +68,10 @@ The runtime integration path must provide or identify public DTOs for:
    `operation_unimplemented`, `incompatible_surface`, `stale_snapshot`, and
    `replay_mismatch`.
 
-These DTOs must be consumed through `@asha/contracts` and/or the
-`@asha/runtime-bridge` package root only. No generated file paths, package
-`src/**` paths, raw transports, engine Rust paths, or arbitrary JSON hatches are
-allowed.
+These DTOs must be consumed through `@asha/contracts`, `@asha/runtime-session`,
+and/or the `@asha/runtime-bridge` package root according to their ownership. No
+generated file paths, package `src/**` paths, raw transports, engine Rust paths,
+or arbitrary JSON hatches are allowed.
 
 ## Required facade operations
 
@@ -125,9 +129,9 @@ The gate status is:
 
 ## Checklist for runtime-integration tasks
 
-1. Keep `@asha/runtime-bridge` as the approved Studio package root in
-   `boundary-policy.json` and `package.json` only while the public facade reports
-   `runtime-bridge.v0`.
+1. Keep `@asha/runtime-bridge` and `@asha/runtime-session` as approved Studio
+   package roots in `boundary-policy.json` and `package.json`; bridge construction
+   reports `runtime-bridge.v0` while facade semantics report `runtime-session.v0`.
 2. Record `contracts.v0`, `command-registry.v0`, `runtime-bridge.v0`, ASHA commit,
    and package versions in session/readout artifacts.
 3. Consume scene snapshots, command application results, replay records,

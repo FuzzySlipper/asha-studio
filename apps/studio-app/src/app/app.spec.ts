@@ -273,7 +273,7 @@ describe('StudioShellComponent', () => {
       '@asha/game-workspace:parseAshaGameManifestToml',
     );
     expect(productPath?.querySelector('[data-product-path="public-surfaces"]')?.textContent).toContain(
-      '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart',
+      '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart',
     );
 
     const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');

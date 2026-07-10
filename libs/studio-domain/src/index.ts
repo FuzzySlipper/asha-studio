@@ -61,7 +61,7 @@ import type {
   RuntimeSessionProjectionSummary,
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
-} from '@asha/runtime-bridge';
+} from '@asha/runtime-session';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
@@ -1327,13 +1327,13 @@ export interface StudioAshaDemoProductPathReadModel {
       readonly commandId: 'runtime_session.run_autonomous_policy_tick';
       readonly available: boolean;
       readonly disabledReason: string | null;
-      readonly publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.runAutonomousPolicyTick';
+      readonly publicSurface: '@asha/runtime-session:RuntimeSessionFacade.runAutonomousPolicyTick';
     };
     readonly restart: {
       readonly commandId: 'runtime.restart_session_intent';
       readonly available: boolean;
       readonly disabledReason: string | null;
-      readonly publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart';
+      readonly publicSurface: '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart';
     };
   };
   readonly publicSurfacesUsed: readonly string[];
@@ -4089,23 +4089,23 @@ export function buildStudioAshaDemoProductPathReadModel(input: {
         commandId: 'runtime_session.run_autonomous_policy_tick' as const,
         available: runPolicyAvailable,
         disabledReason: runtimeInspection.playableLoop.controls.policyTick.disabledReason,
-        publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.runAutonomousPolicyTick' as const,
+        publicSurface: '@asha/runtime-session:RuntimeSessionFacade.runAutonomousPolicyTick' as const,
       },
       restart: {
         commandId: 'runtime.restart_session_intent' as const,
         available: restartAvailable,
         disabledReason: runtimeInspection.playableLoop.controls.restart.disabledReason,
-        publicSurface: '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart' as const,
+        publicSurface: '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart' as const,
       },
     },
     publicSurfacesUsed: [
       '@asha/game-workspace:parseAshaGameManifestToml',
       '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)',
-      '@asha/runtime-bridge:RuntimeSessionFacade.initialize',
-      '@asha/runtime-bridge:RuntimeSessionFacade.readGeneratedTunnelReadout',
-      '@asha/runtime-bridge:RuntimeSessionFacade.readLifecycleStatus',
-      '@asha/runtime-bridge:RuntimeSessionFacade.runAutonomousPolicyTick',
-      '@asha/runtime-bridge:RuntimeSessionFacade.requestSessionRestart',
+      '@asha/runtime-session:RuntimeSessionFacade.initialize',
+      '@asha/runtime-session:RuntimeSessionFacade.readGeneratedTunnelReadout',
+      '@asha/runtime-session:RuntimeSessionFacade.readLifecycleStatus',
+      '@asha/runtime-session:RuntimeSessionFacade.runAutonomousPolicyTick',
+      '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart',
     ],
     boundaries: {
       definitionAuthoringOwnsStoredFiles: true as const,
