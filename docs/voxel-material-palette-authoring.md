@@ -1,6 +1,6 @@
 # Voxel Material And Palette Authoring
 
-Status: post-#5266 inventory and Studio UX plan.
+Status: implemented public Studio palette authoring.
 
 ## Public ASHA Fields Available To Studio
 
@@ -10,6 +10,7 @@ Status: post-#5266 inventory and Studio UX plan.
 - `VoxelConversionPreview.sampleVoxels[].material`: sampled output voxel material ids for projection evidence.
 - `VoxelModelInfoReadout.materialCounts`: RuntimeSession material counts for resident voxel models when requested.
 - `VoxelVolumeAsset.materialPalette[]`: stored voxel material bindings of numeric voxel material id to material asset id.
+- `RuntimeSessionFacade.updateVoxelVolumeAssetPalette(...)`: a bounded stored-only palette replacement with required canonical and voxel-data optimistic hashes, Rust validation diagnostics, and a ProjectBundle diff/receipt.
 - `VoxelVolumeAssetLoadReceipt.materialCounts`: material counts after loading a stored voxel asset into RuntimeSession.
 
 These fields are public through `@asha/contracts` and runtime facade receipts. Studio can safely project them, validate that save/load preserved bindings/counts, and let compact edits choose a numeric voxel material id.
@@ -24,12 +25,11 @@ Studio now exposes a `studio-voxel-material-authoring.v0` read model and panel s
 - RuntimeSession material counts when model info/load receipts have provided them;
 - the current compact edit material index.
 
-This is intentionally a projection/readout surface. It helps agents see which numeric voxel material they are about to write, how conversion slots map to voxel materials, and which material bindings survived asset persistence.
+The panel also lets an editor select one stored palette entry and propose changes to its entry id, display name, material asset id, and optional catalog binding id. Studio submits the full replacement palette and current optimistic hashes through the public RuntimeSession facade; Rust validates the candidate and returns the durable replacement asset and ProjectBundle receipt. Studio does not validate material ids, catalog binding ids, duplicate entries, or hashes locally.
 
 ## Proposed Next UX
 
 - Add multi-row conversion material-map controls once source metadata can enumerate material slots.
-- Add a material chooser that filters available ASHA catalog material assets and writes public conversion-map fields.
 - Add compact edit presets that select a named material binding while still submitting numeric palette/material ids to the current public command surface.
 - In save/load proofs, display material preservation as a first-class pass/fail item rather than only a summary string.
 
@@ -37,9 +37,7 @@ This is intentionally a projection/readout surface. It helps agents see which nu
 
 Do not solve these with Studio-local shims:
 
-- material catalog binding mutation for voxel assets;
-- named voxel palette entries beyond numeric material ids;
 - a public multi-material compact edit transaction/readback shape;
 - source mesh material-slot metadata rich enough to build the conversion map automatically.
 
-Engine follow-up #5295 tracks this upstream surface. Keep Studio on public ASHA contracts until that work lands.
+The remaining items require engine surfaces. Keep Studio on public ASHA contracts and typed receipts.

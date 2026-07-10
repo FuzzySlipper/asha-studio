@@ -2583,25 +2583,58 @@ export class StudioInspectorPanelComponent {
               [attr.data-voxel-material-authoring-status]="row.status"
             >
               <span>{{ row.source }}</span>
-              <strong>
-                {{ row.voxelMaterial }}
-                @if (row.materialAssetId !== null) {
-                  · {{ row.materialAssetId }}
-                }
-              </strong>
-              <small>
-                {{ row.message }}
+            <strong>
+              {{ row.voxelMaterial }}
+              @if (row.displayName !== null) {
+                · {{ row.displayName }}
+              }
+              @if (row.materialAssetId !== null) {
+                · {{ row.materialAssetId }}
+              }
+            </strong>
+            <small>
+              {{ row.message }}
+              @if (row.paletteEntryId !== null) {
+                · entry {{ row.paletteEntryId }}
+              }
+              @if (row.materialCatalogBindingId !== null) {
+                · catalog {{ row.materialCatalogBindingId }}
+              }
                 @if (row.voxelCount !== null) {
                   · voxels {{ row.voxelCount }}
                 }
               </small>
             </article>
           }
-          <article data-voxel-material-authoring-source="unsupported">
+          <article data-voxel-material-authoring-source="engine-surface">
             <span>Catalog Binding</span>
             <strong>{{ store.voxelMaterialAuthoring().canAuthorCatalogBindings ? 'available' : 'needs engine surface' }}</strong>
             <small>{{ store.voxelMaterialAuthoring().missingEngineFields.join(', ') }}</small>
           </article>
+          <div class="voxel-history-panel__inputs">
+            <label>
+              Palette Entry
+              <select
+                data-voxel-palette-control="selected_entry"
+                [value]="store.voxelMaterialPaletteEditor().selectedPaletteEntryId"
+                (change)="store.selectVoxelMaterialPaletteEntry($any($event.target).value)"
+              >
+                <option value="">Select stored entry</option>
+                @for (row of store.voxelMaterialAuthoring().storedRows; track row.paletteEntryId) {
+                  <option [value]="row.paletteEntryId">{{ row.displayName ?? row.paletteEntryId }}</option>
+                }
+              </select>
+            </label>
+            <label>Entry Id <input data-voxel-palette-control="entry_id" [value]="store.voxelMaterialPaletteEditor().paletteEntryId" (input)="store.setVoxelMaterialPaletteEditorField('paletteEntryId', $any($event.target).value)" /></label>
+            <label>Name <input data-voxel-palette-control="display_name" [value]="store.voxelMaterialPaletteEditor().displayName" (input)="store.setVoxelMaterialPaletteEditorField('displayName', $any($event.target).value)" /></label>
+            <label>Material <input data-voxel-palette-control="material_asset_id" [value]="store.voxelMaterialPaletteEditor().materialAssetId" (input)="store.setVoxelMaterialPaletteEditorField('materialAssetId', $any($event.target).value)" /></label>
+            <label>Catalog Binding <input data-voxel-palette-control="catalog_binding_id" [value]="store.voxelMaterialPaletteEditor().materialCatalogBindingId" (input)="store.setVoxelMaterialPaletteEditorField('materialCatalogBindingId', $any($event.target).value)" /></label>
+          </div>
+          <div class="voxel-history-panel__actions">
+            <button data-voxel-palette-action="update" [disabled]="store.voxelMaterialPaletteEditor().selectedPaletteEntryId.length === 0" (click)="store.runVoxelMaterialPaletteUpdate()">Update Palette</button>
+          </div>
+          <small data-voxel-palette-status>{{ store.voxelMaterialPaletteEditor().status }} · {{ store.voxelMaterialPaletteEditor().message }}</small>
+          <small data-voxel-palette-diagnostics>{{ store.voxelMaterialPaletteEditor().diagnostics.join(' · ') || 'no diagnostics' }}</small>
         </section>
 
         <section class="voxel-command-timeline" aria-label="Voxel conversion command timeline">

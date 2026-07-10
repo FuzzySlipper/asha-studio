@@ -764,22 +764,30 @@ test('Asha-native voxel asset persistence readmodel emits and reopens avxl json 
   assert.equal(materialAuthoring.readoutVersion, 'studio-voxel-material-authoring.v0');
   assert.equal(materialAuthoring.currentCompactMaterial, 1);
   assert.equal(materialAuthoring.defaultVoxelMaterial, 1);
-  assert.equal(materialAuthoring.canAuthorCatalogBindings, false);
+  assert.equal(materialAuthoring.canAuthorCatalogBindings, true);
   assert.ok(materialAuthoring.supportedFields.includes('conversion_material_map'));
   assert.ok(materialAuthoring.supportedFields.includes('voxel_asset_material_palette'));
+  assert.ok(materialAuthoring.supportedFields.includes('named_voxel_palette_entries'));
+  assert.ok(materialAuthoring.supportedFields.includes('material_catalog_binding_mutation'));
   assert.ok(materialAuthoring.supportedFields.includes('compact_material_index'));
-  assert.ok(materialAuthoring.missingEngineFields.includes('material_catalog_binding_mutation'));
+  assert.deepEqual(materialAuthoring.missingEngineFields, ['multi_material_compact_edit_controls']);
   assert.deepEqual(materialAuthoring.conversionRows.map(row => ({
     source: row.source,
     voxelMaterial: row.voxelMaterial,
+    paletteEntryId: row.paletteEntryId,
+    displayName: row.displayName,
     materialAssetId: row.materialAssetId,
+    materialCatalogBindingId: row.materialCatalogBindingId,
     sourceMaterialSlot: row.sourceMaterialSlot,
     voxelCount: row.voxelCount,
   })), [
     {
       source: 'conversion_map',
       voxelMaterial: 1,
+      paletteEntryId: null,
+      displayName: null,
       materialAssetId: 'material.copper',
+      materialCatalogBindingId: null,
       sourceMaterialSlot: 0,
       voxelCount: 2,
     },
@@ -787,13 +795,19 @@ test('Asha-native voxel asset persistence readmodel emits and reopens avxl json 
   assert.deepEqual(materialAuthoring.storedRows.map(row => ({
     source: row.source,
     voxelMaterial: row.voxelMaterial,
+    paletteEntryId: row.paletteEntryId,
+    displayName: row.displayName,
     materialAssetId: row.materialAssetId,
+    materialCatalogBindingId: row.materialCatalogBindingId,
     voxelCount: row.voxelCount,
   })), [
     {
       source: 'stored_asset_palette',
       voxelMaterial: 1,
+      paletteEntryId: 'voxel-material/copper',
+      displayName: 'Voxel material 1',
       materialAssetId: 'material/copper',
+      materialCatalogBindingId: 'catalog-binding/copper',
       voxelCount: 2,
     },
   ]);
@@ -1197,6 +1211,28 @@ test('studio imports RuntimeSession semantics from their public package root', (
 
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   assert.match(storeSource, /createRuntimeSessionFacade,[\s\S]*from '@asha\/runtime-bridge';/);
+});
+
+test('studio voxel palette editor uses the public stored-only RuntimeSession mutation', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+  const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
+
+  assert.match(storeSource, /VoxelVolumeAssetPaletteUpdateRequest/);
+  assert.match(storeSource, /updateVoxelVolumeAssetPalette/);
+  assert.match(storeSource, /expectedCanonicalJsonHash: asset\.contentHashes\.canonicalJson/);
+  assert.match(storeSource, /expectedVoxelDataHash: asset\.contentHashes\.voxelData/);
+  assert.match(storeSource, /receipt\.diagnostics\.map\(diagnostic => diagnostic\.message\)/);
+  assert.doesNotMatch(storeSource, /paletteAuthorityStore/);
+
+  for (const control of ['selected_entry', 'entry_id', 'display_name', 'material_asset_id', 'catalog_binding_id']) {
+    assert.match(panelSource, new RegExp(`data-voxel-palette-control="${control}"`));
+  }
+  assert.match(panelSource, /data-voxel-palette-action="update"/);
+  assert.match(panelSource, /runVoxelMaterialPaletteUpdate\(\)/);
+  assert.match(proofSource, /'updateVoxelVolumeAssetPalette'/);
+  assert.match(proofSource, /rejectedPaletteUpdate/);
+  assert.match(proofSource, /Native copper palette/);
 });
 
 test('studio voxel transcript evaluation rejects VoxelForge import compatibility and routes Asha-native replay', () => {

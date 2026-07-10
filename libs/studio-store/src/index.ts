@@ -135,6 +135,8 @@ import {
   type VoxelVolumeAssetExportRequest,
   type VoxelVolumeAssetLoadReceipt,
   type VoxelVolumeAssetLoadRequest,
+  type VoxelVolumeAssetPaletteUpdateReceipt,
+  type VoxelVolumeAssetPaletteUpdateRequest,
   type VoxelVolumeAssetSaveReceipt,
   type VoxelVolumeAssetSaveRequest,
   type VoxelVolumeAssetStoredDiff,
@@ -226,6 +228,19 @@ const DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL: StudioVoxelAssetWorkflowControlReadM
 const DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT: StudioVoxelAssetWorkflowTargetDraft = {
   targetProjectBundle: null,
   targetAssetPath: null,
+};
+
+const DEFAULT_VOXEL_MATERIAL_PALETTE_EDITOR: StudioVoxelMaterialPaletteEditorReadModel = {
+  controlVersion: 'studio-voxel-material-palette-editor.v0',
+  status: 'idle',
+  message: 'Export or save a voxel asset before editing its material palette.',
+  selectedPaletteEntryId: '',
+  paletteEntryId: '',
+  displayName: '',
+  materialAssetId: '',
+  materialCatalogBindingId: '',
+  diagnostics: [],
+  receipt: null,
 };
 
 const DEFAULT_VOXEL_COMPACT_EDIT_CONTROL: StudioVoxelCompactEditControlReadModel = {
@@ -1213,7 +1228,10 @@ export interface StudioVoxelHistoryPanelReadModel {
 export interface StudioVoxelMaterialAuthoringRow {
   readonly source: 'conversion_map' | 'stored_asset_palette' | 'compact_edit_material';
   readonly voxelMaterial: number;
+  readonly paletteEntryId: string | null;
+  readonly displayName: string | null;
   readonly materialAssetId: string | null;
+  readonly materialCatalogBindingId: string | null;
   readonly sourceMaterialSlot: number | null;
   readonly sourceMaterialId: string | null;
   readonly voxelCount: number | null;
@@ -1229,20 +1247,23 @@ export interface StudioVoxelMaterialAuthoringReadModel {
   readonly storedRows: readonly StudioVoxelMaterialAuthoringRow[];
   readonly compactRow: StudioVoxelMaterialAuthoringRow;
   readonly rows: readonly StudioVoxelMaterialAuthoringRow[];
-  readonly supportedFields: readonly [
-    'conversion_material_map',
-    'texture_sampling_readout',
-    'voxel_asset_material_palette',
-    'runtime_material_counts',
-    'compact_material_index',
-  ];
-  readonly missingEngineFields: readonly [
-    'material_catalog_binding_mutation',
-    'named_voxel_palette_entries',
-    'multi_material_compact_edit_controls',
-  ];
-  readonly canAuthorCatalogBindings: false;
+  readonly supportedFields: readonly string[];
+  readonly missingEngineFields: readonly ['multi_material_compact_edit_controls'];
+  readonly canAuthorCatalogBindings: true;
   readonly readoutHash: string;
+}
+
+export interface StudioVoxelMaterialPaletteEditorReadModel {
+  readonly controlVersion: 'studio-voxel-material-palette-editor.v0';
+  readonly status: 'idle' | 'accepted' | 'rejected';
+  readonly message: string;
+  readonly selectedPaletteEntryId: string;
+  readonly paletteEntryId: string;
+  readonly displayName: string;
+  readonly materialAssetId: string;
+  readonly materialCatalogBindingId: string;
+  readonly diagnostics: readonly string[];
+  readonly receipt: VoxelVolumeAssetPaletteUpdateReceipt | null;
 }
 
 export interface StudioVoxelAnnotationControlReadModel {
@@ -3033,7 +3054,10 @@ export function buildStudioVoxelMaterialAuthoringReadModel(options: {
   const conversionRows = options.shell.previewProjection.materialRows.map((row): StudioVoxelMaterialAuthoringRow => ({
     source: 'conversion_map',
     voxelMaterial: row.voxelMaterial,
+    paletteEntryId: null,
+    displayName: null,
     materialAssetId: row.sourceMaterialId,
+    materialCatalogBindingId: null,
     sourceMaterialSlot: row.sourceMaterialSlot,
     sourceMaterialId: row.sourceMaterialId,
     voxelCount: runtimeCounts.get(row.voxelMaterial) ?? null,
@@ -3046,7 +3070,10 @@ export function buildStudioVoxelMaterialAuthoringReadModel(options: {
   const storedRows = (options.assetWorkflow.lastAsset?.materialPalette ?? []).map((binding): StudioVoxelMaterialAuthoringRow => ({
     source: 'stored_asset_palette',
     voxelMaterial: binding.voxelMaterial,
+    paletteEntryId: binding.paletteEntryId,
+    displayName: binding.displayName,
     materialAssetId: binding.materialAssetId,
+    materialCatalogBindingId: binding.materialCatalogBindingId,
     sourceMaterialSlot: null,
     sourceMaterialId: null,
     voxelCount: runtimeCounts.get(binding.voxelMaterial) ?? null,
@@ -3057,7 +3084,10 @@ export function buildStudioVoxelMaterialAuthoringReadModel(options: {
   const compactRow: StudioVoxelMaterialAuthoringRow = {
     source: 'compact_edit_material',
     voxelMaterial: options.compactEdit.material,
+    paletteEntryId: null,
+    displayName: null,
     materialAssetId: null,
+    materialCatalogBindingId: null,
     sourceMaterialSlot: null,
     sourceMaterialId: null,
     voxelCount: runtimeCounts.get(options.compactEdit.material) ?? null,
@@ -3078,7 +3108,10 @@ export function buildStudioVoxelMaterialAuthoringReadModel(options: {
     ]),
     storedRows: storedRows.map(row => [
       row.voxelMaterial,
+      row.paletteEntryId,
+      row.displayName,
       row.materialAssetId,
+      row.materialCatalogBindingId,
       row.voxelCount,
     ]),
     assetHash: options.assetWorkflow.lastAsset?.contentHashes.canonicalJson ?? null,
@@ -3096,15 +3129,14 @@ export function buildStudioVoxelMaterialAuthoringReadModel(options: {
       'conversion_material_map',
       'texture_sampling_readout',
       'voxel_asset_material_palette',
+      'named_voxel_palette_entries',
+      'material_catalog_binding_mutation',
+      'durable_palette_update',
       'runtime_material_counts',
       'compact_material_index',
     ],
-    missingEngineFields: [
-      'material_catalog_binding_mutation',
-      'named_voxel_palette_entries',
-      'multi_material_compact_edit_controls',
-    ],
-    canAuthorCatalogBindings: false,
+    missingEngineFields: ['multi_material_compact_edit_controls'],
+    canAuthorCatalogBindings: true,
     readoutHash: stableAgentVoxelWorkflowHash('studio-voxel-material-authoring', body),
   };
 }
@@ -4520,6 +4552,9 @@ export class StudioWorkspaceStore {
   private readonly voxelAssetWorkflowControlState = signal<StudioVoxelAssetWorkflowControlReadModel>(
     DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL,
   );
+  private readonly voxelMaterialPaletteEditorState = signal<StudioVoxelMaterialPaletteEditorReadModel>(
+    DEFAULT_VOXEL_MATERIAL_PALETTE_EDITOR,
+  );
   private readonly voxelCompactEditControlState = signal<StudioVoxelCompactEditControlReadModel>(
     DEFAULT_VOXEL_COMPACT_EDIT_CONTROL,
   );
@@ -4601,6 +4636,7 @@ export class StudioWorkspaceStore {
       compactEdit: this.voxelCompactEditControl(),
     }),
   );
+  readonly voxelMaterialPaletteEditor = this.voxelMaterialPaletteEditorState.asReadonly();
   readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
   readonly saveAsPath = this.saveAsPathState.asReadonly();
@@ -6379,6 +6415,121 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(`Voxel asset target follows ${target.projectBundle}:${target.assetPath}.`);
   }
 
+  selectVoxelMaterialPaletteEntry(paletteEntryId: string): void {
+    const binding = this.voxelAssetWorkflowControl().lastAsset?.materialPalette
+      .find(candidate => candidate.paletteEntryId === paletteEntryId);
+    if (binding === undefined) {
+      this.voxelMaterialPaletteEditorState.set({
+        ...DEFAULT_VOXEL_MATERIAL_PALETTE_EDITOR,
+        status: 'rejected',
+        message: `Palette entry ${paletteEntryId || 'selection'} is unavailable on the stored asset.`,
+      });
+      return;
+    }
+    this.voxelMaterialPaletteEditorState.set({
+      ...DEFAULT_VOXEL_MATERIAL_PALETTE_EDITOR,
+      selectedPaletteEntryId: binding.paletteEntryId,
+      paletteEntryId: binding.paletteEntryId,
+      displayName: binding.displayName ?? '',
+      materialAssetId: binding.materialAssetId,
+      materialCatalogBindingId: binding.materialCatalogBindingId ?? '',
+      message: `Editing stored palette entry ${binding.paletteEntryId}.`,
+    });
+  }
+
+  setVoxelMaterialPaletteEditorField(
+    field: 'paletteEntryId' | 'displayName' | 'materialAssetId' | 'materialCatalogBindingId',
+    value: string,
+  ): void {
+    this.voxelMaterialPaletteEditorState.update(current => ({
+      ...current,
+      [field]: value,
+      status: 'idle',
+      message: 'Stored palette edit updated.',
+      diagnostics: [],
+      receipt: null,
+    }));
+  }
+
+  runVoxelMaterialPaletteUpdate(): void {
+    const asset = this.voxelAssetWorkflowControl().lastAsset;
+    const facade = this.runtimeSessionFacadeState();
+    const editor = this.voxelMaterialPaletteEditorState();
+    if (asset === null || facade === null) {
+      this.recordVoxelMaterialPaletteUpdate(
+        editor,
+        false,
+        'Attach RuntimeSession and export or save a voxel asset before editing its stored palette.',
+        [],
+        null,
+      );
+      return;
+    }
+    const sourceEntryId = editor.selectedPaletteEntryId;
+    if (!asset.materialPalette.some(binding => binding.paletteEntryId === sourceEntryId)) {
+      this.recordVoxelMaterialPaletteUpdate(editor, false, 'Select a stored palette entry before applying an edit.', [], null);
+      return;
+    }
+    const materialPalette = asset.materialPalette.map((binding): VoxelAssetMaterialBinding =>
+      binding.paletteEntryId === sourceEntryId
+        ? {
+            ...binding,
+            paletteEntryId: editor.paletteEntryId.trim(),
+            displayName: editor.displayName.trim() || null,
+            materialAssetId: editor.materialAssetId.trim(),
+            materialCatalogBindingId: editor.materialCatalogBindingId.trim() || null,
+          }
+        : binding,
+    );
+    const target = this.voxelAssetWorkflowTargetForCurrentDraft();
+    const request: VoxelVolumeAssetPaletteUpdateRequest = {
+      asset,
+      materialPalette,
+      targetProjectBundle: target.projectBundle,
+      targetAssetPath: target.assetPath,
+      expectedCanonicalJsonHash: asset.contentHashes.canonicalJson,
+      expectedVoxelDataHash: asset.contentHashes.voxelData,
+      maxMaterialBindings: 256,
+    };
+    try {
+      const receipt = facade.updateVoxelVolumeAssetPalette(request);
+      const updatedAsset = receipt.updated ? receipt.asset : null;
+      const accepted = updatedAsset !== null;
+      this.recordVoxelMaterialPaletteUpdate(
+        editor,
+        accepted,
+        accepted
+          ? `Stored palette update accepted for ${editor.selectedPaletteEntryId}.`
+          : receipt.diagnostics.at(0)?.message ?? 'Stored palette update rejected by Rust validation.',
+        receipt.diagnostics.map(diagnostic => diagnostic.message),
+        receipt,
+      );
+      if (updatedAsset !== null) {
+        this.voxelAssetWorkflowControlState.update(current => ({
+          ...current,
+          lastAsset: updatedAsset,
+          lastAssetId: updatedAsset.assetId,
+          canonicalJsonHash: receipt.canonicalJsonHash,
+          voxelDataHash: receipt.voxelDataHash,
+          validationDiagnosticCodes: receipt.diagnostics.map(diagnostic => diagnostic.code),
+        }));
+        this.voxelMaterialPaletteEditorState.update(current => ({
+          ...current,
+          selectedPaletteEntryId: editor.paletteEntryId.trim(),
+          paletteEntryId: editor.paletteEntryId.trim(),
+        }));
+      }
+    } catch (error) {
+      this.recordVoxelMaterialPaletteUpdate(
+        editor,
+        false,
+        error instanceof Error ? error.message : 'Stored palette update failed.',
+        [],
+        null,
+      );
+    }
+  }
+
   runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): void {
     const target = this.voxelAssetWorkflowTargetForCurrentDraft();
     const modelInfoResult = this.runAgentVoxelWorkflowOperation({
@@ -6641,6 +6792,23 @@ export class StudioWorkspaceStore {
       validationDiagnosticCodes: loadReadout?.validationDiagnosticCodes ?? [],
       lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
     });
+  }
+
+  private recordVoxelMaterialPaletteUpdate(
+    editor: StudioVoxelMaterialPaletteEditorReadModel,
+    accepted: boolean,
+    message: string,
+    diagnostics: readonly string[],
+    receipt: VoxelVolumeAssetPaletteUpdateReceipt | null,
+  ): void {
+    this.voxelMaterialPaletteEditorState.set({
+      ...editor,
+      status: accepted ? 'accepted' : 'rejected',
+      message,
+      diagnostics,
+      receipt,
+    });
+    this.menuMessageState.set(message);
   }
 
   private recordVoxelAssetWorkflowControl(input: {

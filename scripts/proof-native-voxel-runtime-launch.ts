@@ -64,6 +64,7 @@ const rpcMethods = [
   'exportVoxelConversionEvidence',
   'exportVoxelVolumeAsset',
   'saveVoxelVolumeAsset',
+  'updateVoxelVolumeAssetPalette',
   'loadVoxelVolumeAsset',
   'validateVoxelAnnotationLayer',
   'loadVoxelAnnotationLayer',
@@ -217,6 +218,15 @@ interface BrowserProof {
       readonly readoutHash: string;
       readonly nonClaims: readonly string[];
       readonly entries: readonly { readonly transactionId: string; readonly cursorId: string }[];
+    } | null;
+    readonly voxelPalette: {
+      readonly status: string;
+      readonly displayName: string;
+      readonly materialAssetId: string;
+      readonly materialCatalogBindingId: string;
+      readonly rejectedDiagnostics: readonly string[];
+      readonly diagnostics: readonly string[];
+      readonly assetCanonicalJsonHash: string | null;
     } | null;
     readonly acceptedVoxelEdit: boolean | null;
     readonly rejectedCompactVoxelEdit: boolean | null;
@@ -674,6 +684,7 @@ function automationPrelude(): string {
         end: null,
       },
       voxelHistory: null,
+      voxelPalette: null,
       acceptedVoxelEdit: null,
       rejectedCompactVoxelEdit: null,
       rejectedVoxelEdit: null,
@@ -923,6 +934,74 @@ function automationPrelude(): string {
     }
     store.selectVoxelHistoryTarget(target.transactionId);
     return runVoxelHistoryControl('preview_revert');
+  }
+
+  async function saveVoxelAssetForPaletteEditor() {
+    const button = document.querySelector('[data-voxel-asset-action="save_volume"]');
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error('Missing voxel asset save action');
+    }
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    if (!store || typeof store.voxelAssetWorkflowControl !== 'function') {
+      throw new Error('Voxel asset workflow control readout unavailable');
+    }
+    button.click();
+    return waitFor(() => {
+      const control = store.voxelAssetWorkflowControl();
+      return control.status === 'accepted' && control.lastAsset !== null ? control : null;
+    }, 'voxel asset save for palette editor');
+  }
+
+  function voxelPaletteEditorReadout() {
+    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const editor = store && typeof store.voxelMaterialPaletteEditor === 'function'
+      ? store.voxelMaterialPaletteEditor()
+      : null;
+    if (!editor) {
+      throw new Error('Voxel palette editor readout unavailable');
+    }
+    return {
+      status: editor.status,
+      message: editor.message,
+      selectedPaletteEntryId: editor.selectedPaletteEntryId,
+      displayName: editor.displayName,
+      materialAssetId: editor.materialAssetId,
+      materialCatalogBindingId: editor.materialCatalogBindingId,
+      diagnostics: editor.diagnostics,
+      receipt: editor.receipt,
+    };
+  }
+
+  function selectVoxelPaletteEntry(value) {
+    const input = document.querySelector('[data-voxel-palette-control="selected_entry"]');
+    if (!(input instanceof HTMLSelectElement)) {
+      throw new Error('Missing voxel palette entry selector');
+    }
+    input.value = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function setVoxelPaletteField(name, value) {
+    const input = document.querySelector('[data-voxel-palette-control="' + name + '"]');
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error('Missing voxel palette input ' + name);
+    }
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  async function submitVoxelPaletteUpdate() {
+    const button = document.querySelector('[data-voxel-palette-action="update"]');
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error('Missing voxel palette update action');
+    }
+    await waitFor(() => !button.disabled ? true : null, 'voxel palette update readiness');
+    const before = voxelPaletteEditorReadout();
+    button.click();
+    return waitFor(() => {
+      const editor = voxelPaletteEditorReadout();
+      return editor.status !== 'idle' && editor.message !== before.message ? editor : null;
+    }, 'voxel palette update');
   }
 
   function setViewportVoxelHit(coord, face) {
@@ -1306,6 +1385,29 @@ function automationPrelude(): string {
           proof.agentSurface.operationDiagnostics.push('save_voxel_volume_asset.converted:' + savedVolumeResult.diagnostic);
         }
         proof.nativeSmoke.conversion.savedVolumeAsset = summarizeVoxelVolumeSave(savedVolumeResult);
+        await saveVoxelAssetForPaletteEditor();
+        await waitFor(() => document.querySelector('[data-voxel-palette-control="selected_entry"] option[value="voxel-material/demo-copper"]'), 'voxel palette option');
+        selectVoxelPaletteEntry('voxel-material/demo-copper');
+        await waitFor(() => voxelPaletteEditorReadout().selectedPaletteEntryId === 'voxel-material/demo-copper'
+          ? voxelPaletteEditorReadout()
+          : null, 'voxel palette selection');
+        setVoxelPaletteField('material_asset_id', 'texture/not-a-material');
+        const rejectedPaletteUpdate = await submitVoxelPaletteUpdate();
+        if (rejectedPaletteUpdate.status !== 'rejected' || rejectedPaletteUpdate.diagnostics.length === 0) {
+          throw new Error('Expected Rust palette validation diagnostics: ' + JSON.stringify(rejectedPaletteUpdate));
+        }
+        setVoxelPaletteField('material_asset_id', 'material/demo-copper');
+        setVoxelPaletteField('display_name', 'Native copper palette');
+        const paletteUpdate = await submitVoxelPaletteUpdate();
+        proof.agentSurface.voxelPalette = {
+          status: paletteUpdate.status,
+          displayName: paletteUpdate.displayName,
+          materialAssetId: paletteUpdate.materialAssetId,
+          materialCatalogBindingId: paletteUpdate.materialCatalogBindingId,
+          rejectedDiagnostics: rejectedPaletteUpdate.diagnostics,
+          diagnostics: paletteUpdate.diagnostics,
+          assetCanonicalJsonHash: paletteUpdate.receipt?.asset?.contentHashes.canonicalJson ?? null,
+        };
         const loadedVolumeResult = store.runAgentVoxelWorkflowOperation({
           kind: 'load_voxel_volume_asset',
           loadRequest: {
@@ -1948,6 +2050,17 @@ async function main(): Promise<void> {
     if (nativeProof.agentSurface.voxelHistory?.status === 'rejected') {
       assert.match(nativeProof.agentSurface.voxelHistory.diagnostic ?? '', /read_voxel_edit_history|readVoxelEditHistory|unimplemented/i);
     }
+    assert.deepEqual(nativeProof.agentSurface.voxelPalette, {
+      status: 'accepted',
+      displayName: 'Native copper palette',
+      materialAssetId: 'material/demo-copper',
+      materialCatalogBindingId: 'catalog-binding/demo-copper',
+      rejectedDiagnostics: nativeProof.agentSurface.voxelPalette?.rejectedDiagnostics ?? [],
+      diagnostics: [],
+      assetCanonicalJsonHash: nativeProof.agentSurface.voxelPalette?.assetCanonicalJsonHash ?? null,
+    });
+    assert.match(nativeProof.agentSurface.voxelPalette?.assetCanonicalJsonHash ?? '', /^fnv1a64:/);
+    assert.ok(nativeProof.agentSurface.voxelPalette?.rejectedDiagnostics.length);
     assert.equal(nativeProof.agentSurface.transcriptReplay?.artifactKind, 'studio_agent_voxel_operation_transcript_replay');
     assert.equal(nativeProof.agentSurface.transcriptReplay?.artifactVersion, 'studio-agent-voxel-operation-transcript-replay.v0');
     assert.equal(
