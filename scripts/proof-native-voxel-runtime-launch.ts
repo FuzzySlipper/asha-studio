@@ -19,7 +19,7 @@ const nativeAddonDest = join(engineRoot, 'ts/packages/native-bridge/dist/native-
 const staticRoot = join(repoRoot, 'dist/apps/studio-app/browser');
 const outDir = join(repoRoot, 'artifacts/native-voxel-runtime-launch/latest');
 const artifactPath = join(outDir, 'index.json');
-const referenceMeshPath = '/home/stash/mesh-resources/kenney_retro-urban-kit/Models/GLB format/wall-a.glb';
+const referenceMeshPath = '/home/stash/mesh-resources/kenney_retro-urban-kit/Models/GLB format/tree-small.glb';
 const bindHost = '0.0.0.0';
 const browserHost = '127.0.0.1';
 const rpcPath = '/__asha_native_bridge_rpc';
@@ -39,6 +39,7 @@ const rpcMethods = [
   'selectVoxel',
   'readVoxelMeshEvidence',
   'readVoxelModelInfo',
+  'readVoxelModelWindow',
   'createCamera',
   'readCameraProjection',
   'applyFirstPersonCameraInput',
@@ -67,6 +68,7 @@ const rpcMethods = [
   'exportVoxelVolumeAsset',
   'saveVoxelVolumeAsset',
   'updateVoxelVolumeAssetPalette',
+  'initializeVoxelVolumeAuthoring',
   'loadVoxelVolumeAsset',
   'unloadVoxelVolumeAsset',
   'validateVoxelAnnotationLayer',
@@ -1266,7 +1268,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         const referenceMeshImportResult = store.runAgentVoxelWorkflowOperation({
           kind: 'import_conversion_mesh_source',
           importRequest: {
-            sourceAssetId: 'mesh/kenney-retro-wall-a',
+            sourceAssetId: 'mesh/kenney-retro-tree-small',
             assetVersion: 1,
             sourcePath: referenceMeshImport.sourcePath,
             format: 'glb',
@@ -1280,7 +1282,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         const referenceConfigure = store.runAgentVoxelWorkflowOperation({
           kind: 'configure_conversion',
           patch: {
-            sourceAssetId: 'mesh/kenney-retro-wall-a', mode: 'surface', fitPolicy: 'contain', originPolicy: 'target_min',
+            sourceAssetId: 'mesh/kenney-retro-tree-small', mode: 'surface', fitPolicy: 'contain', originPolicy: 'target_min',
             resolution: [8, 8, 8], voxelSize: 0.25, maxOutputVoxels: 512, targetGrid: 2, targetVolumeAssetId: 'voxel/generated',
             targetOrigin: [0, 0, 0], meshPrimitive: null, materialSourceSlot: 0, materialSourceId: 'material/demo-copper', materialVoxelId: 1, defaultMaterial: '1',
           },
@@ -1292,15 +1294,28 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
           if (!result.accepted) throw new Error('Reference ' + commandId + ' failed: ' + result.diagnostic);
         }
         const referenceInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
+        const referenceWindowRequest = {
+          grid: 2,
+          volumeAssetId: 'voxel/generated',
+          bounds: referenceInfo.modelInfo?.bounds ?? { min: { x: 0, y: 0, z: 0 }, max: { x: 7, y: 7, z: 7 } },
+          includeEmpty: false,
+          materialFilter: [],
+          maxSamples: 512,
+        };
+        const referenceWindow = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_window', request: referenceWindowRequest });
+        const referenceViewBeforeUnload = store.runAgentVoxelWorkflowOperation({
+          kind: 'view_from_angle',
+          view: { angle: 'isometric', target: 'scene' },
+        });
         const referenceExport = store.runAgentVoxelWorkflowOperation({
           kind: 'export_voxel_volume_asset',
-          exportRequest: { grid: 2, volumeAssetId: 'voxel/generated', targetAssetId: 'voxel-volume/reference-wall', label: 'Kenney retro urban wall voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: referenceInfo.modelInfo?.sessionHash ?? null },
+          exportRequest: { grid: 2, volumeAssetId: 'voxel/generated', targetAssetId: 'voxel-volume/reference-tree-small', label: 'Kenney retro urban small tree voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: referenceInfo.modelInfo?.sessionHash ?? null },
         });
         const referenceSave = store.runAgentVoxelWorkflowOperation({
           kind: 'save_voxel_volume_asset',
           saveRequest: {
-            exportRequest: { grid: 2, volumeAssetId: 'voxel/generated', targetAssetId: 'voxel-volume/reference-wall', label: 'Kenney retro urban wall voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: referenceInfo.modelInfo?.sessionHash ?? null },
-            targetProjectBundle: 'asha-demo', targetAssetPath: 'assets/voxels/reference-wall.avxl.json', representationKind: 'sparse_runs', expectedExistingCanonicalJsonHash: null,
+            exportRequest: { grid: 2, volumeAssetId: 'voxel/generated', targetAssetId: 'voxel-volume/reference-tree-small', label: 'Kenney retro urban small tree voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: referenceInfo.modelInfo?.sessionHash ?? null },
+            targetProjectBundle: 'asha-demo', targetAssetPath: 'assets/voxels/reference-tree-small.avxl.json', representationKind: 'sparse_runs', expectedExistingCanonicalJsonHash: null,
             expectedCanonicalJsonHash: referenceExport.voxelVolumeExport?.canonicalJsonHash ?? null, expectedVoxelDataHash: referenceExport.voxelVolumeExport?.voxelDataHash ?? null,
           },
         });
@@ -1308,20 +1323,127 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         const referenceUnload = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/generated', expectedSessionHash: referenceFreshInfo.modelInfo?.sessionHash ?? '' } });
         const referenceAbsent = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
         const referenceLoad = store.runAgentVoxelWorkflowOperation({ kind: 'load_voxel_volume_asset', loadRequest: { asset: referenceSave.voxelVolumeSave?.asset ?? referenceExport.voxelVolumeExport?.asset, targetGrid: 2, targetVolumeAssetId: 'voxel/generated', replaceExisting: true, includeMaterialCounts: true } });
-        if (!referenceInfo.accepted || !referenceExport.accepted || !referenceSave.accepted || !referenceUnload.accepted || referenceAbsent.modelInfo?.resident !== false || !referenceLoad.accepted) {
+        const referenceReloadInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
+        const referenceReloadWindow = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_window', request: referenceWindowRequest });
+        const referenceViewAfterReload = store.runAgentVoxelWorkflowOperation({
+          kind: 'view_from_angle',
+          view: { angle: 'isometric', target: 'scene' },
+        });
+        if (!referenceInfo.accepted || !referenceWindow.accepted || !referenceViewBeforeUnload.accepted || !referenceExport.accepted || !referenceSave.accepted || !referenceUnload.accepted || referenceAbsent.modelInfo?.resident !== false || !referenceLoad.accepted || !referenceReloadInfo.accepted || !referenceReloadWindow.accepted || !referenceViewAfterReload.accepted) {
           throw new Error('Reference save-clear-reload failed: ' + JSON.stringify({
             info: { accepted: referenceInfo.accepted, diagnostic: referenceInfo.diagnostic },
+            window: { accepted: referenceWindow.accepted, diagnostic: referenceWindow.diagnostic },
+            viewBeforeUnload: { accepted: referenceViewBeforeUnload.accepted, diagnostic: referenceViewBeforeUnload.diagnostic },
             export: { accepted: referenceExport.accepted, diagnostic: referenceExport.diagnostic },
             save: { accepted: referenceSave.accepted, diagnostic: referenceSave.diagnostic },
             unload: { accepted: referenceUnload.accepted, diagnostic: referenceUnload.diagnostic, codes: referenceUnload.voxelVolumeUnload?.diagnosticCodes },
             absent: { accepted: referenceAbsent.accepted, resident: referenceAbsent.modelInfo?.resident, diagnostic: referenceAbsent.diagnostic },
             load: { accepted: referenceLoad.accepted, diagnostic: referenceLoad.diagnostic },
+            reloadInfo: { accepted: referenceReloadInfo.accepted, diagnostic: referenceReloadInfo.diagnostic },
+            reloadWindow: { accepted: referenceReloadWindow.accepted, diagnostic: referenceReloadWindow.diagnostic },
+            viewAfterReload: { accepted: referenceViewAfterReload.accepted, diagnostic: referenceViewAfterReload.diagnostic },
           }));
         }
-        proof.nativeSmoke.northstarReference = { source: referenceMeshImportResult.meshSourceImport, model: referenceInfo.modelInfo, saved: referenceSave.voxelVolumeSave, unload: referenceUnload.voxelVolumeUnload, absent: referenceAbsent.modelInfo, reloaded: referenceLoad.voxelVolumeLoad };
+        proof.nativeSmoke.northstarReference = {
+          namedFeature: 'Kenney tree-small trunk and canopy envelope',
+          source: referenceMeshImportResult.meshSourceImport,
+          model: referenceInfo.modelInfo,
+          occupancyBeforeUnload: referenceWindow.modelWindow,
+          projectionBeforeUnload: referenceViewBeforeUnload.viewCapture,
+          saved: referenceSave.voxelVolumeSave,
+          unload: referenceUnload.voxelVolumeUnload,
+          absent: referenceAbsent.modelInfo,
+          reloaded: referenceLoad.voxelVolumeLoad,
+          reloadedModel: referenceReloadInfo.modelInfo,
+          occupancyAfterReload: referenceReloadWindow.modelWindow,
+          projectionAfterReload: referenceViewAfterReload.viewCapture,
+        };
         const referenceCleanupInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
         const referenceCleanup = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/generated', expectedSessionHash: referenceCleanupInfo.modelInfo?.sessionHash ?? '' } });
         if (!referenceCleanup.accepted) throw new Error('Reference cleanup failed: ' + referenceCleanup.diagnostic);
+        const scratchInitialize = store.runAgentVoxelWorkflowOperation({
+          kind: 'initialize_voxel_volume_authoring',
+          initializeRequest: {
+            grid: 2,
+            volumeAssetId: 'voxel/complex-scratch',
+            seedChunk: { x: 1, y: 0, z: 0 },
+            materialPalette: [{ voxelMaterial: 1, paletteEntryId: 'voxel-material/demo-copper', displayName: 'Copper', materialAssetId: 'material/demo-copper', materialCatalogBindingId: 'catalog-binding/demo-copper' }],
+            authoring: { label: 'Complex scratch-authored voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio' },
+            maxMaterialBindings: 8,
+          },
+        });
+        const scratchBlankInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
+        const scratchEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_compact_voxel_edit',
+          edit: { kind: 'apply_voxel_primitives', grid: 2, maxGeneratedVoxels: 64, primitives: [
+            { kind: 'box', from: { x: 4, y: 0, z: 0 }, to: { x: 7, y: 3, z: 3 }, palette_index: 1, mode: 'shell' },
+            { kind: 'line', from: { x: 5, y: 4, z: 1 }, to: { x: 5, y: 7, z: 1 }, palette_index: 1 },
+            { kind: 'block', at: { x: 6, y: 5, z: 1 }, palette_index: 1 },
+          ] },
+        });
+        const scratchInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
+        const scratchWindowRequest = {
+          grid: 2,
+          volumeAssetId: 'voxel/complex-scratch',
+          bounds: scratchInfo.modelInfo?.bounds ?? { min: { x: 4, y: 0, z: 0 }, max: { x: 7, y: 7, z: 3 } },
+          includeEmpty: false,
+          materialFilter: [],
+          maxSamples: 512,
+        };
+        const scratchWindow = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_window', request: scratchWindowRequest });
+        const scratchView = store.runAgentVoxelWorkflowOperation({ kind: 'view_from_angle', view: { angle: 'isometric', target: 'scene' } });
+        const scratchExport = store.runAgentVoxelWorkflowOperation({
+          kind: 'export_voxel_volume_asset',
+          exportRequest: { grid: 2, volumeAssetId: 'voxel/complex-scratch', targetAssetId: 'voxel-volume/complex-scratch', label: 'Complex scratch-authored voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: scratchInfo.modelInfo?.sessionHash ?? null },
+        });
+        const scratchSave = store.runAgentVoxelWorkflowOperation({
+          kind: 'save_voxel_volume_asset',
+          saveRequest: {
+            exportRequest: { grid: 2, volumeAssetId: 'voxel/complex-scratch', targetAssetId: 'voxel-volume/complex-scratch', label: 'Complex scratch-authored voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: scratchInfo.modelInfo?.sessionHash ?? null },
+            targetProjectBundle: 'asha-demo', targetAssetPath: 'assets/voxels/complex-scratch.avxl.json', representationKind: 'sparse_runs', expectedExistingCanonicalJsonHash: null,
+            expectedCanonicalJsonHash: scratchExport.voxelVolumeExport?.canonicalJsonHash ?? null, expectedVoxelDataHash: scratchExport.voxelVolumeExport?.voxelDataHash ?? null,
+          },
+        });
+        const scratchFreshInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
+        const scratchUnload = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/complex-scratch', expectedSessionHash: scratchFreshInfo.modelInfo?.sessionHash ?? '' } });
+        const scratchAbsent = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
+        const scratchLoad = store.runAgentVoxelWorkflowOperation({ kind: 'load_voxel_volume_asset', loadRequest: { asset: scratchSave.voxelVolumeSave?.asset ?? scratchExport.voxelVolumeExport?.asset, targetGrid: 2, targetVolumeAssetId: 'voxel/complex-scratch', replaceExisting: true, includeMaterialCounts: true } });
+        const scratchReloadInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
+        const scratchReloadWindow = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_window', request: scratchWindowRequest });
+        if (!scratchInitialize.accepted || !scratchBlankInfo.accepted || scratchBlankInfo.modelInfo?.voxelCount !== 0 || !scratchEdit.accepted || !scratchInfo.accepted || !scratchWindow.accepted || !scratchView.accepted || !scratchExport.accepted || !scratchSave.accepted || !scratchUnload.accepted || scratchAbsent.modelInfo?.resident !== false || !scratchLoad.accepted || !scratchReloadInfo.accepted || !scratchReloadWindow.accepted) {
+          throw new Error('Complex scratch creation save-clear-reload failed: ' + JSON.stringify({
+            initialize: { accepted: scratchInitialize.accepted, diagnostic: scratchInitialize.diagnostic },
+            blank: { accepted: scratchBlankInfo.accepted, count: scratchBlankInfo.modelInfo?.voxelCount, diagnostic: scratchBlankInfo.diagnostic },
+            edit: { accepted: scratchEdit.accepted, diagnostic: scratchEdit.diagnostic },
+            info: { accepted: scratchInfo.accepted, diagnostic: scratchInfo.diagnostic },
+            window: { accepted: scratchWindow.accepted, diagnostic: scratchWindow.diagnostic },
+            export: { accepted: scratchExport.accepted, diagnostic: scratchExport.diagnostic },
+            save: { accepted: scratchSave.accepted, diagnostic: scratchSave.diagnostic },
+            unload: { accepted: scratchUnload.accepted, diagnostic: scratchUnload.diagnostic },
+            absent: { resident: scratchAbsent.modelInfo?.resident, diagnostic: scratchAbsent.diagnostic },
+            load: { accepted: scratchLoad.accepted, diagnostic: scratchLoad.diagnostic },
+            reload: { accepted: scratchReloadInfo.accepted, diagnostic: scratchReloadInfo.diagnostic },
+            reloadWindow: { accepted: scratchReloadWindow.accepted, diagnostic: scratchReloadWindow.diagnostic },
+          }));
+        }
+        proof.nativeSmoke.northstarScratch = {
+          initialized: scratchInitialize.voxelVolumeAuthoringInitialize,
+          blank: scratchBlankInfo.modelInfo,
+          generatedCommandCount: scratchEdit.compiledVoxelEditBatch?.commands.length ?? 0,
+          acceptedCommandCount: scratchEdit.voxelEditReceipt?.result.accepted ?? 0,
+          model: scratchInfo.modelInfo,
+          occupancy: scratchWindow.modelWindow,
+          projection: scratchView.viewCapture,
+          saved: scratchSave.voxelVolumeSave,
+          unload: scratchUnload.voxelVolumeUnload,
+          absent: scratchAbsent.modelInfo,
+          reloaded: scratchLoad.voxelVolumeLoad,
+          reloadedModel: scratchReloadInfo.modelInfo,
+          reloadedOccupancy: scratchReloadWindow.modelWindow,
+        };
+        const scratchCleanupInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
+        const scratchCleanup = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/complex-scratch', expectedSessionHash: scratchCleanupInfo.modelInfo?.sessionHash ?? '' } });
+        if (!scratchCleanup.accepted) throw new Error('Scratch cleanup failed: ' + scratchCleanup.diagnostic);
         const registration = store.runAgentVoxelWorkflowOperation({
           kind: 'register_conversion_source',
           registration: {
@@ -2114,7 +2236,7 @@ async function main(): Promise<void> {
   const nativeAddon = await ensureNativeAddon();
   const referenceMeshBytes = await readFile(referenceMeshPath);
   const referenceMeshImport: ReferenceMeshImport = {
-    sourcePath: 'assets/reference/kenney-retro-urban-wall-a.glb',
+    sourcePath: 'assets/reference/kenney-retro-urban-tree-small.glb',
     sourceBytes: [...referenceMeshBytes],
   };
   const bridge = createNativeRuntimeBridge();
@@ -2405,6 +2527,7 @@ async function main(): Promise<void> {
     );
     const northstarReference = (nativeProof.nativeSmoke as unknown as {
       readonly northstarReference?: {
+        readonly namedFeature: string;
         readonly source: {
           readonly sourceAssetId: string;
           readonly sourcePath: string;
@@ -2412,23 +2535,60 @@ async function main(): Promise<void> {
           readonly vertexCount: number;
           readonly triangleCount: number;
           readonly groupCount: number;
+          readonly sourceBounds: { readonly min: readonly [number, number, number]; readonly max: readonly [number, number, number] };
         };
-        readonly model: { readonly voxelCount: number; readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } } };
+        readonly model: {
+          readonly voxelCount: number;
+          readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } };
+          readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[];
+        };
+        readonly occupancyBeforeUnload: {
+          readonly resident: boolean;
+          readonly modelBounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } };
+          readonly returnedSampleCount: number;
+          readonly samples: readonly { readonly coord: { readonly x: number; readonly y: number; readonly z: number }; readonly occupied: boolean; readonly material: number | null }[];
+        };
+        readonly projectionBeforeUnload: { readonly angle: string; readonly target: string; readonly readbackMarker: string; readonly captureHash: string };
         readonly saved: { readonly voxelCount: number; readonly nextCanonicalJsonHash: string; readonly nextVoxelDataHash: string };
         readonly unload: { readonly unloaded: boolean; readonly removedVoxelCount: number };
         readonly absent: { readonly resident: boolean; readonly voxelCount: number };
         readonly reloaded: { readonly voxelCount: number; readonly canonicalJsonHash: string; readonly voxelDataHash: string };
+        readonly reloadedModel: {
+          readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } };
+          readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[];
+        };
+        readonly occupancyAfterReload: {
+          readonly resident: boolean;
+          readonly modelBounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } };
+          readonly returnedSampleCount: number;
+          readonly samples: readonly { readonly coord: { readonly x: number; readonly y: number; readonly z: number }; readonly occupied: boolean; readonly material: number | null }[];
+        };
+        readonly projectionAfterReload: { readonly angle: string; readonly target: string; readonly readbackMarker: string; readonly captureHash: string };
       };
     }).northstarReference;
     assert.ok(northstarReference);
-    assert.equal(northstarReference.source.sourceAssetId, 'mesh/kenney-retro-wall-a');
-    assert.equal(northstarReference.source.sourcePath, 'assets/reference/kenney-retro-urban-wall-a.glb');
-    assert.equal(northstarReference.source.sourceByteCount, 3352);
-    assert.equal(northstarReference.source.vertexCount, 48);
-    assert.equal(northstarReference.source.triangleCount, 12);
-    assert.equal(northstarReference.source.groupCount, 2);
-    assert.equal(northstarReference.model.voxelCount, 8);
-    assert.deepEqual(northstarReference.model.bounds, { min: { x: 0, y: 0, z: 0 }, max: { x: 7, y: 7, z: 7 } });
+    assert.equal(northstarReference.namedFeature, 'Kenney tree-small trunk and canopy envelope');
+    assert.equal(northstarReference.source.sourceAssetId, 'mesh/kenney-retro-tree-small');
+    assert.equal(northstarReference.source.sourcePath, 'assets/reference/kenney-retro-urban-tree-small.glb');
+    assert.ok(northstarReference.source.sourceByteCount > 0);
+    assert.ok(northstarReference.source.vertexCount > 0);
+    assert.ok(northstarReference.source.triangleCount > 0);
+    assert.ok(northstarReference.source.groupCount > 0);
+    assert.ok(northstarReference.source.sourceBounds.max[1] > northstarReference.source.sourceBounds.min[1]);
+    assert.ok(northstarReference.model.voxelCount > 8);
+    assert.deepEqual(northstarReference.model.bounds.min, { x: 0, y: 0, z: 0 });
+    assert.equal(northstarReference.model.bounds.max.x, 7);
+    assert.equal(northstarReference.model.bounds.max.z, 7);
+    assert.ok(northstarReference.model.bounds.max.y > 0 && northstarReference.model.bounds.max.y < northstarReference.model.bounds.max.x);
+    assert.deepEqual(northstarReference.model.materialCounts, [{ material: 1, voxelCount: northstarReference.model.voxelCount }]);
+    assert.equal(northstarReference.occupancyBeforeUnload.resident, true);
+    assert.deepEqual(northstarReference.occupancyBeforeUnload.modelBounds, northstarReference.model.bounds);
+    assert.ok(northstarReference.occupancyBeforeUnload.returnedSampleCount > 0);
+    assert.ok(northstarReference.occupancyBeforeUnload.samples.every(sample => sample.occupied && sample.material === 1));
+    assert.equal(northstarReference.projectionBeforeUnload.angle, 'isometric');
+    assert.equal(northstarReference.projectionBeforeUnload.target, 'scene');
+    assert.match(northstarReference.projectionBeforeUnload.readbackMarker, /^session-preview-0001:scene-view-57349d34:\d+$/);
+    assert.match(northstarReference.projectionBeforeUnload.captureHash, /^studio-agent-voxel-view-capture-/);
     assert.equal(northstarReference.saved.voxelCount, northstarReference.model.voxelCount);
     assert.equal(northstarReference.unload.unloaded, true);
     assert.equal(northstarReference.unload.removedVoxelCount, northstarReference.model.voxelCount);
@@ -2437,9 +2597,74 @@ async function main(): Promise<void> {
     assert.equal(northstarReference.reloaded.voxelCount, northstarReference.model.voxelCount);
     assert.equal(northstarReference.reloaded.canonicalJsonHash, northstarReference.saved.nextCanonicalJsonHash);
     assert.equal(northstarReference.reloaded.voxelDataHash, northstarReference.saved.nextVoxelDataHash);
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 16, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 16, rejected: 1 });
+    assert.deepEqual(northstarReference.reloadedModel.bounds, northstarReference.model.bounds);
+    assert.deepEqual(northstarReference.reloadedModel.materialCounts, northstarReference.model.materialCounts);
+    assert.equal(northstarReference.occupancyAfterReload.resident, true);
+    assert.deepEqual(northstarReference.occupancyAfterReload.modelBounds, northstarReference.model.bounds);
+    assert.deepEqual(northstarReference.occupancyAfterReload.samples, northstarReference.occupancyBeforeUnload.samples);
+    assert.equal(northstarReference.projectionAfterReload.angle, 'isometric');
+    assert.equal(northstarReference.projectionAfterReload.target, 'scene');
+    assert.match(northstarReference.projectionAfterReload.readbackMarker, /^session-preview-0001:scene-view-57349d34:\d+$/);
+    assert.match(northstarReference.projectionAfterReload.captureHash, /^studio-agent-voxel-view-capture-/);
+    const northstarScratch = (nativeProof.nativeSmoke as unknown as {
+      readonly northstarScratch?: {
+        readonly initialized: { readonly initialized: boolean; readonly volumeAssetId: string; readonly diagnostics: readonly unknown[] };
+        readonly blank: { readonly resident: boolean; readonly voxelCount: number; readonly source: { readonly assetKind: string } | null };
+        readonly generatedCommandCount: number;
+        readonly acceptedCommandCount: number;
+        readonly model: {
+          readonly voxelCount: number;
+          readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } };
+          readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[];
+          readonly source: { readonly assetKind: string } | null;
+        };
+        readonly occupancy: { readonly resident: boolean; readonly returnedSampleCount: number; readonly samples: readonly { readonly coord: { readonly x: number; readonly y: number; readonly z: number }; readonly occupied: boolean; readonly material: number | null }[] };
+        readonly projection: { readonly angle: string; readonly target: string; readonly captureHash: string };
+        readonly saved: { readonly voxelCount: number; readonly nextCanonicalJsonHash: string; readonly nextVoxelDataHash: string };
+        readonly unload: { readonly unloaded: boolean; readonly removedVoxelCount: number };
+        readonly absent: { readonly resident: boolean; readonly voxelCount: number };
+        readonly reloaded: { readonly voxelCount: number; readonly canonicalJsonHash: string; readonly voxelDataHash: string };
+        readonly reloadedModel: { readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } }; readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[] };
+        readonly reloadedOccupancy: { readonly resident: boolean; readonly returnedSampleCount: number; readonly samples: readonly { readonly coord: { readonly x: number; readonly y: number; readonly z: number }; readonly occupied: boolean; readonly material: number | null }[] };
+      };
+    }).northstarScratch;
+    assert.ok(northstarScratch);
+    assert.equal(northstarScratch.initialized.initialized, true);
+    assert.equal(northstarScratch.initialized.volumeAssetId, 'voxel/complex-scratch');
+    assert.deepEqual(northstarScratch.initialized.diagnostics, []);
+    assert.equal(northstarScratch.blank.resident, true);
+    assert.equal(northstarScratch.blank.voxelCount, 0);
+    assert.equal(northstarScratch.blank.source?.assetKind, 'voxel_volume_authoring');
+    assert.equal(northstarScratch.generatedCommandCount, 61);
+    assert.equal(northstarScratch.acceptedCommandCount, 61);
+    assert.equal(northstarScratch.model.source?.assetKind, 'voxel_volume_authoring');
+    assert.equal(northstarScratch.model.voxelCount, 61);
+    assert.deepEqual(northstarScratch.model.bounds, { min: { x: 4, y: 0, z: 0 }, max: { x: 7, y: 7, z: 3 } });
+    assert.deepEqual(northstarScratch.model.materialCounts, [{ material: 1, voxelCount: 61 }]);
+    assert.equal(northstarScratch.occupancy.resident, true);
+    assert.equal(northstarScratch.occupancy.returnedSampleCount, 61);
+    assert.ok(northstarScratch.occupancy.samples.every(sample => sample.occupied && sample.material === 1));
+    assert.ok(northstarScratch.occupancy.samples.some(sample => sample.coord.x === 5 && sample.coord.y === 7 && sample.coord.z === 1));
+    assert.ok(northstarScratch.occupancy.samples.some(sample => sample.coord.x === 6 && sample.coord.y === 5 && sample.coord.z === 1));
+    assert.equal(northstarScratch.projection.angle, 'isometric');
+    assert.equal(northstarScratch.projection.target, 'scene');
+    assert.match(northstarScratch.projection.captureHash, /^studio-agent-voxel-view-capture-/);
+    assert.equal(northstarScratch.saved.voxelCount, 61);
+    assert.equal(northstarScratch.unload.unloaded, true);
+    assert.equal(northstarScratch.unload.removedVoxelCount, 61);
+    assert.equal(northstarScratch.absent.resident, false);
+    assert.equal(northstarScratch.absent.voxelCount, 0);
+    assert.equal(northstarScratch.reloaded.voxelCount, 61);
+    assert.equal(northstarScratch.reloaded.canonicalJsonHash, northstarScratch.saved.nextCanonicalJsonHash);
+    assert.equal(northstarScratch.reloaded.voxelDataHash, northstarScratch.saved.nextVoxelDataHash);
+    assert.deepEqual(northstarScratch.reloadedModel.bounds, northstarScratch.model.bounds);
+    assert.deepEqual(northstarScratch.reloadedModel.materialCounts, northstarScratch.model.materialCounts);
+    assert.equal(northstarScratch.reloadedOccupancy.resident, true);
+    assert.equal(northstarScratch.reloadedOccupancy.returnedSampleCount, 61);
+    assert.deepEqual(northstarScratch.reloadedOccupancy.samples, northstarScratch.occupancy.samples);
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 61, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 77, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 77, rejected: 1 });
     assert.deepEqual(nativeProof.nativeSmoke.sourceRegistration, {
       registered: true,
       meshAssetRegistered: true,

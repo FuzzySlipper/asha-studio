@@ -499,6 +499,8 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /save_voxel_volume_asset/);
   assert.match(storeSource, /load_voxel_volume_asset/);
   assert.match(storeSource, /unload_voxel_volume_asset/);
+  assert.match(storeSource, /initialize_voxel_volume_authoring/);
+  assert.match(storeSource, /get_model_window/);
   assert.match(storeSource, /buildStudioAgentVoxelMeshSourceImportReadModel/);
   assert.match(storeSource, /buildStudioAgentVoxelVolumeUnloadReadModel/);
   assert.match(storeSource, /imported_static_mesh/);
@@ -530,8 +532,9 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /process\.argv\.includes\('--serve'\)/);
   assert.match(proofSource, /NativeVoxelLaunchMode = 'proof' \| 'interactive'/);
   assert.match(proofSource, /launchMode === 'proof' \? automationPrelude\(referenceMeshImport\) : ''/);
-  assert.match(proofSource, /kenney-retro-urban-wall-a\.glb/);
+  assert.match(proofSource, /kenney-retro-urban-tree-small\.glb/);
   assert.match(proofSource, /northstarReference/);
+  assert.match(proofSource, /northstarScratch/);
   assert.match(proofSource, /Reference save-clear-reload failed/);
   assert.match(proofSource, /ASHA Studio native voxel server is running\./);
   assert.match(storeSource, /agentVoxelPreviewArtifactPathDiagnostic/);
@@ -544,7 +547,7 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'register_conversion_source', 'register_conversion_mesh_asset', 'configure_conversion', 'run_conversion', 'get_model_info', 'export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'register_conversion_source', 'register_conversion_mesh_asset', 'configure_conversion', 'run_conversion', 'get_model_info', 'get_model_window', 'initialize_voxel_volume_authoring', 'export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'unload_voxel_volume_asset', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
   assert.match(proofSource, /register_conversion_source\.facade:true/);

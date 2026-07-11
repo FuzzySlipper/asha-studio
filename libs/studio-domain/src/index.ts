@@ -139,6 +139,7 @@ export type StudioUiEventCommandId =
   | 'voxel_asset.save_volume'
   | 'voxel_asset.load_volume'
   | 'voxel_asset.unload_volume'
+  | 'voxel_asset.initialize_authoring_volume'
   | 'voxel_asset.persist'
   | 'voxel_asset.reopen'
   | 'voxel_edit.submit'

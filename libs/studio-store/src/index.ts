@@ -144,6 +144,8 @@ import {
   type VoxelVolumeAssetStoredDiff,
   type VoxelVolumeAssetUnloadReceipt,
   type VoxelVolumeAssetUnloadRequest,
+  type VoxelVolumeAuthoringInitializeReceipt,
+  type VoxelVolumeAuthoringInitializeRequest,
   type VoxelAnnotationEditOperation,
   type VoxelAnnotationEditReceipt,
   type VoxelAnnotationKind,
@@ -155,6 +157,8 @@ import {
   type VoxelAnnotationSparseRun,
   type VoxelModelInfoReadout,
   type VoxelModelInfoRequest,
+  type VoxelModelWindowReadout,
+  type VoxelModelWindowRequest,
 } from '@asha/contracts';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import {
@@ -528,10 +532,12 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'configure_conversion'
   | 'run_conversion'
   | 'get_model_info'
+  | 'get_model_window'
   | 'export_voxel_volume_asset'
   | 'save_voxel_volume_asset'
   | 'load_voxel_volume_asset'
   | 'unload_voxel_volume_asset'
+  | 'initialize_voxel_volume_authoring'
   | 'view_from_angle'
   | 'publish_preview'
   | 'persist_voxel_asset'
@@ -935,10 +941,12 @@ export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'configure_conversion'; readonly patch: StudioAgentVoxelConversionSettingsPatch }
   | { readonly kind: 'run_conversion'; readonly commandId: StudioVoxelConversionCommandId }
   | { readonly kind: 'get_model_info'; readonly request: VoxelModelInfoRequest }
+  | { readonly kind: 'get_model_window'; readonly request: VoxelModelWindowRequest }
   | { readonly kind: 'export_voxel_volume_asset'; readonly exportRequest: VoxelVolumeAssetExportRequest }
   | { readonly kind: 'save_voxel_volume_asset'; readonly saveRequest: VoxelVolumeAssetSaveRequest }
   | { readonly kind: 'load_voxel_volume_asset'; readonly loadRequest: VoxelVolumeAssetLoadRequest }
   | { readonly kind: 'unload_voxel_volume_asset'; readonly unloadRequest: VoxelVolumeAssetUnloadRequest }
+  | { readonly kind: 'initialize_voxel_volume_authoring'; readonly initializeRequest: VoxelVolumeAuthoringInitializeRequest }
   | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
   | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
   | { readonly kind: 'persist_voxel_asset'; readonly persistence: StudioAgentVoxelAssetPersistenceRequest }
@@ -1008,10 +1016,12 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly sourceRegistration?: VoxelConversionSourceRegistration | null;
   readonly meshSourceImport?: StudioAgentVoxelMeshSourceImportReadModel | null;
   readonly modelInfo?: VoxelModelInfoReadout | null;
+  readonly modelWindow?: VoxelModelWindowReadout | null;
   readonly voxelVolumeExport?: StudioAgentVoxelVolumeExportReadModel | null;
   readonly voxelVolumeSave?: StudioAgentVoxelVolumeSaveReadModel | null;
   readonly voxelVolumeLoad?: StudioAgentVoxelVolumeLoadReadModel | null;
   readonly voxelVolumeUnload?: StudioAgentVoxelVolumeUnloadReadModel | null;
+  readonly voxelVolumeAuthoringInitialize?: VoxelVolumeAuthoringInitializeReceipt | null;
   readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
   readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
@@ -2064,10 +2074,12 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'configure_conversion',
   'run_conversion',
   'get_model_info',
+  'get_model_window',
   'export_voxel_volume_asset',
   'save_voxel_volume_asset',
   'load_voxel_volume_asset',
   'unload_voxel_volume_asset',
+  'initialize_voxel_volume_authoring',
   'view_from_angle',
   'publish_preview',
   'persist_voxel_asset',
@@ -2119,10 +2131,12 @@ const AGENT_VOXEL_TRANSCRIPT_INPUT_KEYS: Readonly<Record<StudioAgentVoxelWorkflo
   configure_conversion: ['patch'],
   run_conversion: ['commandId'],
   get_model_info: ['request'],
+  get_model_window: ['request'],
   export_voxel_volume_asset: ['exportRequest'],
   save_voxel_volume_asset: ['saveRequest'],
   load_voxel_volume_asset: ['loadRequest'],
   unload_voxel_volume_asset: ['unloadRequest'],
+  initialize_voxel_volume_authoring: ['initializeRequest'],
   view_from_angle: ['view'],
   publish_preview: ['publication'],
   persist_voxel_asset: ['persistence'],
@@ -5215,6 +5229,38 @@ export class StudioWorkspaceStore {
           };
         }
       }
+      case 'get_model_window': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before reading a bounded voxel model window.',
+            surface: this.agentVoxelWorkflowSurface(),
+            modelWindow: null,
+          };
+        }
+        try {
+          const modelWindow = facade.readVoxelModelWindow(operation.request);
+          return {
+            accepted: modelWindow.resident,
+            operation: operation.kind,
+            diagnostic: modelWindow.resident
+              ? null
+              : modelWindow.diagnostics.at(0)?.message ?? 'Voxel model is not resident.',
+            surface: this.agentVoxelWorkflowSurface(),
+            modelWindow,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel model window read failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            modelWindow: null,
+          };
+        }
+      }
       case 'export_voxel_volume_asset': {
         const facade = this.runtimeSessionFacadeState();
         if (facade === null) {
@@ -5386,6 +5432,48 @@ export class StudioWorkspaceStore {
             diagnostic: error instanceof Error ? error.message : 'Voxel volume unload failed.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeUnload: null,
+          };
+        }
+      }
+      case 'initialize_voxel_volume_authoring': {
+        const facade = this.runtimeSessionFacadeState();
+        if (facade === null) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: 'Attach RuntimeSession before initializing a blank voxel authoring volume.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeAuthoringInitialize: null,
+          };
+        }
+        try {
+          const receipt = facade.initializeVoxelVolumeAuthoring(operation.initializeRequest);
+          const accepted = receipt.initialized;
+          const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+            commandId: 'voxel_asset.initialize_authoring_volume',
+            label: 'Agent Voxel Authoring Initialize',
+            inputSummary: `grid=${receipt.grid};volume=${receipt.volumeAssetId ?? 'default'}`,
+            outputSummary: accepted
+              ? `Initialized blank authored voxel model ${receipt.modelId}.`
+              : receipt.diagnostics.at(0)?.message ?? 'Voxel authoring initialization was rejected.',
+            status: accepted ? 'ok' : 'rejected',
+          });
+          this.workspaceState.set(recorded.workspace);
+          this.menuMessageState.set(recorded.timelineEntry.outputSummary);
+          return {
+            accepted,
+            operation: operation.kind,
+            diagnostic: accepted ? null : recorded.timelineEntry.outputSummary,
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeAuthoringInitialize: receipt,
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            operation: operation.kind,
+            diagnostic: error instanceof Error ? error.message : 'Voxel authoring initialization failed.',
+            surface: this.agentVoxelWorkflowSurface(),
+            voxelVolumeAuthoringInitialize: null,
           };
         }
       }
