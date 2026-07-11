@@ -19,6 +19,7 @@ const nativeAddonDest = join(engineRoot, 'ts/packages/native-bridge/dist/native-
 const staticRoot = join(repoRoot, 'dist/apps/studio-app/browser');
 const outDir = join(repoRoot, 'artifacts/native-voxel-runtime-launch/latest');
 const artifactPath = join(outDir, 'index.json');
+const referenceMeshPath = '/home/stash/mesh-resources/kenney_retro-urban-kit/Models/GLB format/wall-a.glb';
 const bindHost = '0.0.0.0';
 const browserHost = '127.0.0.1';
 const rpcPath = '/__asha_native_bridge_rpc';
@@ -59,6 +60,7 @@ const rpcMethods = [
   'planVoxelConversion',
   'registerVoxelConversionSource',
   'registerVoxelConversionMeshAsset',
+  'importVoxelConversionMeshSource',
   'previewVoxelConversion',
   'applyVoxelConversion',
   'exportVoxelConversionEvidence',
@@ -66,6 +68,7 @@ const rpcMethods = [
   'saveVoxelVolumeAsset',
   'updateVoxelVolumeAssetPalette',
   'loadVoxelVolumeAsset',
+  'unloadVoxelVolumeAsset',
   'validateVoxelAnnotationLayer',
   'loadVoxelAnnotationLayer',
   'readVoxelAnnotationQuery',
@@ -82,6 +85,11 @@ const rpcMethods = [
   'runReplayStep',
 ] as const;
 const allowedRpcMethods = new Set<string>(rpcMethods);
+
+interface ReferenceMeshImport {
+  readonly sourcePath: string;
+  readonly sourceBytes: readonly number[];
+}
 
 interface BrowserProof {
   readonly mode: 'native' | 'missing' | 'invalid';
@@ -663,12 +671,13 @@ function invalidProviderPrelude(): string {
 `;
 }
 
-function automationPrelude(): string {
+function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   return `
 (() => {
   const mode = new URL(location.href).searchParams.get('provider') || 'native';
   globalThis.ashaStudioNativeVoxelLaunchProof = globalThis.ashaStudioNativeVoxelLaunchProof || { enabled: true };
   globalThis.ashaStudioNativeVoxelLaunchProof.enabled = true;
+  const referenceMeshImport = ${JSON.stringify(referenceMeshImport)};
   const proof = {
     mode,
     status: 'error',
@@ -1254,6 +1263,65 @@ function automationPrelude(): string {
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
+        const referenceMeshImportResult = store.runAgentVoxelWorkflowOperation({
+          kind: 'import_conversion_mesh_source',
+          importRequest: {
+            sourceAssetId: 'mesh/kenney-retro-wall-a',
+            assetVersion: 1,
+            sourcePath: referenceMeshImport.sourcePath,
+            format: 'glb',
+            sourceBytes: referenceMeshImport.sourceBytes,
+            meshPrimitive: null,
+          },
+        });
+        if (!referenceMeshImportResult.accepted || referenceMeshImportResult.meshSourceImport === null) {
+          throw new Error('Reference mesh import failed: ' + referenceMeshImportResult.diagnostic);
+        }
+        const referenceConfigure = store.runAgentVoxelWorkflowOperation({
+          kind: 'configure_conversion',
+          patch: {
+            sourceAssetId: 'mesh/kenney-retro-wall-a', mode: 'surface', fitPolicy: 'contain', originPolicy: 'target_min',
+            resolution: [8, 8, 8], voxelSize: 0.25, maxOutputVoxels: 512, targetGrid: 2, targetVolumeAssetId: 'voxel/generated',
+            targetOrigin: [0, 0, 0], meshPrimitive: null, materialSourceSlot: 0, materialSourceId: 'material/demo-copper', materialVoxelId: 1, defaultMaterial: '1',
+          },
+        });
+        if (!referenceConfigure.accepted) throw new Error('Reference conversion configuration failed');
+        for (const commandId of ['voxel_conversion.plan', 'voxel_conversion.preview', 'voxel_conversion.apply', 'voxel_conversion.export_evidence']) {
+          await waitFor(() => acceptedAction(commandId), 'reference ' + commandId);
+          const result = store.runAgentVoxelWorkflowOperation({ kind: 'run_conversion', commandId });
+          if (!result.accepted) throw new Error('Reference ' + commandId + ' failed: ' + result.diagnostic);
+        }
+        const referenceInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
+        const referenceExport = store.runAgentVoxelWorkflowOperation({
+          kind: 'export_voxel_volume_asset',
+          exportRequest: { grid: 2, volumeAssetId: 'voxel/generated', targetAssetId: 'voxel-volume/reference-wall', label: 'Kenney retro urban wall voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: referenceInfo.modelInfo?.sessionHash ?? null },
+        });
+        const referenceSave = store.runAgentVoxelWorkflowOperation({
+          kind: 'save_voxel_volume_asset',
+          saveRequest: {
+            exportRequest: { grid: 2, volumeAssetId: 'voxel/generated', targetAssetId: 'voxel-volume/reference-wall', label: 'Kenney retro urban wall voxel volume', createdBy: 'codex-asha-studio', sourceTool: 'asha-studio', maxSparseRuns: 512, expectedSessionHash: referenceInfo.modelInfo?.sessionHash ?? null },
+            targetProjectBundle: 'asha-demo', targetAssetPath: 'assets/voxels/reference-wall.avxl.json', representationKind: 'sparse_runs', expectedExistingCanonicalJsonHash: null,
+            expectedCanonicalJsonHash: referenceExport.voxelVolumeExport?.canonicalJsonHash ?? null, expectedVoxelDataHash: referenceExport.voxelVolumeExport?.voxelDataHash ?? null,
+          },
+        });
+        const referenceFreshInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
+        const referenceUnload = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/generated', expectedSessionHash: referenceFreshInfo.modelInfo?.sessionHash ?? '' } });
+        const referenceAbsent = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
+        const referenceLoad = store.runAgentVoxelWorkflowOperation({ kind: 'load_voxel_volume_asset', loadRequest: { asset: referenceSave.voxelVolumeSave?.asset ?? referenceExport.voxelVolumeExport?.asset, targetGrid: 2, targetVolumeAssetId: 'voxel/generated', replaceExisting: true, includeMaterialCounts: true } });
+        if (!referenceInfo.accepted || !referenceExport.accepted || !referenceSave.accepted || !referenceUnload.accepted || referenceAbsent.modelInfo?.resident !== false || !referenceLoad.accepted) {
+          throw new Error('Reference save-clear-reload failed: ' + JSON.stringify({
+            info: { accepted: referenceInfo.accepted, diagnostic: referenceInfo.diagnostic },
+            export: { accepted: referenceExport.accepted, diagnostic: referenceExport.diagnostic },
+            save: { accepted: referenceSave.accepted, diagnostic: referenceSave.diagnostic },
+            unload: { accepted: referenceUnload.accepted, diagnostic: referenceUnload.diagnostic, codes: referenceUnload.voxelVolumeUnload?.diagnosticCodes },
+            absent: { accepted: referenceAbsent.accepted, resident: referenceAbsent.modelInfo?.resident, diagnostic: referenceAbsent.diagnostic },
+            load: { accepted: referenceLoad.accepted, diagnostic: referenceLoad.diagnostic },
+          }));
+        }
+        proof.nativeSmoke.northstarReference = { source: referenceMeshImportResult.meshSourceImport, model: referenceInfo.modelInfo, saved: referenceSave.voxelVolumeSave, unload: referenceUnload.voxelVolumeUnload, absent: referenceAbsent.modelInfo, reloaded: referenceLoad.voxelVolumeLoad };
+        const referenceCleanupInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
+        const referenceCleanup = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/generated', expectedSessionHash: referenceCleanupInfo.modelInfo?.sessionHash ?? '' } });
+        if (!referenceCleanup.accepted) throw new Error('Reference cleanup failed: ' + referenceCleanup.diagnostic);
         const registration = store.runAgentVoxelWorkflowOperation({
           kind: 'register_conversion_source',
           registration: {
@@ -1877,11 +1945,11 @@ function automationPrelude(): string {
 
 type NativeVoxelLaunchMode = 'proof' | 'interactive';
 
-function injectScripts(indexHtml: string, mode: string, token: string, launchMode: NativeVoxelLaunchMode): string {
+function injectScripts(indexHtml: string, mode: string, token: string, launchMode: NativeVoxelLaunchMode, referenceMeshImport: ReferenceMeshImport): string {
   const scripts = [
     mode === 'native' ? providerPrelude(token) : '',
     mode === 'invalid' ? invalidProviderPrelude() : '',
-    launchMode === 'proof' ? automationPrelude() : '',
+    launchMode === 'proof' ? automationPrelude(referenceMeshImport) : '',
   ].filter(script => script.length > 0)
     .map(script => `<script>${script}</script>`)
     .join('\n');
@@ -1938,6 +2006,7 @@ async function handleStatic(
   response: ServerResponse,
   token: string,
   launchMode: NativeVoxelLaunchMode,
+  referenceMeshImport: ReferenceMeshImport,
 ): Promise<void> {
   const url = new URL(request.url ?? '/', `http://${browserHost}`);
   const path = url.pathname === '/' ? '/index.html' : url.pathname;
@@ -1950,7 +2019,7 @@ async function handleStatic(
   if (path === '/index.html') {
     const html = await readFile(filePath, 'utf8');
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end(injectScripts(html, url.searchParams.get('provider') ?? 'native', token, launchMode));
+    response.end(injectScripts(html, url.searchParams.get('provider') ?? 'native', token, launchMode, referenceMeshImport));
     return;
   }
   response.writeHead(200, { 'content-type': contentType(filePath) });
@@ -1961,6 +2030,7 @@ async function createLaunchServer(
   bridge: RuntimeBridge,
   token: string,
   launchMode: NativeVoxelLaunchMode,
+  referenceMeshImport: ReferenceMeshImport,
 ): Promise<{ readonly port: number; close(): Promise<void> }> {
   const server = createServer((request, response) => {
     void (async () => {
@@ -1968,7 +2038,7 @@ async function createLaunchServer(
         await handleRpc(bridge, request, response, token);
         return;
       }
-      await handleStatic(request, response, token, launchMode);
+      await handleStatic(request, response, token, launchMode, referenceMeshImport);
     })().catch(error => {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
       response.end(error instanceof Error ? error.message : String(error));
@@ -2042,9 +2112,14 @@ function readProofFromDom(dom: string): BrowserProof {
 async function main(): Promise<void> {
   await run('pnpm', ['exec', 'nx', 'build', 'studio-app', '--configuration=development'], repoRoot, 120000);
   const nativeAddon = await ensureNativeAddon();
+  const referenceMeshBytes = await readFile(referenceMeshPath);
+  const referenceMeshImport: ReferenceMeshImport = {
+    sourcePath: 'assets/reference/kenney-retro-urban-wall-a.glb',
+    sourceBytes: [...referenceMeshBytes],
+  };
   const bridge = createNativeRuntimeBridge();
   const token = randomBytes(16).toString('hex');
-  const launchServer = await createLaunchServer(bridge, token, serveMode ? 'interactive' : 'proof');
+  const launchServer = await createLaunchServer(bridge, token, serveMode ? 'interactive' : 'proof', referenceMeshImport);
   const baseUrl = `http://${browserHost}:${launchServer.port}/`;
   await mkdir(outDir, { recursive: true });
 
@@ -2257,23 +2332,18 @@ async function main(): Promise<void> {
       'transcript_replay:true',
       'submit_compact_voxel_edit.fill_box_oversized:false',
     ], JSON.stringify(nativeProof.agentSurface.operationDiagnostics, null, 2));
-    assert.deepEqual(nativeProof.agentSurface.viewCapture, {
-      angle: 'isometric',
-      target: 'selected',
-      targetRenderableId: 'selected-voxel:0,0,0',
-      sessionId: 'session-preview-0001',
-      sceneHash: 'scene-view-57349d34',
-      readbackMarker: 'session-preview-0001:scene-view-57349d34:4',
-      cameraHash: nativeProof.agentSurface.viewCapture?.cameraHash,
-      viewportReadbackHash: nativeProof.agentSurface.viewCapture?.viewportReadbackHash,
-      captureHash: nativeProof.agentSurface.viewCapture?.captureHash,
-      nonClaims: [
-        'not_runtime_authority',
-        'not_hardware_gpu_capture',
-        'not_voxelforge_viewer',
-        'not_browser_screenshot',
-      ],
-    });
+    assert.equal(nativeProof.agentSurface.viewCapture?.angle, 'isometric');
+    assert.equal(nativeProof.agentSurface.viewCapture?.target, 'selected');
+    assert.equal(nativeProof.agentSurface.viewCapture?.targetRenderableId, 'selected-voxel:0,0,0');
+    assert.equal(nativeProof.agentSurface.viewCapture?.sessionId, 'session-preview-0001');
+    assert.equal(nativeProof.agentSurface.viewCapture?.sceneHash, 'scene-view-57349d34');
+    assert.match(nativeProof.agentSurface.viewCapture?.readbackMarker ?? '', /^session-preview-0001:scene-view-57349d34:\d+$/);
+    assert.deepEqual(nativeProof.agentSurface.viewCapture?.nonClaims, [
+      'not_runtime_authority',
+      'not_hardware_gpu_capture',
+      'not_voxelforge_viewer',
+      'not_browser_screenshot',
+    ]);
     assert.match(nativeProof.agentSurface.viewCapture?.cameraHash ?? '', /^viewport-camera-/);
     assert.match(nativeProof.agentSurface.viewCapture?.viewportReadbackHash ?? '', /^viewport-readback-/);
     assert.match(nativeProof.agentSurface.viewCapture?.captureHash ?? '', /^studio-agent-voxel-view-capture-/);
@@ -2333,6 +2403,40 @@ async function main(): Promise<void> {
       nativeProof.nativeSmoke.sessionHashBeforeVoxelEdits,
       'accepted voxel edits must change the authority session hash',
     );
+    const northstarReference = (nativeProof.nativeSmoke as unknown as {
+      readonly northstarReference?: {
+        readonly source: {
+          readonly sourceAssetId: string;
+          readonly sourcePath: string;
+          readonly sourceByteCount: number;
+          readonly vertexCount: number;
+          readonly triangleCount: number;
+          readonly groupCount: number;
+        };
+        readonly model: { readonly voxelCount: number; readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } } };
+        readonly saved: { readonly voxelCount: number; readonly nextCanonicalJsonHash: string; readonly nextVoxelDataHash: string };
+        readonly unload: { readonly unloaded: boolean; readonly removedVoxelCount: number };
+        readonly absent: { readonly resident: boolean; readonly voxelCount: number };
+        readonly reloaded: { readonly voxelCount: number; readonly canonicalJsonHash: string; readonly voxelDataHash: string };
+      };
+    }).northstarReference;
+    assert.ok(northstarReference);
+    assert.equal(northstarReference.source.sourceAssetId, 'mesh/kenney-retro-wall-a');
+    assert.equal(northstarReference.source.sourcePath, 'assets/reference/kenney-retro-urban-wall-a.glb');
+    assert.equal(northstarReference.source.sourceByteCount, 3352);
+    assert.equal(northstarReference.source.vertexCount, 48);
+    assert.equal(northstarReference.source.triangleCount, 12);
+    assert.equal(northstarReference.source.groupCount, 2);
+    assert.equal(northstarReference.model.voxelCount, 8);
+    assert.deepEqual(northstarReference.model.bounds, { min: { x: 0, y: 0, z: 0 }, max: { x: 7, y: 7, z: 7 } });
+    assert.equal(northstarReference.saved.voxelCount, northstarReference.model.voxelCount);
+    assert.equal(northstarReference.unload.unloaded, true);
+    assert.equal(northstarReference.unload.removedVoxelCount, northstarReference.model.voxelCount);
+    assert.equal(northstarReference.absent.resident, false);
+    assert.equal(northstarReference.absent.voxelCount, 0);
+    assert.equal(northstarReference.reloaded.voxelCount, northstarReference.model.voxelCount);
+    assert.equal(northstarReference.reloaded.canonicalJsonHash, northstarReference.saved.nextCanonicalJsonHash);
+    assert.equal(northstarReference.reloaded.voxelDataHash, northstarReference.saved.nextVoxelDataHash);
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 16, rejected: 0 });
     assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 16, rejected: 1 });
