@@ -4219,7 +4219,7 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(runningProjectConnectionSource.includes('negative_private_transport_failed_closed'), true);
   assert.equal(catalogWorkflowM3Source.includes("artifactKind: 'studio_catalog_workflow_m3_browser_proof'"), true);
   assert.equal(nativeVoxelLaunchSource.includes("process.argv.includes('--serve')"), true);
-  assert.equal(nativeVoxelLaunchSource.includes("launchMode === 'proof' ? automationPrelude() : ''"), true);
+  assert.equal(nativeVoxelLaunchSource.includes("launchMode === 'proof' ? automationPrelude(referenceMeshImport) : ''"), true);
   assert.equal(nativeVoxelLaunchSource.includes('ASHA Studio native voxel server is running.'), true);
   assert.equal(catalogWorkflowM3Source.includes('structured catalog workflow readout JSON is required'), true);
   assert.equal(catalogWorkflowM3Source.includes('negative_private_catalog_path_failed_closed'), true);
