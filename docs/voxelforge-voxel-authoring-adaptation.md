@@ -41,7 +41,7 @@ Run:
 pnpm run evidence -- native-voxel-runtime-launch
 ```
 
-The live proof builds Studio, rebuilds the native Rust bridge addon, serves the built app with the native provider prelude, and drives the public `StudioWorkspaceStore.runAgentVoxelWorkflowOperation` surface from the browser. The generated live artifact is ignored output at `artifacts/native-voxel-runtime-launch/latest/index.json`; the task handoff should record its `artifactHash`.
+The live proof builds Studio, serves a temporary UI copy through the public one-cell `@asha/browser-host`, consumes the standard `globalThis.ashaRuntimeBridge` provider, and drives the public `StudioWorkspaceStore.runAgentVoxelWorkflowOperation` surface from isolated browser Sessions. Studio owns no addon build/copy step or private RPC transport. The generated live artifact is ignored output at `artifacts/native-voxel-runtime-launch/latest/index.json`; the task handoff should record its `artifactHash`.
 
 The proof covers:
 

@@ -574,6 +574,7 @@ test('game workspace loader opens the asha-testing manifest without path guessin
   assert.deepEqual(result.workspace.catalogPackages, ['packages/game-catalogs']);
   assert.deepEqual(result.workspace.policyPackages, ['packages/game-policy']);
   assert.ok(result.workspace.allowedSourceWrites.includes('packages/game-catalogs'));
+  assert.ok(result.workspace.allowedSourceWrites.includes('prefabs'));
   assert.match(result.workspace.workspaceHash, /^studio-game-workspace-/);
 
   const readout = buildStudioGameWorkspaceReadout(result.workspace);
@@ -593,7 +594,7 @@ test('game workspace loader opens the asha-testing manifest without path guessin
   assert.equal(readout.publishCommand, 'npm run publish:artifact');
   assert.equal(readout.publishVerifyCommand, 'npm run conformance');
   assert.deepEqual(readout.devResourceProfile, {
-    localRoots: ['assets', 'packages/game-catalogs'],
+    localRoots: ['prefabs', 'assets', 'packages/game-catalogs'],
     cacheDir: 'harness/out/dev-cache',
     resolutionPolicy: 'prefer-source',
   });
@@ -4219,7 +4220,9 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(runningProjectConnectionSource.includes('negative_private_transport_failed_closed'), true);
   assert.equal(catalogWorkflowM3Source.includes("artifactKind: 'studio_catalog_workflow_m3_browser_proof'"), true);
   assert.equal(nativeVoxelLaunchSource.includes("process.argv.includes('--serve')"), true);
-  assert.equal(nativeVoxelLaunchSource.includes("launchMode === 'proof' ? automationPrelude(referenceMeshImport) : ''"), true);
+  assert.equal(nativeVoxelLaunchSource.includes('function injectBrowserHostScripts'), true);
+  assert.equal(nativeVoxelLaunchSource.includes('automationPrelude(referenceMeshImport)'), true);
+  assert.equal(nativeVoxelLaunchSource.includes('launchNativeBrowserHost'), true);
   assert.equal(nativeVoxelLaunchSource.includes('ASHA Studio native voxel server is running.'), true);
   assert.equal(catalogWorkflowM3Source.includes('structured catalog workflow readout JSON is required'), true);
   assert.equal(catalogWorkflowM3Source.includes('negative_private_catalog_path_failed_closed'), true);

@@ -1,92 +1,30 @@
 #!/usr/bin/env tsx
 import assert from 'node:assert/strict';
-import { createHash, randomBytes } from 'node:crypto';
-import { createReadStream, existsSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createHash } from 'node:crypto';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { once } from 'node:events';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { dirname, extname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createNativeRuntimeBridge, type RuntimeBridge } from '@asha/runtime-bridge';
+import {
+  ASHA_BROWSER_HOST_COMPATIBILITY_VERSION,
+  ASHA_BROWSER_HOST_PROVIDER_GLOBAL,
+  ASHA_BROWSER_HOST_PROVIDER_KIND,
+  launchNativeBrowserHost,
+} from '@asha/browser-host';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const engineRoot = resolve(repoRoot, '../asha-engine');
-const nativeCrateRoot = join(engineRoot, 'engine-rs', 'crates', 'bridge', 'native-bridge');
-const nativeAddonDest = join(engineRoot, 'ts/packages/native-bridge/dist/native-bridge.node');
 const staticRoot = join(repoRoot, 'dist/apps/studio-app/browser');
 const outDir = join(repoRoot, 'artifacts/native-voxel-runtime-launch/latest');
 const artifactPath = join(outDir, 'index.json');
 const referenceMeshPath = '/home/stash/mesh-resources/kenney_retro-urban-kit/Models/GLB format/tree-small.glb';
 const bindHost = '0.0.0.0';
 const browserHost = '127.0.0.1';
-const rpcPath = '/__asha_native_bridge_rpc';
 const chromium = '/usr/bin/chromium';
 const serveMode = process.argv.includes('--serve');
-
-const rpcMethods = [
-  'initializeEngine',
-  'loadProjectBundle',
-  'saveProjectBundle',
-  'getProjectBundleCompositionStatus',
-  'unloadProjectBundle',
-  'stepSimulation',
-  'readRenderDiffs',
-  'submitCommands',
-  'pickVoxel',
-  'selectVoxel',
-  'readVoxelMeshEvidence',
-  'readVoxelModelInfo',
-  'readVoxelModelWindow',
-  'createCamera',
-  'readCameraProjection',
-  'applyFirstPersonCameraInput',
-  'applyCollisionConstrainedCameraInput',
-  'readModelMaterialPreview',
-  'readSceneObjectSnapshot',
-  'applySceneObjectCommand',
-  'loadFpsRuntimeSession',
-  'readFpsRuntimeSession',
-  'applyFpsPrimaryFire',
-  'invokeGameExtensionWeaponEffect',
-  'validateGameRuleCatalog',
-  'submitGameRuleEffectIntent',
-  'readGameRuleRuntimeReadout',
-  'restartFpsRuntimeSession',
-  'readFpsEncounterDirector',
-  'applyFpsEncounterTransition',
-  'applyEnemyDirectNavMovement',
-  'planVoxelConversion',
-  'registerVoxelConversionSource',
-  'registerVoxelConversionMeshAsset',
-  'importVoxelConversionMeshSource',
-  'previewVoxelConversion',
-  'applyVoxelConversion',
-  'exportVoxelConversionEvidence',
-  'exportVoxelVolumeAsset',
-  'saveVoxelVolumeAsset',
-  'updateVoxelVolumeAssetPalette',
-  'initializeVoxelVolumeAuthoring',
-  'loadVoxelVolumeAsset',
-  'unloadVoxelVolumeAsset',
-  'validateVoxelAnnotationLayer',
-  'loadVoxelAnnotationLayer',
-  'readVoxelAnnotationQuery',
-  'applyVoxelAnnotationEdit',
-  'exportVoxelAnnotationLayer',
-  'readVoxelEditHistory',
-  'previewVoxelEditRevert',
-  'applyVoxelEditRevert',
-  'undoVoxelEdit',
-  'redoVoxelEdit',
-  'getBuffer',
-  'releaseBuffer',
-  'loadReplayFixture',
-  'runReplayStep',
-] as const;
-const allowedRpcMethods = new Set<string>(rpcMethods);
 
 interface ReferenceMeshImport {
   readonly sourcePath: string;
@@ -103,6 +41,11 @@ interface BrowserProof {
   readonly actionStates: readonly { readonly commandId: string; readonly accepted: string | null; readonly disabled: boolean }[];
   readonly evidenceKinds: readonly string[];
   readonly timelineStatuses: readonly string[];
+  readonly browserHost: {
+    readonly compatibilityVersion: string | null;
+    readonly providerKind: string | null;
+    readonly sessionId: string | null;
+  };
   readonly agentSurface: {
     readonly operationStatuses: readonly string[];
     readonly operationDiagnostics: readonly string[];
@@ -469,6 +412,13 @@ interface BrowserProof {
   readonly textSample: string;
 }
 
+interface BrowserSessionTeardownReceipt {
+  readonly status: 'disconnected' | 'already_disconnected';
+  readonly scope: 'browser_session';
+  readonly browserSession: string;
+  readonly released: number;
+}
+
 interface VoxelAssetAuthorityValidation {
   readonly path: string;
   readonly isValid: boolean;
@@ -483,17 +433,6 @@ function sha256Buffer(buffer: Buffer | string): string {
 
 function sha256(value: unknown): string {
   return sha256Buffer(JSON.stringify(value));
-}
-
-function contentType(path: string): string {
-  const ext = extname(path);
-  if (ext === '.html') return 'text/html; charset=utf-8';
-  if (ext === '.js') return 'text/javascript; charset=utf-8';
-  if (ext === '.css') return 'text/css; charset=utf-8';
-  if (ext === '.json') return 'application/json; charset=utf-8';
-  if (ext === '.png') return 'image/png';
-  if (ext === '.svg') return 'image/svg+xml';
-  return 'application/octet-stream';
 }
 
 async function run(command: string, args: readonly string[], cwd: string, timeoutMs: number): Promise<void> {
@@ -606,69 +545,24 @@ fn main() {
   }
 }
 
-async function ensureNativeAddon(): Promise<{ readonly artifact: string; readonly destination: string }> {
-  await run('cargo', ['build', '--release'], nativeCrateRoot, 120000);
-  const artifact = join(nativeCrateRoot, 'target/release/libnative_bridge.so');
-  assert.equal(existsSync(artifact), true, `native bridge cdylib missing at ${artifact}`);
-  await mkdir(dirname(nativeAddonDest), { recursive: true });
-  await copyFile(artifact, nativeAddonDest);
-  return {
-    artifact,
-    destination: nativeAddonDest,
-  };
-}
-
-function providerPrelude(token: string): string {
-  const methodList = JSON.stringify(rpcMethods);
+function providerScenarioPrelude(): string {
   return `
 (() => {
+  const mode = new URLSearchParams(location.hash.slice(1)).get('provider') || 'native';
   globalThis.ashaStudioNativeVoxelLaunchProof = { enabled: true };
-  const endpoint = '${rpcPath}?token=${token}';
-  const methods = ${methodList};
-  function callNative(method, args) {
-    const request = new XMLHttpRequest();
-    request.open('POST', endpoint, false);
-    request.setRequestHeader('content-type', 'application/json');
-    request.send(JSON.stringify({ method, args }));
-    let response = null;
-    try {
-      response = JSON.parse(request.responseText);
-    } catch {
-      throw new Error('Native bridge RPC returned non-JSON response: ' + request.status);
-    }
-    if (request.status !== 200 || response.ok !== true) {
-      const message = response && response.error && response.error.message
-        ? response.error.message
-        : 'Native bridge RPC failed';
-      throw new Error(message);
-    }
-    return response.value;
+  if (mode === 'missing') {
+    delete globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL};
+  } else if (mode === 'invalid') {
+    globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL} = {
+      kind: '${ASHA_BROWSER_HOST_PROVIDER_KIND}',
+      backend: 'reference_bridge',
+      productAuthority: false,
+      referenceFallback: true,
+      browserHostCompatibilityVersion: '${ASHA_BROWSER_HOST_COMPATIBILITY_VERSION}',
+      browserHostSessionId: 'spoofed',
+      createRuntimeBridge: () => ({}),
+    };
   }
-  const bridge = {};
-  for (const method of methods) {
-    bridge[method] = (...args) => callNative(method, args);
-  }
-  globalThis.ashaStudioRuntimeBridge = {
-    kind: 'asha_studio.native_runtime_bridge_provider.v1',
-    backend: 'native_rust',
-    productAuthority: true,
-    referenceFallback: false,
-    createRuntimeBridge: () => bridge,
-  };
-})();
-`;
-}
-
-function invalidProviderPrelude(): string {
-  return `
-(() => {
-  globalThis.ashaStudioNativeVoxelLaunchProof = { enabled: true };
-  globalThis.ashaStudioRuntimeBridge = {
-    kind: 'asha_studio.invalid_provider.v0',
-    backend: 'reference_bridge',
-    productAuthority: false,
-    referenceFallback: true,
-  };
 })();
 `;
 }
@@ -676,9 +570,10 @@ function invalidProviderPrelude(): string {
 function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   return `
 (() => {
-  const mode = new URL(location.href).searchParams.get('provider') || 'native';
+  const mode = new URLSearchParams(location.hash.slice(1)).get('provider') || 'native';
   globalThis.ashaStudioNativeVoxelLaunchProof = globalThis.ashaStudioNativeVoxelLaunchProof || { enabled: true };
   globalThis.ashaStudioNativeVoxelLaunchProof.enabled = true;
+  const browserHostProvider = globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL};
   const referenceMeshImport = ${JSON.stringify(referenceMeshImport)};
   const proof = {
     mode,
@@ -690,6 +585,15 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     actionStates: [],
     evidenceKinds: [],
     timelineStatuses: [],
+    browserHost: {
+      compatibilityVersion: typeof browserHostProvider?.browserHostCompatibilityVersion === 'string'
+        ? browserHostProvider.browserHostCompatibilityVersion
+        : null,
+      providerKind: typeof browserHostProvider?.kind === 'string' ? browserHostProvider.kind : null,
+      sessionId: typeof browserHostProvider?.browserHostSessionId === 'string'
+        ? browserHostProvider.browserHostSessionId
+        : null,
+    },
     agentSurface: {
       operationStatuses: [],
       operationDiagnostics: [],
@@ -802,8 +706,8 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     const diagnosticText = runtimeText + '\\n' + storeRuntimeMessage;
     proof.runtimeMessage = runtimeText.includes('Rust RuntimeSession attached') || storeRuntimeMessage.includes('Rust RuntimeSession attached')
       ? 'Rust RuntimeSession attached'
-      : diagnosticText.includes('globalThis.ashaStudioRuntimeBridge')
-        ? diagnosticText.match(/globalThis\\.ashaStudioRuntimeBridge[^\\n]*/)?.[0] || 'provider rejected'
+      : diagnosticText.includes('globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL}')
+        ? diagnosticText.match(/globalThis\\.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL}[^\\n]*/)?.[0] || 'provider rejected'
         : 'runtime message unavailable';
     proof.attachState = store && typeof store.runtimeSessionInspection === 'function'
       ? store.runtimeSessionInspection().attachState
@@ -1246,7 +1150,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     const storeMessage = store && typeof store.runtimeConnectionMessage === 'function'
       ? store.runtimeConnectionMessage()
       : '';
-    return (text() + '\\n' + storeMessage).includes('globalThis.ashaStudioRuntimeBridge');
+    return (text() + '\\n' + storeMessage).includes('globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL}');
   }
 
   function finish() {
@@ -2067,117 +1971,30 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
 
 type NativeVoxelLaunchMode = 'proof' | 'interactive';
 
-function injectScripts(indexHtml: string, mode: string, token: string, launchMode: NativeVoxelLaunchMode, referenceMeshImport: ReferenceMeshImport): string {
+function injectBrowserHostScripts(
+  indexHtml: string,
+  launchMode: NativeVoxelLaunchMode,
+  referenceMeshImport: ReferenceMeshImport,
+): string {
   const scripts = [
-    mode === 'native' ? providerPrelude(token) : '',
-    mode === 'invalid' ? invalidProviderPrelude() : '',
-    launchMode === 'proof' ? automationPrelude(referenceMeshImport) : '',
-  ].filter(script => script.length > 0)
-    .map(script => `<script>${script}</script>`)
-    .join('\n');
+    '<script src="/asha/browser-host/native-provider.js"></script>',
+    `<script>${providerScenarioPrelude()}</script>`,
+    ...(launchMode === 'proof' ? [`<script>${automationPrelude(referenceMeshImport)}</script>`] : []),
+  ].join('\n');
   return indexHtml.replace('</head>', `${scripts}\n</head>`);
 }
 
-function readBody(request: IncomingMessage): Promise<Buffer> {
-  return new Promise((resolvePromise, reject) => {
-    const chunks: Buffer[] = [];
-    request.on('data', chunk => chunks.push(Buffer.from(chunk)));
-    request.on('end', () => resolvePromise(Buffer.concat(chunks)));
-    request.on('error', reject);
-  });
-}
-
-async function handleRpc(bridge: RuntimeBridge, request: IncomingMessage, response: ServerResponse, token: string): Promise<void> {
-  const url = new URL(request.url ?? '/', `http://${browserHost}`);
-  if (url.searchParams.get('token') !== token) {
-    response.writeHead(403, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ ok: false, error: { message: 'invalid native bridge RPC token' } }));
-    return;
-  }
-  const body = JSON.parse((await readBody(request)).toString('utf8')) as { readonly method?: unknown; readonly args?: unknown };
-  if (typeof body.method !== 'string' || !allowedRpcMethods.has(body.method) || !Array.isArray(body.args)) {
-    response.writeHead(400, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ ok: false, error: { message: 'invalid native bridge RPC request' } }));
-    return;
-  }
-  const method = (bridge as unknown as Record<string, unknown>)[body.method];
-  if (typeof method !== 'function') {
-    response.writeHead(404, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ ok: false, error: { message: `native bridge method not available: ${body.method}` } }));
-    return;
-  }
-  try {
-    const value = method.apply(bridge, body.args);
-    response.writeHead(200, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ ok: true, value }));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    response.writeHead(500, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({
-      ok: false,
-      error: {
-        name: error instanceof Error ? error.name : 'Error',
-        message: `${body.method} RPC failed: ${message}`,
-      },
-    }));
-  }
-}
-
-async function handleStatic(
-  request: IncomingMessage,
-  response: ServerResponse,
-  token: string,
+async function prepareBrowserHostUi(
   launchMode: NativeVoxelLaunchMode,
   referenceMeshImport: ReferenceMeshImport,
-): Promise<void> {
-  const url = new URL(request.url ?? '/', `http://${browserHost}`);
-  const path = url.pathname === '/' ? '/index.html' : url.pathname;
-  const filePath = join(staticRoot, path);
-  if (!filePath.startsWith(staticRoot) || !existsSync(filePath)) {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-    response.end('not found');
-    return;
-  }
-  if (path === '/index.html') {
-    const html = await readFile(filePath, 'utf8');
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end(injectScripts(html, url.searchParams.get('provider') ?? 'native', token, launchMode, referenceMeshImport));
-    return;
-  }
-  response.writeHead(200, { 'content-type': contentType(filePath) });
-  createReadStream(filePath).pipe(response);
-}
-
-async function createLaunchServer(
-  bridge: RuntimeBridge,
-  token: string,
-  launchMode: NativeVoxelLaunchMode,
-  referenceMeshImport: ReferenceMeshImport,
-): Promise<{ readonly port: number; close(): Promise<void> }> {
-  const server = createServer((request, response) => {
-    void (async () => {
-      if (request.url?.startsWith(rpcPath) === true && request.method === 'POST') {
-        await handleRpc(bridge, request, response, token);
-        return;
-      }
-      await handleStatic(request, response, token, launchMode, referenceMeshImport);
-    })().catch(error => {
-      response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-      response.end(error instanceof Error ? error.message : String(error));
-    });
-  });
-  server.listen(0, bindHost);
-  await once(server, 'listening');
-  const address = server.address();
-  assert.equal(typeof address, 'object');
-  assert.ok(address);
-  return {
-    port: address.port,
-    close: async () => {
-      server.close();
-      await once(server, 'close');
-    },
-  };
+): Promise<{ readonly tempRoot: string; readonly uiRoot: string }> {
+  const tempRoot = await mkdtemp(join(tmpdir(), 'asha-studio-browser-host-'));
+  const uiRoot = join(tempRoot, 'ui');
+  await cp(staticRoot, uiRoot, { recursive: true });
+  const indexPath = join(uiRoot, 'index.html');
+  const indexHtml = await readFile(indexPath, 'utf8');
+  await writeFile(indexPath, injectBrowserHostScripts(indexHtml, launchMode, referenceMeshImport));
+  return { tempRoot, uiRoot };
 }
 
 function waitForShutdown(): Promise<void> {
@@ -2224,6 +2041,22 @@ async function runChromiumDump(url: string): Promise<string> {
   return stdout;
 }
 
+async function confirmBrowserSessionTeardown(
+  baseUrl: string,
+  browserSession: string,
+): Promise<BrowserSessionTeardownReceipt> {
+  const response = await fetch(
+    `${baseUrl}asha/browser-host/runtime-bridge/session/${browserSession}/disconnect`,
+    { method: 'POST' },
+  );
+  assert.equal(response.status, 200);
+  const receipt = await response.json() as BrowserSessionTeardownReceipt;
+  assert.equal(receipt.scope, 'browser_session');
+  assert.equal(receipt.browserSession, browserSession);
+  assert.match(receipt.status, /^(?:disconnected|already_disconnected)$/u);
+  return receipt;
+}
+
 function readProofFromDom(dom: string): BrowserProof {
   const markerPattern = new RegExp('<script id="asha-native-voxel-launch-proof" type="application/json">([^<]+)</script>');
   const match = dom.match(markerPattern);
@@ -2233,30 +2066,57 @@ function readProofFromDom(dom: string): BrowserProof {
 
 async function main(): Promise<void> {
   await run('pnpm', ['exec', 'nx', 'build', 'studio-app', '--configuration=development'], repoRoot, 120000);
-  const nativeAddon = await ensureNativeAddon();
   const referenceMeshBytes = await readFile(referenceMeshPath);
   const referenceMeshImport: ReferenceMeshImport = {
     sourcePath: 'assets/reference/kenney-retro-urban-tree-small.glb',
     sourceBytes: [...referenceMeshBytes],
   };
-  const bridge = createNativeRuntimeBridge();
-  const token = randomBytes(16).toString('hex');
-  const launchServer = await createLaunchServer(bridge, token, serveMode ? 'interactive' : 'proof', referenceMeshImport);
-  const baseUrl = `http://${browserHost}:${launchServer.port}/`;
+  const preparedUi = await prepareBrowserHostUi(
+    serveMode ? 'interactive' : 'proof',
+    referenceMeshImport,
+  );
+  const launchServer = await launchNativeBrowserHost({
+    uiRoot: preparedUi.uiRoot,
+    host: bindHost,
+    port: 0,
+    healthProject: 'asha-studio',
+  });
+  const baseUrl = `${launchServer.url.replace(bindHost, browserHost)}/`;
+  const providerStatusResponse = await fetch(`${baseUrl}asha/browser-host/runtime-provider.json`);
+  assert.equal(providerStatusResponse.status, 200);
+  const providerStatus = await providerStatusResponse.json() as typeof launchServer.provider;
+  assert.equal(providerStatus.status, 'rust_authority');
   await mkdir(outDir, { recursive: true });
 
   try {
     if (serveMode) {
       console.log('ASHA Studio native voxel server is running.');
-      console.log(`Open ${baseUrl}?provider=native`);
+      console.log(`Open ${baseUrl}#provider=native`);
       console.log('Press Ctrl+C to stop.');
       await waitForShutdown();
       return;
     }
 
-    const nativeDom = await runChromiumDump(`${baseUrl}?provider=native`);
+    const [nativeDom, isolatedNativeDom] = await Promise.all([
+      runChromiumDump(`${baseUrl}#provider=native`),
+      runChromiumDump(`${baseUrl}#provider=native`),
+    ]);
     const nativeProof = readProofFromDom(nativeDom);
+    const isolatedNativeProof = readProofFromDom(isolatedNativeDom);
     assert.equal(nativeProof.status, 'complete', JSON.stringify(nativeProof, null, 2));
+    assert.equal(isolatedNativeProof.status, 'complete', JSON.stringify(isolatedNativeProof, null, 2));
+    assert.deepEqual(nativeProof.browserHost, {
+      compatibilityVersion: ASHA_BROWSER_HOST_COMPATIBILITY_VERSION,
+      providerKind: ASHA_BROWSER_HOST_PROVIDER_KIND,
+      sessionId: nativeProof.browserHost.sessionId,
+    });
+    assert.match(nativeProof.browserHost.sessionId ?? '', /^(0|[1-9][0-9]*)$/u);
+    assert.match(isolatedNativeProof.browserHost.sessionId ?? '', /^(0|[1-9][0-9]*)$/u);
+    assert.notEqual(nativeProof.browserHost.sessionId, isolatedNativeProof.browserHost.sessionId);
+    const browserSessionTeardown = await Promise.all([
+      confirmBrowserSessionTeardown(baseUrl, nativeProof.browserHost.sessionId ?? ''),
+      confirmBrowserSessionTeardown(baseUrl, isolatedNativeProof.browserHost.sessionId ?? ''),
+    ]);
     assert.equal(nativeProof.runtimeMessage, 'Rust RuntimeSession attached');
     assert.deepEqual(nativeProof.evidenceKinds, ['plan', 'preview', 'apply_receipt']);
     assert.deepEqual(nativeProof.timelineStatuses, ['complete', 'complete', 'complete', 'ready']);
@@ -2765,15 +2625,15 @@ async function main(): Promise<void> {
     assert.equal(nativeProof.nativeSmoke.missingModelInfo.resident, false);
     assert.deepEqual(nativeProof.nativeSmoke.missingModelInfo.diagnosticCodes, ['voxel_conversion_unavailable']);
 
-    const missingDom = await runChromiumDump(`${baseUrl}?provider=missing`);
+    const missingDom = await runChromiumDump(`${baseUrl}#provider=missing`);
     const missingProof = readProofFromDom(missingDom);
     assert.equal(missingProof.status, 'failed_closed', JSON.stringify(missingProof, null, 2));
-    assert.match(missingProof.runtimeMessage, /globalThis\.ashaStudioRuntimeBridge/);
+    assert.match(missingProof.runtimeMessage, /globalThis\.ashaRuntimeBridge/);
 
-    const invalidDom = await runChromiumDump(`${baseUrl}?provider=invalid`);
+    const invalidDom = await runChromiumDump(`${baseUrl}#provider=invalid`);
     const invalidProof = readProofFromDom(invalidDom);
     assert.equal(invalidProof.status, 'failed_closed', JSON.stringify(invalidProof, null, 2));
-    assert.match(invalidProof.runtimeMessage, /globalThis\.ashaStudioRuntimeBridge/);
+    assert.match(invalidProof.runtimeMessage, /globalThis\.ashaRuntimeBridge/);
 
     const nativeDomPath = join(outDir, 'native-provider-dom.html');
     const missingDomPath = join(outDir, 'missing-provider-dom.html');
@@ -2818,22 +2678,24 @@ async function main(): Promise<void> {
 
     const artifact = {
       artifactKind: 'studio_native_voxel_runtime_launch_proof',
-      artifactVersion: 'studio-native-voxel-runtime-launch-proof.v0',
+      artifactVersion: 'studio-native-voxel-runtime-launch-proof.v1',
       generatedAt: 'deterministic-as-structure-only',
       command: 'pnpm run evidence -- native-voxel-runtime-launch',
       launch: {
         bindHost,
         browserUrl: baseUrl,
         staticRoot: relative(repoRoot, staticRoot),
-        providerContract: 'asha_studio.native_runtime_bridge_provider.v1',
+        providerContract: ASHA_BROWSER_HOST_PROVIDER_KIND,
+        browserHostCompatibilityVersion: ASHA_BROWSER_HOST_COMPATIBILITY_VERSION,
         backend: 'native_rust',
         productAuthority: true,
         referenceFallback: false,
       },
-      nativeAddon: {
-        sourceArtifact: relative(repoRoot, nativeAddon.artifact),
-        installedAddon: relative(repoRoot, nativeAddon.destination),
-        installedAddonHash: sha256Buffer(await readFile(nativeAddon.destination)),
+      browserHost: {
+        kind: launchServer.kind,
+        compatibilityVersion: launchServer.compatibilityVersion,
+        providerStatus,
+        browserSessionTeardown,
       },
       domArtifacts: {
         nativeProvider: {
@@ -2889,12 +2751,15 @@ async function main(): Promise<void> {
       },
       proofs: {
         nativeProvider: nativeProof,
+        isolatedNativeProvider: isolatedNativeProof,
         missingProvider: missingProof,
         invalidProvider: invalidProof,
       },
       validations: [
-        'studio_app_built_and_served_with_native_provider_prelude',
-        'native_addon_rebuilt_and_accepted_by_createNativeRuntimeBridge',
+        'studio_app_built_and_served_by_public_launchNativeBrowserHost',
+        'standard_browser_host_provider_status_reported_rust_authority',
+        'simultaneous_browser_sessions_received_isolated_one_cell_runtime_bridges',
+        'browser_close_or_explicit_teardown_released_both_native_sessions',
         'attachRuntimeSessionInspection_succeeded_with_native_rust_authority',
         'studio_catalog_static_mesh_registered_through_runtime_session_facade',
         'voxel_conversion_plan_preview_apply_export_used_native_runtime_facade',
@@ -2919,6 +2784,7 @@ async function main(): Promise<void> {
         'not_vforge_file',
         'not_voxelforge_import_export_compatibility',
         'not_packaged_electron_evidence',
+        'not_studio_private_rpc_transport',
         'not_public_remote_rpc_api',
       ],
     };
@@ -2929,7 +2795,11 @@ async function main(): Promise<void> {
     await writeFile(artifactPath, `${JSON.stringify(artifactWithHash, null, 2)}\n`);
     console.log(`wrote ${relative(repoRoot, artifactPath)}`);
   } finally {
-    await launchServer.close();
+    try {
+      await launchServer.close();
+    } finally {
+      await rm(preparedUi.tempRoot, { recursive: true, force: true });
+    }
   }
 }
 

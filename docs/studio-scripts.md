@@ -12,7 +12,7 @@ evidence generators are retained for review artifacts and milestone gates.
 | `pnpm run studio:dev` | Product-shaped alias for `dev`. |
 | `pnpm run dev:files` | Run the Studio project-file dev server. |
 | `pnpm run studio:files` | Product-shaped alias for `dev:files`. |
-| `pnpm run studio:dev:native-voxel` | Build Studio, rebuild the native Rust addon, launch Studio with the native provider prelude, print a local URL, and keep the server open for interactive voxel workflow testing. |
+| `pnpm run studio:dev:native-voxel` | Build Studio, launch its temporary UI copy through the public `@asha/browser-host`, print a local URL, and keep the standard native provider host open for interactive voxel workflow testing. |
 | `pnpm run studio:proof:native-voxel` | Run the deterministic native voxel proof and write ignored evidence artifacts. |
 | `pnpm run build` | Build all Nx projects. |
 | `pnpm run build:studio-app` | Build only the Studio app. |

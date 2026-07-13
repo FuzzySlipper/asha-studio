@@ -37,9 +37,10 @@ evidence refs, and a stale-source negative smoke.
 
 Task #4550 adds the follow-on live native proof command:
 `pnpm run evidence -- native-voxel-runtime-launch`. That proof builds Studio,
-rebuilds the native Rust addon, attaches a native Rust `RuntimeSession`, runs a
-small static-mesh conversion, submits VoxelForge-shaped compact voxel edits, and
-records live readbacks in ignored output at
+launches the built UI through the public one-cell `@asha/browser-host`, attaches
+an isolated native Rust `RuntimeSession` from the standard
+`globalThis.ashaRuntimeBridge` provider, runs a small static-mesh conversion,
+submits VoxelForge-shaped compact voxel edits, and records live readbacks in ignored output at
 `artifacts/native-voxel-runtime-launch/latest/index.json`.
 
 ## Fixture-Backed Or Projection-Only

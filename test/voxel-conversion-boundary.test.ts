@@ -531,7 +531,8 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /not_vforge_file/);
   assert.match(proofSource, /process\.argv\.includes\('--serve'\)/);
   assert.match(proofSource, /NativeVoxelLaunchMode = 'proof' \| 'interactive'/);
-  assert.match(proofSource, /launchMode === 'proof' \? automationPrelude\(referenceMeshImport\) : ''/);
+  assert.match(proofSource, /function injectBrowserHostScripts/);
+  assert.match(proofSource, /automationPrelude\(referenceMeshImport\)/);
   assert.match(proofSource, /kenney-retro-urban-tree-small\.glb/);
   assert.match(proofSource, /northstarReference/);
   assert.match(proofSource, /northstarScratch/);
@@ -568,16 +569,8 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /reopen_voxel_asset\.authored:true/);
   assert.match(proofSource, /persist_voxel_asset_emitted_asha_native_avxl_json_projection_artifacts/);
   assert.match(proofSource, /reopen_voxel_asset_verified_round_trip_hashes_without_runtime_authority_claims/);
-  for (const runtimeBridgeMethod of [
-    'stepSimulation',
-    'invokeGameExtensionWeaponEffect',
-    'validateGameRuleCatalog',
-    'submitGameRuleEffectIntent',
-    'readGameRuleRuntimeReadout',
-    'readVoxelModelInfo',
-  ]) {
-    assert.match(proofSource, new RegExp(`'${runtimeBridgeMethod}'`));
-  }
+  assert.match(proofSource, /launchNativeBrowserHost/);
+  assert.doesNotMatch(proofSource, new RegExp(['rpc', 'Methods'].join('')));
   assert.doesNotMatch(proofSource, /'screenPointToPickRay'/);
   assert.doesNotMatch(proofSource, /'step'/);
   for (const compactAffordance of [
@@ -1156,15 +1149,7 @@ test('studio voxel history panel uses RuntimeSession history projections without
   assert.match(proofSource, /proof\.agentSurface\.voxelHistory/);
   assert.match(proofSource, /studio-voxel-history-panel-/);
 
-  for (const method of [
-    'readVoxelEditHistory',
-    'previewVoxelEditRevert',
-    'applyVoxelEditRevert',
-    'undoVoxelEdit',
-    'redoVoxelEdit',
-  ]) {
-    assert.match(proofSource, new RegExp(`'${method}'`));
-  }
+  assert.match(proofSource, /launchNativeBrowserHost/);
 });
 
 test('studio voxel annotation authoring uses public RuntimeSession annotation operations', () => {
@@ -1207,12 +1192,7 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
   assert.match(proofSource, /submitVoxelAnnotationControl\('load'\)/);
   assert.match(proofSource, /submitVoxelAnnotationControl\('export'\)/);
 
-  for (const method of [
-    'validateVoxelAnnotationLayer', 'loadVoxelAnnotationLayer', 'readVoxelAnnotationQuery',
-    'applyVoxelAnnotationEdit', 'exportVoxelAnnotationLayer',
-  ]) {
-    assert.match(proofSource, new RegExp(`'${method}'`));
-  }
+  assert.match(proofSource, /launchNativeBrowserHost/);
 });
 
 test('studio imports RuntimeSession semantics from their public package root', () => {
@@ -1254,7 +1234,7 @@ test('studio voxel palette editor uses the public stored-only RuntimeSession mut
   }
   assert.match(panelSource, /data-voxel-palette-action="update"/);
   assert.match(panelSource, /runVoxelMaterialPaletteUpdate\(\)/);
-  assert.match(proofSource, /'updateVoxelVolumeAssetPalette'/);
+  assert.match(proofSource, /launchNativeBrowserHost/);
   assert.match(proofSource, /rejectedPaletteUpdate/);
   assert.match(proofSource, /Native copper palette/);
 });

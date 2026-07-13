@@ -9,6 +9,7 @@
     "@angular/core": "~21.2.0",
     "@asha-studio/command-dispatch": "workspace:*",
     "@asha-studio/domain": "workspace:*",
+    "@asha/browser-host": "link:../../../asha-engine/ts/packages/browser-host",
     "@asha/runtime-bridge": "link:../../../asha-engine/ts/packages/runtime-bridge",
     "@asha/runtime-session": "link:../../../asha-engine/ts/packages/runtime-session",
     "tslib": "^2.3.0"

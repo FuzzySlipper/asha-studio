@@ -4,6 +4,7 @@
   "consumerRole": "asha-studio",
   "publicSurfaceManifest": "../asha-engine/harness/public-surface/ts-packages.json",
   "allowedLocalPackageLinks": {
+    "@asha/browser-host": "link:../asha-engine/ts/packages/browser-host",
     "@asha/command-registry": "link:../asha-engine/ts/packages/command-registry",
     "@asha/catalog-core": "link:../asha-engine/ts/packages/catalog-core",
     "@asha/contracts": "link:../asha-engine/ts/packages/contracts",
@@ -15,6 +16,7 @@
     "@asha/runtime-session": "link:../asha-engine/ts/packages/runtime-session"
   },
   "requiredLocalPackageLinks": {
+    "@asha/browser-host": "link:../asha-engine/ts/packages/browser-host",
     "@asha/command-registry": "link:../asha-engine/ts/packages/command-registry",
     "@asha/catalog-core": "link:../asha-engine/ts/packages/catalog-core",
     "@asha/contracts": "link:../asha-engine/ts/packages/contracts",
@@ -63,7 +65,13 @@
     "payload:any",
     "Record<string, unknown> command",
     "VoxelConversionMcpCommand",
-    "successor_mcp_command"
+    "successor_mcp_command",
+    "ashaStudioRuntimeBridge",
+    "asha_studio.native_runtime_bridge_provider.v1",
+    "__asha_native_bridge_rpc",
+    "rpcMethods",
+    "createNativeRuntimeBridge",
+    "native-bridge.node"
   ],
   "forbiddenConfigPathFragments": [
     "../asha-engine/ts/packages",

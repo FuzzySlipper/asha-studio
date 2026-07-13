@@ -161,9 +161,16 @@ import {
   type VoxelModelWindowRequest,
 } from '@asha/contracts';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
+import type {
+  NativeBrowserHostProviderScope,
+  NativeBrowserHostRuntimeBridge,
+} from '@asha/browser-host';
 import {
+  NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_GLOBALS,
+  NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_KIND,
   RuntimeBridgeError,
   createRuntimeSessionFacade,
+  resolveNativeRustRuntimeBridgeProvider,
   type CameraCreateRequest,
   type ProjectBundleLoadRequest,
   type RuntimeBridge,
@@ -184,6 +191,7 @@ import type {
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
 } from '@asha/runtime-session';
+
 import type {
   VoxelConversionApplyCommandInput,
   VoxelConversionEvidenceExportInput,
@@ -203,6 +211,14 @@ import {
   type StudioVoxelConversionReadoutModel,
   type StudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
+
+// The compatibility marker is browser-visible metadata installed by
+// @asha/browser-host. Provider identity comes from the browser-safe public
+// RuntimeBridge contract; importing the package's Node host implementation here
+// would pull node:http and node:fs into the Angular application.
+const ASHA_BROWSER_HOST_COMPATIBILITY_VERSION = 'browser-host.v0' as const;
+const ASHA_BROWSER_HOST_PROVIDER_GLOBAL = NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_GLOBALS[0];
+const ASHA_BROWSER_HOST_PROVIDER_KIND = NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_KIND;
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
 
@@ -1386,6 +1402,7 @@ engine_source = "../asha-engine"
 
 [workspace]
 scene_roots = ["levels/presets", "levels/scenes"]
+prefab_roots = ["prefabs"]
 asset_roots = ["assets"]
 replay_roots = ["replays"]
 catalog_packages = ["catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
@@ -1402,7 +1419,7 @@ backend_proof_refs = ["artifacts/4217/generated-tunnel-room.png"]
 [studio]
 workspace_mode = true
 attach_enabled = false
-allowed_source_writes = ["levels/presets", "levels/scenes", "assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
+allowed_source_writes = ["levels/presets", "levels/scenes", "prefabs", "assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
 
 [publish]
 command = "npm run build"
@@ -1410,7 +1427,7 @@ artifact_dir = "dist"
 verify_command = "npm run typecheck"
 
 [dev_resource_profile]
-local_roots = ["assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
+local_roots = ["prefabs", "assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
 cache_dir = "dist/dev-cache"
 resolution_policy = "prefer-source"
 
@@ -1429,6 +1446,7 @@ const DEMO_GAME_WORKSPACE_SCRIPTS: Readonly<Record<string, string>> = {
 const DEMO_GAME_WORKSPACE_PATHS = new Set([
   'levels/presets',
   'levels/scenes',
+  'prefabs',
   'assets',
   'replays',
   'catalogs/actors',
@@ -4708,6 +4726,7 @@ export class StudioWorkspaceStore {
   );
   private readonly runtimeAttachState = signal<StudioGameWorkspaceAttachReadModel | null>(null);
   private readonly runtimeLiveState = signal<StudioGameWorkspaceLiveReadModel | null>(null);
+  private readonly runtimeSessionBridgeState = signal<NativeBrowserHostRuntimeBridge | null>(null);
   private readonly runtimeSessionFacadeState = signal<RuntimeSessionFacade | null>(null);
   private readonly runtimeSessionStateSummaryState = signal<RuntimeSessionStateSummary | null>(null);
   private readonly runtimeSessionProjectionState = signal<RuntimeSessionProjectionSummary | null>(null);
@@ -7593,7 +7612,9 @@ export class StudioWorkspaceStore {
     }
 
     try {
+      this.clearRuntimeSessionInspection();
       const attach = await createStudioRustRuntimeSessionFacade();
+      this.runtimeSessionBridgeState.set(attach.bridge);
       const facade = attach.facade;
       const initialized = facade.initialize({
         sessionId: `runtime-session:${workspace.gameId}:studio-rust`,
@@ -7613,12 +7634,30 @@ export class StudioWorkspaceStore {
       this.playableLoopEncounterTransitionReceiptState.set(null);
       this.playableLoopCombatFeedbackProjectionState.set(null);
       this.refreshRuntimeSessionInspectionReadout(facade);
-      this.runtimeConnectionMessageState.set(`Rust RuntimeSession attached: ${initialized.sessionHash}.`);
-      this.menuMessageState.set('Live Runtime Inspection attached through the public Rust backend.');
-    } catch (error) {
-      this.clearRuntimeSessionInspection();
       this.runtimeConnectionMessageState.set(
-        error instanceof Error ? error.message : 'RuntimeSession attach failed.',
+        `Rust RuntimeSession attached through ${attach.browserHost.compatibilityVersion}: ${initialized.sessionHash}.`,
+      );
+      this.menuMessageState.set('Live Runtime Inspection attached through the public one-cell browser host.');
+    } catch (error) {
+      let cleanupMessage = '';
+      try {
+        this.clearRuntimeSessionInspection();
+      } catch (cleanupError) {
+        cleanupMessage = ` Cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`;
+      }
+      this.runtimeConnectionMessageState.set(
+        `${error instanceof Error ? error.message : 'RuntimeSession attach failed.'}${cleanupMessage}`,
+      );
+    }
+  }
+
+  detachRuntimeSessionInspection(): void {
+    try {
+      this.clearRuntimeSessionInspection();
+      this.runtimeConnectionMessageState.set('RuntimeSession disconnected through the public browser-host lifecycle.');
+    } catch (error) {
+      this.runtimeConnectionMessageState.set(
+        error instanceof Error ? error.message : 'RuntimeSession browser-host disconnect failed.',
       );
     }
   }
@@ -7894,6 +7933,8 @@ export class StudioWorkspaceStore {
   }
 
   private clearRuntimeSessionInspection(): void {
+    const bridge = this.runtimeSessionBridgeState();
+    this.runtimeSessionBridgeState.set(null);
     this.runtimeSessionFacadeState.set(null);
     this.runtimeSessionStateSummaryState.set(null);
     this.runtimeSessionProjectionState.set(null);
@@ -7908,6 +7949,9 @@ export class StudioWorkspaceStore {
     this.playableLoopPolicyTickState.set(null);
     this.playableLoopLifecycleState.set(null);
     this.playableLoopRestartReceiptState.set(null);
+    if (bridge !== null) {
+      disconnectStudioBrowserHostRuntimeBridge(bridge);
+    }
   }
 
   private refreshRuntimeSessionInspectionReadout(facade: RuntimeSessionFacade): void {
@@ -7995,8 +8039,19 @@ export class StudioWorkspaceStore {
     const endpoint = workspace?.attachEndpoint ?? 'missing';
     this.runtimeAttachState.set(null);
     this.runtimeLiveState.set(null);
-    this.runtimeConnectionMessageState.set('Running project disconnected.');
-    this.recordRuntimeConnectionCommand('project.disconnect_running', endpoint, 'Disconnected running project.');
+    try {
+      this.clearRuntimeSessionInspection();
+      this.runtimeConnectionMessageState.set('Running project and RuntimeSession disconnected.');
+      this.recordRuntimeConnectionCommand(
+        'project.disconnect_running',
+        endpoint,
+        'Disconnected running project and browser-host Session.',
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Running project browser-host disconnect failed.';
+      this.runtimeConnectionMessageState.set(message);
+      this.recordRuntimeConnectionCommand('project.disconnect_running', endpoint, message, 'rejected');
+    }
   }
 
   private recordRuntimeConnectionCommand(
@@ -8469,22 +8524,6 @@ export class StudioWorkspaceStore {
   }
 }
 
-interface StudioNativeRustRuntimeBridgeProvider {
-  readonly kind: 'asha_studio.native_runtime_bridge_provider.v1';
-  readonly backend: 'native_rust';
-  readonly productAuthority: true;
-  readonly referenceFallback: false;
-  readonly bridge?: RuntimeBridge | Promise<RuntimeBridge>;
-  createRuntimeBridge?: () => RuntimeBridge | Promise<RuntimeBridge>;
-}
-
-type StudioRuntimeBridgeProvider = StudioNativeRustRuntimeBridgeProvider;
-
-type StudioRuntimeBridgeGlobal = typeof globalThis & {
-  readonly ashaStudioRuntimeBridge?: StudioRuntimeBridgeProvider;
-  readonly ashaRuntimeBridge?: StudioRuntimeBridgeProvider;
-};
-
 type StudioNativeVoxelLaunchProofGlobal = typeof globalThis & {
   ashaStudioNativeVoxelLaunchProof?: {
     readonly enabled?: boolean;
@@ -8494,71 +8533,95 @@ type StudioNativeVoxelLaunchProofGlobal = typeof globalThis & {
 
 interface StudioRuntimeSessionAttach {
   readonly facade: RuntimeSessionFacade;
-  readonly bridge: RuntimeBridge;
+  readonly bridge: NativeBrowserHostRuntimeBridge;
+  readonly browserHost: StudioBrowserHostRuntimeEvidence;
 }
 
 async function createStudioRustRuntimeSessionFacade(): Promise<StudioRuntimeSessionAttach> {
-  const bridge = await readInjectedStudioRuntimeBridge();
-  if (bridge === null) {
-    throw new RuntimeBridgeError(
-      'native_unavailable',
-      'Studio live RuntimeSession inspection requires globalThis.ashaStudioRuntimeBridge with asha_studio.native_runtime_bridge_provider.v1 native_rust authority metadata; reference/mock RuntimeSession is not used for live attach.',
-    );
-  }
+  const resolved = await resolveStudioBrowserHostRuntimeBridge();
   return {
-    facade: createRuntimeSessionFacade({ bridge, mode: 'rust' }),
-    bridge,
+    facade: createRuntimeSessionFacade({ bridge: resolved.bridge, mode: 'rust' }),
+    bridge: resolved.bridge,
+    browserHost: resolved.browserHost,
   };
 }
 
-async function readInjectedStudioRuntimeBridge(): Promise<RuntimeBridge | null> {
-  const runtimeGlobal = globalThis as StudioRuntimeBridgeGlobal;
-  const provider = runtimeGlobal.ashaStudioRuntimeBridge ?? runtimeGlobal.ashaRuntimeBridge ?? null;
-  if (provider === null) {
-    return null;
-  }
-  if (!isNativeRustRuntimeBridgeProvider(provider)) {
+export interface StudioBrowserHostRuntimeEvidence {
+  readonly compatibilityVersion: typeof ASHA_BROWSER_HOST_COMPATIBILITY_VERSION;
+  readonly lifecycleStatus: 'active';
+  readonly providerGlobal: `globalThis.${typeof ASHA_BROWSER_HOST_PROVIDER_GLOBAL}`;
+  readonly providerKind: typeof ASHA_BROWSER_HOST_PROVIDER_KIND;
+  readonly sessionId: string;
+}
+
+export interface StudioBrowserHostRuntimeResolution {
+  readonly bridge: NativeBrowserHostRuntimeBridge;
+  readonly browserHost: StudioBrowserHostRuntimeEvidence;
+}
+
+interface StudioBrowserHostProviderEvidence {
+  readonly browserHostCompatibilityVersion?: unknown;
+  readonly browserHostSessionId?: unknown;
+}
+
+export async function resolveStudioBrowserHostRuntimeBridge(
+  globalScope: NativeBrowserHostProviderScope = globalThis as unknown as NativeBrowserHostProviderScope,
+): Promise<StudioBrowserHostRuntimeResolution> {
+  const resolution = await resolveNativeRustRuntimeBridgeProvider({
+    globalScope,
+    providerGlobalNames: [ASHA_BROWSER_HOST_PROVIDER_GLOBAL],
+    providerKinds: [ASHA_BROWSER_HOST_PROVIDER_KIND],
+  });
+  if (resolution.status !== 'available') {
+    const diagnostic = resolution.diagnostics[0]?.message ?? 'native Rust RuntimeBridge provider unavailable';
     throw new RuntimeBridgeError(
-      'invalid_input',
-      'globalThis.ashaStudioRuntimeBridge must be an asha_studio.native_runtime_bridge_provider.v1 provider with native_rust authority metadata; raw RuntimeBridge/reference providers are rejected.',
+      'native_unavailable',
+      `Studio live RuntimeSession inspection requires globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL} from @asha/browser-host; ${diagnostic}`,
     );
   }
-
-  const candidate = readRuntimeBridgeProviderValue(provider);
-  const bridge = await candidate;
-  if (isRuntimeBridge(bridge)) {
-    return bridge;
+  const provider = globalScope[ASHA_BROWSER_HOST_PROVIDER_GLOBAL] as
+    | (typeof resolution.provider & StudioBrowserHostProviderEvidence)
+    | null
+    | undefined;
+  const sessionId = provider?.browserHostSessionId;
+  if (provider?.browserHostCompatibilityVersion !== ASHA_BROWSER_HOST_COMPATIBILITY_VERSION
+    || typeof sessionId !== 'string'
+    || !/^(0|[1-9][0-9]*)$/u.test(sessionId)) {
+    throw new RuntimeBridgeError(
+      'invalid_input',
+      `globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL} must carry ${ASHA_BROWSER_HOST_COMPATIBILITY_VERSION} browser Session evidence; legacy sidecar and partially composed providers are rejected.`,
+    );
   }
-  throw new RuntimeBridgeError(
-    'invalid_input',
-    'globalThis.ashaStudioRuntimeBridge must provide the public RuntimeBridge interface',
-  );
+  const bridge = resolution.bridge as NativeBrowserHostRuntimeBridge;
+  const lifecycle = bridge.browserHostLifecycle;
+  if (lifecycle?.compatibilityVersion !== ASHA_BROWSER_HOST_COMPATIBILITY_VERSION
+    || lifecycle.sessionId !== sessionId
+    || typeof lifecycle.status !== 'function'
+    || typeof lifecycle.disconnect !== 'function'
+    || lifecycle.status() !== 'active') {
+    throw new RuntimeBridgeError(
+      'invalid_input',
+      `globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL} did not create an active ${ASHA_BROWSER_HOST_COMPATIBILITY_VERSION} client lifecycle.`,
+    );
+  }
+  return {
+    bridge,
+    browserHost: {
+      compatibilityVersion: ASHA_BROWSER_HOST_COMPATIBILITY_VERSION,
+      lifecycleStatus: 'active',
+      providerGlobal: `globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL}`,
+      providerKind: ASHA_BROWSER_HOST_PROVIDER_KIND,
+      sessionId,
+    },
+  };
 }
 
-function readRuntimeBridgeProviderValue(
-  provider: StudioRuntimeBridgeProvider,
-): RuntimeBridge | Promise<RuntimeBridge> {
-  if (typeof provider.createRuntimeBridge === 'function') {
-    return provider.createRuntimeBridge();
+export function disconnectStudioBrowserHostRuntimeBridge(
+  bridge: NativeBrowserHostRuntimeBridge,
+): void {
+  if (bridge.browserHostLifecycle.status() === 'active') {
+    bridge.browserHostLifecycle.disconnect();
   }
-  if (provider.bridge !== undefined) {
-    return provider.bridge;
-  }
-  throw new RuntimeBridgeError(
-    'invalid_input',
-    'globalThis.ashaStudioRuntimeBridge native provider must expose bridge or createRuntimeBridge',
-  );
-}
-
-function isNativeRustRuntimeBridgeProvider(value: unknown): value is StudioNativeRustRuntimeBridgeProvider {
-  if (value === null || typeof value !== 'object') {
-    return false;
-  }
-  const candidate = value as Partial<StudioNativeRustRuntimeBridgeProvider>;
-  return candidate.kind === 'asha_studio.native_runtime_bridge_provider.v1'
-    && candidate.backend === 'native_rust'
-    && candidate.productAuthority === true
-    && candidate.referenceFallback === false;
 }
 
 function assertNativeRustRuntimeAuthority(
@@ -8577,18 +8640,4 @@ function assertNativeRustRuntimeAuthority(
       `Studio rejected non-native RuntimeBridge provider: ECRP source=${readout.authority.source}, FPS backend=${snapshot.backend}`,
     );
   }
-}
-
-function isRuntimeBridge(value: unknown): value is RuntimeBridge {
-  if (value === null || typeof value !== 'object') {
-    return false;
-  }
-  const candidate = value as Partial<Record<string, unknown>>;
-  return typeof candidate.initializeEngine === 'function'
-    && typeof candidate.loadProjectBundle === 'function'
-    && typeof candidate.getProjectBundleCompositionStatus === 'function'
-    && typeof candidate.loadFpsRuntimeSession === 'function'
-    && typeof candidate.readFpsRuntimeSession === 'function'
-    && typeof candidate.applyFpsPrimaryFire === 'function'
-    && typeof candidate.restartFpsRuntimeSession === 'function';
 }

@@ -11,7 +11,7 @@ Asha RuntimeSession and Studio workflow surfaces.
 
 - `codex-asha-studio` owns Studio workflow/readout/proof surfaces in this repo.
 - `codex-asha-engine` owns Rust authority, generated DTOs, RuntimeSessionFacade,
-  native bridge, conversion service behavior, model-info authority, topology,
+  the public browser host/native provider, conversion service behavior, model-info authority, topology,
   quotas, and texture/UV sampling authority.
 - Create new tasks in Den project `asha`; include `codex-asha-studio` or
   `codex-asha-engine` in the assignee and description.
@@ -25,10 +25,16 @@ Run from `/home/dev/asha-studio`:
 pnpm run evidence -- native-voxel-runtime-launch
 ```
 
-The command builds Studio, rebuilds the native Rust bridge addon, serves the
-built app on `0.0.0.0`, injects a native Rust RuntimeBridge provider, attaches a
-Rust RuntimeSession, and drives
+The command builds Studio, serves a temporary copy of the built app through
+`@asha/browser-host` on `0.0.0.0`, installs the standard
+`globalThis.ashaRuntimeBridge` provider before application boot, attaches an
+isolated Rust RuntimeSession for each browser Session, and drives
 `StudioWorkspaceStore.runAgentVoxelWorkflowOperation`.
+
+Studio does not build or copy the native addon and does not own a private RPC
+endpoint. The public host resolves the already staged engine provider, reports
+its standard host status, isolates simultaneous browser Sessions, and owns
+disconnect/unload cleanup. The proof never writes into `/home/dev/asha-engine`.
 
 Current ignored output:
 
@@ -53,12 +59,12 @@ Run from `/home/dev/asha-studio`:
 pnpm run studio:dev:native-voxel
 ```
 
-This command builds Studio, rebuilds the native Rust bridge addon, serves the
-built app on `0.0.0.0`, injects the native Rust RuntimeBridge provider, prints a
-local URL, and keeps the server open until interrupted. It does not run the
-Chromium proof automation or write the `latest` proof artifact. Use it when a
-human or browser agent needs to click the voxel conversion/save/load controls in
-a real Studio page.
+This command builds Studio, serves it through the public one-cell browser host,
+prints a local URL, and keeps the server open until interrupted. The standard
+host installs `globalThis.ashaRuntimeBridge` and owns browser Session teardown.
+It does not run the Chromium proof automation or write the `latest` proof
+artifact. Use it when a human or browser agent needs to click the voxel
+conversion/save/load controls in a real Studio page.
 
 Use the proof command, not the interactive command, when a task needs a
 deterministic review artifact.
@@ -67,7 +73,10 @@ deterministic review artifact.
 
 The native proof should record:
 
-- provider contract `asha_studio.native_runtime_bridge_provider.v1`;
+- provider contract `asha.runtime_bridge.native_rust_provider.v1`;
+- browser-host compatibility `browser-host.v0` and `rust_authority` status;
+- distinct runtime bridge Sessions for simultaneous browser pages;
+- browser close/explicit teardown receipts for both proof Sessions;
 - backend `native_rust`;
 - `referenceFallback: false`;
 - RuntimeSession attach state `attached`;

@@ -29,6 +29,9 @@ importers:
       '@angular/router':
         specifier: ~21.2.0
         version: 21.2.17(@angular/common@21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2))(@angular/platform-browser@21.2.17(@angular/common@21.2.17(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.17(@angular/compiler@21.2.17)(rxjs@7.8.2)))(rxjs@7.8.2)
+      '@asha/browser-host':
+        specifier: link:../asha-engine/ts/packages/browser-host
+        version: link:../asha-engine/ts/packages/browser-host
       '@asha/catalog-core':
         specifier: link:../asha-engine/ts/packages/catalog-core
         version: link:../asha-engine/ts/packages/catalog-core
@@ -297,6 +300,9 @@ importers:
       '@asha-studio/domain':
         specifier: workspace:*
         version: link:../studio-domain
+      '@asha/browser-host':
+        specifier: link:../../../asha-engine/ts/packages/browser-host
+        version: link:../../../asha-engine/ts/packages/browser-host
       '@asha/runtime-bridge':
         specifier: link:../../../asha-engine/ts/packages/runtime-bridge
         version: link:../../../asha-engine/ts/packages/runtime-bridge

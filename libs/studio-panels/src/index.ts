@@ -219,6 +219,13 @@ function filteredHierarchyEntities(
         </div>
         <div class="runtime-inspection__actions">
           <button type="button" (click)="store.attachRuntimeSessionInspection()">Attach</button>
+          <button
+            type="button"
+            [disabled]="store.runtimeSessionInspection().attachState !== 'attached'"
+            (click)="store.detachRuntimeSessionInspection()"
+          >
+            Detach
+          </button>
           <button type="button" disabled>Pause</button>
           <button
             type="button"
