@@ -39,13 +39,20 @@ test('Studio viewport is a renderer-neutral policy adapter over isolated public 
 
   assert.match(viewport, /from '@asha\/renderer-host'/);
   assert.match(viewport, /mountAshaRendererEditorViewport/);
+  assert.match(viewport, /resolveAshaStoredEditorCamera/);
   assert.match(viewport, /channels\.runtime\.replace/);
   assert.match(viewport, /channels\.authored\.replace/);
   assert.match(viewport, /channels\.overlay\.replace/);
   assert.match(viewport, /source: 'runtime_authority'/);
-  assert.match(viewport, /source: 'stored_editor'/);
+  assert.match(viewport, /return resolution\.camera/);
   assert.match(viewport, /viewport\.pick/);
   assert.match(viewport, /probeMissingPreviewResource/);
+  assert.equal(viewport.includes('function normalize('), false);
+  assert.equal(viewport.includes('function cross('), false);
+  assert.equal(viewport.includes('Math.atan2'), false);
+  assert.equal(viewport.includes('Math.asin'), false);
+  assert.equal(viewport.includes('objects[0]'), false);
+  assert.equal(viewport.includes('find(entry => entry.hasRenderableAsset)'), false);
 
   const forbiddenFragments = [
     ['TH', 'REE.'].join(''),

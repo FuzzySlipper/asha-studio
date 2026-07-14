@@ -8,7 +8,6 @@ import {
 } from '@angular/core';
 import type { AfterViewInit, ElementRef, OnDestroy } from '@angular/core';
 import type {
-  CameraBasis,
   CameraSnapshot,
   Material,
   RenderDiff,
@@ -23,7 +22,10 @@ import type {
   AshaRendererEditorViewportPickHint,
   AshaRendererEditorViewportReadout,
 } from '@asha/renderer-host';
-import { mountAshaRendererEditorViewport } from '@asha/renderer-host';
+import {
+  mountAshaRendererEditorViewport,
+  resolveAshaStoredEditorCamera,
+} from '@asha/renderer-host';
 import type {
   StudioBounds,
   StudioEntitySourceState,
@@ -36,6 +38,13 @@ import type {
 } from '@asha-studio/domain';
 import { buildStudioViewportHitReadModel } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
+import { resolveStudioViewportPickRoute } from './viewport-pick-routing.js';
+
+export {
+  resolveStudioViewportPickRoute,
+  type StudioRuntimeViewportPickAnchor,
+  type StudioViewportPickRoute,
+} from './viewport-pick-routing.js';
 
 type StudioRenderColor = readonly [number, number, number];
 
@@ -188,51 +197,29 @@ function buildViewportProjectionFrame(
   return { ops };
 }
 
-function normalize(vector: StudioVec3): StudioVec3 {
-  const length = Math.hypot(vector.x, vector.y, vector.z);
-  if (length <= 0.000_001) {
-    return { x: 0, y: 0, z: 0 };
-  }
-  return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
-}
-
-function cross(left: StudioVec3, right: StudioVec3): StudioVec3 {
-  return {
-    x: left.y * right.z - left.z * right.y,
-    y: left.z * right.x - left.x * right.z,
-    z: left.x * right.y - left.y * right.x,
-  };
-}
-
 function buildEditorViewportCamera(
   adapter: StudioViewportAdapterReadModel,
 ): AshaRendererEditorViewportCamera {
-  const forward = normalize({
-    x: adapter.camera.target.x - adapter.camera.position.x,
-    y: adapter.camera.target.y - adapter.camera.position.y,
-    z: adapter.camera.target.z - adapter.camera.position.z,
-  });
-  const right = normalize(cross(forward, adapter.camera.up));
-  const up = normalize(cross(right, forward));
-  const basis: CameraBasis = {
-    forward: [forward.x, forward.y, forward.z],
-    right: [right.x, right.y, right.z],
-    up: [up.x, up.y, up.z],
-  };
-  return {
-    source: 'stored_editor',
-    pose: {
-      position: [adapter.camera.position.x, adapter.camera.position.y, adapter.camera.position.z],
-      yawDegrees: Math.atan2(forward.y, forward.x) * (180 / Math.PI),
-      pitchDegrees: Math.asin(Math.max(-1, Math.min(1, forward.z))) * (180 / Math.PI),
-    },
-    basis,
+  const resolution = resolveAshaStoredEditorCamera({
+    position: [
+      adapter.camera.position.x,
+      adapter.camera.position.y,
+      adapter.camera.position.z,
+    ],
+    target: [adapter.camera.target.x, adapter.camera.target.y, adapter.camera.target.z],
+    up: [adapter.camera.up.x, adapter.camera.up.y, adapter.camera.up.z],
     projection: {
       fovYDegrees: adapter.camera.fovDegrees,
       near: adapter.camera.near,
       far: adapter.camera.far,
     },
-  };
+  });
+  if (!resolution.ok) {
+    throw new Error(
+      `Engine stored-editor camera rejected: ${resolution.diagnostic.code}: ${resolution.diagnostic.message}`,
+    );
+  }
+  return resolution.camera;
 }
 
 function buildRuntimeViewportCamera(camera: CameraSnapshot): AshaRendererEditorViewportCamera {
@@ -970,29 +957,32 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       filter: { channels: ['authored', 'runtime'], layers: ['scene'] },
     });
     const hint = receipt.hint;
-    if (this.store.runtimeViewportEvidence().camera !== null) {
+    const runtimeScene = hint?.channel === 'runtime'
+      ? this.store.readRuntimeSceneObjectSnapshot()
+      : null;
+    const route = resolveStudioViewportPickRoute(hint, runtimeScene);
+    if (hint !== null) {
+      this.showPickDebugHint(hint);
+    }
+    if (route.kind === 'runtime') {
       this.store.selectRuntimeVoxelAtViewport({
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
         width: rect.width,
         height: rect.height,
+        projectionAnchor: route.anchor,
       });
-    }
-    if (hint !== null) {
-      this.showPickDebugHint(hint);
-      if (hint.channel === 'runtime') {
-        const scene = this.store.readRuntimeSceneObjectSnapshot();
-        const object = scene?.objects.find(entry => entry.hasRenderableAsset) ?? scene?.objects[0];
-        if (scene !== null && scene !== undefined && object !== undefined) {
-          this.store.applyRuntimeSceneObjectCommand({
-            expectedDocumentHash: scene.documentHash,
-            command: { kind: 'select', id: object.id },
-          });
-        }
-        this.viewportReadout.set(viewport.readout());
-        return;
+      if (runtimeScene !== null && route.sceneObjectId !== null) {
+        this.store.applyRuntimeSceneObjectCommand({
+          expectedDocumentHash: runtimeScene.documentHash,
+          command: { kind: 'select', id: route.sceneObjectId },
+        });
       }
-      const renderableId = hint.label;
+      this.viewportReadout.set(viewport.readout());
+      return;
+    }
+    if (route.kind === 'authored' && route.renderableId !== null) {
+      const renderableId = route.renderableId;
       const renderable = this.store
         .workspace()
         .scene.renderables.find(item => item.renderableId === renderableId);
@@ -1000,8 +990,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         this.store.selectViewportHit(
           buildStudioViewportHitReadModel({
             renderable,
-            face: faceFromProjectionNormal(hint.normal),
-            worldPosition: { x: hint.position[0], y: hint.position[1], z: hint.position[2] },
+            face: faceFromProjectionNormal(route.normal),
+            worldPosition: {
+              x: route.position[0],
+              y: route.position[1],
+              z: route.position[2],
+            },
           }),
         );
       }

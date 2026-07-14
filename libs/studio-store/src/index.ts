@@ -105,6 +105,8 @@ import {
   type ModelMaterialPreviewRequest,
   type ModelMaterialPreviewSnapshot,
   type PickResult,
+  type EntityId,
+  type RenderHandle,
   type SceneObjectCommandResult,
   type SceneObjectSnapshot,
   type VoxelCommand,
@@ -363,6 +365,12 @@ export interface StudioRuntimeViewportEvidence {
   readonly voxelMesh: VoxelMeshEvidenceSnapshot | null;
   readonly voxelPick: PickResult | null;
   readonly voxelSelection: VoxelSelectionSnapshot | null;
+  readonly projectionPick: {
+    readonly handle: RenderHandle;
+    readonly sourceEntity: EntityId | null;
+    readonly position: readonly [number, number, number];
+    readonly normal: readonly [number, number, number];
+  } | null;
   readonly sceneCommand: SceneObjectCommandResult | null;
   readonly bufferLifetime: {
     readonly handle: number;
@@ -381,6 +389,7 @@ const MISSING_RUNTIME_VIEWPORT_EVIDENCE: StudioRuntimeViewportEvidence = {
   voxelMesh: null,
   voxelPick: null,
   voxelSelection: null,
+  projectionPick: null,
   sceneCommand: null,
   bufferLifetime: null,
   diagnostics: ['Attach the public RuntimeSession to inspect current runtime projection.'],
@@ -7757,6 +7766,12 @@ export class StudioWorkspaceStore {
     readonly y: number;
     readonly width: number;
     readonly height: number;
+    readonly projectionAnchor: {
+      readonly handle: RenderHandle;
+      readonly sourceEntity: EntityId | null;
+      readonly position: readonly [number, number, number];
+      readonly normal: readonly [number, number, number];
+    };
   }): void {
     const bridge = this.runtimeSessionBridgeState();
     const evidence = this.runtimeViewportEvidenceState();
@@ -7782,6 +7797,7 @@ export class StudioWorkspaceStore {
         ...evidence,
         voxelPick: pick,
         voxelSelection: selection,
+        projectionPick: input.projectionAnchor,
       });
     } catch (error) {
       this.runtimeViewportEvidenceState.set({
@@ -7916,6 +7932,7 @@ export class StudioWorkspaceStore {
       voxelMesh,
       voxelPick,
       voxelSelection,
+      projectionPick: null,
       sceneCommand: null,
       bufferLifetime,
       diagnostics,
