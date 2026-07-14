@@ -13,8 +13,9 @@ the game asset database, runtime authority, or publish tool of record.
 The cockpit fits inside the existing Studio shell without replacing the scene
 viewport. The left hierarchy can keep entity/scene selection; the bottom asset
 area becomes the natural home for game workspace assets/proof scenes; the right
-inspector shows detail for the selected workspace/readout row; the top strips
-show workspace, runtime, and publish status.
+inspector shows detail for the selected workspace/readout row. Workspace and
+runtime status are available on demand from the top-bar **Runtime** menu rather
+than occupying permanent strips above the viewport.
 
 1. **Workspace overview**
    - Purpose: show the current ASHA game manifest, compatibility status, and

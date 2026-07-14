@@ -23,6 +23,15 @@ import and local-link policy.
   forbidden.
 - WASM authority is still deferred until an equivalent public facade and
   readiness gate exist.
+- Studio no longer reserves a permanent top strip for session fixtures and
+  proof-oriented runtime rows. The top-bar **Runtime** menu groups the current
+  session, workspace identity, public RuntimeSession controls, and the detailed
+  gameplay inspector. Static proof-session inventories remain in tests and
+  readouts rather than normal product chrome.
+- `Basic Voxel Scenario` and `Placeholder Scenario` are temporary fixture
+  switcher entries, not the unified scene-loading model. They remain explicitly
+  labelled under Runtime for development compatibility; bounded scene open,
+  save, and save-as live under **File** and will supersede this switcher.
 
 ## Visual Evidence
 

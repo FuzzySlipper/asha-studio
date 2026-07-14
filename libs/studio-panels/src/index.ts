@@ -55,33 +55,67 @@ function filteredHierarchyEntities(
 }
 
 @Component({
-  selector: 'asha-session-top-panel',
+  selector: 'asha-runtime-tools-menu',
   standalone: true,
   template: `
-    <section class="session-top-panel" data-visual-id="studio-top-panel">
-      <div class="panel-kicker">2 · Top Panel</div>
-      <div class="readback-marker">{{ store.readbackMarker() }}</div>
-      <div class="session-line">
-        <strong>{{ store.workspace().session.scenarioLabel }}</strong>
-        <span>{{ store.workspace().session.sessionId }}</span>
+    <section class="runtime-tools-menu" data-visual-id="studio-runtime-tools-menu">
+      <header class="runtime-tools-menu__header">
+        <div>
+          <strong>Runtime</strong>
+          <small>{{ store.workspace().session.scenarioLabel }} · {{ store.workspace().session.status }}</small>
+        </div>
         <span>{{ store.workspace().session.runtimeMode }}</span>
-        <span>{{ store.workspace().session.status }}</span>
-      </div>
-      <div class="scenario-load" aria-label="Scenario load">
-        <select
-          [value]="store.selectedScenarioDraftId()"
-          (change)="store.setSelectedScenarioDraft($any($event.target).value)"
-        >
-          @for (scenario of store.workspace().scenarios; track scenario.scenarioId) {
-            <option [value]="scenario.scenarioId">
-              {{ scenario.label }} · {{ scenario.status }}
-            </option>
-          }
-        </select>
-        <button type="button" (click)="loadSelectedScenario()">Load</button>
-      </div>
+      </header>
 
-      <section class="workspace-overview" data-visual-id="studio-game-workspace-overview">
+      <nav class="runtime-tools-menu__tabs" aria-label="Runtime tools">
+        @for (section of runtimeSections; track section.id) {
+          <button
+            type="button"
+            [class.is-current]="activeSection() === section.id"
+            [attr.data-runtime-tools-section]="section.id"
+            (click)="setActiveSection(section.id)"
+          >
+            {{ section.label }}
+          </button>
+        }
+      </nav>
+
+      <section class="runtime-menu-section" [hidden]="activeSection() !== 'session'">
+        <div class="runtime-menu-section__heading">
+          <strong>Current session</strong>
+          <small>{{ store.workspace().session.sessionId }}</small>
+        </div>
+        <div class="session-line">
+          <strong>{{ store.workspace().session.scenarioLabel }}</strong>
+          <span>{{ store.workspace().session.runtimeMode }}</span>
+          <span>{{ store.workspace().session.status }}</span>
+        </div>
+        <div class="scenario-load" aria-label="Temporary scenario load">
+          <label>
+            <span>Temporary scenarios</span>
+            <select
+              [value]="store.selectedScenarioDraftId()"
+              (change)="store.setSelectedScenarioDraft($any($event.target).value)"
+            >
+              @for (scenario of store.workspace().scenarios; track scenario.scenarioId) {
+                <option [value]="scenario.scenarioId">
+                  {{ scenario.label }} · {{ scenario.status }}
+                </option>
+              }
+            </select>
+          </label>
+          <button type="button" (click)="loadSelectedScenario()">Load temporary scenario</button>
+          <small class="runtime-menu-note">
+            Fixture switcher for current development flows. Project scene open/save is under File and will replace this path.
+          </small>
+        </div>
+      </section>
+
+      <section
+        class="runtime-menu-section workspace-overview"
+        data-visual-id="studio-game-workspace-overview"
+        [hidden]="activeSection() !== 'workspace'"
+      >
         @if (store.gameWorkspace(); as workspace) {
           <div class="workspace-overview__identity">
             <span class="overview-label">Workspace</span>
@@ -138,35 +172,11 @@ function filteredHierarchyEntities(
         }
       </section>
 
-      @if (store.runtimeSessions(); as runtimeSessions) {
-        <section class="runtime-session-strip" data-visual-id="studio-runtime-session-panel">
-          @for (session of runtimeSessions.sessions; track session.sessionHash) {
-            <article
-              class="runtime-session"
-              [class.runtime-session--active]="session.sessionId === runtimeSessions.activeSessionId"
-              [attr.data-runtime-session-id]="session.sessionId"
-              [attr.data-runtime-session-type]="session.sessionType"
-              [attr.data-runtime-backend-mode]="session.backendMode"
-              [attr.data-runtime-backend-state]="session.backendCompatibilityState"
-            >
-              <span>{{ session.sessionType }}</span>
-              <strong>{{ session.status }} · {{ session.backendMode }} · {{ session.backendCompatibilityState }}</strong>
-              <small>{{ session.attachStatus }} · runtime {{ session.runtimeMode }}</small>
-              <small>{{ session.backendProfile }}</small>
-              @if (session.projection) {
-                <small>{{ session.projection.runtimeSessionSummaryHash }} · {{ session.projection.renderDiffHash }}</small>
-              } @else {
-                <small>{{ session.profileId }}</small>
-              }
-              <small>proofs {{ session.backendProofRefs.length }} · {{ session.backendProofRefs.join(', ') || 'none' }}</small>
-              <small>{{ session.nonClaims.join(', ') }}</small>
-              <small>{{ session.sessionHash }}</small>
-            </article>
-          }
-        </section>
-      }
-
-      <section class="runtime-inspection" data-visual-id="studio-runtime-session-inspection">
+      <section
+        class="runtime-menu-section runtime-inspection"
+        data-visual-id="studio-runtime-session-inspection"
+        [hidden]="activeSection() !== 'controls'"
+      >
         <div class="runtime-inspection__identity">
           <span>Mode</span>
           <strong data-runtime-inspection="studio-mode">{{ store.runtimeSessionInspection().studioMode }}</strong>
@@ -243,16 +253,26 @@ function filteredHierarchyEntities(
           >
             Restart
           </button>
-          <button
-            type="button"
-            [attr.aria-expanded]="playableLoopInspectorOpen()"
-            aria-controls="studio-playable-loop-popout"
-            data-runtime-inspection="loop-inspector-toggle"
-            (click)="togglePlayableLoopInspector()"
-          >
-            Inspector
-          </button>
         </div>
+      </section>
+
+      <section class="runtime-menu-section gameplay-tools" [hidden]="activeSection() !== 'gameplay'">
+        <div class="runtime-menu-section__heading">
+          <strong>Gameplay inspection</strong>
+          <small>Generated level, encounter tuning, and playable-loop controls</small>
+        </div>
+        <p>
+          Open the detailed inspector when working on the current ASHA Demo gameplay path. These tools read stored authoring separately from live RuntimeSession state.
+        </p>
+        <button
+          type="button"
+          [attr.aria-expanded]="playableLoopInspectorOpen()"
+          aria-controls="studio-playable-loop-popout"
+          data-runtime-inspection="loop-inspector-toggle"
+          (click)="togglePlayableLoopInspector()"
+        >
+          Open Gameplay Inspector
+        </button>
       </section>
 
       @if (playableLoopInspectorOpen()) {
@@ -695,38 +715,77 @@ function filteredHierarchyEntities(
   `,
   styles: [
     `
-      .session-top-panel {
-        align-content: center;
+      .runtime-tools-menu {
         background: var(--asha-color-chrome);
-        border: 1px solid var(--asha-color-border);
         box-sizing: border-box;
         display: grid;
-        gap: 0.2rem 0.75rem;
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-        height: 100%;
+        gap: 0;
         min-width: 0;
-        padding: 0.5rem 0.75rem;
         position: relative;
       }
 
-      .panel-kicker,
-      .readback-marker {
+      .runtime-tools-menu__header {
+        align-items: center;
+        border-bottom: 1px solid var(--asha-color-border);
+        display: flex;
+        justify-content: space-between;
+        min-width: 0;
+        padding: 0.65rem 0.75rem;
+      }
+
+      .runtime-tools-menu__header div,
+      .runtime-menu-section__heading {
+        display: grid;
+        gap: 0.1rem;
+        min-width: 0;
+      }
+
+      .runtime-tools-menu__header small,
+      .runtime-tools-menu__header span,
+      .runtime-menu-section__heading small,
+      .runtime-menu-note {
         color: var(--asha-color-muted);
-        font-size: 0.75rem;
+        font-size: 0.68rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .panel-kicker {
-        grid-column: 1;
+      .runtime-tools-menu__tabs {
+        border-bottom: 1px solid var(--asha-color-border);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
-      .readback-marker {
-        grid-column: 2;
-        justify-self: end;
-        max-width: 100%;
+      .runtime-tools-menu__tabs button,
+      .gameplay-tools > button {
+        background: transparent;
+        border: 0;
+        border-right: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.72rem;
+        min-height: 2rem;
+        padding: 0 0.75rem;
+      }
+
+      .runtime-tools-menu__tabs button.is-current {
+        background: var(--asha-color-control-active);
+        color: var(--asha-color-accent-text);
+      }
+
+      .runtime-menu-section {
+        box-sizing: border-box;
+        display: grid;
+        gap: 0.65rem;
+        max-height: min(22rem, calc(100vh - 8rem));
+        overflow: auto;
+        padding: 0.75rem;
+      }
+
+      .runtime-menu-section[hidden] {
+        display: none;
       }
 
       .session-line {
@@ -738,12 +797,22 @@ function filteredHierarchyEntities(
       }
 
       .scenario-load {
-        align-items: center;
         display: grid;
         gap: 0.4rem;
-        grid-column: 1 / -1;
-        grid-template-columns: minmax(10rem, 18rem) auto;
+        grid-template-columns: minmax(14rem, 1fr) auto;
         min-width: 0;
+      }
+
+      .scenario-load label {
+        display: grid;
+        gap: 0.2rem;
+      }
+
+      .scenario-load label span {
+        color: var(--asha-color-muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
       }
 
       .scenario-load select,
@@ -757,8 +826,14 @@ function filteredHierarchyEntities(
       }
 
       .scenario-load button {
+        align-self: end;
         cursor: pointer;
         padding: 0 0.65rem;
+      }
+
+      .runtime-menu-note {
+        grid-column: 1 / -1;
+        white-space: normal;
       }
 
       .session-line strong,
@@ -773,8 +848,7 @@ function filteredHierarchyEntities(
         align-items: stretch;
         display: grid;
         gap: 0.35rem;
-        grid-column: 1 / -1;
-        grid-template-columns: minmax(9rem, 1.2fr) repeat(5, minmax(6rem, 1fr)) minmax(8rem, 1.15fr) minmax(8rem, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         min-height: 0;
         min-width: 0;
       }
@@ -834,51 +908,11 @@ function filteredHierarchyEntities(
         grid-column: 1 / -1;
       }
 
-      .runtime-session-strip {
-        display: grid;
-        gap: 0.35rem;
-        grid-column: 1 / -1;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        min-width: 0;
-      }
-
-      .runtime-session {
-        background: #111820;
-        border: 1px solid var(--asha-color-border);
-        display: grid;
-        gap: 0.05rem;
-        min-width: 0;
-        padding: 0.28rem 0.38rem;
-      }
-
-      .runtime-session--active {
-        border-color: var(--asha-color-accent);
-      }
-
-      .runtime-session span,
-      .runtime-session small {
-        color: var(--asha-color-muted);
-        font-size: 0.6rem;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .runtime-session strong {
-        font-size: 0.66rem;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
       .runtime-inspection {
         align-items: stretch;
         display: grid;
         gap: 0.35rem;
-        grid-column: 1 / -1;
-        grid-template-columns: minmax(8rem, 0.85fr) repeat(5, minmax(7rem, 1fr)) minmax(13rem, auto);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         min-width: 0;
       }
 
@@ -924,7 +958,25 @@ function filteredHierarchyEntities(
 
       .runtime-inspection__actions {
         align-items: center;
+        grid-column: 1 / -1;
         grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+
+      .gameplay-tools {
+        display: grid;
+      }
+
+      .gameplay-tools p {
+        color: var(--asha-color-muted);
+        font-size: 0.72rem;
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      .gameplay-tools > button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        justify-self: start;
       }
 
       .runtime-inspection__actions button {
@@ -1256,10 +1308,9 @@ function filteredHierarchyEntities(
 
       @media (max-width: 1100px) {
         .workspace-overview {
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
-        .runtime-session-strip,
         .runtime-inspection,
         .asha-demo-product-path,
         .asha-demo-product-path__runtime,
@@ -1277,9 +1328,20 @@ function filteredHierarchyEntities(
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StudioSessionTopPanelComponent {
+export class StudioRuntimeToolsMenuComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly runtimeSections = [
+    { id: 'session', label: 'Session' },
+    { id: 'workspace', label: 'Workspace' },
+    { id: 'controls', label: 'Controls' },
+    { id: 'gameplay', label: 'Gameplay' },
+  ] as const;
+  readonly activeSection = signal<(typeof this.runtimeSections)[number]['id']>('session');
   readonly playableLoopInspectorOpen = signal(false);
+
+  setActiveSection(section: (typeof this.runtimeSections)[number]['id']): void {
+    this.activeSection.set(section);
+  }
 
   loadSelectedScenario(): void {
     this.store.loadScenario(this.store.selectedScenarioDraftId());

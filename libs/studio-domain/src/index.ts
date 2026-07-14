@@ -108,7 +108,14 @@ export type StudioBottomPanelTab =
   | 'publish'
   | 'evidence';
 export type StudioCommandProposalActionId = 'set_voxel_reference';
-export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'project' | 'voxel' | 'preferences';
+export type StudioApplicationMenu =
+  | 'file'
+  | 'edit'
+  | 'view'
+  | 'project'
+  | 'runtime'
+  | 'voxel'
+  | 'preferences';
 export type StudioRenderSettingKey =
   | 'wireframeEnabled'
   | 'showGrid'

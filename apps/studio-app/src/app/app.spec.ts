@@ -1,16 +1,46 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { StudioShellComponent } from '@asha-studio/shell';
 
-function openPlayableLoopInspector(element: HTMLElement): void {
+function openRuntimeMenu(fixture: ComponentFixture<StudioShellComponent>): void {
+  const element: HTMLElement = fixture.nativeElement;
+  if (element.querySelector('[data-visual-id="studio-runtime-tools-menu"]') !== null) {
+    return;
+  }
+  const runtimeButton = Array.from(element.querySelectorAll('button')).find(
+    button => button.textContent?.trim() === 'Runtime',
+  );
+  expect(runtimeButton).not.toBeNull();
+  runtimeButton?.click();
+  fixture.detectChanges();
+}
+
+function selectRuntimeSection(
+  fixture: ComponentFixture<StudioShellComponent>,
+  section: string,
+): void {
+  openRuntimeMenu(fixture);
+  const element: HTMLElement = fixture.nativeElement;
+  const sectionButton = element.querySelector(
+    `[data-runtime-tools-section="${section}"]`,
+  ) as HTMLButtonElement | null;
+  expect(sectionButton).not.toBeNull();
+  sectionButton?.click();
+  fixture.detectChanges();
+}
+
+function openPlayableLoopInspector(fixture: ComponentFixture<StudioShellComponent>): void {
+  selectRuntimeSection(fixture, 'gameplay');
+  const element: HTMLElement = fixture.nativeElement;
   const inspectorButton = element.querySelector(
     '[data-runtime-inspection="loop-inspector-toggle"]',
   ) as HTMLButtonElement | null;
   expect(inspectorButton).not.toBeNull();
   inspectorButton?.click();
+  fixture.detectChanges();
 }
 
 describe('StudioShellComponent', () => {
-  it('renders the scaffold readback marker', async () => {
+  it('renders the product shell without a permanent proof readback strip', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -19,7 +49,10 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    expect(element.textContent).toContain('asha-studio-substrate');
+    expect(element.querySelector('[data-visual-id="studio-top-panel"]')).toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-runtime-tools-menu"]')).toBeNull();
+    expect(element.textContent).not.toContain('2 · Top Panel');
+    expect(element.textContent).not.toContain('asha-studio-substrate');
   });
 
   it('keeps voxel workflows in a task-oriented menu instead of a proof panel', async () => {
@@ -66,6 +99,8 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
+    selectRuntimeSection(fixture, 'workspace');
+    fixture.detectChanges();
     const overview = element.querySelector('[data-visual-id="studio-game-workspace-overview"]');
     expect(overview).not.toBeNull();
     expect(overview?.textContent).toContain('asha-demo');
@@ -129,7 +164,7 @@ describe('StudioShellComponent', () => {
     expect(element.querySelector('[data-proof-scene-id="1002"]')).not.toBeNull();
   });
 
-  it('renders explicit runtime session rows in the top panel', async () => {
+  it('keeps temporary scenarios in the Runtime menu without exposing proof session rows', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -138,13 +173,17 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    const panel = element.querySelector('[data-visual-id="studio-runtime-session-panel"]');
-    expect(panel?.textContent).toContain('preview');
-    expect(panel?.textContent).toContain('available');
-    expect(panel?.textContent).toContain('reference');
-    expect(panel?.textContent).toContain('fixture_reserved');
-    expect(panel?.textContent).toContain('replay_reserved');
-    expect(element.querySelector('[data-runtime-session-type="preview"]')).not.toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-runtime-session-panel"]')).toBeNull();
+    selectRuntimeSection(fixture, 'session');
+    fixture.detectChanges();
+
+    const menu = element.querySelector('[data-visual-id="studio-runtime-tools-menu"]');
+    expect(menu?.textContent).toContain('Temporary scenarios');
+    expect(menu?.textContent).toContain('Basic Voxel Scenario');
+    expect(menu?.textContent).toContain('Placeholder Scenario');
+    expect(menu?.textContent).toContain('Project scene open/save is under File');
+    expect(menu?.textContent).not.toContain('fixture_reserved');
+    expect(menu?.textContent).not.toContain('replay_reserved');
   });
 
   it('attaches the public RuntimeSession facade and renders live inspection readout', async () => {
@@ -156,6 +195,8 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
+    selectRuntimeSection(fixture, 'controls');
+    fixture.detectChanges();
     const panel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
     expect(panel?.textContent).toContain('definition_authoring');
     expect(panel?.textContent).toContain('not_attached');
@@ -207,12 +248,11 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    const topPanel = element.querySelector('[data-visual-id="studio-top-panel"]');
-    expect(topPanel).not.toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-top-panel"]')).toBeNull();
     expect(element.querySelector('[data-visual-id="studio-playable-loop-popout"]')).toBeNull();
     expect(element.querySelector('[data-visual-id="studio-generated-level-inspection"]')).toBeNull();
 
-    openPlayableLoopInspector(element);
+    openPlayableLoopInspector(fixture);
     fixture.detectChanges();
 
     const popout = element.querySelector('[data-visual-id="studio-playable-loop-popout"]');
@@ -231,7 +271,7 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    openPlayableLoopInspector(element);
+    openPlayableLoopInspector(fixture);
     fixture.detectChanges();
 
     const productPath = element.querySelector('[data-visual-id="studio-asha-demo-product-path"]');
@@ -317,7 +357,7 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    openPlayableLoopInspector(element);
+    openPlayableLoopInspector(fixture);
     fixture.detectChanges();
 
     const generatedPanel = element.querySelector('[data-visual-id="studio-generated-level-inspection"]');
@@ -393,7 +433,7 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    openPlayableLoopInspector(element);
+    openPlayableLoopInspector(fixture);
     fixture.detectChanges();
 
     const tuningPanel = element.querySelector('[data-visual-id="studio-encounter-tuning-inspection"]');
@@ -491,7 +531,7 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    openPlayableLoopInspector(element);
+    openPlayableLoopInspector(fixture);
     fixture.detectChanges();
 
     const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');

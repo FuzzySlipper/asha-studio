@@ -3,7 +3,7 @@ import {
   StudioAssetsBottomPanelComponent,
   StudioHierarchyPanelComponent,
   StudioInspectorPanelComponent,
-  StudioSessionTopPanelComponent,
+  StudioRuntimeToolsMenuComponent,
   StudioViewportToolbarPanelComponent,
   StudioVoxelToolsMenuComponent,
 } from '@asha-studio/panels';
@@ -17,7 +17,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
     StudioAssetsBottomPanelComponent,
     StudioHierarchyPanelComponent,
     StudioInspectorPanelComponent,
-    StudioSessionTopPanelComponent,
+    StudioRuntimeToolsMenuComponent,
     StudioViewportComponent,
     StudioViewportToolbarPanelComponent,
     StudioVoxelToolsMenuComponent,
@@ -41,6 +41,13 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
             (click)="toggleMenu('project')"
           >
             Project
+          </button>
+          <button
+            type="button"
+            [class.is-active]="store.activeMenu() === 'runtime'"
+            (click)="toggleMenu('runtime')"
+          >
+            Runtime
           </button>
           <button
             type="button"
@@ -276,6 +283,12 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
           </section>
         }
 
+        @if (store.activeMenu() === 'runtime') {
+          <section class="menu-popover menu-popover--runtime" aria-label="Runtime menu">
+            <asha-runtime-tools-menu />
+          </section>
+        }
+
         @if (store.activeMenu() === 'voxel') {
           <section class="menu-popover menu-popover--voxel" aria-label="Voxel menu">
             <asha-voxel-tools-menu />
@@ -283,7 +296,6 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         }
       </nav>
 
-      <asha-session-top-panel class="top-panel" />
       <asha-hierarchy-panel class="hierarchy-panel" />
 
       <section class="viewport-column" data-visual-id="studio-viewport-column">
@@ -302,10 +314,9 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         color: var(--asha-color-ink);
         display: grid;
         grid-template-columns: 18rem minmax(32rem, 1fr) 21rem;
-        grid-template-rows: 2rem 18rem minmax(0, 1fr) 14rem;
+        grid-template-rows: 2rem minmax(0, 1fr) 14rem;
         grid-template-areas:
           "menu menu menu"
-          "top top top"
           "hierarchy viewport inspector"
           "assets assets assets";
         min-height: 100vh;
@@ -316,7 +327,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
       asha-assets-bottom-panel,
       asha-hierarchy-panel,
       asha-inspector-panel,
-      asha-session-top-panel,
+      asha-runtime-tools-menu,
       asha-studio-viewport,
       asha-viewport-toolbar-panel,
       asha-voxel-tools-menu {
@@ -407,7 +418,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 
       .menu-popover--preferences {
         gap: 0.65rem;
-        left: 19.8rem;
+        left: 24.7rem;
         min-width: 17rem;
       }
 
@@ -417,6 +428,13 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
       }
 
       .menu-popover--voxel {
+        left: 20.3rem;
+        max-width: calc(100vw - 1rem);
+        min-width: min(48rem, calc(100vw - 1rem));
+        padding: 0;
+      }
+
+      .menu-popover--runtime {
         left: 15.4rem;
         max-width: calc(100vw - 1rem);
         min-width: min(48rem, calc(100vw - 1rem));
@@ -573,11 +591,6 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         text-transform: uppercase;
       }
 
-      .top-panel {
-        grid-area: top;
-        min-width: 0;
-      }
-
       .hierarchy-panel {
         grid-area: hierarchy;
         min-width: 0;
@@ -604,16 +617,16 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         .studio-layout {
           grid-template-columns: 1fr;
           grid-template-rows:
-            2rem 6.25rem 13rem minmax(20rem, 1fr) 13rem 14rem;
+            2rem 13rem minmax(20rem, 1fr) 13rem 14rem;
           grid-template-areas:
             "menu"
-            "top"
             "hierarchy"
             "viewport"
             "inspector"
             "assets";
         }
 
+        .menu-popover--runtime,
         .menu-popover--voxel {
           left: 0.5rem;
         }
@@ -625,7 +638,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 export class StudioShellComponent {
   readonly store = inject(StudioWorkspaceStore);
 
-  toggleMenu(menu: 'file' | 'edit' | 'view' | 'project' | 'voxel' | 'preferences'): void {
+  toggleMenu(menu: 'file' | 'edit' | 'view' | 'project' | 'runtime' | 'voxel' | 'preferences'): void {
     this.store.toggleActiveMenu(menu);
   }
 

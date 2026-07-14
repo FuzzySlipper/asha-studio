@@ -12,14 +12,19 @@ This repo is intentionally separate from:
 
 ## Current baseline
 
-Task `asha#2730` establishes a Vite/TypeScript shell with visible regions required by the V1 plan:
+Task `asha#2730` established the initial Vite/TypeScript shell. The current product layout keeps persistent space for authoring work and moves contextual workflows into the application menu:
 
-- scenario/session panel;
+- File, Project, Runtime, Voxel, and view/preference menus;
 - viewport editor panel;
-- command palette/menu mirror;
 - command timeline;
 - inspector/readout panel;
-- evidence/export panel.
+- asset and catalog workspace.
+
+The old permanent scenario/runtime proof strip is no longer part of the normal
+layout. Runtime controls, workspace identity, the temporary fixture-scenario
+switcher, and the gameplay inspector are available from the top-bar **Runtime**
+menu. Project scene open/save remains under **File** and is the path intended to
+replace the temporary scenario switcher as unified scene persistence matures.
 
 The app consumes public engine package roots and projects their typed command,
 runtime, and evidence surfaces into Studio UI. The central viewport consumes the

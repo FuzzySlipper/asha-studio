@@ -4128,6 +4128,27 @@ test('secondary evidence surface is present without occupying the primary viewpo
   assert.equal(viewportSource.includes('studio-secondary-evidence'), false);
 });
 
+test('runtime tools are menu-scoped without a permanent proof session strip', () => {
+  const panelSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
+    'utf8',
+  );
+  const shellSource = readFileSync(
+    join(repoRoot, 'libs', 'studio-shell', 'src', 'index.ts'),
+    'utf8',
+  );
+
+  assert.equal(panelSource.includes("selector: 'asha-runtime-tools-menu'"), true);
+  assert.equal(panelSource.includes('data-visual-id="studio-runtime-tools-menu"'), true);
+  assert.equal(panelSource.includes('Temporary scenarios'), true);
+  assert.equal(panelSource.includes('Project scene open/save is under File'), true);
+  assert.equal(panelSource.includes('data-visual-id="studio-runtime-session-panel"'), false);
+  assert.equal(shellSource.includes("store.activeMenu() === 'runtime'"), true);
+  assert.equal(shellSource.includes('<asha-runtime-tools-menu />'), true);
+  assert.equal(shellSource.includes('<asha-session-top-panel'), false);
+  assert.equal(shellSource.includes('"top top top"'), false);
+});
+
 test('hierarchy panel exposes compact drag and filter affordances over scene objects', () => {
   const panelSource = readFileSync(
     join(repoRoot, 'libs', 'studio-panels', 'src', 'index.ts'),
