@@ -11,6 +11,8 @@ import type {
 import { StudioWorkspaceStore } from '@asha-studio/store';
 import type { SceneObjectId } from '@asha/editor-tools';
 
+export { StudioVoxelToolsMenuComponent } from './voxel-tools-menu';
+
 function visibleHierarchyEntities(
   entities: readonly StudioEntityReadModel[],
 ): readonly StudioEntityReadModel[] {

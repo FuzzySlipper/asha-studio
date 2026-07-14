@@ -746,6 +746,54 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     );
   }
 
+  async function enableReadbackOverlay() {
+    const viewButton = Array.from(document.querySelectorAll('button')).find(
+      button => button.textContent?.trim() === 'View',
+    );
+    if (!viewButton) {
+      throw new Error('View menu is unavailable');
+    }
+    viewButton.click();
+    const readbackLabel = await waitFor(
+      () => Array.from(document.querySelectorAll('label')).find(
+        label => label.textContent?.includes('Readback Overlay'),
+      ),
+      'View menu readback overlay control',
+    );
+    const readbackCheckbox = readbackLabel.querySelector('input[type="checkbox"]');
+    if (!(readbackCheckbox instanceof HTMLInputElement)) {
+      throw new Error('Readback Overlay checkbox is unavailable');
+    }
+    if (!readbackCheckbox.checked) {
+      readbackCheckbox.click();
+    }
+    await waitFor(
+      () => document.querySelector('[data-viewport-classification]'),
+      'viewport readback overlay',
+    );
+  }
+
+  async function openVoxelSection(section) {
+    if (!document.querySelector('[data-visual-id="studio-voxel-tools-menu"]')) {
+      const voxelButton = Array.from(document.querySelectorAll('button')).find(
+        button => button.textContent?.trim() === 'Voxel',
+      );
+      if (!voxelButton) {
+        throw new Error('Voxel menu is unavailable');
+      }
+      voxelButton.click();
+    }
+    const sectionButton = await waitFor(
+      () => document.querySelector('[data-voxel-tools-section="' + section + '"]'),
+      'Voxel ' + section + ' menu section',
+    );
+    sectionButton.click();
+    await waitFor(
+      () => document.querySelector('[data-voxel-tools-content="' + section + '"]'),
+      'Voxel ' + section + ' menu content',
+    );
+  }
+
   function collect() {
     const runtimeText = text();
     const store = globalThis.ashaStudioVoxelWorkflow;
@@ -762,15 +810,20 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     proof.attachState = store && typeof store.runtimeSessionInspection === 'function'
       ? store.runtimeSessionInspection().attachState
       : '';
-    proof.actionStates = Array.from(document.querySelectorAll('[data-voxel-action]')).map(button => ({
-      commandId: button.getAttribute('data-voxel-action'),
-      accepted: button.getAttribute('data-voxel-action-accepted'),
-      disabled: button.disabled === true,
+    const voxelShell = storeShell();
+    proof.actionStates = (voxelShell?.actions ?? []).map(action => ({
+      commandId: action.commandId,
+      accepted: String(action.accepted),
+      disabled: action.disabled === true,
     }));
-    proof.evidenceKinds = Array.from(new Set(
-      Array.from(document.querySelectorAll('[data-voxel-evidence-kind]')).map(row => row.getAttribute('data-voxel-evidence-kind')),
-    ));
-    proof.timelineStatuses = Array.from(document.querySelectorAll('[data-voxel-timeline-status]')).map(row => row.getAttribute('data-voxel-timeline-status'));
+    if (proof.evidenceKinds.length === 0) {
+      proof.evidenceKinds = Array.from(new Set(
+        (voxelShell?.evidenceRows ?? []).map(row => row.kind),
+      ));
+    }
+    if (proof.timelineStatuses.length === 0) {
+      proof.timelineStatuses = (voxelShell?.commandTimeline ?? []).map(row => row.status);
+    }
     proof.rendererViewport.owner = document.querySelector('[data-renderer-owner]')?.getAttribute('data-renderer-owner') || null;
     proof.rendererViewport.classification = document.querySelector('[data-viewport-classification]')?.getAttribute('data-viewport-classification') || null;
     proof.rendererViewport.runtimeState = document.querySelector('[data-viewport-runtime]')?.getAttribute('data-viewport-runtime') || null;
@@ -940,6 +993,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   async function saveVoxelAssetForPaletteEditor() {
+    await openVoxelSection('asset');
     const button = document.querySelector('[data-voxel-asset-action="save_volume"]');
     if (!(button instanceof HTMLButtonElement)) {
       throw new Error('Missing voxel asset save action');
@@ -1241,6 +1295,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   async function runProof() {
     try {
       const store = await proofStore();
+      await enableReadbackOverlay();
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
@@ -1603,6 +1658,8 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
             .filter(row => row.source === 'export' && row.status === 'available')
             .map(row => [row.kind + ':' + row.uri, row]),
         ).values());
+        proof.evidenceKinds = exportedEvidenceRows.map(row => row.kind);
+        proof.timelineStatuses = conversionShell.commandTimeline.map(row => row.status);
         proof.nativeSmoke.sessionHashBeforeVoxelEdits = inspectionBeforeVoxelEdits.sessionHash;
         proof.nativeSmoke.commandCountsBeforeVoxelEdits = commandCounts(inspectionBeforeVoxelEdits);
         proof.nativeSmoke.conversion = {
@@ -1675,6 +1732,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         }
         proof.nativeSmoke.conversion.savedVolumeAsset = summarizeVoxelVolumeSave(savedVolumeResult);
         await saveVoxelAssetForPaletteEditor();
+        await openVoxelSection('metadata');
         await waitFor(() => document.querySelector('[data-voxel-palette-control="selected_entry"] option[value="voxel-material/demo-copper"]'), 'voxel palette option');
         selectVoxelPaletteEntry('voxel-material/demo-copper');
         await waitFor(() => voxelPaletteEditorReadout().selectedPaletteEntryId === 'voxel-material/demo-copper'
@@ -2006,6 +2064,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         });
         proof.agentSurface.unsupportedVoxelEdit = unsupportedEdit.accepted === false && unsupportedEdit.voxelEditReceipt === null;
         proof.agentSurface.surfaceHash = unsupportedEdit.surface.surfaceHash;
+        await openVoxelSection('edit');
         setCompactVoxelEditControl('grid', 1);
         setCompactVoxelEditControl('material', 1);
         setCompactVoxelEditControl('x1', 5);
@@ -2067,7 +2126,9 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         } else {
           proof.agentSurface.voxelHistory = voxelHistoryReadout;
         }
-        await waitFor(() => document.querySelector('[data-voxel-evidence-kind="apply_receipt"]'), 'apply receipt evidence');
+        if (!proof.nativeSmoke.conversion.exportedEvidenceRefs.some(row => row.kind === 'apply_receipt')) {
+          throw new Error('Conversion apply receipt evidence was not retained by the native proof');
+        }
         proof.status = 'complete';
         proof.message = 'native provider attached and voxel conversion commands completed';
       } else {
@@ -2774,8 +2835,8 @@ async function main(): Promise<void> {
     assert.equal(missingProof.rendererViewport.runtimeState, 'missing');
     assert.equal(missingProof.rendererViewport.evidenceStatus, 'missing_runtime');
     assert.equal(missingProof.rendererViewport.channelGenerations.runtime, 0);
-    assert.equal(missingProof.rendererViewport.channelGenerations.authored, 1);
-    assert.equal(missingProof.rendererViewport.channelGenerations.overlay, 1);
+    assert.ok((missingProof.rendererViewport.channelGenerations.authored ?? 0) >= 1);
+    assert.ok((missingProof.rendererViewport.channelGenerations.overlay ?? 0) >= 1);
 
     const invalidDom = await runChromiumDump(`${baseUrl}#provider=invalid`);
     const invalidProof = readProofFromDom(invalidDom);

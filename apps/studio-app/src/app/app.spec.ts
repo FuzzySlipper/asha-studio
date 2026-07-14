@@ -22,7 +22,7 @@ describe('StudioShellComponent', () => {
     expect(element.textContent).toContain('asha-studio-substrate');
   });
 
-  it('renders the fail-closed voxel conversion workspace shell', async () => {
+  it('keeps voxel workflows in a task-oriented menu instead of a proof panel', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -31,44 +31,30 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    const panel = element.querySelector('[data-visual-id="studio-voxel-conversion-workspace"]');
-    expect(panel).not.toBeNull();
-    expect(panel?.textContent).toContain('voxel-conversion-shell.v0');
-    expect(panel?.textContent).toContain('failed_closed');
-    expect(panel?.textContent).toContain('runtime_facade_unavailable');
-    expect(panel?.querySelector('[data-voxel-shell-state="empty_inputs"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-shell-state="missing_capability"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-shell-state="ready"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-control="source-asset"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-control="mode"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-control="max-output-voxels"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-control="material-voxel-id"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-proposal-diagnostic-code]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-preview-status]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-preview-state="unavailable"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-preview-state="projection_only"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-preview-state="stale"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-material-slot]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.plan"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.preview"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.apply"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-timeline-command="voxel_conversion.export_evidence"]')).not.toBeNull();
-    expect(panel?.querySelector('[data-voxel-evidence-status="missing"]')).not.toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-voxel-conversion-workspace"]')).toBeNull();
+    expect(element.querySelector('[data-visual-id="studio-voxel-tools-menu"]')).toBeNull();
 
-    for (const region of ['source', 'settings', 'preview', 'diagnostics', 'timeline', 'evidence']) {
-      expect(panel?.querySelector(`[data-voxel-region="${region}"]`)).not.toBeNull();
-    }
+    const voxelMenuButton = Array.from(element.querySelectorAll('button')).find(
+      button => button.textContent?.trim() === 'Voxel',
+    );
+    voxelMenuButton?.click();
+    fixture.detectChanges();
 
-    for (const commandId of [
-      'voxel_conversion.plan',
-      'voxel_conversion.preview',
-      'voxel_conversion.apply',
-      'voxel_conversion.export_evidence',
-    ]) {
-      const button = panel?.querySelector(`[data-voxel-action="${commandId}"]`) as HTMLButtonElement | null;
-      expect(button).not.toBeNull();
-      expect(button?.disabled).toBe(true);
+    const menu = element.querySelector('[data-visual-id="studio-voxel-tools-menu"]');
+    expect(menu).not.toBeNull();
+    for (const section of ['convert', 'edit', 'asset', 'metadata', 'history', 'automation']) {
+      expect(menu?.querySelector(`[data-voxel-tools-section="${section}"]`)).not.toBeNull();
     }
+    expect(menu?.querySelector('[data-voxel-control="mesh-file-import"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-control="mode"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-control="max-output-voxels"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-control="material-voxel-id"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-action="voxel_conversion.plan"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-action="voxel_conversion.preview"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-action="voxel_conversion.apply"]')).not.toBeNull();
+    expect(menu?.querySelector('[data-voxel-action="voxel_conversion.export_evidence"]')).toBeNull();
+    expect(menu?.textContent).not.toContain('failed_closed');
+    expect(menu?.textContent).not.toContain('runtime_facade_unavailable');
   });
 
   it('renders the game workspace overview from the parsed manifest fixture', async () => {

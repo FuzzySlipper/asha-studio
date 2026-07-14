@@ -351,56 +351,56 @@ function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string 
           data-renderer-owner="asha-renderer-host"
           aria-label="ASHA engine renderer viewport"
         ></canvas>
-        <div class="viewport-classification" data-viewport-classification="stored-authored-preview">
-          <strong>stored authored preview</strong>
-          <span>engine-owned realization</span>
-          @if (store.runtimeViewportProjection(); as runtimeProjection) {
-            <span data-viewport-runtime="attached">current runtime · {{ runtimeProjection.projectionHash }}</span>
-          } @else {
-            <span data-viewport-runtime="missing">runtime not attached</span>
-          }
-          @if (viewportReadout(); as readout) {
-            <small>{{ readout.viewportHash }}</small>
-            @for (channel of readout.channels; track channel.channel) {
-              <small
-                [attr.data-renderer-channel]="channel.channel"
-                [attr.data-renderer-channel-generation]="channel.generation"
-                [attr.data-renderer-channel-hash]="channel.hash"
-              >
-                {{ channel.channel }} · generation {{ channel.generation }} · {{ channel.hash }}
+        @if (store.viewportAdapter().renderSettings.showReadbackOverlay) {
+          <div class="viewport-classification" data-viewport-classification="stored-authored-preview">
+            <strong>stored authored preview</strong>
+            <span>engine-owned realization</span>
+            @if (store.runtimeViewportProjection(); as runtimeProjection) {
+              <span data-viewport-runtime="attached">current runtime · {{ runtimeProjection.projectionHash }}</span>
+            } @else {
+              <span data-viewport-runtime="missing">runtime not attached</span>
+            }
+            @if (viewportReadout(); as readout) {
+              <small>{{ readout.viewportHash }}</small>
+              @for (channel of readout.channels; track channel.channel) {
+                <small
+                  [attr.data-renderer-channel]="channel.channel"
+                  [attr.data-renderer-channel-generation]="channel.generation"
+                  [attr.data-renderer-channel-hash]="channel.hash"
+                >
+                  {{ channel.channel }} · generation {{ channel.generation }} · {{ channel.hash }}
+                </small>
+              }
+            }
+            @if (viewportMountDiagnostic(); as diagnostic) {
+              <small data-renderer-host-mount="failed" class="viewport-classification__diagnostic">
+                {{ diagnostic }}
               </small>
             }
-          }
-          @if (viewportMountDiagnostic(); as diagnostic) {
-            <small data-renderer-host-mount="failed" class="viewport-classification__diagnostic">
-              {{ diagnostic }}
+            <small [attr.data-runtime-viewport-evidence-status]="store.runtimeViewportEvidence().status">
+              {{ store.runtimeViewportEvidence().status }}
+              · scene {{ store.runtimeViewportEvidence().scene?.documentHash ?? 'n/a' }}
+              · preview {{ store.runtimeViewportEvidence().materialPreview?.rendererClassification ?? 'n/a' }}
+              · voxel {{ store.runtimeViewportEvidence().voxelSelection?.outcome ?? 'n/a' }}
+              · buffer {{ store.runtimeViewportEvidence().bufferLifetime?.released ? 'released' : 'n/a' }}
             </small>
-          }
-          <small [attr.data-runtime-viewport-evidence-status]="store.runtimeViewportEvidence().status">
-            {{ store.runtimeViewportEvidence().status }}
-            · scene {{ store.runtimeViewportEvidence().scene?.documentHash ?? 'n/a' }}
-            · preview {{ store.runtimeViewportEvidence().materialPreview?.rendererClassification ?? 'n/a' }}
-            · voxel {{ store.runtimeViewportEvidence().voxelSelection?.outcome ?? 'n/a' }}
-            · buffer {{ store.runtimeViewportEvidence().bufferLifetime?.released ? 'released' : 'n/a' }}
-          </small>
-          @for (diagnostic of store.runtimeViewportEvidence().diagnostics; track diagnostic) {
-            <small class="viewport-classification__diagnostic">{{ diagnostic }}</small>
-          }
-          <button
-            type="button"
-            data-renderer-resource-probe
-            (click)="probeMissingPreviewResource()"
-          >
-            Probe missing preview resource
-          </button>
-          <small
-            [attr.data-renderer-resource-probe-status]="resourceProbe().status"
-            [attr.data-renderer-resource-probe-isolated]="resourceProbe().isolated"
-          >
-            {{ resourceProbe().status }} · {{ resourceProbe().diagnostic ?? 'not run' }}
-          </small>
-        </div>
-        @if (store.viewportAdapter().renderSettings.showReadbackOverlay) {
+            @for (diagnostic of store.runtimeViewportEvidence().diagnostics; track diagnostic) {
+              <small class="viewport-classification__diagnostic">{{ diagnostic }}</small>
+            }
+            <button
+              type="button"
+              data-renderer-resource-probe
+              (click)="probeMissingPreviewResource()"
+            >
+              Probe missing preview resource
+            </button>
+            <small
+              [attr.data-renderer-resource-probe-status]="resourceProbe().status"
+              [attr.data-renderer-resource-probe-isolated]="resourceProbe().isolated"
+            >
+              {{ resourceProbe().status }} · {{ resourceProbe().diagnostic ?? 'not run' }}
+            </small>
+          </div>
           <div class="viewport-readback">
             <span>selected target</span>
             <strong>{{ store.viewportAdapter().selectedRenderableId ?? 'none' }}</strong>
@@ -416,26 +416,25 @@ function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string 
             }
             <small>{{ store.viewportAdapter().readbackHash }}</small>
           </div>
+          <div
+            class="voxel-preview-overlay"
+            [attr.data-voxel-viewport-preview-status]="store.voxelConversionWorkspaceShell().previewProjection.status"
+          >
+            <span>voxel conversion</span>
+            <strong>{{ store.voxelConversionWorkspaceShell().previewProjection.viewportLabel }}</strong>
+            <small>{{ store.voxelConversionWorkspaceShell().previewProjection.previewHash ?? 'no upstream preview evidence' }}</small>
+            <small>{{ store.voxelConversionWorkspaceShell().previewProjection.inputReadoutHash }}</small>
+          </div>
+
+          <div
+            class="voxel-brush-preview-overlay"
+            [attr.data-voxel-brush-preview-status]="store.voxelCompactEditPlacement().status"
+          >
+            <span>compact edit</span>
+            <strong>{{ store.voxelCompactEditPlacement().previewLabel }}</strong>
+            <small>{{ store.voxelCompactEditPlacement().readoutHash }}</small>
+          </div>
         }
-
-        <div
-          class="voxel-preview-overlay"
-          [attr.data-voxel-viewport-preview-status]="store.voxelConversionWorkspaceShell().previewProjection.status"
-        >
-          <span>voxel conversion</span>
-          <strong>{{ store.voxelConversionWorkspaceShell().previewProjection.viewportLabel }}</strong>
-          <small>{{ store.voxelConversionWorkspaceShell().previewProjection.previewHash ?? 'no upstream preview evidence' }}</small>
-          <small>{{ store.voxelConversionWorkspaceShell().previewProjection.inputReadoutHash }}</small>
-        </div>
-
-        <div
-          class="voxel-brush-preview-overlay"
-          [attr.data-voxel-brush-preview-status]="store.voxelCompactEditPlacement().status"
-        >
-          <span>compact edit</span>
-          <strong>{{ store.voxelCompactEditPlacement().previewLabel }}</strong>
-          <small>{{ store.voxelCompactEditPlacement().readoutHash }}</small>
-        </div>
 
         <div class="axis-gizmo" aria-hidden="true">
           <span class="axis-gizmo__x">X</span>

@@ -49,6 +49,11 @@ import and local-link policy.
   explicit save/unload/load, and strict external-agent transcript replay all use
   public RuntimeSession operations. `globalThis.ashaStudioVoxelWorkflow` exposes
   a bounded product API without exposing the Store or RuntimeBridge.
+- Human voxel workflows live under the top-bar **Voxel** menu and are grouped by
+  use: Convert, Edit, Asset, Metadata, History, and Automation. The archived
+  conversion proof shell, state cards, evidence rows, and raw diagnostic hashes
+  are not part of the normal product layout. Viewport readback/probe overlays are
+  also off by default and remain an explicit View-menu diagnostic aid.
 - The Phase 4 voxel conversion proof artifacts remain fixture-backed successor
   evidence for Studio proposal/readout behavior, Asha-authored fixture goldens,
   deterministic receipts, and before/after comparison readouts.

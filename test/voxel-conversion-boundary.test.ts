@@ -452,24 +452,27 @@ test('voxel conversion scaffold fails closed when runtime facade operations are 
   );
 });
 
-test('studio voxel conversion workspace shell registers visible fail-closed regions', () => {
+test('studio keeps conversion authority readouts behind a focused voxel workflow menu', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+  const menuSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/voxel-tools-menu.ts'), 'utf8');
   const shellSource = readFileSync(join(repoRoot, 'libs/studio-shell/src/index.ts'), 'utf8');
 
   assert.match(storeSource, /voxelConversionWorkspaceShell/);
   assert.match(storeSource, /buildStudioVoxelConversionWorkspaceReadModel/);
   assert.match(storeSource, /buildStudioVoxelConversionReadoutModel\(\{\s*workspace,\s*runtimeSession/s);
-  assert.match(panelSource, /selector: 'asha-voxel-conversion-workspace-panel'/);
-  assert.match(panelSource, /data-visual-id="studio-voxel-conversion-workspace"/);
-  assert.match(shellSource, /<asha-voxel-conversion-workspace-panel class="voxel-panel" \/>/);
+  assert.match(panelSource, /export \{ StudioVoxelToolsMenuComponent \} from '\.\/voxel-tools-menu'/);
+  assert.match(menuSource, /selector: 'asha-voxel-tools-menu'/);
+  assert.match(menuSource, /data-visual-id="studio-voxel-tools-menu"/);
+  assert.match(shellSource, /<asha-voxel-tools-menu \/>/);
+  assert.doesNotMatch(shellSource, /<asha-voxel-conversion-workspace-panel/);
+  assert.match(shellSource, /store\.activeMenu\(\) === 'voxel'/);
 
   for (const state of ['empty_inputs', 'missing_capability', 'ready']) {
     assert.match(storeSource, new RegExp(`id: '${state}'`));
   }
   for (const region of ['source', 'settings', 'preview', 'diagnostics', 'timeline', 'evidence']) {
     assert.match(storeSource, new RegExp(`id: '${region}'`));
-    assert.match(panelSource, /data-voxel-region/);
   }
   for (const commandId of [
     'voxel_conversion.plan',
@@ -479,6 +482,7 @@ test('studio voxel conversion workspace shell registers visible fail-closed regi
   ]) {
     assert.match(storeSource, new RegExp(`commandId: '${commandId}'`));
   }
+  assert.match(menuSource, /action\.commandId !== 'voxel_conversion\.export_evidence'/);
 });
 
 test('studio agent voxel workflow surface stays typed and bounded', () => {

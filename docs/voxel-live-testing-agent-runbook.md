@@ -19,16 +19,21 @@ Asha RuntimeSession and Studio workflow surfaces.
 
 ## Product Entry Points
 
-The supported outcome is the Studio product, not a proof script. In the normal
-voxel workspace a person can:
+The supported outcome is the Studio product, not a proof script. From the
+top-bar **Voxel** menu a person can:
 
 - choose a catalog mesh or explicitly import a bounded `.glb` file;
-- inspect source metadata and run Plan, Preview, Apply, and evidence export;
-- initialize an empty authoring volume and use the visible block, fill, box,
-  line, viewport-pick, history, annotation, and material controls;
+- tune conversion and material settings, then run Plan, Preview, and Apply;
+- initialize an empty authoring volume and use block, fill, box, line,
+  viewport-pick, history, annotation, and material controls grouped by task;
 - inspect resident model and material readbacks; and
 - export or save, unload the resident model, then load the retained Asha-native
   asset back into RuntimeSession.
+
+Proof-only state cards, evidence export, command timelines, and raw hashes do
+not occupy a permanent voxel panel. They remain available to focused tests and
+evidence commands. Viewport diagnostic overlays are opt-in through the View
+menu rather than part of the default authoring surface.
 
 External agents use the normal browser product API at
 `globalThis.ashaStudioVoxelWorkflow`. Its kind is
@@ -36,8 +41,8 @@ External agents use the normal browser product API at
 operations/readouts and strict transcript replay. It does not expose the Store,
 RuntimeBridge, native transport, private state, or method-name dispatch.
 
-The Agent Voxel Transcript section in the normal UI exercises the same strict
-parser and replay runner. Use `runAgentVoxelWorkflowOperation` for one typed
+The Voxel → Automation view exercises the same strict parser and replay runner.
+Use `runAgentVoxelWorkflowOperation` for one typed
 operation or `runAgentVoxelOperationTranscriptReplay` for a bounded transcript.
 
 ## Native Regression Gate

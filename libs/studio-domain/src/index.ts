@@ -108,7 +108,7 @@ export type StudioBottomPanelTab =
   | 'publish'
   | 'evidence';
 export type StudioCommandProposalActionId = 'set_voxel_reference';
-export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'project' | 'preferences';
+export type StudioApplicationMenu = 'file' | 'edit' | 'view' | 'project' | 'voxel' | 'preferences';
 export type StudioRenderSettingKey =
   | 'wireframeEnabled'
   | 'showGrid'
@@ -7420,7 +7420,7 @@ export function buildStudioRenderSettingsReadModel(options: {
     wireframeEnabled: options.wireframeEnabled ?? false,
     showGrid: options.showGrid ?? true,
     showPreviewGhosts: options.showPreviewGhosts ?? true,
-    showReadbackOverlay: options.showReadbackOverlay ?? true,
+    showReadbackOverlay: options.showReadbackOverlay ?? false,
     showRaycastHitDebug: options.showRaycastHitDebug ?? false,
   };
   return {
