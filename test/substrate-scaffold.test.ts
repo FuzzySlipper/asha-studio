@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +12,7 @@ import { COMMAND_IDS } from '@asha/command-registry';
 import { buildDevtoolsProtocolGoldenFixtures, createDevtoolsFixtureEndpoint } from '@asha/devtools';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
+  ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
   addReferenceRenderableReadModel,
   attachStudioGameWorkspaceDevtools,
   applySelectedEntityReadModel,
@@ -79,9 +82,11 @@ import {
   serializeWorkspaceSceneSource,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
+  stageStudioProjectWorkspaceLoad,
   studioSceneAuthoringBaseHash,
   studioCatalogAuthoringBaseHash,
   updateStudioRenderSetting,
+  validateStudioWorkspaceArtifactSceneReference,
   validateEntityProjection,
   validateSelectionCommandSync,
   zoomStudioViewportCamera,
@@ -94,6 +99,10 @@ import {
   themeTokenCssVariables,
 } from '@asha-studio/theme';
 import generateStudioFeatureSlice from '../libs/studio-workspace-generators/src/generators/studio-feature-slice/generator';
+import {
+  readStudioProjectFile,
+  writeStudioProjectFile,
+} from '../scripts/studio-project-file-service';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const demoRoot = join(repoRoot, '../asha-testing');
@@ -3636,37 +3645,252 @@ test('asset browser categories include newly loaded reference placeholders', () 
   assert.equal(buildAssetBrowserCategories(readModel.scene.renderables).at(0)?.count, 5);
 });
 
-test('workspace artifact serializes and restores Studio read models', () => {
-  const workspace = clearStudioWorkspaceReadModel(buildInitialWorkspaceReadModel());
-  const preferences = updateStudioRenderSetting(
-    buildStudioPreferencesReadModel(),
-    'showGrid',
-    false,
-  );
+test('project workspace artifact serializes only hash-pinned authored content', () => {
+  const project = {
+    gameId: 'asha-demo',
+    manifestPath: 'asha.game.toml',
+    manifestSha256: `sha256:${'c'.repeat(64)}`,
+  };
+  const sceneSource = {
+    path: 'scenes/minimal.scene.json',
+    sha256: `sha256:${'a'.repeat(64)}`,
+  };
   const text = serializeStudioWorkspaceArtifact({
-    workspace,
-    viewportCamera: buildStudioViewportCameraReadModel(),
-    viewportTool: buildStudioViewportToolReadModel('pan'),
-    preferences,
+    project,
+    sceneSource,
     savedAtIso: '2026-06-27T00:00:00.000Z',
   });
-  const restored = restoreStudioWorkspaceArtifact(text);
+  const restored = restoreStudioWorkspaceArtifact(text, { expectedProject: project });
 
   assert.equal(restored.ok, true);
-  assert.equal(restored.artifact?.workspace.scene.renderables.length, 0);
-  assert.equal(restored.artifact?.viewportTool.activeTool, 'pan');
-  assert.equal(restored.artifact?.preferences.render.showGrid, false);
-  assert.equal(restored.artifact?.flatSceneDocument.nodes.length, 1);
-  assert.equal(restored.artifact?.serializationNotes.some(note => note.includes('runtime')), true);
+  if (!restored.ok || restored.artifact === null) throw new Error('project workspace should restore');
+  assert.equal(restored.artifact.artifactKind, 'studio_project_workspace');
+  assert.deepEqual(restored.artifact.authoredContent.sceneSource, sceneSource);
+  assert.equal(restored.artifact.stateClassification.editorPreferences, 'browser_local_not_serialized');
+  assert.equal(restored.artifact.stateClassification.attachedRuntime, 'disconnect_and_reconnect_not_serialized');
+  assert.equal(text.includes('viewportCamera'), false);
+  assert.equal(text.includes('commandResults'), false);
+  assert.equal(text.includes('runtimeAttachState'), false);
+
+  const currentReference = validateStudioWorkspaceArtifactSceneReference(restored.artifact, {
+    ...sceneSource,
+    text: '{}',
+  });
+  const staleReference = validateStudioWorkspaceArtifactSceneReference(restored.artifact, {
+    ...sceneSource,
+    text: '{}',
+    sha256: `sha256:${'b'.repeat(64)}`,
+  });
+  assert.equal(currentReference.ok, true);
+  assert.equal(staleReference.ok, false);
+  assert.equal(staleReference.diagnostics.at(0)?.code, 'workspace_artifact_scene_hash_mismatch');
+});
+
+test('project workspace artifact rejects malformed, foreign, and escaping inputs', () => {
+  const project = {
+    gameId: 'asha-demo',
+    manifestPath: 'asha.game.toml',
+    manifestSha256: `sha256:${'c'.repeat(64)}`,
+  };
+  const text = serializeStudioWorkspaceArtifact({
+    project,
+    sceneSource: {
+      path: 'scenes/minimal.scene.json',
+      sha256: `sha256:${'a'.repeat(64)}`,
+    },
+  });
+  const malformed = restoreStudioWorkspaceArtifact(text.replace(`sha256:${'a'.repeat(64)}`, 'not-a-digest'));
+  const foreign = restoreStudioWorkspaceArtifact(text, {
+    expectedProject: { ...project, gameId: 'other-game' },
+  });
+
+  assert.equal(malformed.ok, false);
+  assert.equal(malformed.diagnostics.at(0)?.code, 'workspace_artifact_shape_mismatch');
+  assert.equal(foreign.ok, false);
+  assert.equal(foreign.diagnostics.at(0)?.code, 'workspace_artifact_foreign_project');
+  assert.throws(() => serializeStudioWorkspaceArtifact({
+    project,
+    sceneSource: {
+      path: '../outside.scene.json',
+      sha256: `sha256:${'a'.repeat(64)}`,
+    },
+  }), /bounded paths/);
+});
+
+test('project workspace canonical fixture matches inspectable serialization', () => {
+  const serialized = serializeStudioWorkspaceArtifact({
+    project: {
+      gameId: 'asha-testing',
+      manifestPath: 'asha.game.toml',
+      manifestSha256: 'sha256:eff8415dc697c49b3936671c7c6d0a50c81490347d44c954a197bb438653dfdc',
+    },
+    sceneSource: {
+      path: 'scenes/minimal.scene.json',
+      sha256: 'sha256:9bce31bf50692b7afc36151ac3b2fe1488fb00e0ce916a2de06ba9ee2579bdc8',
+    },
+    savedAtIso: '1970-01-01T00:00:00.000Z',
+  });
+
+  assert.equal(
+    serialized,
+    readFileSync(join(repoRoot, 'fixtures', 'studio-project-workspace.sample.json'), 'utf8'),
+  );
+});
+
+test('project file service enforces bounded stale-safe atomic writes', async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), 'asha-studio-project-files-'));
+  const outsideRoot = await mkdtemp(join(tmpdir(), 'asha-studio-project-files-outside-'));
+  try {
+    const first = await writeStudioProjectFile(projectRoot, {
+      path: 'studio/asha-studio-workspace.json',
+      text: '{"version":1}\n',
+      expectedHash: null,
+    }) as { readonly ok: boolean; readonly sha256?: string };
+    assert.equal(first.ok, true);
+    assert.match(first.sha256 ?? '', /^sha256:[0-9a-f]{64}$/);
+
+    const stale = await writeStudioProjectFile(projectRoot, {
+      path: 'studio/asha-studio-workspace.json',
+      text: '{"version":2}\n',
+      expectedHash: `sha256:${'0'.repeat(64)}`,
+    }) as { readonly ok: boolean; readonly diagnostic?: string; readonly previousHash?: string | null };
+    assert.equal(stale.ok, false);
+    assert.equal(stale.diagnostic, 'stale_file_hash');
+    assert.equal(stale.previousHash, first.sha256);
+
+    const escape = await writeStudioProjectFile(projectRoot, {
+      path: '../outside.json',
+      text: '{}\n',
+      expectedHash: null,
+    }) as { readonly ok: boolean; readonly diagnostic?: string };
+    assert.equal(escape.ok, false);
+    assert.equal(escape.diagnostic, 'path_outside_project_root');
+
+    await writeFile(join(outsideRoot, 'secret.json'), '{"outside":true}\n', 'utf8');
+    await symlink(outsideRoot, join(projectRoot, 'linked-outside'));
+    const symlinkEscape = await readStudioProjectFile(projectRoot, 'linked-outside/secret.json') as {
+      readonly ok: boolean;
+      readonly diagnostic?: string;
+    };
+    assert.equal(symlinkEscape.ok, false);
+    assert.equal(symlinkEscape.diagnostic, 'path_outside_project_root');
+
+    const second = await writeStudioProjectFile(projectRoot, {
+      path: 'studio/asha-studio-workspace.json',
+      text: '{"version":2}\n',
+      expectedHash: first.sha256,
+    }) as { readonly ok: boolean; readonly sha256?: string };
+    const readback = await readStudioProjectFile(
+      projectRoot,
+      'studio/asha-studio-workspace.json',
+    ) as { readonly ok: boolean; readonly text?: string; readonly sha256?: string };
+    assert.equal(second.ok, true);
+    assert.equal(readback.text, '{"version":2}\n');
+    assert.equal(readback.sha256, second.sha256);
+
+    const concurrent = await Promise.all([
+      writeStudioProjectFile(projectRoot, {
+        path: 'studio/asha-studio-workspace.json',
+        text: '{"version":3,"writer":"a"}\n',
+        expectedHash: second.sha256,
+      }),
+      writeStudioProjectFile(projectRoot, {
+        path: 'studio/asha-studio-workspace.json',
+        text: '{"version":3,"writer":"b"}\n',
+        expectedHash: second.sha256,
+      }),
+    ]) as readonly { readonly ok: boolean; readonly diagnostic?: string }[];
+    assert.equal(concurrent.filter(result => result.ok).length, 1);
+    assert.equal(concurrent.filter(result => result.diagnostic === 'stale_file_hash').length, 1);
+    assert.deepEqual(
+      (await readdir(join(projectRoot, 'studio'))).filter(path => path.endsWith('.tmp')),
+      [],
+    );
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+    await rm(outsideRoot, { recursive: true, force: true });
+  }
+});
+
+test('project workspace load stages a complete source round-trip before state replacement', () => {
+  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
+  const manifestSha256 = sha256(manifestText);
+  const projectResult = loadStudioGameWorkspaceManifest({
+    workspaceRoot: demoRoot,
+    manifestPath: 'asha.game.toml',
+    gameId: loadDemoPackageName(),
+    manifestText,
+    packageScripts: loadDemoPackageScripts(),
+    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
+  });
+  assert.equal(projectResult.ok, true);
+  if (!projectResult.ok) throw new Error('asha-testing workspace should load');
+
+  const scenePath = 'scenes/minimal.scene.json';
+  const sceneText = readFileSync(join(demoRoot, scenePath), 'utf8');
+  const sceneSource = { path: scenePath, text: sceneText, sha256: sha256(sceneText) };
+  const artifactText = serializeStudioWorkspaceArtifact({
+    project: {
+      gameId: projectResult.workspace.gameId,
+      manifestPath: projectResult.workspace.manifestPath,
+      manifestSha256,
+    },
+    sceneSource,
+  });
+  const currentWorkspace = buildInitialWorkspaceReadModel();
+  const currentWorkspaceSnapshot = JSON.stringify(currentWorkspace);
+  const staged = stageStudioProjectWorkspaceLoad({
+    currentWorkspace,
+    project: projectResult.workspace,
+    manifestSha256,
+    artifactText,
+    sceneSource,
+  });
+  const stale = stageStudioProjectWorkspaceLoad({
+    currentWorkspace,
+    project: projectResult.workspace,
+    manifestSha256,
+    artifactText,
+    sceneSource: { ...sceneSource, sha256: `sha256:${'b'.repeat(64)}` },
+  });
+  const malformed = stageStudioProjectWorkspaceLoad({
+    currentWorkspace,
+    project: projectResult.workspace,
+    manifestSha256,
+    artifactText: '{not-json',
+    sceneSource,
+  });
+
+  assert.equal(staged.ok, true);
+  if (!staged.ok) throw new Error('valid project workspace should stage');
+  assert.equal(staged.workspace.session.scenarioId, scenePath);
+  assert.equal(staged.workspace.timeline.at(-1)?.commandId, 'scene.open_source');
+  assert.equal(stale.ok, false);
+  assert.equal(stale.diagnostics.at(0)?.code, 'workspace_artifact_scene_hash_mismatch');
+  assert.equal(malformed.ok, false);
+  assert.equal(malformed.diagnostics.at(0)?.code, 'workspace_artifact_invalid_json');
+  assert.equal(JSON.stringify(currentWorkspace), currentWorkspaceSnapshot);
+});
+
+test('project workspace persistence does not depend on browser storage profile data', () => {
+  const storeSource = readFileSync(join(repoRoot, 'libs', 'studio-store', 'src', 'index.ts'), 'utf8');
+  const shellSource = readFileSync(join(repoRoot, 'libs', 'studio-shell', 'src', 'index.ts'), 'utf8');
+
+  assert.equal(storeSource.includes('asha-studio.workspace.v1'), false);
+  assert.equal(storeSource.includes('WORKSPACE_STORAGE_KEY'), false);
+  assert.equal(storeSource.includes('browserStorage()?.setItem'), false);
+  assert.equal(storeSource.includes('ASHA_STUDIO_PROJECT_WORKSPACE_PATH'), true);
+  assert.equal(shellSource.includes('Save Project Workspace'), true);
+  assert.equal(shellSource.includes('Load Project Workspace'), true);
 });
 
 test('workspace persistence and render preferences are timeline-observable UI commands', () => {
   const readModel = buildInitialWorkspaceReadModel();
   const saved = recordStudioWorkspaceUiCommand(readModel, {
-    commandId: 'workspace.save_browser_slot',
-    label: 'Save Workspace Slot',
+    commandId: 'workspace.save_project_artifact',
+    label: 'Save Project Workspace',
     inputSummary: `sceneHash=${readModel.scene.sceneHash}`,
-    outputSummary: 'Workspace artifact saved to browser slot.',
+    outputSummary: `Workspace artifact saved to ${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}.`,
   }).workspace;
   const preference = recordStudioWorkspaceUiCommand(saved, {
     commandId: 'preferences.set_render_setting',
@@ -3675,14 +3899,14 @@ test('workspace persistence and render preferences are timeline-observable UI co
     outputSummary: 'Render setting showGrid updated.',
   }).workspace;
   const rejectedLoad = recordStudioWorkspaceUiCommand(preference, {
-    commandId: 'workspace.load_browser_slot',
-    label: 'Load Workspace Slot',
-    inputSummary: 'source=browser-slot',
-    outputSummary: 'Saved Studio workspace artifact is not valid JSON.',
+    commandId: 'workspace.load_project_artifact',
+    label: 'Load Project Workspace',
+    inputSummary: `source=${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}`,
+    outputSummary: 'Studio project workspace artifact is not valid JSON.',
     status: 'rejected',
   }).workspace;
 
-  assert.equal(saved.timeline.at(-1)?.commandId, 'workspace.save_browser_slot');
+  assert.equal(saved.timeline.at(-1)?.commandId, 'workspace.save_project_artifact');
   assert.equal(preference.timeline.at(-1)?.commandId, 'preferences.set_render_setting');
   assert.equal(rejectedLoad.timeline.at(-1)?.status, 'rejected');
   assert.equal(rejectedLoad.scene.sceneHash, readModel.scene.sceneHash);
@@ -3699,10 +3923,11 @@ test('studio UI state readout classifies non-authoritative affordance state', ()
     selectedScenarioDraftId: 'scenario-placeholder',
     hierarchyFilter: 'scenario-placeholder',
     menuMessage: 'Assets filter selected.',
-    savedWorkspaceAvailable: true,
+    projectWorkspaceAvailable: true,
   });
 
   assert.equal(uiState.artifactKind, 'studio_ui_state');
+  assert.equal(uiState.uiStateVersion, 'studio-ui-state.v1');
   assert.equal(uiState.activeMenu, 'view');
   assert.equal(uiState.bottomPanelTab, 'assets');
   assert.equal(uiState.hierarchyFilter, 'scenario-placeholder');
@@ -4009,6 +4234,10 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     join(repoRoot, 'scripts', 'studio-project-file-server.ts'),
     'utf8',
   );
+  const projectFileServiceSource = readFileSync(
+    join(repoRoot, 'scripts', 'studio-project-file-service.ts'),
+    'utf8',
+  );
   const shellSource = readFileSync(
     join(repoRoot, 'libs', 'studio-shell', 'src', 'index.ts'),
     'utf8',
@@ -4164,10 +4393,17 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(projectFileServerSource.includes('/api/project/list'), true);
   assert.equal(projectFileServerSource.includes('/api/project/file'), true);
   assert.equal(projectFileServerSource.includes('ASHA_STUDIO_PROJECT_ROOT'), true);
+  assert.equal(projectFileServiceSource.includes("flag: 'wx'"), true);
+  assert.equal(projectFileServiceSource.includes('await rename(temporaryPath, resolved.absolutePath)'), true);
+  assert.equal(projectFileServiceSource.includes("segment === '..'"), true);
   assert.equal(shellSource.includes('projectFileDialog()'), true);
+  assert.equal(shellSource.includes('Save Project Workspace'), true);
+  assert.equal(shellSource.includes('Browser Slot'), false);
   assert.equal(shellSource.includes('Open {{ selectedPath }}'), true);
   assert.equal(storeSource.includes('refreshProjectFiles'), true);
   assert.equal(storeSource.includes('projectFileApiBase'), true);
+  assert.equal(storeSource.includes('asha-studio.workspace.v1'), false);
+  assert.equal(storeSource.includes('setItem(WORKSPACE_STORAGE_KEY'), false);
   assert.equal(aggregateSource.includes("artifactKind: 'studio_v2_live_backend_evidence'"), true);
   assert.equal(aggregateSource.includes('stale source artifact hash'), true);
   assert.equal(aggregateSource.includes('browser smoke must consume the current command proof'), true);

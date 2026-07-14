@@ -95,9 +95,19 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                 </button>
               }
             </div>
-            <button type="button" (click)="saveWorkspace()">Save Browser Slot</button>
-            <button type="button" (click)="loadWorkspace()" [disabled]="store.savedWorkspace() === null">
-              Load Browser Slot
+            <button
+              type="button"
+              (click)="saveWorkspace()"
+              [disabled]="!store.projectFileDialog().connected"
+            >
+              Save Project Workspace
+            </button>
+            <button
+              type="button"
+              (click)="loadWorkspace()"
+              [disabled]="!store.projectFileDialog().connected"
+            >
+              Load Project Workspace
             </button>
           </section>
         }
@@ -609,7 +619,7 @@ export class StudioShellComponent {
   }
 
   saveWorkspace(): void {
-    this.store.saveWorkspaceToSlot();
+    this.store.saveProjectWorkspace();
     this.store.setActiveMenu(null);
   }
 
@@ -659,7 +669,7 @@ export class StudioShellComponent {
   }
 
   loadWorkspace(): void {
-    this.store.loadWorkspaceFromSlot();
+    this.store.loadProjectWorkspace();
     this.store.setActiveMenu(null);
   }
 

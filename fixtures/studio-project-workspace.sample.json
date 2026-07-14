@@ -1,0 +1,30 @@
+{
+  "artifactId": "studio-project-workspace:asha-testing",
+  "artifactKind": "studio_project_workspace",
+  "authoredContent": {
+    "sceneSource": {
+      "path": "scenes/minimal.scene.json",
+      "sha256": "sha256:9bce31bf50692b7afc36151ac3b2fe1488fb00e0ce916a2de06ba9ee2579bdc8"
+    }
+  },
+  "project": {
+    "gameId": "asha-testing",
+    "manifestPath": "asha.game.toml",
+    "manifestSha256": "sha256:eff8415dc697c49b3936671c7c6d0a50c81490347d44c954a197bb438653dfdc"
+  },
+  "savedAtIso": "1970-01-01T00:00:00.000Z",
+  "schemaVersion": 1,
+  "serializationNotes": [
+    "Durable authored content remains in inspectable project-root source files referenced by hash.",
+    "Editor preferences stay browser-local and are not project content.",
+    "Transient projections are reconstructed from validated authored sources.",
+    "Attached runtime authority is never serialized; reconnect after loading stored content."
+  ],
+  "stateClassification": {
+    "attachedRuntime": "disconnect_and_reconnect_not_serialized",
+    "durableAuthoredContent": "hash_pinned_project_sources",
+    "editorPreferences": "browser_local_not_serialized",
+    "transientProjection": "reconstructed_not_serialized"
+  },
+  "workspaceVersion": "studio-project-workspace.v1"
+}

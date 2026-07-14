@@ -279,7 +279,7 @@
   "uiState": {
     "schemaVersion": 1,
     "artifactKind": "studio_ui_state",
-    "uiStateVersion": "studio-ui-state.v0",
+    "uiStateVersion": "studio-ui-state.v1",
     "activeMenu": null,
     "bottomPanelTab": "timeline",
     "assetBrowserCategory": "all",
@@ -290,8 +290,8 @@
     "selectedScenarioDraftId": "voxel-basic",
     "hierarchyFilter": "",
     "menuMessage": "Workspace ready.",
-    "savedWorkspaceAvailable": false,
-    "uiStateHash": "studio-ui-state-eec74f8a",
+    "projectWorkspaceAvailable": false,
+    "uiStateHash": "studio-ui-state-1fd9bcc0",
     "nonClaims": [
       "ui_affordance_state_only",
       "not_scene_authority",

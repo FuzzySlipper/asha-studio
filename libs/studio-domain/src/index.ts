@@ -116,8 +116,8 @@ export type StudioRenderSettingKey =
   | 'showReadbackOverlay'
   | 'showRaycastHitDebug';
 export type StudioUiEventCommandId =
-  | 'workspace.save_browser_slot'
-  | 'workspace.load_browser_slot'
+  | 'workspace.save_project_artifact'
+  | 'workspace.load_project_artifact'
   | 'preferences.set_render_setting'
   | 'scene.open_source'
   | 'scene.save_source'
@@ -2322,7 +2322,7 @@ export interface StudioViewportReadout {
 export interface StudioUiStateReadModel {
   readonly schemaVersion: 1;
   readonly artifactKind: 'studio_ui_state';
-  readonly uiStateVersion: 'studio-ui-state.v0';
+  readonly uiStateVersion: 'studio-ui-state.v1';
   readonly activeMenu: StudioApplicationMenu | null;
   readonly bottomPanelTab: StudioBottomPanelTab;
   readonly assetBrowserCategory: StudioAssetBrowserCategory;
@@ -2333,22 +2333,36 @@ export interface StudioUiStateReadModel {
   readonly selectedScenarioDraftId: string;
   readonly hierarchyFilter: string;
   readonly menuMessage: string;
-  readonly savedWorkspaceAvailable: boolean;
+  readonly projectWorkspaceAvailable: boolean;
   readonly uiStateHash: string;
   readonly nonClaims: readonly string[];
 }
 
+export interface StudioProjectWorkspaceIdentity {
+  readonly gameId: string;
+  readonly manifestPath: string;
+  readonly manifestSha256: string;
+}
+
 export interface StudioWorkspaceArtifact {
   readonly schemaVersion: 1;
-  readonly artifactKind: 'studio_workspace';
+  readonly artifactKind: 'studio_project_workspace';
   readonly artifactId: string;
-  readonly workspaceVersion: 'studio-workspace.v0';
+  readonly workspaceVersion: 'studio-project-workspace.v1';
   readonly savedAtIso: string;
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly viewportCamera: StudioViewportCameraReadModel;
-  readonly viewportTool: StudioViewportToolReadModel;
-  readonly preferences: StudioPreferencesReadModel;
-  readonly flatSceneDocument: FlatSceneDocument;
+  readonly project: StudioProjectWorkspaceIdentity;
+  readonly authoredContent: {
+    readonly sceneSource: {
+      readonly path: string;
+      readonly sha256: string;
+    };
+  };
+  readonly stateClassification: {
+    readonly durableAuthoredContent: 'hash_pinned_project_sources';
+    readonly editorPreferences: 'browser_local_not_serialized';
+    readonly transientProjection: 'reconstructed_not_serialized';
+    readonly attachedRuntime: 'disconnect_and_reconnect_not_serialized';
+  };
   readonly serializationNotes: readonly string[];
 }
 
@@ -2362,6 +2376,27 @@ export interface StudioWorkspaceRestoreResult {
   readonly artifact: StudioWorkspaceArtifact | null;
   readonly diagnostics: readonly StudioDiagnostic[];
 }
+
+export interface StudioWorkspaceSceneReferenceValidationResult {
+  readonly ok: boolean;
+  readonly diagnostics: readonly StudioDiagnostic[];
+}
+
+export type StudioProjectWorkspaceLoadResult =
+  | {
+      readonly ok: true;
+      readonly artifact: StudioWorkspaceArtifact;
+      readonly workspace: StudioWorkspaceReadModel;
+      readonly sceneFile: StudioSceneFileReadModel;
+      readonly diagnostics: readonly [];
+    }
+  | {
+      readonly ok: false;
+      readonly artifact: null;
+      readonly workspace: null;
+      readonly sceneFile: null;
+      readonly diagnostics: readonly StudioDiagnostic[];
+    };
 
 export interface StudioScenarioLoadResult {
   readonly ok: boolean;
@@ -7539,7 +7574,7 @@ export function buildStudioUiStateReadModel(options: {
   readonly selectedScenarioDraftId?: string;
   readonly hierarchyFilter?: string;
   readonly menuMessage?: string;
-  readonly savedWorkspaceAvailable?: boolean;
+  readonly projectWorkspaceAvailable?: boolean;
 } = {}): StudioUiStateReadModel {
   const entities = options.entities ?? [];
   const hierarchy = {
@@ -7554,13 +7589,13 @@ export function buildStudioUiStateReadModel(options: {
     selectedScenarioDraftId: options.selectedScenarioDraftId ?? 'voxel-basic',
     hierarchyFilter: options.hierarchyFilter ?? '',
     menuMessage: options.menuMessage ?? 'Workspace ready.',
-    savedWorkspaceAvailable: options.savedWorkspaceAvailable ?? false,
+    projectWorkspaceAvailable: options.projectWorkspaceAvailable ?? false,
   };
 
   return {
     schemaVersion: 1,
     artifactKind: 'studio_ui_state',
-    uiStateVersion: 'studio-ui-state.v0',
+    uiStateVersion: 'studio-ui-state.v1',
     ...payload,
     uiStateHash: fnv1aHash('studio-ui-state', payload),
     nonClaims: [
@@ -9441,30 +9476,82 @@ export function applySceneObjectCommandReadModel(
 }
 
 export function serializeStudioWorkspaceArtifact(options: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly viewportCamera: StudioViewportCameraReadModel;
-  readonly viewportTool: StudioViewportToolReadModel;
-  readonly preferences: StudioPreferencesReadModel;
+  readonly project: StudioProjectWorkspaceIdentity;
+  readonly sceneSource: {
+    readonly path: string;
+    readonly sha256: string;
+  };
   readonly savedAtIso?: string;
 }): string {
+  const normalizedScenePath = normalizeStudioProjectArtifactPath(options.sceneSource.path);
+  const normalizedManifestPath = normalizeStudioProjectArtifactPath(options.project.manifestPath);
+  const savedAtIso = options.savedAtIso ?? '1970-01-01T00:00:00.000Z';
+  if (
+    normalizedScenePath === null
+    || normalizedManifestPath === null
+    || options.project.gameId.trim().length === 0
+    || !isSha256Digest(options.project.manifestSha256)
+    || !isSha256Digest(options.sceneSource.sha256)
+    || !isUtcIsoTimestamp(savedAtIso)
+  ) {
+    throw new Error('Studio project workspace requires project identity, bounded paths, and a canonical SHA-256 digest.');
+  }
   const artifact: StudioWorkspaceArtifact = {
     schemaVersion: 1,
-    artifactKind: 'studio_workspace',
-    artifactId: `studio-workspace:${options.workspace.workspaceId}`,
-    workspaceVersion: 'studio-workspace.v0',
-    savedAtIso: options.savedAtIso ?? '1970-01-01T00:00:00.000Z',
-    workspace: options.workspace,
-    viewportCamera: options.viewportCamera,
-    viewportTool: options.viewportTool,
-    preferences: options.preferences,
-    flatSceneDocument: options.workspace.flatSceneDocument,
+    artifactKind: 'studio_project_workspace',
+    artifactId: `studio-project-workspace:${options.project.gameId}`,
+    workspaceVersion: 'studio-project-workspace.v1',
+    savedAtIso,
+    project: {
+      gameId: options.project.gameId,
+      manifestPath: normalizedManifestPath,
+      manifestSha256: options.project.manifestSha256,
+    },
+    authoredContent: {
+      sceneSource: {
+        path: normalizedScenePath,
+        sha256: options.sceneSource.sha256,
+      },
+    },
+    stateClassification: {
+      durableAuthoredContent: 'hash_pinned_project_sources',
+      editorPreferences: 'browser_local_not_serialized',
+      transientProjection: 'reconstructed_not_serialized',
+      attachedRuntime: 'disconnect_and_reconnect_not_serialized',
+    },
     serializationNotes: [
-      'Studio workspace artifact preserves browser read models and ASHA flat-scene-shaped export data.',
-      'Runtime-authority serialization remains gated behind the approved public runtime bridge.',
+      'Durable authored content remains in inspectable project-root source files referenced by hash.',
+      'Editor preferences stay browser-local and are not project content.',
+      'Transient projections are reconstructed from validated authored sources.',
+      'Attached runtime authority is never serialized; reconnect after loading stored content.',
     ],
   };
 
-  return `${stableJson(artifact)}\n`;
+  const canonicalArtifact = JSON.parse(stableJson(artifact)) as unknown;
+  return `${JSON.stringify(canonicalArtifact, null, 2)}\n`;
+}
+
+export const ASHA_STUDIO_PROJECT_WORKSPACE_PATH = 'studio/asha-studio-workspace.json';
+
+export function normalizeStudioProjectArtifactPath(path: string): string | null {
+  const withForwardSlashes = path.replaceAll('\\', '/');
+  if (withForwardSlashes.startsWith('/') || /^[a-zA-Z]:\//.test(withForwardSlashes)) {
+    return null;
+  }
+  const segments = withForwardSlashes.split('/').filter(segment => segment.length > 0);
+  if (segments.length === 0 || segments.some(segment => segment === '.' || segment === '..')) {
+    return null;
+  }
+  return segments.join('/');
+}
+
+function isSha256Digest(value: unknown): value is string {
+  return typeof value === 'string' && /^sha256:[0-9a-f]{64}$/.test(value);
+}
+
+function isUtcIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -9497,33 +9584,12 @@ function numberAt(value: unknown, key: string): number | null {
   return isRecord(value) && typeof value[key] === 'number' ? value[key] : null;
 }
 
-function hydrateStudioWorkspaceReadModel(
-  workspace: StudioWorkspaceReadModel,
-): StudioWorkspaceReadModel {
-  const flatSceneDocument = workspace.flatSceneDocument ?? createStudioFlatSceneDocument(workspace.scene);
-  const sceneObjectSnapshot =
-    workspace.sceneObjectSnapshot ?? buildStudioSceneObjectSnapshot(workspace.scene, flatSceneDocument);
-  const selectedEntityId =
-    workspace.selectedEntityId === null
-      ? null
-      : sceneObjectSnapshot.objects.some(object => object.objectId === workspace.selectedEntityId)
-        ? workspace.selectedEntityId
-        : selectedObjectIdForRenderable(sceneObjectSnapshot, workspace.scene.selectedRenderableId);
-  return {
-    ...workspace,
-    flatSceneDocument,
-    sceneObjectSnapshot,
-    entities: projectEntitiesFromScene(
-      workspace.session,
-      workspace.scene,
-      sceneObjectSnapshot,
-      workspace.entities,
-    ),
-    selectedEntityId,
-  };
-}
-
-export function restoreStudioWorkspaceArtifact(text: string): StudioWorkspaceRestoreResult {
+export function restoreStudioWorkspaceArtifact(
+  text: string,
+  options: {
+    readonly expectedProject?: StudioProjectWorkspaceIdentity;
+  } = {},
+): StudioWorkspaceRestoreResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -9535,24 +9601,45 @@ export function restoreStudioWorkspaceArtifact(text: string): StudioWorkspaceRes
         diagnostic(
           'error',
           'workspace_artifact_invalid_json',
-          'Saved Studio workspace artifact is not valid JSON.',
-          'studio_workspace',
-          'Save the workspace again before loading.',
+          'Studio project workspace artifact is not valid JSON.',
+          'studio_project_workspace',
+          'Repair or recreate the project workspace artifact before loading.',
         ),
       ],
     };
   }
 
-  if (
-    !isRecord(parsed)
-    || parsed['schemaVersion'] !== 1
-    || parsed['artifactKind'] !== 'studio_workspace'
-    || parsed['workspaceVersion'] !== 'studio-workspace.v0'
-    || !isRecord(parsed['workspace'])
-    || !isRecord(parsed['viewportCamera'])
-    || !isRecord(parsed['viewportTool'])
-    || !isRecord(parsed['preferences'])
-  ) {
+  const root = isRecord(parsed) ? parsed : {};
+  const project = recordAt(root, 'project');
+  const authoredContent = recordAt(root, 'authoredContent');
+  const sceneSource = recordAt(authoredContent, 'sceneSource');
+  const stateClassification = recordAt(root, 'stateClassification');
+  const scenePath = stringAt(sceneSource, 'path');
+  const sceneHash = stringAt(sceneSource, 'sha256');
+  const normalizedScenePath = scenePath === null ? null : normalizeStudioProjectArtifactPath(scenePath);
+  const manifestPath = stringAt(project, 'manifestPath');
+  const normalizedManifestPath = manifestPath === null ? null : normalizeStudioProjectArtifactPath(manifestPath);
+  const serializationNotes = stringArrayAt(root, 'serializationNotes');
+  const shapeMatches = root['schemaVersion'] === 1
+    && root['artifactKind'] === 'studio_project_workspace'
+    && root['workspaceVersion'] === 'studio-project-workspace.v1'
+    && root['artifactId'] === `studio-project-workspace:${String(project['gameId'] ?? '')}`
+    && isUtcIsoTimestamp(root['savedAtIso'])
+    && typeof project['gameId'] === 'string'
+    && project['gameId'].trim().length > 0
+    && normalizedManifestPath !== null
+    && normalizedManifestPath === manifestPath
+    && isSha256Digest(project['manifestSha256'])
+    && normalizedScenePath !== null
+    && normalizedScenePath === scenePath
+    && isSha256Digest(sceneHash)
+    && stateClassification['durableAuthoredContent'] === 'hash_pinned_project_sources'
+    && stateClassification['editorPreferences'] === 'browser_local_not_serialized'
+    && stateClassification['transientProjection'] === 'reconstructed_not_serialized'
+    && stateClassification['attachedRuntime'] === 'disconnect_and_reconnect_not_serialized'
+    && Array.isArray(root['serializationNotes'])
+    && serializationNotes.length === root['serializationNotes'].length;
+  if (!shapeMatches) {
     return {
       ok: false,
       artifact: null,
@@ -9560,22 +9647,162 @@ export function restoreStudioWorkspaceArtifact(text: string): StudioWorkspaceRes
         diagnostic(
           'error',
           'workspace_artifact_shape_mismatch',
-          'Saved Studio workspace artifact does not match studio-workspace.v0.',
-          'studio_workspace',
-          'Load a matching Studio workspace artifact.',
+          'Studio project workspace artifact does not match studio-project-workspace.v1.',
+          'studio_project_workspace',
+          'Load a bounded project artifact with typed state classification and a canonical scene digest.',
         ),
       ],
     };
   }
 
-  const artifact = parsed as unknown as StudioWorkspaceArtifact;
+  const artifact: StudioWorkspaceArtifact = {
+    schemaVersion: 1,
+    artifactKind: 'studio_project_workspace',
+    artifactId: root['artifactId'] as string,
+    workspaceVersion: 'studio-project-workspace.v1',
+    savedAtIso: root['savedAtIso'] as string,
+    project: {
+      gameId: project['gameId'] as string,
+      manifestPath: project['manifestPath'] as string,
+      manifestSha256: project['manifestSha256'] as string,
+    },
+    authoredContent: {
+      sceneSource: {
+        path: scenePath as string,
+        sha256: sceneHash as string,
+      },
+    },
+    stateClassification: {
+      durableAuthoredContent: 'hash_pinned_project_sources',
+      editorPreferences: 'browser_local_not_serialized',
+      transientProjection: 'reconstructed_not_serialized',
+      attachedRuntime: 'disconnect_and_reconnect_not_serialized',
+    },
+    serializationNotes,
+  };
+  if (
+    options.expectedProject !== undefined
+    && (
+      artifact.project.gameId !== options.expectedProject.gameId
+      || artifact.project.manifestPath !== options.expectedProject.manifestPath
+      || artifact.project.manifestSha256 !== options.expectedProject.manifestSha256
+    )
+  ) {
+    return {
+      ok: false,
+      artifact: null,
+      diagnostics: [
+        diagnostic(
+          'error',
+          'workspace_artifact_foreign_project',
+          'Studio project workspace artifact belongs to a different game workspace.',
+          artifact.project.gameId,
+          'Open the matching project or recreate its Studio workspace artifact.',
+        ),
+      ],
+    };
+  }
   return {
     ok: true,
-    artifact: {
-      ...artifact,
-      workspace: hydrateStudioWorkspaceReadModel(artifact.workspace),
-      flatSceneDocument: artifact.flatSceneDocument ?? createStudioFlatSceneDocument(artifact.workspace.scene),
+    artifact,
+    diagnostics: [],
+  };
+}
+
+export function validateStudioWorkspaceArtifactSceneReference(
+  artifact: StudioWorkspaceArtifact,
+  source: StudioSceneFileSourceInput,
+): StudioWorkspaceSceneReferenceValidationResult {
+  const expected = artifact.authoredContent.sceneSource;
+  if (source.path !== expected.path) {
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          'error',
+          'workspace_artifact_scene_path_mismatch',
+          'Project workspace scene readback returned a different bounded path.',
+          source.path,
+          `Read the exact referenced source ${expected.path}.`,
+        ),
+      ],
+    };
+  }
+  if (source.sha256 !== expected.sha256) {
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          'error',
+          'workspace_artifact_scene_hash_mismatch',
+          `Referenced scene source ${expected.path} changed after the project workspace was saved.`,
+          source.sha256,
+          'Reload authored content deliberately, then save a new project workspace artifact.',
+        ),
+      ],
+    };
+  }
+  return { ok: true, diagnostics: [] };
+}
+
+export function stageStudioProjectWorkspaceLoad(options: {
+  readonly currentWorkspace: StudioWorkspaceReadModel;
+  readonly project: StudioGameWorkspaceReadModel;
+  readonly manifestSha256: string;
+  readonly artifactText: string;
+  readonly sceneSource: StudioSceneFileSourceInput;
+}): StudioProjectWorkspaceLoadResult {
+  const restoreResult = restoreStudioWorkspaceArtifact(options.artifactText, {
+    expectedProject: {
+      gameId: options.project.gameId,
+      manifestPath: options.project.manifestPath,
+      manifestSha256: options.manifestSha256,
     },
+  });
+  if (!restoreResult.ok || restoreResult.artifact === null) {
+    return {
+      ok: false,
+      artifact: null,
+      workspace: null,
+      sceneFile: null,
+      diagnostics: restoreResult.diagnostics,
+    };
+  }
+  const referenceValidation = validateStudioWorkspaceArtifactSceneReference(
+    restoreResult.artifact,
+    options.sceneSource,
+  );
+  if (!referenceValidation.ok) {
+    return {
+      ok: false,
+      artifact: null,
+      workspace: null,
+      sceneFile: null,
+      diagnostics: referenceValidation.diagnostics,
+    };
+  }
+  const sceneValidation = buildStudioSceneFileList({
+    workspace: options.project,
+    manifestPath: options.project.manifestPath,
+    manifestHash: options.project.workspaceHash,
+    sourceFiles: [options.sceneSource],
+    allowProjectRoot: true,
+  });
+  const sceneFile = sceneValidation.sceneFiles.files.at(0) ?? null;
+  if (!sceneValidation.ok || sceneFile === null) {
+    return {
+      ok: false,
+      artifact: null,
+      workspace: null,
+      sceneFile: null,
+      diagnostics: sceneValidation.diagnostics,
+    };
+  }
+  return {
+    ok: true,
+    artifact: restoreResult.artifact,
+    workspace: applyOpenSceneFileReadModel(options.currentWorkspace, sceneFile),
+    sceneFile,
     diagnostics: [],
   };
 }

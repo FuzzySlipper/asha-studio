@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
+  ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
   addReferenceRenderableReadModel,
   attachStudioGameWorkspaceDevtools,
   buildStudioUiStateReadModel,
@@ -55,6 +56,7 @@ import {
   serializeWorkspaceSceneSource,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
+  stageStudioProjectWorkspaceLoad,
   studioCatalogAuthoringBaseHash,
   updateStudioRenderSetting,
   zoomStudioViewportCamera,
@@ -229,8 +231,6 @@ import {
 const ASHA_BROWSER_HOST_COMPATIBILITY_VERSION = 'browser-host.v0' as const;
 const ASHA_BROWSER_HOST_PROVIDER_GLOBAL = NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_GLOBALS[0];
 const ASHA_BROWSER_HOST_PROVIDER_KIND = NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_KIND;
-
-const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -4685,6 +4685,10 @@ function normalizeProjectFilePath(path: string): string {
     .replace(/\/+/g, '/');
 }
 
+function isCanonicalProjectFileSha256(value: string): boolean {
+  return /^sha256:[0-9a-f]{64}$/.test(value);
+}
+
 function parentProjectDir(path: string): string {
   const normalized = normalizeProjectFilePath(path).replace(/\/$/, '');
   const slashIndex = normalized.lastIndexOf('/');
@@ -4798,9 +4802,7 @@ export class StudioWorkspaceStore {
   private readonly viewportToolState = signal<StudioViewportToolReadModel>(
     buildStudioViewportToolReadModel(),
   );
-  private readonly savedWorkspaceState = signal<string | null>(
-    browserStorage()?.getItem(WORKSPACE_STORAGE_KEY) ?? null,
-  );
+  private readonly projectWorkspaceArtifactHashState = signal<string | null>(null);
   private readonly sceneFileSourcesState = signal<readonly StudioSceneFileSourceInput[]>(
     DEMO_SCENE_FILE_SOURCES,
   );
@@ -4965,7 +4967,7 @@ export class StudioWorkspaceStore {
     }),
   );
   readonly voxelMaterialPaletteEditor = this.voxelMaterialPaletteEditorState.asReadonly();
-  readonly savedWorkspace = this.savedWorkspaceState.asReadonly();
+  readonly projectWorkspaceArtifactHash = this.projectWorkspaceArtifactHashState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
   readonly saveAsPath = this.saveAsPathState.asReadonly();
   readonly projectFileDialog = computed<StudioProjectFileDialogReadModel>(() => {
@@ -6023,7 +6025,7 @@ export class StudioWorkspaceStore {
       selectedScenarioDraftId: this.selectedScenarioDraftIdState(),
       hierarchyFilter: this.hierarchyFilterState(),
       menuMessage: this.menuMessageState(),
-      savedWorkspaceAvailable: this.savedWorkspaceState() !== null,
+      projectWorkspaceAvailable: this.projectFileConnectedState(),
     }),
   );
 
@@ -8579,24 +8581,8 @@ export class StudioWorkspaceStore {
     this.projectFileSelectedPathState.set(normalizedPath);
   }
 
-  saveWorkspaceToSlot(): void {
-    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-      commandId: 'workspace.save_browser_slot',
-      label: 'Save Workspace Slot',
-      inputSummary: `sceneHash=${this.workspaceState().scene.sceneHash}`,
-      outputSummary: 'Workspace artifact saved to browser slot.',
-    });
-    this.workspaceState.set(recorded.workspace);
-    const artifactText = serializeStudioWorkspaceArtifact({
-      workspace: recorded.workspace,
-      viewportCamera: this.viewportCameraState(),
-      viewportTool: this.viewportToolState(),
-      preferences: this.preferencesStore.preferences(),
-      savedAtIso: new Date().toISOString(),
-    });
-    this.savedWorkspaceState.set(artifactText);
-    browserStorage()?.setItem(WORKSPACE_STORAGE_KEY, artifactText);
-    this.menuMessageState.set('Workspace saved to browser slot.');
+  saveProjectWorkspace(): void {
+    void this.persistProjectWorkspace();
   }
 
   private async writeSceneFile(path: string, saveAs: boolean): Promise<void> {
@@ -8684,40 +8670,148 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(saveAs ? `Saved scene as ${normalizedPath}.` : `Saved scene ${normalizedPath}.`);
   }
 
-  loadWorkspaceFromSlot(): void {
-    const artifactText =
-      this.savedWorkspaceState() ?? browserStorage()?.getItem(WORKSPACE_STORAGE_KEY) ?? null;
-    if (artifactText === null) {
-      this.menuMessageState.set('No saved workspace slot found.');
+  loadProjectWorkspace(): void {
+    void this.restoreProjectWorkspace();
+  }
+
+  private async persistProjectWorkspace(): Promise<void> {
+    const project = this.gameWorkspace();
+    const activeScenePath = this.activeSceneFilePathState();
+    if (!this.projectFileConnectedState() || project === null) {
+      this.menuMessageState.set('Connect the bounded project file service before saving the project workspace.');
+      return;
+    }
+    if (activeScenePath === null) {
+      this.menuMessageState.set('Open or save a project scene source before saving the project workspace.');
       return;
     }
 
-    const restoreResult = restoreStudioWorkspaceArtifact(artifactText);
-    if (!restoreResult.ok || restoreResult.artifact === null) {
+    try {
+      const manifestReadback = await this.readProjectText(project.manifestPath);
+      if (manifestReadback.path !== project.manifestPath) {
+        throw new Error('Project manifest readback returned a different path.');
+      }
+      const sceneReadback = await this.readProjectText(activeScenePath);
+      const knownSceneSource = this.sceneFileSourcesState().find(source => source.path === activeScenePath) ?? null;
+      if (
+        sceneReadback.path !== activeScenePath
+        || knownSceneSource === null
+        || knownSceneSource.sha256 !== sceneReadback.sha256
+      ) {
+        throw new Error('Active scene source is stale; reopen or save it before saving the project workspace.');
+      }
+      const sceneValidation = buildStudioSceneFileList({
+        workspace: project,
+        manifestPath: project.manifestPath,
+        manifestHash: project.workspaceHash,
+        sourceFiles: [sceneReadback],
+        allowProjectRoot: true,
+      });
+      if (!sceneValidation.ok || sceneValidation.sceneFiles.files.length !== 1) {
+        throw new Error(sceneValidation.diagnostics.at(0)?.message ?? 'Active scene source failed validation.');
+      }
+
+      const artifactText = serializeStudioWorkspaceArtifact({
+        project: {
+          gameId: project.gameId,
+          manifestPath: manifestReadback.path,
+          manifestSha256: manifestReadback.sha256,
+        },
+        sceneSource: {
+          path: sceneReadback.path,
+          sha256: sceneReadback.sha256,
+        },
+        savedAtIso: new Date().toISOString(),
+      });
+      const writeReadback = await this.writeProjectText(
+        ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
+        artifactText,
+        this.projectWorkspaceArtifactHashState(),
+      );
       const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-        commandId: 'workspace.load_browser_slot',
-        label: 'Load Workspace Slot',
-        inputSummary: 'source=browser-slot',
-        outputSummary: restoreResult.diagnostics.at(0)?.message ?? 'Workspace load failed.',
-        status: 'rejected',
+        commandId: 'workspace.save_project_artifact',
+        label: 'Save Project Workspace',
+        inputSummary: `path=${ASHA_STUDIO_PROJECT_WORKSPACE_PATH};scene=${sceneReadback.path};sceneHash=${sceneReadback.sha256}`,
+        outputSummary: `Project workspace saved with artifact hash ${writeReadback.sha256}.`,
       });
       this.workspaceState.set(recorded.workspace);
-      this.menuMessageState.set(restoreResult.diagnostics.at(0)?.message ?? 'Workspace load failed.');
+      this.projectWorkspaceArtifactHashState.set(writeReadback.sha256);
+      this.menuMessageState.set(`Project workspace saved to ${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}.`);
+      await this.refreshProjectFiles(parentProjectDir(ASHA_STUDIO_PROJECT_WORKSPACE_PATH));
+    } catch (error) {
+      this.menuMessageState.set(`Project workspace save rejected: ${errorMessage(error)}`);
+    }
+  }
+
+  private async restoreProjectWorkspace(): Promise<void> {
+    const project = this.gameWorkspace();
+    if (!this.projectFileConnectedState() || project === null) {
+      this.menuMessageState.set('Connect the bounded project file service before loading the project workspace.');
       return;
     }
 
-    const recorded = recordStudioWorkspaceUiCommand(restoreResult.artifact.workspace, {
-      commandId: 'workspace.load_browser_slot',
-      label: 'Load Workspace Slot',
-      inputSummary: 'source=browser-slot',
-      outputSummary: 'Workspace artifact restored from browser slot.',
-    });
-    this.workspaceState.set(recorded.workspace);
-    this.viewportCameraState.set(restoreResult.artifact.viewportCamera);
-    this.viewportToolState.set(restoreResult.artifact.viewportTool);
-    this.preferencesStore.setPreferences(restoreResult.artifact.preferences);
-    this.selectedScenarioDraftIdState.set(restoreResult.artifact.workspace.session.scenarioId);
-    this.menuMessageState.set('Workspace loaded from browser slot.');
+    try {
+      const artifactReadback = await this.readProjectText(ASHA_STUDIO_PROJECT_WORKSPACE_PATH);
+      if (artifactReadback.path !== ASHA_STUDIO_PROJECT_WORKSPACE_PATH) {
+        throw new Error('Project workspace artifact readback returned a different path.');
+      }
+      const manifestReadback = await this.readProjectText(project.manifestPath);
+      if (manifestReadback.path !== project.manifestPath) {
+        throw new Error('Project manifest readback returned a different path.');
+      }
+      const restoreResult = restoreStudioWorkspaceArtifact(artifactReadback.text, {
+        expectedProject: {
+          gameId: project.gameId,
+          manifestPath: manifestReadback.path,
+          manifestSha256: manifestReadback.sha256,
+        },
+      });
+      if (!restoreResult.ok || restoreResult.artifact === null) {
+        throw new Error(restoreResult.diagnostics.at(0)?.message ?? 'Project workspace artifact failed validation.');
+      }
+
+      const sceneRef = restoreResult.artifact.authoredContent.sceneSource;
+      const sceneReadback = await this.readProjectText(sceneRef.path);
+      const stagedLoad = stageStudioProjectWorkspaceLoad({
+        currentWorkspace: this.workspaceState(),
+        project,
+        manifestSha256: manifestReadback.sha256,
+        artifactText: artifactReadback.text,
+        sceneSource: sceneReadback,
+      });
+      if (!stagedLoad.ok) {
+        throw new Error(stagedLoad.diagnostics.at(0)?.message ?? 'Project workspace load failed validation.');
+      }
+
+      const runtimeWasAttached = this.runtimeAttachState() !== null || this.runtimeSessionFacadeState() !== null;
+      if (runtimeWasAttached) {
+        this.disconnectRunningProject();
+      }
+      const openedWorkspace = runtimeWasAttached
+        ? applyOpenSceneFileReadModel(this.workspaceState(), stagedLoad.sceneFile)
+        : stagedLoad.workspace;
+      const recorded = recordStudioWorkspaceUiCommand(openedWorkspace, {
+        commandId: 'workspace.load_project_artifact',
+        label: 'Load Project Workspace',
+        inputSummary: `path=${artifactReadback.path};artifactHash=${artifactReadback.sha256}`,
+        outputSummary: `Loaded hash-pinned scene source ${sceneRef.path}.`,
+      });
+      this.workspaceState.set(recorded.workspace);
+      this.sceneFileSourcesState.set([
+        ...this.sceneFileSourcesState().filter(source => source.path !== sceneReadback.path),
+        sceneReadback,
+      ].sort((left, right) => left.path.localeCompare(right.path)));
+      this.activeSceneFilePathState.set(sceneReadback.path);
+      this.projectFileSelectedPathState.set(sceneReadback.path);
+      this.projectWorkspaceArtifactHashState.set(artifactReadback.sha256);
+      this.selectedScenarioDraftIdState.set(sceneReadback.path);
+      this.viewportHitState.set(null);
+      this.viewportCameraState.set(frameStudioViewportCamera(recorded.workspace.scene));
+      this.viewportToolState.set(buildStudioViewportToolReadModel());
+      this.menuMessageState.set(`Project workspace loaded from ${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}; reconnect runtime authority when needed.`);
+    } catch (error) {
+      this.menuMessageState.set(`Project workspace load rejected without replacing state: ${errorMessage(error)}`);
+    }
   }
 
   setRenderSetting(key: StudioRenderSettingKey, value: boolean): void {
@@ -8748,10 +8842,60 @@ export class StudioWorkspaceStore {
       readonly sha256?: string;
       readonly diagnostic?: string;
     };
-    if (payload.ok === false || typeof payload.path !== 'string' || typeof payload.text !== 'string' || typeof payload.sha256 !== 'string') {
+    if (
+      payload.ok === false
+      || typeof payload.path !== 'string'
+      || typeof payload.text !== 'string'
+      || typeof payload.sha256 !== 'string'
+      || !isCanonicalProjectFileSha256(payload.sha256)
+    ) {
       throw new Error(payload.diagnostic ?? 'invalid project file readback');
     }
     return { path: normalizeProjectFilePath(payload.path), text: payload.text, sha256: payload.sha256 };
+  }
+
+  private async writeProjectText(
+    path: string,
+    text: string,
+    expectedHash: string | null,
+  ): Promise<{ readonly path: string; readonly sha256: string }> {
+    const normalizedPath = normalizeProjectFilePath(path);
+    if (!this.projectFileConnectedState()) {
+      throw new Error('project file server is not connected');
+    }
+    const response = await fetch(`${projectFileApiBase()}/api/project/file`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: normalizedPath, text, expectedHash }),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly path?: string;
+      readonly sha256?: string;
+      readonly diagnostic?: string;
+      readonly previousHash?: string | null;
+    };
+    if (payload.ok === false) {
+      const staleContext = payload.diagnostic === 'stale_file_hash'
+        ? `; current hash is ${payload.previousHash ?? 'missing'}`
+        : '';
+      throw new Error(`${payload.diagnostic ?? 'project file write rejected'}${staleContext}`);
+    }
+    if (
+      typeof payload.path !== 'string'
+      || typeof payload.sha256 !== 'string'
+      || !isCanonicalProjectFileSha256(payload.sha256)
+    ) {
+      throw new Error('invalid project file write readback');
+    }
+    const readbackPath = normalizeProjectFilePath(payload.path);
+    if (readbackPath !== normalizedPath) {
+      throw new Error('project file write readback returned a different path');
+    }
+    return { path: readbackPath, sha256: payload.sha256 };
   }
 
   private voxelConversionProposalForCommand(
