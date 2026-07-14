@@ -3775,6 +3775,21 @@ test('project file service enforces bounded stale-safe atomic writes', async () 
     assert.equal(symlinkEscape.ok, false);
     assert.equal(symlinkEscape.diagnostic, 'path_outside_project_root');
 
+    const escapedDirectory = join(outsideRoot, 'new-dir');
+    assert.equal(existsSync(escapedDirectory), false);
+    const symlinkedParentWrite = await writeStudioProjectFile(projectRoot, {
+      path: 'linked-outside/new-dir/workspace.json',
+      text: '{}\n',
+      expectedHash: null,
+    }) as { readonly ok: boolean; readonly diagnostic?: string };
+    assert.equal(symlinkedParentWrite.ok, false);
+    assert.equal(symlinkedParentWrite.diagnostic, 'path_outside_project_root');
+    assert.equal(
+      existsSync(escapedDirectory),
+      false,
+      'rejected symlink-parent write must not create directories outside the project root',
+    );
+
     const second = await writeStudioProjectFile(projectRoot, {
       path: 'studio/asha-studio-workspace.json',
       text: '{"version":2}\n',

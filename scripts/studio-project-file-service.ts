@@ -89,6 +89,45 @@ function isPathInsideRoot(root: string, path: string): boolean {
   return path === root || path.startsWith(rootWithSep);
 }
 
+function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+async function validateNearestExistingWriteAncestor(
+  projectRoot: string,
+  targetParent: string,
+): Promise<
+  | { readonly ok: true; readonly canonicalRoot: string }
+  | StudioProjectFileFailure
+> {
+  let canonicalRoot: string;
+  try {
+    canonicalRoot = await realpath(resolve(projectRoot));
+  } catch {
+    return { ok: false, diagnostic: 'project_file_not_found' };
+  }
+
+  let candidate = targetParent;
+  while (true) {
+    try {
+      const canonicalCandidate = await realpath(candidate);
+      if (!isPathInsideRoot(canonicalRoot, canonicalCandidate)) {
+        return { ok: false, diagnostic: 'path_outside_project_root' };
+      }
+      return { ok: true, canonicalRoot };
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        return { ok: false, diagnostic: 'project_file_not_found' };
+      }
+      const parent = dirname(candidate);
+      if (parent === candidate) {
+        return { ok: false, diagnostic: 'path_outside_project_root' };
+      }
+      candidate = parent;
+    }
+  }
+}
+
 async function resolveExistingStudioProjectFilePath(
   projectRoot: string,
   path: string,
@@ -178,10 +217,14 @@ export async function writeStudioProjectFile(
     return { ok: false, diagnostic: 'path_outside_project_root' } satisfies StudioProjectFileFailure;
   }
   return withProjectFileWriteLock(resolved.absolutePath, async () => {
-    await mkdir(dirname(resolved.absolutePath), { recursive: true });
-    const canonicalRoot = await realpath(resolve(projectRoot));
-    const canonicalParent = await realpath(dirname(resolved.absolutePath));
-    if (!isPathInsideRoot(canonicalRoot, canonicalParent)) {
+    const targetParent = dirname(resolved.absolutePath);
+    const ancestor = await validateNearestExistingWriteAncestor(projectRoot, targetParent);
+    if (!ancestor.ok) {
+      return ancestor;
+    }
+    await mkdir(targetParent, { recursive: true });
+    const canonicalParent = await realpath(targetParent);
+    if (!isPathInsideRoot(ancestor.canonicalRoot, canonicalParent)) {
       return { ok: false, diagnostic: 'path_outside_project_root' } satisfies StudioProjectFileFailure;
     }
     try {
