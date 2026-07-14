@@ -72,47 +72,9 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         @if (store.activeMenu() === 'file') {
           <section class="menu-popover menu-popover--file" aria-label="File menu">
             <button type="button" (click)="newWorkspace()">New Scene</button>
+            <button type="button" (click)="openSceneFileDialog('open')">Open Scene…</button>
             <button type="button" (click)="saveScene()">Save Scene</button>
-            <label class="menu-popover__field">
-              <span>Host path</span>
-              <input
-                type="text"
-                [value]="store.saveAsPath()"
-                (input)="setSaveAsPath($any($event.target).value)"
-                (keydown.enter)="saveSceneAs()"
-              />
-            </label>
-            <button type="button" (click)="saveSceneAs()">Save Scene As…</button>
-            <div class="project-file-browser" aria-label="Studio host files">
-              <div class="project-file-browser__bar">
-                <button type="button" (click)="refreshProjectFiles()">Refresh</button>
-                <button type="button" (click)="openProjectParentDir()">Up</button>
-              </div>
-              <small>Browsing files on the Studio host</small>
-              <small>{{ store.projectFileDialog().message }}</small>
-              <small>{{ store.projectFileDialog().currentDir || '/' }}</small>
-              <div class="scene-file-list" aria-label="Open scene source">
-                @for (file of store.projectFileDialog().entries; track file.path) {
-                  <button
-                    type="button"
-                    [class.is-current]="store.projectFileDialog().selectedPath === file.path"
-                    (click)="selectProjectFile(file.path)"
-                  >
-                    <span>{{ file.kind === 'directory' ? '[] ' : '' }}{{ file.name }}</span>
-                    <small>{{ file.path }}</small>
-                  </button>
-                }
-              </div>
-              @if (store.projectFileDialog().selectedPath; as selectedPath) {
-                <button
-                  type="button"
-                  [disabled]="!selectedPath.endsWith('.scene.json')"
-                  (click)="openSelectedProjectFile()"
-                >
-                  Open Scene… {{ selectedPath }}
-                </button>
-              }
-            </div>
+            <button type="button" (click)="openSceneFileDialog('save-as')">Save Scene As…</button>
             @if (store.unsavedScenePrompt(); as prompt) {
               <section class="menu-popover__notice" aria-label="Unsaved scene changes">
                 <strong>Unsaved changes</strong>
@@ -312,6 +274,143 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 
       <asha-inspector-panel class="inspector-panel" />
       <asha-assets-bottom-panel class="assets-panel" />
+
+      @if (store.projectFileDialog().mode; as fileDialogMode) {
+        <div
+          class="host-file-dialog-backdrop"
+          data-visual-id="studio-host-file-dialog"
+          (mousedown)="closeSceneFileDialog()"
+        >
+          <section
+            class="host-file-dialog"
+            role="dialog"
+            aria-modal="true"
+            [attr.aria-label]="fileDialogMode === 'open' ? 'Open Scene' : 'Save Scene As'"
+            (mousedown)="$event.stopPropagation()"
+          >
+            <header class="host-file-dialog__header">
+              <div>
+                <strong>{{ fileDialogMode === 'open' ? 'Open Scene' : 'Save Scene As' }}</strong>
+                <small>Files on the Studio host</small>
+              </div>
+              <button type="button" aria-label="Close file dialog" (click)="closeSceneFileDialog()">×</button>
+            </header>
+
+            <div class="host-file-dialog__location-bar">
+              <button type="button" title="Parent directory" (click)="openProjectParentDir()">Up</button>
+              <button type="button" title="Refresh directory" (click)="refreshProjectFiles()">Refresh</button>
+              <label>
+                <span>Location</span>
+                <input
+                  type="text"
+                  aria-label="Host directory"
+                  [value]="store.projectFileDialog().directoryPath"
+                  [title]="store.projectFileDialog().directoryPath"
+                  (input)="setProjectFileDirectoryPath($any($event.target).value)"
+                  (keydown.enter)="navigateProjectFileDirectory()"
+                />
+              </label>
+              <button type="button" (click)="navigateProjectFileDirectory()">Go</button>
+            </div>
+
+            <div class="host-file-dialog__status" aria-live="polite">
+              <span [class.is-connected]="store.projectFileDialog().connected">
+                {{ store.projectFileDialog().connected ? 'Host connected' : 'Host unavailable' }}
+              </span>
+              <small>{{ store.projectFileDialog().message }}</small>
+            </div>
+
+            <div class="host-file-dialog__list" role="listbox" aria-label="Files and directories">
+              <div class="host-file-dialog__list-heading" aria-hidden="true">
+                <span>Name</span>
+                <span>Type</span>
+                <span>Size</span>
+              </div>
+              <div class="host-file-dialog__entries">
+                @for (file of store.projectFileDialog().entries; track file.path) {
+                  <button
+                    type="button"
+                    role="option"
+                    class="host-file-dialog__entry"
+                    [class.is-current]="store.projectFileDialog().selectedPath === file.path"
+                    [attr.aria-selected]="store.projectFileDialog().selectedPath === file.path"
+                    [title]="file.path"
+                    (click)="selectProjectFile(file.path)"
+                    (dblclick)="activateProjectFile(file.path)"
+                  >
+                    <span class="host-file-dialog__entry-name">
+                      <span aria-hidden="true">{{ file.kind === 'directory' ? '▸' : '·' }}</span>
+                      <span>{{ file.name }}</span>
+                    </span>
+                    <span>
+                      {{ file.kind === 'directory' ? 'Folder' : file.name.endsWith('.scene.json') ? 'ASHA Scene' : 'File' }}
+                    </span>
+                    <span>{{ formatFileSize(file.size) }}</span>
+                  </button>
+                } @empty {
+                  <div class="host-file-dialog__empty">
+                    {{ store.projectFileDialog().connected ? 'This directory is empty.' : 'Connect the Studio host file service to browse.' }}
+                  </div>
+                }
+              </div>
+            </div>
+
+            <footer class="host-file-dialog__footer">
+              <label class="host-file-dialog__file-name">
+                <span>File name</span>
+                <input
+                  type="text"
+                  aria-label="Scene file name"
+                  [value]="store.projectFileDialog().fileName"
+                  [title]="store.projectFileDialog().targetPath"
+                  (input)="setProjectFileName($any($event.target).value)"
+                  (keydown.enter)="confirmSceneFileDialog()"
+                />
+              </label>
+              <label class="host-file-dialog__file-type">
+                <span>File type</span>
+                <select disabled aria-label="Scene file type">
+                  <option>ASHA Scene (*.scene.json)</option>
+                </select>
+              </label>
+              <div class="host-file-dialog__selected-path" [title]="store.projectFileDialog().targetPath">
+                {{ store.projectFileDialog().targetPath || 'No host path selected' }}
+              </div>
+
+              @if (store.unsavedScenePrompt(); as prompt) {
+                <section class="host-file-dialog__notice" aria-label="Unsaved scene changes">
+                  <strong>Unsaved changes</strong>
+                  <span>{{ prompt.message }}</span>
+                  <button type="button" (click)="confirmDiscardUnsavedScene()">Discard and continue</button>
+                  <button type="button" (click)="cancelDiscardUnsavedScene()">Keep editing</button>
+                </section>
+              }
+
+              @if (store.sceneFileConflict(); as conflict) {
+                <section class="host-file-dialog__notice" aria-label="External scene file change">
+                  <strong>File changed on the Studio host</strong>
+                  <span>{{ conflict.path }}</span>
+                  <button type="button" (click)="reloadSceneFileAfterConflict()">Reload from Host</button>
+                  <button type="button" (click)="overwriteSceneFileAfterConflict()">Overwrite Host File</button>
+                  <button type="button" (click)="cancelSceneFileConflict()">Cancel</button>
+                </section>
+              }
+
+              <div class="host-file-dialog__actions">
+                <button type="button" (click)="closeSceneFileDialog()">Cancel</button>
+                <button
+                  type="button"
+                  class="is-primary"
+                  [disabled]="!store.projectFileDialog().canConfirm"
+                  (click)="confirmSceneFileDialog()"
+                >
+                  {{ fileDialogMode === 'open' ? 'Open' : 'Save' }}
+                </button>
+              </div>
+            </footer>
+          </section>
+        </div>
+      }
     </main>
   `,
   styles: [
@@ -477,52 +576,6 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         accent-color: var(--asha-color-accent);
       }
 
-      .menu-popover__field {
-        align-items: stretch;
-        display: grid;
-        gap: 0.25rem;
-        padding: 0.25rem 0.45rem;
-      }
-
-      .menu-popover__field input {
-        background: #0f1214;
-        border: 1px solid var(--asha-color-border);
-        color: var(--asha-color-ink);
-        font: inherit;
-        min-width: 0;
-        padding: 0.25rem 0.35rem;
-      }
-
-      .scene-file-list {
-        border-block: 1px solid var(--asha-color-border);
-        display: grid;
-        gap: 0.1rem;
-        margin-block: 0.2rem;
-        max-height: 9rem;
-        overflow: auto;
-        padding-block: 0.2rem;
-      }
-
-      .project-file-browser {
-        display: grid;
-        gap: 0.25rem;
-      }
-
-      .project-file-browser__bar {
-        display: grid;
-        gap: 0.25rem;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .project-file-browser small {
-        color: var(--asha-color-muted);
-        font-size: 0.68rem;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
       .project-connect,
       .project-session-list {
         display: grid;
@@ -567,24 +620,6 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         padding-top: 0.35rem;
       }
 
-      .scene-file-list button {
-        display: grid;
-        gap: 0.1rem;
-      }
-
-      .scene-file-list span,
-      .scene-file-list small {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .scene-file-list small {
-        color: var(--asha-color-muted);
-        font-size: 0.68rem;
-      }
-
       .preferences-section {
         display: grid;
         gap: 0.15rem;
@@ -620,6 +655,250 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         min-width: 0;
       }
 
+      .host-file-dialog-backdrop {
+        align-items: center;
+        background: rgba(4, 7, 9, 0.72);
+        display: flex;
+        inset: 0;
+        justify-content: center;
+        padding: 1rem;
+        position: fixed;
+        z-index: 100;
+      }
+
+      .host-file-dialog {
+        background: #151b20;
+        border: 1px solid #59666e;
+        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55);
+        color: var(--asha-color-ink);
+        display: grid;
+        grid-template-rows: auto auto auto minmax(14rem, 1fr) auto;
+        max-height: calc(100vh - 2rem);
+        min-height: min(36rem, calc(100vh - 2rem));
+        overflow: hidden;
+        width: min(58rem, calc(100vw - 2rem));
+      }
+
+      .host-file-dialog button,
+      .host-file-dialog input,
+      .host-file-dialog select {
+        font: inherit;
+      }
+
+      .host-file-dialog button {
+        background: #232b30;
+        border: 1px solid #536068;
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        min-height: 2rem;
+        padding: 0.3rem 0.7rem;
+      }
+
+      .host-file-dialog button:hover:not(:disabled) {
+        background: #303a40;
+        border-color: #75858e;
+      }
+
+      .host-file-dialog button:disabled {
+        color: #69747a;
+        cursor: not-allowed;
+      }
+
+      .host-file-dialog button.is-primary {
+        background: #315d74;
+        border-color: #5791ad;
+      }
+
+      .host-file-dialog input,
+      .host-file-dialog select {
+        background: #0f1214;
+        border: 1px solid #536068;
+        color: var(--asha-color-ink);
+        min-width: 0;
+        padding: 0.4rem 0.5rem;
+      }
+
+      .host-file-dialog__header {
+        align-items: center;
+        background: #101518;
+        border-bottom: 1px solid var(--asha-color-border);
+        display: flex;
+        justify-content: space-between;
+        padding: 0.65rem 0.75rem;
+      }
+
+      .host-file-dialog__header div {
+        display: grid;
+        gap: 0.1rem;
+      }
+
+      .host-file-dialog__header small,
+      .host-file-dialog__status small {
+        color: var(--asha-color-muted);
+      }
+
+      .host-file-dialog__header button {
+        background: transparent;
+        border: 0;
+        font-size: 1.25rem;
+        min-height: 1.75rem;
+        padding: 0 0.55rem;
+      }
+
+      .host-file-dialog__location-bar {
+        align-items: end;
+        display: grid;
+        gap: 0.4rem;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        padding: 0.65rem 0.75rem 0.45rem;
+      }
+
+      .host-file-dialog__location-bar label,
+      .host-file-dialog__file-name,
+      .host-file-dialog__file-type {
+        display: grid;
+        font-size: 0.74rem;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+
+      .host-file-dialog__status {
+        align-items: center;
+        display: flex;
+        gap: 0.65rem;
+        min-width: 0;
+        padding: 0 0.75rem 0.5rem;
+      }
+
+      .host-file-dialog__status span {
+        color: #df9b75;
+        font-size: 0.7rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .host-file-dialog__status span.is-connected {
+        color: #89c29a;
+      }
+
+      .host-file-dialog__status small {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .host-file-dialog__list {
+        border-block: 1px solid var(--asha-color-border);
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        margin-inline: 0.75rem;
+        min-height: 0;
+      }
+
+      .host-file-dialog__list-heading,
+      .host-file-dialog__entry {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: minmax(16rem, 1fr) 8rem 7rem;
+        text-align: left;
+      }
+
+      .host-file-dialog__list-heading {
+        background: #101518;
+        color: var(--asha-color-muted);
+        font-size: 0.7rem;
+        padding: 0.35rem 0.65rem;
+        text-transform: uppercase;
+      }
+
+      .host-file-dialog__entries {
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .host-file-dialog__entry {
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid rgba(83, 96, 104, 0.35);
+        min-height: 2.15rem;
+        padding: 0.35rem 0.65rem;
+        width: 100%;
+      }
+
+      .host-file-dialog__entry.is-current {
+        background: #294252;
+        outline: 1px solid #5791ad;
+        outline-offset: -1px;
+      }
+
+      .host-file-dialog__entry > span {
+        align-self: center;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .host-file-dialog__entry-name {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: 0.75rem minmax(0, 1fr);
+      }
+
+      .host-file-dialog__entry-name span:last-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .host-file-dialog__empty {
+        color: var(--asha-color-muted);
+        padding: 1.5rem 0.75rem;
+      }
+
+      .host-file-dialog__footer {
+        display: grid;
+        gap: 0.5rem 0.75rem;
+        grid-template-columns: minmax(0, 1fr) 16rem;
+        padding: 0.65rem 0.75rem 0.75rem;
+      }
+
+      .host-file-dialog__selected-path {
+        color: var(--asha-color-muted);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.7rem;
+        grid-column: 1 / -1;
+        min-width: 0;
+        overflow-x: auto;
+        padding-block: 0.1rem;
+        white-space: nowrap;
+      }
+
+      .host-file-dialog__notice {
+        align-items: center;
+        background: #30261f;
+        border: 1px solid #8f6d55;
+        display: flex;
+        gap: 0.5rem;
+        grid-column: 1 / -1;
+        padding: 0.5rem;
+      }
+
+      .host-file-dialog__notice span {
+        flex: 1;
+      }
+
+      .host-file-dialog__actions {
+        display: flex;
+        gap: 0.5rem;
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+      }
+
+      .host-file-dialog__actions button {
+        min-width: 6.5rem;
+      }
+
       @media (max-width: 900px) {
         .studio-layout {
           grid-template-columns: 1fr;
@@ -636,6 +915,29 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
         .menu-popover--runtime,
         .menu-popover--voxel {
           left: 0.5rem;
+        }
+
+        .host-file-dialog {
+          min-height: calc(100vh - 1rem);
+          width: calc(100vw - 1rem);
+        }
+
+        .host-file-dialog-backdrop {
+          padding: 0.5rem;
+        }
+
+        .host-file-dialog__list-heading,
+        .host-file-dialog__entry {
+          grid-template-columns: minmax(12rem, 1fr) 6rem;
+        }
+
+        .host-file-dialog__list-heading span:last-child,
+        .host-file-dialog__entry > span:last-child {
+          display: none;
+        }
+
+        .host-file-dialog__footer {
+          grid-template-columns: 1fr;
         }
       }
     `,
@@ -657,12 +959,24 @@ export class StudioShellComponent {
     this.store.saveSceneFile();
   }
 
-  saveSceneAs(): void {
-    this.store.saveSceneFileAs();
+  openSceneFileDialog(mode: 'open' | 'save-as'): void {
+    this.store.openSceneFileDialog(mode);
   }
 
-  setSaveAsPath(path: string): void {
-    this.store.setSaveAsPath(path);
+  closeSceneFileDialog(): void {
+    this.store.closeSceneFileDialog();
+  }
+
+  setProjectFileDirectoryPath(path: string): void {
+    this.store.setProjectFileDirectoryPath(path);
+  }
+
+  navigateProjectFileDirectory(): void {
+    this.store.navigateProjectFileDirectory();
+  }
+
+  setProjectFileName(fileName: string): void {
+    this.store.setProjectFileName(fileName);
   }
 
   refreshProjectFiles(): void {
@@ -677,8 +991,25 @@ export class StudioShellComponent {
     this.store.selectProjectFile(path);
   }
 
-  openSelectedProjectFile(): void {
-    this.store.openSelectedProjectFile();
+  activateProjectFile(path: string): void {
+    this.store.activateProjectFile(path);
+  }
+
+  confirmSceneFileDialog(): void {
+    this.store.confirmSceneFileDialog();
+  }
+
+  formatFileSize(size: number | null): string {
+    if (size === null) {
+      return '—';
+    }
+    if (size < 1024) {
+      return `${size} B`;
+    }
+    if (size < 1024 * 1024) {
+      return `${(size / 1024).toFixed(1)} KB`;
+    }
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   confirmDiscardUnsavedScene(): void {
@@ -705,6 +1036,13 @@ export class StudioShellComponent {
   protectUnsavedScene(event: BeforeUnloadEvent): void {
     if (this.store.sceneDirty()) {
       event.preventDefault();
+    }
+  }
+
+  @HostListener('document:keydown.escape')
+  closeFileDialogFromKeyboard(): void {
+    if (this.store.projectFileDialog().mode !== null) {
+      this.store.closeSceneFileDialog();
     }
   }
 

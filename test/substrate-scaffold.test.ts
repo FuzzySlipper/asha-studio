@@ -4030,8 +4030,14 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(shellSource.includes('projectFileDialog()'), true);
   assert.equal(shellSource.includes('Save Project Workspace'), false);
   assert.equal(shellSource.includes('Browser Slot'), false);
-  assert.equal(shellSource.includes('Open Scene… {{ selectedPath }}'), true);
+  assert.equal(shellSource.includes('data-visual-id="studio-host-file-dialog"'), true);
+  assert.equal(shellSource.includes("openSceneFileDialog('open')"), true);
+  assert.equal(shellSource.includes("openSceneFileDialog('save-as')"), true);
+  assert.equal(shellSource.includes('Files on the Studio host'), true);
+  assert.equal(shellSource.includes('project-file-browser'), false);
   assert.equal(storeSource.includes('refreshProjectFiles'), true);
+  assert.equal(storeSource.includes("StudioSceneFileDialogMode = 'open' | 'save-as'"), true);
+  assert.equal(storeSource.includes("this.openSceneFileDialog('save-as')"), true);
   assert.equal(storeSource.includes('projectFileApiBase'), true);
   assert.equal(storeSource.includes('asha-studio.workspace.v1'), false);
   assert.equal(storeSource.includes('setItem(WORKSPACE_STORAGE_KEY'), false);

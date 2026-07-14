@@ -406,13 +406,20 @@ export interface StudioProjectFileEntry {
   readonly mtimeMs: number | null;
 }
 
+export type StudioSceneFileDialogMode = 'open' | 'save-as';
+
 export interface StudioProjectFileDialogReadModel {
   readonly backend: 'host-server';
+  readonly mode: StudioSceneFileDialogMode | null;
   readonly connected: boolean;
   readonly startDirectory: string | null;
   readonly currentDir: string;
+  readonly directoryPath: string;
   readonly entries: readonly StudioProjectFileEntry[];
   readonly selectedPath: string | null;
+  readonly fileName: string;
+  readonly targetPath: string;
+  readonly canConfirm: boolean;
   readonly message: string;
 }
 
@@ -4636,6 +4643,30 @@ function parentProjectDir(path: string): string {
   return slashIndex === 0 ? '/' : normalized.slice(0, slashIndex);
 }
 
+function projectFileName(path: string): string {
+  const normalized = normalizeProjectFilePath(path);
+  const slashIndex = normalized.lastIndexOf('/');
+  return slashIndex < 0 ? normalized : normalized.slice(slashIndex + 1);
+}
+
+function joinProjectFilePath(directory: string, fileName: string): string {
+  const normalizedFileName = normalizeProjectFilePath(fileName.trim());
+  if (normalizedFileName.length === 0) {
+    return '';
+  }
+  if (normalizedFileName.startsWith('/') || /^[A-Za-z]:\//.test(normalizedFileName)) {
+    return normalizedFileName;
+  }
+  const normalizedDirectory = normalizeProjectFilePath(directory);
+  if (normalizedDirectory.length === 0) {
+    return normalizedFileName;
+  }
+  if (normalizedDirectory === '/') {
+    return `/${normalizedFileName.replace(/^\/+/, '')}`;
+  }
+  return `${normalizedDirectory}/${normalizedFileName.replace(/^\/+/, '')}`;
+}
+
 function projectFileEntrySort(left: StudioProjectFileEntry, right: StudioProjectFileEntry): number {
   if (left.kind !== right.kind) {
     return left.kind === 'directory' ? -1 : 1;
@@ -4749,9 +4780,12 @@ export class StudioWorkspaceStore {
     stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument)),
   );
   private readonly saveAsPathState = signal('untitled.scene.json');
+  private readonly sceneFileDialogModeState = signal<StudioSceneFileDialogMode | null>(null);
   private readonly projectFileEntriesState = signal<readonly StudioProjectFileEntry[]>([]);
   private readonly projectFileCurrentDirState = signal('');
+  private readonly projectFileDirectoryPathState = signal('');
   private readonly projectFileSelectedPathState = signal<string | null>(null);
+  private readonly projectFileNameState = signal('untitled.scene.json');
   private readonly projectFileConnectedState = signal(false);
   private readonly projectFileRootState = signal<string | null>(null);
   private readonly projectFileMessageState = signal('Studio host file service not connected.');
@@ -4924,13 +4958,28 @@ export class StudioWorkspaceStore {
   readonly unsavedScenePrompt = this.unsavedScenePromptState.asReadonly();
   readonly sceneFileConflict = this.sceneFileConflictState.asReadonly();
   readonly projectFileDialog = computed<StudioProjectFileDialogReadModel>(() => {
+    const mode = this.sceneFileDialogModeState();
+    const fileName = this.projectFileNameState();
+    const targetPath = joinProjectFilePath(this.projectFileCurrentDirState(), fileName);
+    const selectedEntry = this.projectFileEntriesState().find(
+      entry => entry.path === this.projectFileSelectedPathState(),
+    );
+    const openTargetIsFile = selectedEntry?.kind === 'file'
+      || (selectedEntry === undefined && targetPath.endsWith('.scene.json'));
     return {
       backend: 'host-server',
+      mode,
       connected: this.projectFileConnectedState(),
       startDirectory: this.projectFileRootState(),
       currentDir: this.projectFileCurrentDirState(),
+      directoryPath: this.projectFileDirectoryPathState(),
       entries: this.projectFileEntriesState(),
       selectedPath: this.projectFileSelectedPathState(),
+      fileName,
+      targetPath,
+      canConfirm: mode === 'open'
+        ? openTargetIsFile && targetPath.endsWith('.scene.json')
+        : mode === 'save-as' && targetPath.length > 0,
       message: this.projectFileMessageState(),
     };
   });
@@ -8543,7 +8592,9 @@ export class StudioWorkspaceStore {
       }
       this.projectFileConnectedState.set(true);
       this.projectFileRootState.set(payload.startDirectory ?? null);
-      this.projectFileCurrentDirState.set(normalizeProjectFilePath(payload.dir ?? requestedDir));
+      const currentDir = normalizeProjectFilePath(payload.dir ?? requestedDir);
+      this.projectFileCurrentDirState.set(currentDir);
+      this.projectFileDirectoryPathState.set(currentDir);
       this.projectFileEntriesState.set([...(payload.entries ?? [])].sort(projectFileEntrySort));
       this.projectFileMessageState.set('Browsing files on the Studio host.');
     } catch (error) {
@@ -8554,15 +8605,74 @@ export class StudioWorkspaceStore {
     }
   }
 
+  openSceneFileDialog(mode: StudioSceneFileDialogMode): void {
+    this.activeMenuState.set(null);
+    this.sceneFileDialogModeState.set(mode);
+    this.projectFileDirectoryPathState.set(this.projectFileCurrentDirState());
+
+    const candidatePath = mode === 'save-as'
+      ? this.activeSceneFilePathState() ?? this.saveAsPathState()
+      : this.projectFileSelectedPathState() ?? '';
+    const candidateName = projectFileName(candidatePath);
+    this.projectFileNameState.set(
+      candidateName.length > 0
+        ? candidateName
+        : mode === 'save-as'
+          ? 'untitled.scene.json'
+          : '',
+    );
+
+    const candidateDirectory = parentProjectDir(candidatePath);
+    const directory = candidateDirectory.length > 0
+      ? candidateDirectory
+      : this.projectFileCurrentDirState();
+    void this.refreshProjectFiles(directory);
+  }
+
+  closeSceneFileDialog(): void {
+    if (this.unsavedScenePromptState()?.action === 'open') {
+      this.cancelDiscardUnsavedScene();
+    }
+    this.sceneFileDialogModeState.set(null);
+  }
+
+  setProjectFileDirectoryPath(path: string): void {
+    this.projectFileDirectoryPathState.set(path);
+  }
+
+  navigateProjectFileDirectory(): void {
+    void this.refreshProjectFiles(this.projectFileDirectoryPathState());
+  }
+
+  setProjectFileName(fileName: string): void {
+    this.projectFileNameState.set(fileName);
+    const targetPath = joinProjectFilePath(this.projectFileCurrentDirState(), fileName);
+    this.projectFileSelectedPathState.set(targetPath.length > 0 ? targetPath : null);
+    this.saveAsPathState.set(targetPath);
+  }
+
   selectProjectFile(path: string): void {
     const normalizedPath = normalizeProjectFilePath(path);
     const entry = this.projectFileDialog().entries.find(item => item.path === normalizedPath);
+    this.projectFileSelectedPathState.set(normalizedPath);
+    if (entry?.kind === 'file') {
+      this.projectFileNameState.set(entry.name);
+      this.saveAsPathState.set(normalizedPath);
+    }
+  }
+
+  activateProjectFile(path: string): void {
+    const normalizedPath = normalizeProjectFilePath(path);
+    const entry = this.projectFileDialog().entries.find(item => item.path === normalizedPath);
     if (entry?.kind === 'directory') {
+      this.projectFileSelectedPathState.set(null);
       void this.refreshProjectFiles(entry.path);
       return;
     }
-    this.projectFileSelectedPathState.set(normalizedPath);
-    this.saveAsPathState.set(normalizedPath);
+    this.selectProjectFile(normalizedPath);
+    if (this.sceneFileDialogModeState() === 'open') {
+      this.confirmSceneFileDialog();
+    }
   }
 
   openProjectParentDir(): void {
@@ -8576,6 +8686,26 @@ export class StudioWorkspaceStore {
       return;
     }
     void this.openSceneFileFromProject(path);
+  }
+
+  confirmSceneFileDialog(): void {
+    const dialog = this.projectFileDialog();
+    if (!dialog.canConfirm) {
+      this.projectFileMessageState.set(
+        dialog.mode === 'open'
+          ? 'Choose an ASHA .scene.json file to open.'
+          : 'Enter a file name for the scene.',
+      );
+      return;
+    }
+    if (dialog.mode === 'open') {
+      this.projectFileSelectedPathState.set(dialog.targetPath);
+      this.openSelectedProjectFile();
+      return;
+    }
+    if (dialog.mode === 'save-as') {
+      this.saveSceneFileAs(dialog.targetPath);
+    }
   }
 
   private async openSceneFileFromProject(path: string): Promise<void> {
@@ -8633,6 +8763,8 @@ export class StudioWorkspaceStore {
       this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));
       this.projectFileSelectedPathState.set(absolutePath);
       this.saveAsPathState.set(absolutePath);
+      this.projectFileNameState.set(projectFileName(absolutePath));
+      this.sceneFileDialogModeState.set(null);
       this.sceneFileConflictState.set(null);
       this.viewportHitState.set(null);
       this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
@@ -8651,7 +8783,7 @@ export class StudioWorkspaceStore {
   saveSceneFile(): void {
     const path = this.activeSceneFilePathState();
     if (path === null) {
-      this.saveSceneFileAs(this.saveAsPathState());
+      this.openSceneFileDialog('save-as');
       return;
     }
     void this.writeSceneFile(path, false);
@@ -8665,6 +8797,7 @@ export class StudioWorkspaceStore {
   setSaveAsPath(path: string): void {
     this.saveAsPathState.set(path);
     this.projectFileSelectedPathState.set(path);
+    this.projectFileNameState.set(projectFileName(path));
   }
 
   private async writeSceneFile(path: string, saveAs: boolean): Promise<void> {
@@ -8777,6 +8910,8 @@ export class StudioWorkspaceStore {
     this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(document)));
     this.projectFileSelectedPathState.set(path);
     this.saveAsPathState.set(path);
+    this.projectFileNameState.set(projectFileName(path));
+    this.sceneFileDialogModeState.set(null);
     this.sceneFileConflictState.set(null);
     this.menuMessageState.set(saveAs ? `Saved scene as ${path}.` : `Saved scene ${path}.`);
   }
