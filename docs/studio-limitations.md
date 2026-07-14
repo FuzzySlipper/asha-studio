@@ -26,8 +26,15 @@ import and local-link policy.
 
 ## Visual Evidence
 
-- Three.js is a Studio renderer binding over public ASHA projection/contracts; it
-  does not own authority and is not the engine public render contract.
+- Concrete rendering is engine-owned behind the public, backend-neutral
+  `@asha/renderer-host` root. Studio has no direct renderer dependency and may
+  not import a backend package or subpath.
+- Studio owns interaction policy and renderer-neutral authored/overlay
+  `RenderFrameDiff` content. It never receives backend scene objects, camera
+  matrices, GPU resources, or disposal handles.
+- Stored preview, current runtime projection, and editor/debug overlay are
+  isolated host channels. Picks are disposable projection hints; runtime edits
+  require Rust revalidation.
 - Browser screenshots, layout markers, scene readbacks, visual deltas, and
   checked-in fixture proofs are useful reviewer evidence, but they do not claim
   native runtime execution, WASM authority, Agora compositor capture, hardware
@@ -72,6 +79,6 @@ import and local-link policy.
 
 - `@asha/studio-evidence` remains deferred; Studio-owned proof/review artifact
   schemas are reference evidence until that package lands.
-- `@asha/renderer-three` is still not a Studio source dependency. Studio uses
-  its local Three.js binding unless the engine promotes a public renderer package
-  and Studio explicitly adopts it through the boundary policy.
+- Renderer backend packages remain forbidden Studio dependencies. Studio has
+  adopted the public `@asha/renderer-host` root and must request any missing
+  realization capability upstream rather than creating a local backend.

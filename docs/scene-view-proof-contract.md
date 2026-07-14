@@ -1,5 +1,12 @@
 # Studio 3D scene-view proof contract
 
+> Current renderer ownership: this document preserves the historical scene-view
+> proof vocabulary. The implemented viewport now consumes the public
+> `@asha/renderer-host` root; concrete rendering, camera realization, picking,
+> resize/render lifecycle, and disposal are exclusively engine-owned. Studio
+> contributes renderer-neutral authored and overlay diffs plus interaction
+> policy.
+
 Task: `asha#3041`, extended by `asha#3043`
 
 This document describes the Studio-owned `StudioSceneViewModel` proof contract in
@@ -9,8 +16,8 @@ agents and reviewers, not renderer implementation code.
 ## Purpose
 
 `StudioSceneViewModel` defines the minimum browser scene-view evidence a future
-3D renderer must be able to project and read back before ASHA Studio introduces
-Three.js/WebGL code. It gives runner tasks a stable target for renderer work
+3D renderer must be able to project and read back before ASHA Studio adopts a
+concrete realization through the public host. It gives runner tasks a stable target for renderer work
 without moving this draft schema across the ASHA Rust/TypeScript generated
 contract border prematurely.
 
@@ -76,11 +83,9 @@ canonical selection hash, selected renderable, and preview ghost or report `fail
 
 Task `asha#3044` extends the readback with `viewport_pick_hit_test_evidence`.
 The scene-view model stores the expected pick contract; the viewport readback then
-projects Studio renderables through the engine-owned `@asha/render-projection`
-retained model before the local Three.js binding builds the browser scene/camera
-and runs `THREE.Raycaster` against pickable renderables. Three.js remains the
-local browser implementation; renderer-neutral ASHA semantics come from the
-public engine package root. The resulting evidence records the selected target
+projects Studio renderables as renderer-neutral diffs through the engine-owned
+`@asha/renderer-host`. The host realizes the browser scene/camera and performs
+viewport-coordinate picking without exposing backend objects. The resulting evidence records the selected target
 screen point, viewport dimensions/hash, camera pose/projection hash, raycast hit
 renderable/voxel/face/normal/world point, and a structured background no-hit
 proof. The browser readback cross-checks that pick evidence still matches the

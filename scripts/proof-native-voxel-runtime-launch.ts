@@ -46,6 +46,24 @@ interface BrowserProof {
     readonly providerKind: string | null;
     readonly sessionId: string | null;
   };
+  readonly rendererViewport: {
+    readonly owner: string | null;
+    readonly classification: string | null;
+    readonly runtimeState: string | null;
+    readonly evidenceStatus: string | null;
+    readonly channelGenerations: Readonly<Record<string, number>>;
+    readonly sceneDocumentHash: number | null;
+    readonly materialPreviewClassification: string | null;
+    readonly materialDiagnostics: readonly string[];
+    readonly voxelSelectionOutcome: string | null;
+    readonly bufferReleased: boolean | null;
+    readonly cameraTickBeforeInput: number | null;
+    readonly cameraTickAfterInput: number | null;
+    readonly sceneCommandAccepted: boolean | null;
+    readonly staleSceneCommandRejected: boolean | null;
+    readonly degradedResourceStatus: string | null;
+    readonly degradedResourceIsolated: boolean | null;
+  };
   readonly agentSurface: {
     readonly operationStatuses: readonly string[];
     readonly operationDiagnostics: readonly string[];
@@ -594,6 +612,24 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         ? browserHostProvider.browserHostSessionId
         : null,
     },
+    rendererViewport: {
+      owner: null,
+      classification: null,
+      runtimeState: null,
+      evidenceStatus: null,
+      channelGenerations: {},
+      sceneDocumentHash: null,
+      materialPreviewClassification: null,
+      materialDiagnostics: [],
+      voxelSelectionOutcome: null,
+      bufferReleased: null,
+      cameraTickBeforeInput: null,
+      cameraTickAfterInput: null,
+      sceneCommandAccepted: null,
+      staleSceneCommandRejected: null,
+      degradedResourceStatus: null,
+      degradedResourceIsolated: null,
+    },
     agentSurface: {
       operationStatuses: [],
       operationDiagnostics: [],
@@ -721,6 +757,31 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
       Array.from(document.querySelectorAll('[data-voxel-evidence-kind]')).map(row => row.getAttribute('data-voxel-evidence-kind')),
     ));
     proof.timelineStatuses = Array.from(document.querySelectorAll('[data-voxel-timeline-status]')).map(row => row.getAttribute('data-voxel-timeline-status'));
+    proof.rendererViewport.owner = document.querySelector('[data-renderer-owner]')?.getAttribute('data-renderer-owner') || null;
+    proof.rendererViewport.classification = document.querySelector('[data-viewport-classification]')?.getAttribute('data-viewport-classification') || null;
+    proof.rendererViewport.runtimeState = document.querySelector('[data-viewport-runtime]')?.getAttribute('data-viewport-runtime') || null;
+    proof.rendererViewport.evidenceStatus = document.querySelector('[data-runtime-viewport-evidence-status]')?.getAttribute('data-runtime-viewport-evidence-status') || null;
+    proof.rendererViewport.channelGenerations = Object.fromEntries(
+      Array.from(document.querySelectorAll('[data-renderer-channel]')).map(row => [
+        row.getAttribute('data-renderer-channel'),
+        Number(row.getAttribute('data-renderer-channel-generation')),
+      ]),
+    );
+    const resourceProbe = document.querySelector('[data-renderer-resource-probe-status]');
+    proof.rendererViewport.degradedResourceStatus = resourceProbe?.getAttribute('data-renderer-resource-probe-status') || null;
+    proof.rendererViewport.degradedResourceIsolated = resourceProbe === null
+      ? null
+      : resourceProbe.getAttribute('data-renderer-resource-probe-isolated') === 'true';
+    const viewportEvidence = store && typeof store.runtimeViewportEvidence === 'function'
+      ? store.runtimeViewportEvidence()
+      : null;
+    if (viewportEvidence) {
+      proof.rendererViewport.sceneDocumentHash = viewportEvidence.scene?.documentHash ?? null;
+      proof.rendererViewport.materialPreviewClassification = viewportEvidence.materialPreview?.rendererClassification ?? null;
+      proof.rendererViewport.materialDiagnostics = viewportEvidence.materialPreview?.diagnostics ?? [];
+      proof.rendererViewport.voxelSelectionOutcome = viewportEvidence.voxelSelection?.outcome ?? null;
+      proof.rendererViewport.bufferReleased = viewportEvidence.bufferLifetime?.released ?? null;
+    }
     proof.textSample = runtimeText.slice(0, 8000);
   }
 
@@ -1169,6 +1230,52 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
+        await waitFor(
+          () => typeof store.runtimeViewportEvidence === 'function'
+            && store.runtimeViewportEvidence().camera
+            && store.runtimeViewportEvidence().scene,
+          'runtime viewport evidence',
+        );
+        await waitFor(
+          () => document.querySelectorAll('[data-renderer-channel]').length === 3,
+          'engine renderer-host channel readout',
+        );
+        document.querySelector('[data-renderer-resource-probe]')?.click();
+        await waitFor(
+          () => document.querySelector('[data-renderer-resource-probe-status="rejected_as_expected"]'),
+          'isolated degraded renderer resource proof',
+        );
+        const viewportEvidenceBeforeInput = store.runtimeViewportEvidence();
+        proof.rendererViewport.cameraTickBeforeInput = viewportEvidenceBeforeInput.camera?.tick ?? null;
+        store.applyRuntimeViewportCameraInput('look', { deltaX: 12, deltaY: -4 });
+        await waitFor(
+          () => store.runtimeViewportEvidence().camera?.tick > viewportEvidenceBeforeInput.camera?.tick,
+          'authoritative runtime camera input',
+        );
+        proof.rendererViewport.cameraTickAfterInput = store.runtimeViewportEvidence().camera?.tick ?? null;
+        store.selectRuntimeVoxelAtViewport({ x: 640, y: 360, width: 1280, height: 720 });
+
+        const sceneBeforeCommand = store.readRuntimeSceneObjectSnapshot();
+        const sceneObject = sceneBeforeCommand?.objects?.[0];
+        if (!sceneBeforeCommand || !sceneObject) {
+          throw new Error('Runtime scene-object snapshot missing from public viewport evidence');
+        }
+        const acceptedSceneCommand = store.applyRuntimeSceneObjectCommand({
+          expectedDocumentHash: sceneBeforeCommand.documentHash,
+          command: {
+            kind: 'rename',
+            id: sceneObject.id,
+            label: (sceneObject.label || 'Runtime object') + ' [Studio viewport proof]',
+          },
+        });
+        const staleSceneCommand = store.applyRuntimeSceneObjectCommand({
+          expectedDocumentHash: sceneBeforeCommand.documentHash,
+          command: { kind: 'select', id: sceneObject.id },
+        });
+        proof.rendererViewport.sceneCommandAccepted = acceptedSceneCommand?.accepted === true;
+        proof.rendererViewport.staleSceneCommandRejected = staleSceneCommand?.accepted === false
+          && staleSceneCommand?.rejection?.code === 'stale-scene-object-snapshot';
+
         const referenceMeshImportResult = store.runAgentVoxelWorkflowOperation({
           kind: 'import_conversion_mesh_source',
           importRequest: {
@@ -2013,7 +2120,9 @@ function waitForShutdown(): Promise<void> {
 async function runChromiumDump(url: string): Promise<string> {
   const args = [
     '--headless=new',
-    '--disable-gpu',
+    '--enable-unsafe-swiftshader',
+    '--use-angle=swiftshader',
+    '--use-gl=angle',
     '--no-sandbox',
     '--virtual-time-budget=12000',
     '--dump-dom',
@@ -2113,6 +2222,24 @@ async function main(): Promise<void> {
     assert.match(nativeProof.browserHost.sessionId ?? '', /^(0|[1-9][0-9]*)$/u);
     assert.match(isolatedNativeProof.browserHost.sessionId ?? '', /^(0|[1-9][0-9]*)$/u);
     assert.notEqual(nativeProof.browserHost.sessionId, isolatedNativeProof.browserHost.sessionId);
+    assert.equal(nativeProof.rendererViewport.owner, 'asha-renderer-host');
+    assert.equal(nativeProof.rendererViewport.classification, 'stored-authored-preview');
+    assert.equal(nativeProof.rendererViewport.runtimeState, 'attached');
+    assert.equal(nativeProof.rendererViewport.evidenceStatus, 'healthy');
+    assert.ok((nativeProof.rendererViewport.channelGenerations.runtime ?? 0) >= 1);
+    assert.ok((nativeProof.rendererViewport.channelGenerations.authored ?? 0) >= 1);
+    assert.ok((nativeProof.rendererViewport.channelGenerations.overlay ?? 0) >= 1);
+    assert.match(String(nativeProof.rendererViewport.sceneDocumentHash), /^[1-9][0-9]*$/u);
+    assert.equal(nativeProof.rendererViewport.materialPreviewClassification, 'runtime_readback');
+    assert.deepEqual(nativeProof.rendererViewport.materialDiagnostics, []);
+    assert.match(nativeProof.rendererViewport.voxelSelectionOutcome ?? '', /^(?:hit|miss)$/u);
+    assert.equal(nativeProof.rendererViewport.bufferReleased, true);
+    assert.equal(nativeProof.rendererViewport.cameraTickBeforeInput, 0);
+    assert.equal(nativeProof.rendererViewport.cameraTickAfterInput, 1);
+    assert.equal(nativeProof.rendererViewport.sceneCommandAccepted, true);
+    assert.equal(nativeProof.rendererViewport.staleSceneCommandRejected, true);
+    assert.equal(nativeProof.rendererViewport.degradedResourceStatus, 'rejected_as_expected');
+    assert.equal(nativeProof.rendererViewport.degradedResourceIsolated, true);
     const browserSessionTeardown = await Promise.all([
       confirmBrowserSessionTeardown(baseUrl, nativeProof.browserHost.sessionId ?? ''),
       confirmBrowserSessionTeardown(baseUrl, isolatedNativeProof.browserHost.sessionId ?? ''),
@@ -2629,11 +2756,19 @@ async function main(): Promise<void> {
     const missingProof = readProofFromDom(missingDom);
     assert.equal(missingProof.status, 'failed_closed', JSON.stringify(missingProof, null, 2));
     assert.match(missingProof.runtimeMessage, /globalThis\.ashaRuntimeBridge/);
+    assert.equal(missingProof.rendererViewport.owner, 'asha-renderer-host');
+    assert.equal(missingProof.rendererViewport.runtimeState, 'missing');
+    assert.equal(missingProof.rendererViewport.evidenceStatus, 'missing_runtime');
+    assert.equal(missingProof.rendererViewport.channelGenerations.runtime, 0);
+    assert.equal(missingProof.rendererViewport.channelGenerations.authored, 1);
+    assert.equal(missingProof.rendererViewport.channelGenerations.overlay, 1);
 
     const invalidDom = await runChromiumDump(`${baseUrl}#provider=invalid`);
     const invalidProof = readProofFromDom(invalidDom);
     assert.equal(invalidProof.status, 'failed_closed', JSON.stringify(invalidProof, null, 2));
     assert.match(invalidProof.runtimeMessage, /globalThis\.ashaRuntimeBridge/);
+    assert.equal(invalidProof.rendererViewport.runtimeState, 'missing');
+    assert.equal(invalidProof.rendererViewport.evidenceStatus, 'missing_runtime');
 
     const nativeDomPath = join(outDir, 'native-provider-dom.html');
     const missingDomPath = join(outDir, 'missing-provider-dom.html');

@@ -3951,7 +3951,7 @@ test('catalog bottom panel exposes human catalog workflow without preview overcl
   assert.equal(doc.includes('pnpm run evidence -- catalog-workflow-m3'), true);
 });
 
-test('viewport raycast debug draws temporary hit markers from view render setting', () => {
+test('viewport pick debug sends temporary renderer-neutral overlay markers through the public host', () => {
   const viewportSource = readFileSync(
     join(repoRoot, 'libs', 'studio-viewport', 'src', 'index.ts'),
     'utf8',
@@ -3962,10 +3962,11 @@ test('viewport raycast debug draws temporary hit markers from view render settin
   );
 
   assert.equal(shellSource.includes('showRaycastHitDebug'), true);
-  assert.equal(viewportSource.includes('createRaycastDebugMarker'), true);
+  assert.equal(viewportSource.includes('showPickDebugHint'), true);
   assert.equal(viewportSource.includes('showRaycastHitDebug'), true);
   assert.equal(viewportSource.includes('10_000'), true);
-  assert.equal(viewportSource.includes('raycastDebugGroup'), true);
+  assert.equal(viewportSource.includes('channels.overlay.replace'), true);
+  assert.equal(viewportSource.includes('buildViewportOverlayFrame'), true);
 });
 
 test('verification tiers document keeps proof escalation secondary', () => {

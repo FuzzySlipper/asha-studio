@@ -5,8 +5,13 @@ Script status: `proof:asset-load`, `proof:browser`, and
 current package scripts. Their status is tracked by
 `docs/script-reference-policy.json`.
 
+> Current renderer ownership: the historical asset-load proof described below
+> now feeds renderer-neutral diffs to `@asha/renderer-host`. Concrete rendering
+> is exclusively engine-owned; the removed local viewport implementation and
+> its file names are historical references only.
+
 ASHA Studio loads a real demo asset package through public ASHA surfaces and projects it into
-the existing Three.js viewport as reference evidence. This is the first capability lane of the
+the engine-owned viewport host as reference evidence. This is the first capability lane of the
 `asha-studio-asset-entity-editor-next-roadmap` series.
 
 ## Demo asset package layout
@@ -48,8 +53,9 @@ GUI/agent command timeline in `src/session-workspace.ts`. The recorded command i
 typed `assetId` / `materialId` / `placement` (validated against the public `LoadSceneAssetInput`
 schema), so the timeline/evidence dock shows the exact loaded asset, material, and placement rather
 than a bare session marker. The loaded renderable is appended to
-`StudioSceneViewModel.renderables` so the existing `src/viewport3d-host.ts` Three.js host renders it
-and reports it in `viewport_3d_readback`.
+`StudioSceneViewModel.renderables`; the current renderer-neutral adapter sends
+the corresponding diff through `@asha/renderer-host` for realization and
+readback.
 
 ## Structured provenance / readback
 

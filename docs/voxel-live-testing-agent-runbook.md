@@ -258,7 +258,8 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 - Do not import `@asha/contracts/src/**` or generated contract internals.
 - Do not import `@asha/native-bridge`, Rust crates, or private engine paths.
 - Do not add raw JSON command hatches or method-name dispatch.
-- Do not treat browser preview, screenshots, or Three.js buffers as authority.
+- Do not treat browser preview, screenshots, renderer-host picks, or backend
+  buffers as authority.
 - Do not claim `.vforge` compatibility.
 - Do not copy VoxelForge art-derived assets without explicit source/provenance
   approval.

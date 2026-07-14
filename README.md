@@ -21,7 +21,13 @@ Task `asha#2730` establishes a Vite/TypeScript shell with visible regions requir
 - inspector/readout panel;
 - evidence/export panel.
 
-The app consumes `@asha/command-registry` through the package root and projects the command catalog into UI/readout data. Task `asha#3042` adds a real Three.js-backed browser canvas in the central viewport as a **local projection dependency**; task `asha#3043` layers deterministic camera/tool interaction proof over that canvas/readback; task `asha#3044` adds viewport pick/hit-test evidence with positive hit, background no-hit, and stale camera/viewport guards. `three` renders the Studio-owned `StudioSceneViewModel`, but it does not own authority, mutate state, import `@asha/renderer-three`, or claim native runtime/Agora/GPU/performance evidence.
+The app consumes public engine package roots and projects their typed command,
+runtime, and evidence surfaces into Studio UI. The central viewport consumes the
+backend-neutral `@asha/renderer-host` root. Studio owns authored-preview diffs,
+selection/gizmo/debug policy, and input intent; the engine owns concrete
+rendering, coordinate realization, resize/render lifecycle, picking, and GPU
+resource disposal. Direct renderer dependencies and renderer backend subpaths
+are forbidden in this repository.
 
 ## Local development
 
@@ -56,7 +62,15 @@ The current local ASHA package linkage uses package-root links to `/home/dev/ash
 
 `boundary-policy.json` is the local boundary configuration used by `pnpm run check:boundaries`; ASHA package allow/deny policy comes from the engine manifest it references.
 
-Current source imports may use only the public package roots approved for `asha-studio` in the ASHA manifest: `@asha/command-registry`, `@asha/catalog-core`, `@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`, `@asha/game-workspace`, `@asha/render-projection`, `@asha/runtime-bridge`, `@asha/runtime-session`, and `@asha/ui-dom`. The package manager may keep explicit local package-root links while ASHA packages are unpublished, but source code must not import ASHA package subpaths, generated files by path, native/raw transports, or engine repo internals.
+Current source imports may use only the public package roots approved for
+`asha-studio` in the ASHA manifest. The installed Studio set includes
+`@asha/browser-host`, `@asha/command-registry`, `@asha/catalog-core`,
+`@asha/contracts`, `@asha/devtools`, `@asha/editor-tools`,
+`@asha/game-workspace`, `@asha/renderer-host`, `@asha/runtime-bridge`, and
+`@asha/runtime-session`. The package manager may keep explicit local
+package-root links while ASHA packages are unpublished, but source code must not
+import ASHA package subpaths, generated files by path, native/raw transports,
+renderer backends, or engine repo internals.
 
 If a studio task needs a new ASHA capability, request or implement a public ASHA package/surface in the ASHA repo first. Do not bypass the boundary with package `src/**` imports, generated contract file paths, raw native/WASM transports, aliases into `/home/dev/asha-engine`, or arbitrary `call(methodName, json)` command hatches.
 
@@ -137,17 +151,35 @@ Task `asha#2918` turns the viewport from a placeholder into a narrow agent-obser
 
 The exported agent readout includes the same `viewport_editor_panel` object so human UI and agent/reviewer artifacts observe the same viewport state. A deterministic fixture lives at `fixtures/studio-viewport-editor-panel.sample.json`.
 
-## Real browser 3D viewport host
+## Engine-owned browser viewport host
 
-Task `asha#3042` replaces the central dock's purely styled reference projection with a real browser canvas/WebGL host. Studio uses `three` directly as a local browser projection dependency for this repo, rather than importing deferred `@asha/renderer-three`. The renderer consumes the checked-in `StudioSceneViewModel` readout and projects:
+Task `asha#5738` replaces the old downstream concrete renderer with the public
+`@asha/renderer-host` editor viewport. The three isolated retained channels are:
 
-- grid/floor and axes;
-- selected voxel geometry plus DOM/readback marker `selected-target-highlight`;
-- editor-local preview ghost marker `preview-ghost-renderable`;
-- applied authority-state renderable marker `applied-state-renderable`;
-- model/material preview crate from the public contract DTO preview artifact.
+- `runtime` for current RuntimeSession render frames;
+- `authored` for stored scene projection and model/material preview diffs;
+- `overlay` for Studio-owned grid, selection, gizmo, and disposable pick/debug
+  semantics.
 
-The browser proof/readback now records a `viewport_3d_readback` artifact with canvas marker `studio-3d-webgl-canvas`, visible renderable count, selected target, preview ghost, applied renderable, and explicit non-claims. Task `asha#3043` adds a deterministic `viewport_camera_tool_interaction_proof` nested in the scene-view/readback: the shared timeline records a GUI frame-selected command (`inspection.editor_state`), an agent screen-point selection command, and a GUI preview-ghost command, while camera/tool before/after hashes and stale-readback guards fail closed if camera, selection, or preview evidence diverges. Task `asha#3044` adds `viewport_pick_hit_test_evidence`: the scene model records the expected pick contract, while `buildStudioViewport3dReadback` constructs the same Three.js scene/camera used by the browser host and runs `THREE.Raycaster` against the pickable renderables. The readback records the selected-target screen point, viewport dimensions/hash, camera pose/projection hash, raycast hit renderable/voxel/face/normal/world point, structured background no-hit result, selection/inspector/hierarchy/timeline cross-checks, and stale guards that fail closed if camera, viewport, selection, inspector, hierarchy, selected face/edit-anchor, or pick identity evidence changes without refreshed pick evidence. Task `asha#3045` extends `artifacts/browser-capture/latest/index.json` with `viewport_visual_delta_crop_proof`: same-region edit-anchor crops sourced from distinct `before` and `after` Studio viewport phase screenshots, crop rectangles in screenshot pixels, crop paths/hashes, linked source-state handles, voxel IDs, camera hash, command IDs, before/after scene hashes, and stale guards that fail closed on unchanged or mismatched crop/scene hashes or same-screenshot before/after sources. This is still browser projection evidence only: it does not claim native/WASM runtime bridge execution, Agora compositor capture, hardware GPU evidence, or performance.
+Local handles are namespaced by the host, so equal handle values in different
+channels cannot collide. The host owns mount, resize, render, stop, disposal,
+coordinate realization, and viewport-coordinate picking. Studio receives only
+typed pick hints and maps them to stored proposals or to Rust-revalidated
+runtime selection/commands.
+
+When RuntimeSession is attached, the viewport uses the authoritative camera
+snapshot and routes look/pan/zoom intent through the public camera-input path.
+It reads public runtime projection, scene-object snapshot, material preview,
+voxel selection/mesh evidence, and buffer-lifetime evidence from the same
+one-cell browser-host provider. Stored authoring remains visibly distinct and
+is not mutated until an explicit stored edit or runtime apply action. Disconnect
+unloads the ProjectBundle, clears runtime-only channels/readouts, and preserves
+stored sources.
+
+`pnpm run evidence -- native-voxel-runtime-launch` proves healthy stored and
+runtime channels, isolated missing-resource rejection, stale scene-command
+rejection, missing/invalid runtime providers, authoritative camera movement,
+voxel pick revalidation, released buffers, and browser-session teardown.
 
 ## Historical browser visual capture
 
@@ -179,7 +211,7 @@ The candidate includes canonical `data-visual-id` / `data-visual-role` evidence 
 
 ## Historical visual capability proof
 
-Task `asha#3046` consolidated the prior browser, Three.js readback, pick, visual-delta, command/hash, and deployed visual-contract evidence into a reviewer-facing proof. The old `pnpm run proof:visual-capability` name is now a retired historical script reference tracked in `docs/script-reference-policy.json`, not a current package script.
+Task `asha#3046` consolidated the prior browser-local renderer readback, pick, visual-delta, command/hash, and deployed visual-contract evidence into a reviewer-facing proof. The old `pnpm run proof:visual-capability` name is now a retired historical script reference tracked in `docs/script-reference-policy.json`, not a current package script.
 
 That historical command regenerated `proof:browser`, regenerated `proof:visual-contract` against the deployed service on `den-srv`, then wrote:
 
@@ -194,7 +226,12 @@ This is still agent-observable browser/reference/layout evidence. It intentional
 
 Task `asha#3047` defines the exact gate for replacing browser/reference visual state with authoritative runtime or WASM snapshots. The durable checklist is in `docs/runtime-bridge-readiness-gate.md`; the machine-readable helper is `evaluateRuntimeBridgeReadinessGate(...)` in `src/runtime-bridge-readiness.ts`.
 
-The gate currently reports `deferred` for mock/reference workflows and `failed_closed` for `native`/`wasm` until all of the following exist through public package roots: `@asha/runtime-bridge` compatibility `runtime-bridge.v0`, typed scene snapshot DTOs, typed command-application results, replay/golden records, runtime render/readback evidence, a classified runtime error taxonomy, and visual-capability proof updates with runtime-specific negative smokes. Studio must still not import raw native/WASM transports or claim runtime authority from browser/Three.js evidence alone.
+The native Rust path now reaches Studio through the one-cell public browser host
+and typed RuntimeSession facade. Browser projection remains non-authoritative:
+runtime mutations still require typed Rust-validated commands, and renderer
+picks remain disposable hints. WASM remains deferred until it has an equivalent
+public provider and evidence posture. Studio must not import raw native/WASM
+transports or infer runtime authority from rendered pixels.
 
 ## Historical end-to-end V1 proof
 
@@ -234,7 +271,10 @@ pnpm run evidence:v2-live-backend
 ## Known limitations
 
 - Real in V2 selected-backend path: distinct `asha-studio` repo; package-root boundary enforcement; compatibility readback; runtime bridge readiness gate; shared GUI/agent command timeline; visible viewport/editor proof surfaces; public `@asha/runtime-bridge`/`@asha/devtools` selected-backend attach evidence; accepted/rejected native command proposal readback; replay/evidence refs; and `pnpm run evidence -- v2-live-backend-evidence` as the closeout proof command.
-- Still reference/projection-only outside the selected-backend proof: durable timeline persistence, direct Studio consumption of upstream model/material runtime readback, Agora compositor capture as a formal proof command, hardware GPU capture, performance evidence, and WASM authority.
+- Still limited or deferred: durable timeline persistence, arbitrary production
+  resource catalogs beyond the typed preview/readback lane, Agora compositor
+  capture as a formal proof command, hardware GPU capture, performance evidence,
+  and WASM authority.
 - `@asha/studio-evidence` is a deferred public package from the schema design; current V1/browser/V2 proof commands use Studio-owned review/proof artifact schemas until that package lands.
 - Browser screenshots are Chromium headless CLI evidence and generated proof artifacts are git-ignored/reproducible; do not treat them as hardware, GPU, Agora, or performance evidence.
 

@@ -11,7 +11,7 @@
     "@asha/devtools": "link:../asha-engine/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha-engine/ts/packages/editor-tools",
     "@asha/game-workspace": "link:../asha-engine/ts/packages/game-workspace",
-    "@asha/render-projection": "link:../asha-engine/ts/packages/render-projection",
+    "@asha/renderer-host": "link:../asha-engine/ts/packages/renderer-host",
     "@asha/runtime-bridge": "link:../asha-engine/ts/packages/runtime-bridge",
     "@asha/runtime-session": "link:../asha-engine/ts/packages/runtime-session"
   },
@@ -23,22 +23,28 @@
     "@asha/devtools": "link:../asha-engine/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha-engine/ts/packages/editor-tools",
     "@asha/game-workspace": "link:../asha-engine/ts/packages/game-workspace",
-    "@asha/render-projection": "link:../asha-engine/ts/packages/render-projection",
+    "@asha/renderer-host": "link:../asha-engine/ts/packages/renderer-host",
     "@asha/runtime-bridge": "link:../asha-engine/ts/packages/runtime-bridge",
     "@asha/runtime-session": "link:../asha-engine/ts/packages/runtime-session"
   },
   "forbiddenPackages": [
     "@asha/native-bridge",
+    "@asha/renderer-three",
     "@asha/wasm-replay-bridge"
   ],
   "forbiddenImportSpecifiers": [
     "@asha/native-bridge",
+    "@asha/renderer-three",
     "@asha/wasm-replay-bridge",
+    "three",
     "voxelforge"
   ],
   "forbiddenImportPatterns": [
     "@asha/*/src/*",
     "@asha/*/dist/generated/*",
+    "@asha/renderer-host/*",
+    "@asha/renderer-three/*",
+    "three/*",
     "../asha-engine/engine-rs/*",
     "/home/dev/asha-engine/engine-rs/*",
     "../voxelforge/*",

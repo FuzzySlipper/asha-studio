@@ -43,11 +43,10 @@
     "@asha/devtools": "link:../asha-engine/ts/packages/devtools",
     "@asha/editor-tools": "link:../asha-engine/ts/packages/editor-tools",
     "@asha/game-workspace": "link:../asha-engine/ts/packages/game-workspace",
-    "@asha/render-projection": "link:../asha-engine/ts/packages/render-projection",
+    "@asha/renderer-host": "link:../asha-engine/ts/packages/renderer-host",
     "@asha/runtime-bridge": "link:../asha-engine/ts/packages/runtime-bridge",
     "@asha/runtime-session": "link:../asha-engine/ts/packages/runtime-session",
-    "rxjs": "~7.8.0",
-    "three": "^0.184.0"
+    "rxjs": "~7.8.0"
   },
   "devDependencies": {
     "@angular-devkit/core": "~21.2.0",
@@ -68,7 +67,6 @@
     "@schematics/angular": "~21.2.0",
     "@swc/helpers": "~0.5.18",
     "@types/node": "^24.0.3",
-    "@types/three": "^0.184.1",
     "@typescript-eslint/utils": "^8.40.0",
     "@vitest/coverage-v8": "~4.1.0",
     "angular-eslint": "^21.2.0",

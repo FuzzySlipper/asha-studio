@@ -3,8 +3,8 @@
 Task: `asha#3047`
 
 This gate defines what must be true before ASHA Studio may claim authoritative
-runtime evidence beside its browser-reference `StudioSceneViewModel` / Three.js
-projection state. It is a readiness contract for the narrow runtime facade path,
+runtime evidence beside its browser-reference scene projection state. It is a
+readiness contract for the narrow runtime facade and renderer-host path,
 not permission to import raw transports or make browser projection authoritative.
 
 ## Current status
@@ -25,7 +25,7 @@ selected-backend runtime-authority proof path:
   facade path and metadata.
 - `@asha/native-bridge` and `@asha/wasm-replay-bridge` remain forbidden Studio
   imports.
-- Browser/Three.js evidence is useful projection/readback proof, not runtime
+- Browser renderer-host evidence is useful projection/readback proof, not runtime
   authority by itself, Agora compositor capture, hardware GPU evidence, or
   performance evidence.
 
@@ -102,7 +102,7 @@ projection from runtime authority:
 - negative smokes cover missing runtime bridge metadata, mismatched
   `runtime-bridge.v0`, missing operation, stale snapshot, replay mismatch, and
   raw transport import attempts;
-- browser/Three.js projection evidence remains labeled projection-only unless it
+- browser renderer-host projection evidence remains labeled projection-only unless it
   is backed by authoritative runtime snapshot and replay/readback evidence.
 
 ## Fail-closed diagnostics
@@ -139,7 +139,7 @@ The gate status is:
    roots.
 4. Update visual capability proof/readback with a runtime-authority group and the
    runtime negative smokes listed above.
-5. Keep browser/Three.js projection and visual-contract evidence as
+5. Keep browser renderer-host projection and visual-contract evidence as
    complementary proof channels, not substitutes for runtime authority evidence.
 
 ## Verification

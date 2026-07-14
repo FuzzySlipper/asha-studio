@@ -8,7 +8,7 @@
   "dependencies": {
     "@angular/common": "~21.2.0",
     "@angular/core": "~21.2.0",
-    "@asha/render-projection": "link:../../../asha-engine/ts/packages/render-projection",
+    "@asha/renderer-host": "link:../../../asha-engine/ts/packages/renderer-host",
     "@asha-studio/domain": "workspace:*",
     "@asha-studio/store": "workspace:*",
     "tslib": "^2.3.0"

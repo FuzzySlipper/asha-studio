@@ -5,6 +5,10 @@ Script status: `proof:gizmo`, `proof:browser`, and
 current package scripts. Their status is tracked by
 `docs/script-reference-policy.json`.
 
+> Current renderer ownership: gizmo semantics remain Studio interaction policy,
+> but their visuals are renderer-neutral overlay diffs consumed by
+> `@asha/renderer-host`. Concrete rendering and picking are engine-owned.
+
 The viewport transform gizmo moves from pick proof to editor manipulation proof: it turns the shared
 scene-view selected entity into a transform gizmo read model with visible selection outline/handles
 and a single, constrained, command/timeline-visible transform (translate along one axis) with
@@ -47,8 +51,9 @@ The transform is a real cross-surface viewport update:
 - `buildStudioViewport3dReadback(sceneView, gizmo)` exposes a `transformGizmo` readback
   (`translationBefore`/`translationAfter`, `activeAxis`, `applied`, handle axes) and
   `gizmo-handle-*` / `gizmo-translate:<axis>:<delta>` semantic markers;
-- `renderStudioViewport3dHost(sceneView, { gizmo })` renders the selection outline, the three axis
-  handles (active highlighted), a preview ghost box, the applied box, and the translate delta line;
+- the renderer-neutral viewport adapter emits selection outline, axis-handle,
+  preview ghost, applied box, and translate-delta overlay semantics through the
+  public host;
 - the gizmo is exported in the agent readout.
 
 ## Fail-closed diagnostics
@@ -73,8 +78,9 @@ prove each fails closed:
   hash stability, three handles / one active axis, the preview+apply command/timeline-visible
   translate, the typed command-result evidence, the viewport readback update with the before/after
   delta, and fail-closed negative smokes.
-- `pnpm run proof:browser` / `pnpm run proof:visual-capability` — browser/visual evidence (the gizmo
-  panel, handles, and applied/preview boxes render in the Three.js viewport host).
+- `pnpm run proof:browser` / `pnpm run proof:visual-capability` — historical
+  browser/visual evidence for the gizmo panel, handles, and applied/preview
+  boxes. Current live realization is through the engine-owned viewport host.
 
 ## Non-claims
 

@@ -4,9 +4,12 @@ import {
   ViewChild,
   effect,
   inject,
+  signal,
 } from '@angular/core';
 import type { AfterViewInit, ElementRef, OnDestroy } from '@angular/core';
 import type {
+  CameraBasis,
+  CameraSnapshot,
   Material,
   RenderDiff,
   RenderFrameDiff,
@@ -14,10 +17,13 @@ import type {
   Transform,
 } from '@asha/contracts';
 import { renderHandle } from '@asha/contracts';
-import { RenderProjection } from '@asha/render-projection';
 import type {
-  RenderProjectionNode,
-} from '@asha/render-projection';
+  AshaRendererEditorViewport,
+  AshaRendererEditorViewportCamera,
+  AshaRendererEditorViewportPickHint,
+  AshaRendererEditorViewportReadout,
+} from '@asha/renderer-host';
+import { mountAshaRendererEditorViewport } from '@asha/renderer-host';
 import type {
   StudioBounds,
   StudioEntitySourceState,
@@ -30,7 +36,14 @@ import type {
 } from '@asha-studio/domain';
 import { buildStudioViewportHitReadModel } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
-import * as THREE from 'three';
+
+type StudioRenderColor = readonly [number, number, number];
+
+interface StudioViewportResourceProbe {
+  readonly status: 'idle' | 'rejected_as_expected' | 'unexpectedly_applied';
+  readonly isolated: boolean;
+  readonly diagnostic: string | null;
+}
 
 function center(bounds: StudioBounds): StudioVec3 {
   return {
@@ -48,56 +61,42 @@ function size(bounds: StudioBounds): StudioVec3 {
   };
 }
 
-function toThreePosition(vector: StudioVec3): THREE.Vector3 {
-  return new THREE.Vector3(vector.x, vector.z, vector.y);
-}
-
-function transformTranslationToThree(transform: Transform): THREE.Vector3 {
-  return new THREE.Vector3(
-    transform.translation[0],
-    transform.translation[2],
-    transform.translation[1],
-  );
-}
-
-function fromThreePosition(vector: THREE.Vector3): StudioVec3 {
-  return { x: vector.x, y: vector.z, z: vector.y };
-}
-
-function faceFromThreeNormal(normal: THREE.Vector3 | null): StudioViewportHitFace {
+function faceFromProjectionNormal(
+  normal: readonly [number, number, number] | null,
+): StudioViewportHitFace {
   if (normal === null) {
     return 'z_max';
   }
-  const absX = Math.abs(normal.x);
-  const absY = Math.abs(normal.y);
-  const absZ = Math.abs(normal.z);
+  const absX = Math.abs(normal[0]);
+  const absY = Math.abs(normal[1]);
+  const absZ = Math.abs(normal[2]);
   if (absX >= absY && absX >= absZ) {
-    return normal.x < 0 ? 'x_min' : 'x_max';
+    return normal[0] < 0 ? 'x_min' : 'x_max';
   }
-  if (absZ >= absX && absZ >= absY) {
-    return normal.z < 0 ? 'y_min' : 'y_max';
+  if (absY >= absX && absY >= absZ) {
+    return normal[1] < 0 ? 'y_min' : 'y_max';
   }
-  return normal.y < 0 ? 'z_min' : 'z_max';
+  return normal[2] < 0 ? 'z_min' : 'z_max';
 }
 
 function materialColor(
   kind: StudioRenderableKind,
   sourceState: StudioEntitySourceState,
   selected: boolean,
-): THREE.ColorRepresentation {
+): StudioRenderColor {
   if (selected) {
-    return '#d4953f';
+    return [0.658, 0.301, 0.08];
   }
   if (kind === 'preview_ghost' || sourceState === 'pending') {
-    return '#54c7bd';
+    return [0.089, 0.571, 0.509];
   }
   if (kind === 'static_mesh') {
-    return '#c98e4d';
+    return [0.584, 0.27, 0.074];
   }
   if (kind === 'voxel_grid') {
-    return '#29475a';
+    return [0.022, 0.063, 0.102];
   }
-  return '#b57a34';
+  return [0.462, 0.195, 0.034];
 }
 
 function materialOpacity(renderable: StudioViewportRenderableAdapter): number {
@@ -114,14 +113,12 @@ function renderableMaterial(
   renderable: StudioViewportRenderableAdapter,
   wireframeEnabled: boolean,
 ): Material {
-  const color = new THREE.Color(
-    materialColor(renderable.kind, renderable.sourceState, renderable.selected),
-  );
+  const color = materialColor(renderable.kind, renderable.sourceState, renderable.selected);
   return {
     color: [
-      color.r,
-      color.g,
-      color.b,
+      color[0],
+      color[1],
+      color[2],
       materialOpacity(renderable),
     ],
     wireframe: wireframeEnabled || renderable.kind === 'preview_ghost',
@@ -164,7 +161,10 @@ function renderableNode(
   };
 }
 
-function buildViewportProjectionFrame(adapter: StudioViewportAdapterReadModel): RenderFrameDiff {
+function buildViewportProjectionFrame(
+  adapter: StudioViewportAdapterReadModel,
+  materialPreviewFrame: RenderFrameDiff | null,
+): RenderFrameDiff {
   const ops: RenderDiff[] = [];
   let handle = 1;
   for (const renderable of adapter.renderables) {
@@ -181,6 +181,148 @@ function buildViewportProjectionFrame(adapter: StudioViewportAdapterReadModel): 
       node: renderableNode(renderable, adapter.renderSettings.wireframeEnabled),
     });
     handle += 1;
+  }
+  if (materialPreviewFrame !== null) {
+    ops.push(...materialPreviewFrame.ops);
+  }
+  return { ops };
+}
+
+function normalize(vector: StudioVec3): StudioVec3 {
+  const length = Math.hypot(vector.x, vector.y, vector.z);
+  if (length <= 0.000_001) {
+    return { x: 0, y: 0, z: 0 };
+  }
+  return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
+}
+
+function cross(left: StudioVec3, right: StudioVec3): StudioVec3 {
+  return {
+    x: left.y * right.z - left.z * right.y,
+    y: left.z * right.x - left.x * right.z,
+    z: left.x * right.y - left.y * right.x,
+  };
+}
+
+function buildEditorViewportCamera(
+  adapter: StudioViewportAdapterReadModel,
+): AshaRendererEditorViewportCamera {
+  const forward = normalize({
+    x: adapter.camera.target.x - adapter.camera.position.x,
+    y: adapter.camera.target.y - adapter.camera.position.y,
+    z: adapter.camera.target.z - adapter.camera.position.z,
+  });
+  const right = normalize(cross(forward, adapter.camera.up));
+  const up = normalize(cross(right, forward));
+  const basis: CameraBasis = {
+    forward: [forward.x, forward.y, forward.z],
+    right: [right.x, right.y, right.z],
+    up: [up.x, up.y, up.z],
+  };
+  return {
+    source: 'stored_editor',
+    pose: {
+      position: [adapter.camera.position.x, adapter.camera.position.y, adapter.camera.position.z],
+      yawDegrees: Math.atan2(forward.y, forward.x) * (180 / Math.PI),
+      pitchDegrees: Math.asin(Math.max(-1, Math.min(1, forward.z))) * (180 / Math.PI),
+    },
+    basis,
+    projection: {
+      fovYDegrees: adapter.camera.fovDegrees,
+      near: adapter.camera.near,
+      far: adapter.camera.far,
+    },
+  };
+}
+
+function buildRuntimeViewportCamera(camera: CameraSnapshot): AshaRendererEditorViewportCamera {
+  return {
+    source: 'runtime_authority',
+    pose: camera.pose,
+    basis: camera.basis,
+    projection: camera.projection,
+  };
+}
+
+function createDebugNode(
+  label: string,
+  translation: readonly [number, number, number],
+  scale: readonly [number, number, number],
+  color: readonly [number, number, number, number],
+): RenderNode {
+  return {
+    geometry: { shape: 'cube' },
+    material: { color, wireframe: false },
+    transform: { translation, rotation: [0, 0, 0, 1], scale },
+    visible: true,
+    layer: 'debug',
+    metadata: { source: null, tags: [], label },
+  };
+}
+
+function buildViewportOverlayFrame(
+  adapter: StudioViewportAdapterReadModel,
+  debugPick: AshaRendererEditorViewportPickHint | null,
+): RenderFrameDiff {
+  const ops: RenderDiff[] = [];
+  let handle = 1;
+  if (adapter.renderSettings.showGrid) {
+    for (let index = 0; index <= 16; index += 1) {
+      const offset = -2 + index * 0.25;
+      ops.push({
+        op: 'create',
+        handle: renderHandle(handle),
+        parent: null,
+        node: createDebugNode(`editor-grid-x:${index}`, [0, offset, -0.04], [4, 0.008, 0.008], [0.035, 0.098, 0.129, 0.72]),
+      });
+      handle += 1;
+      ops.push({
+        op: 'create',
+        handle: renderHandle(handle),
+        parent: null,
+        node: createDebugNode(`editor-grid-y:${index}`, [offset, 0, -0.04], [0.008, 4, 0.008], [0.035, 0.098, 0.129, 0.72]),
+      });
+      handle += 1;
+    }
+  }
+  const selected = adapter.renderables.find(renderable => renderable.selected && renderable.visible);
+  if (selected !== undefined) {
+    const transform = renderableTransform(selected);
+    ops.push({
+      op: 'create',
+      handle: renderHandle(handle),
+      parent: null,
+      node: {
+        geometry: { shape: 'cube' },
+        material: { color: [0.089, 0.571, 0.509, 1], wireframe: true },
+        transform: {
+          ...transform,
+          scale: transform.scale.map(value => value * 1.035) as unknown as Transform['scale'],
+        },
+        visible: true,
+        layer: 'debug',
+        metadata: { source: null, tags: [], label: `selection:${selected.renderableId}` },
+      },
+    });
+    handle += 1;
+  }
+  if (debugPick !== null && adapter.renderSettings.showRaycastHitDebug) {
+    const [x, y, z] = debugPick.position;
+    const color = [1, 0.023, 0.008, 1] as const;
+    const axes = [
+      { label: 'x', scale: [0.36, 0.014, 0.014] as const },
+      { label: 'y', scale: [0.014, 0.36, 0.014] as const },
+      { label: 'z', scale: [0.014, 0.014, 0.36] as const },
+    ];
+    for (const axis of axes) {
+      ops.push({
+        op: 'create',
+        handle: renderHandle(handle),
+        parent: null,
+        node: createDebugNode(`pick-marker:${axis.label}`, [x, y, z], axis.scale, color),
+      });
+      handle += 1;
+    }
   }
   return { ops };
 }
@@ -201,49 +343,6 @@ function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string 
   return 'default';
 }
 
-function disposeObject(object: THREE.Object3D): void {
-  object.traverse(child => {
-    const maybeMesh = child as THREE.Mesh;
-    const geometry = maybeMesh.geometry;
-    if (geometry instanceof THREE.BufferGeometry) {
-      geometry.dispose();
-    }
-    const material = maybeMesh.material;
-    if (Array.isArray(material)) {
-      for (const entry of material) {
-        entry.dispose();
-      }
-    } else if (material instanceof THREE.Material) {
-      material.dispose();
-    }
-  });
-}
-
-function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
-  const group = new THREE.Group();
-  group.position.copy(point);
-
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(0.055, 12, 8),
-    new THREE.MeshBasicMaterial({ color: '#ff3b30' }),
-  );
-  group.add(sphere);
-
-  const lineMaterial = new THREE.LineBasicMaterial({ color: '#ff3b30' });
-  const lineLength = 0.18;
-  const axes: readonly [THREE.Vector3, THREE.Vector3][] = [
-    [new THREE.Vector3(-lineLength, 0, 0), new THREE.Vector3(lineLength, 0, 0)],
-    [new THREE.Vector3(0, -lineLength, 0), new THREE.Vector3(0, lineLength, 0)],
-    [new THREE.Vector3(0, 0, -lineLength), new THREE.Vector3(0, 0, lineLength)],
-  ];
-  for (const [start, end] of axes) {
-    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-    group.add(new THREE.Line(geometry, lineMaterial.clone()));
-  }
-
-  return group;
-}
-
 @Component({
   selector: 'asha-studio-viewport',
   standalone: true,
@@ -259,6 +358,61 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
         class="viewport-scene__host"
         aria-label="Three dimensional scene viewport"
       >
+        <canvas
+          #canvas
+          class="viewport-scene__canvas"
+          data-renderer-owner="asha-renderer-host"
+          aria-label="ASHA engine renderer viewport"
+        ></canvas>
+        <div class="viewport-classification" data-viewport-classification="stored-authored-preview">
+          <strong>stored authored preview</strong>
+          <span>engine-owned realization</span>
+          @if (store.runtimeViewportProjection(); as runtimeProjection) {
+            <span data-viewport-runtime="attached">current runtime · {{ runtimeProjection.projectionHash }}</span>
+          } @else {
+            <span data-viewport-runtime="missing">runtime not attached</span>
+          }
+          @if (viewportReadout(); as readout) {
+            <small>{{ readout.viewportHash }}</small>
+            @for (channel of readout.channels; track channel.channel) {
+              <small
+                [attr.data-renderer-channel]="channel.channel"
+                [attr.data-renderer-channel-generation]="channel.generation"
+                [attr.data-renderer-channel-hash]="channel.hash"
+              >
+                {{ channel.channel }} · generation {{ channel.generation }} · {{ channel.hash }}
+              </small>
+            }
+          }
+          @if (viewportMountDiagnostic(); as diagnostic) {
+            <small data-renderer-host-mount="failed" class="viewport-classification__diagnostic">
+              {{ diagnostic }}
+            </small>
+          }
+          <small [attr.data-runtime-viewport-evidence-status]="store.runtimeViewportEvidence().status">
+            {{ store.runtimeViewportEvidence().status }}
+            · scene {{ store.runtimeViewportEvidence().scene?.documentHash ?? 'n/a' }}
+            · preview {{ store.runtimeViewportEvidence().materialPreview?.rendererClassification ?? 'n/a' }}
+            · voxel {{ store.runtimeViewportEvidence().voxelSelection?.outcome ?? 'n/a' }}
+            · buffer {{ store.runtimeViewportEvidence().bufferLifetime?.released ? 'released' : 'n/a' }}
+          </small>
+          @for (diagnostic of store.runtimeViewportEvidence().diagnostics; track diagnostic) {
+            <small class="viewport-classification__diagnostic">{{ diagnostic }}</small>
+          }
+          <button
+            type="button"
+            data-renderer-resource-probe
+            (click)="probeMissingPreviewResource()"
+          >
+            Probe missing preview resource
+          </button>
+          <small
+            [attr.data-renderer-resource-probe-status]="resourceProbe().status"
+            [attr.data-renderer-resource-probe-isolated]="resourceProbe().isolated"
+          >
+            {{ resourceProbe().status }} · {{ resourceProbe().diagnostic ?? 'not run' }}
+          </small>
+        </div>
         @if (store.viewportAdapter().renderSettings.showReadbackOverlay) {
           <div class="viewport-readback">
             <span>selected target</span>
@@ -361,6 +515,38 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
         min-width: 0;
         overflow: hidden;
         position: relative;
+      }
+
+      .viewport-scene__canvas {
+        display: block;
+        height: 100%;
+        inset: 0;
+        position: absolute;
+        touch-action: none;
+        width: 100%;
+      }
+
+      .viewport-classification {
+        background: rgba(11, 17, 23, 0.88);
+        border: 1px solid rgba(84, 199, 189, 0.5);
+        color: var(--asha-color-muted);
+        display: grid;
+        font-size: 0.62rem;
+        gap: 0.12rem;
+        left: 1rem;
+        padding: 0.35rem 0.45rem;
+        position: absolute;
+        top: 5.4rem;
+      }
+
+      .viewport-classification strong {
+        color: var(--asha-color-ink);
+        text-transform: uppercase;
+      }
+
+      .viewport-classification__diagnostic {
+        color: var(--asha-color-warning);
+        max-width: 24rem;
       }
 
       .viewport-readback {
@@ -511,23 +697,26 @@ function createRaycastDebugMarker(point: THREE.Vector3): THREE.Object3D {
 })
 export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   readonly store = inject(StudioWorkspaceStore);
+  readonly viewportReadout = signal<AshaRendererEditorViewportReadout | null>(null);
+  readonly viewportMountDiagnostic = signal<string | null>(null);
+  readonly resourceProbe = signal<StudioViewportResourceProbe>({
+    status: 'idle',
+    isolated: true,
+    diagnostic: null,
+  });
 
   @ViewChild('host', { static: true }) private hostRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('canvas', { static: true }) private canvasRef?: ElementRef<HTMLCanvasElement>;
 
-  private readonly scene = new THREE.Scene();
-  private readonly renderableGroup = new THREE.Group();
-  private readonly raycastDebugGroup = new THREE.Group();
-  private readonly raycaster = new THREE.Raycaster();
-  private readonly pointer = new THREE.Vector2();
-  private camera: THREE.PerspectiveCamera | null = null;
-  private renderer: THREE.WebGLRenderer | null = null;
+  private viewport: AshaRendererEditorViewport | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private hostElement: HTMLDivElement | null = null;
-  private animationFrameId: number | null = null;
-  private renderedWidth = 0;
-  private renderedHeight = 0;
+  private canvasElement: HTMLCanvasElement | null = null;
+  private destroyed = false;
   private renderedSceneKey: string | null = null;
-  private readonly raycastDebugTimers = new Set<ReturnType<typeof setTimeout>>();
+  private renderedRuntimeKey: string | null = null;
+  private debugPick: AshaRendererEditorViewportPickHint | null = null;
+  private debugPickTimer: ReturnType<typeof setTimeout> | null = null;
   private dragState: {
     readonly pointerId: number;
     readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan' | 'move_object' | 'rotate_object'>;
@@ -539,229 +728,203 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private readonly adapterEffect = effect(() => {
     const adapter = this.store.viewportAdapter();
-    this.syncViewport(adapter);
+    const runtimeProjection = this.store.runtimeViewportProjection();
+    const runtimeEvidence = this.store.runtimeViewportEvidence();
+    this.syncViewport(
+      adapter,
+      runtimeProjection?.frame ?? null,
+      runtimeProjection?.projectionHash ?? null,
+      runtimeEvidence.materialPreview?.previewDiff ?? null,
+      runtimeEvidence.camera,
+    );
   });
 
-  ngAfterViewInit(): void {
+  async ngAfterViewInit(): Promise<void> {
     const hostElement = this.hostRef?.nativeElement;
-    if (hostElement === undefined) {
+    const canvasElement = this.canvasRef?.nativeElement;
+    if (hostElement === undefined || canvasElement === undefined) {
       return;
     }
 
     this.hostElement = hostElement;
-    this.initializeThree(hostElement);
-    this.syncViewport(this.store.viewportAdapter());
-    this.startRenderLoop();
+    this.canvasElement = canvasElement;
+    this.installInputListeners(canvasElement);
+    let viewport: AshaRendererEditorViewport;
+    try {
+      viewport = await mountAshaRendererEditorViewport(canvasElement, {
+        autoStart: true,
+        initialCamera: buildEditorViewportCamera(this.store.viewportAdapter()),
+        pixelRatio: Math.min(globalThis.devicePixelRatio ?? 1, 2),
+      });
+    } catch (error) {
+      this.viewportMountDiagnostic.set(
+        `Engine renderer host mount failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+    if (this.destroyed) {
+      viewport.dispose();
+      return;
+    }
+    this.viewport = viewport;
+    this.resizeObserver = new ResizeObserver(() => this.resizeViewport());
+    this.resizeObserver.observe(hostElement);
+    this.resizeViewport();
+    const runtimeProjection = this.store.runtimeViewportProjection();
+    const runtimeEvidence = this.store.runtimeViewportEvidence();
+    this.syncViewport(
+      this.store.viewportAdapter(),
+      runtimeProjection?.frame ?? null,
+      runtimeProjection?.projectionHash ?? null,
+      runtimeEvidence.materialPreview?.previewDiff ?? null,
+      runtimeEvidence.camera,
+    );
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.adapterEffect.destroy();
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
-    }
     if (this.resizeObserver !== null) {
       this.resizeObserver.disconnect();
     }
-    if (this.renderer !== null) {
-      this.renderer.domElement.removeEventListener('pointerdown', this.handlePointerDown);
-      this.renderer.domElement.removeEventListener('pointermove', this.handlePointerMove);
-      this.renderer.domElement.removeEventListener('pointerup', this.handlePointerUp);
-      this.renderer.domElement.removeEventListener('pointercancel', this.handlePointerUp);
-      this.renderer.domElement.removeEventListener('contextmenu', this.handleContextMenu);
-      this.renderer.domElement.removeEventListener('wheel', this.handleWheel);
-      this.renderer.dispose();
-      this.renderer.domElement.remove();
+    this.removeInputListeners();
+    if (this.debugPickTimer !== null) {
+      clearTimeout(this.debugPickTimer);
     }
-    for (const timer of this.raycastDebugTimers) {
-      clearTimeout(timer);
-    }
-    disposeObject(this.renderableGroup);
-    disposeObject(this.raycastDebugGroup);
+    this.viewport?.channels.runtime.clear();
+    this.viewport?.channels.authored.clear();
+    this.viewport?.channels.overlay.clear();
+    this.viewport?.dispose();
+    this.viewport = null;
+    this.viewportReadout.set(null);
   }
 
-  private initializeThree(hostElement: HTMLDivElement): void {
-    this.scene.background = new THREE.Color('#101820');
-    this.scene.add(this.renderableGroup);
-    this.scene.add(this.raycastDebugGroup);
-    this.scene.add(new THREE.AmbientLight('#f1f5f4', 0.68));
-
-    const keyLight = new THREE.DirectionalLight('#ffffff', 1.4);
-    keyLight.position.set(4, 6, 5);
-    this.scene.add(keyLight);
-
-    const fillLight = new THREE.DirectionalLight('#54c7bd', 0.65);
-    fillLight.position.set(-4, 3, -3);
-    this.scene.add(fillLight);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    Object.assign(renderer.domElement.style, {
-      display: 'block',
-      height: '100%',
-      inset: '0',
-      position: 'absolute',
-      touchAction: 'none',
-      width: '100%',
-    });
-    renderer.domElement.addEventListener('pointerdown', this.handlePointerDown);
-    renderer.domElement.addEventListener('pointermove', this.handlePointerMove);
-    renderer.domElement.addEventListener('pointerup', this.handlePointerUp);
-    renderer.domElement.addEventListener('pointercancel', this.handlePointerUp);
-    renderer.domElement.addEventListener('contextmenu', this.handleContextMenu);
-    renderer.domElement.addEventListener('wheel', this.handleWheel, { passive: false });
-    hostElement.append(renderer.domElement);
-    this.renderer = renderer;
-
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
-    camera.up.set(0, 1, 0);
-    this.camera = camera;
-
-    this.resizeObserver = new ResizeObserver(() => this.resizeRenderer());
-    this.resizeObserver.observe(hostElement);
-    this.resizeRenderer();
-  }
-
-  private syncViewport(adapter: StudioViewportAdapterReadModel): void {
-    if (this.camera === null || this.renderer === null) {
+  probeMissingPreviewResource(): void {
+    const viewport = this.viewport;
+    if (viewport === null) {
       return;
     }
+    const before = {
+      runtime: viewport.channels.runtime.snapshot().hash,
+      authored: viewport.channels.authored.snapshot().hash,
+      overlay: viewport.channels.overlay.snapshot().hash,
+    };
+    const receipt = viewport.channels.authored.replace({
+      ops: [{
+        op: 'createStaticMeshInstance',
+        handle: renderHandle(900_001),
+        parent: null,
+        instance: {
+          asset: 'mesh.missing-studio-preview-resource',
+          transform: {
+            translation: [0, 0, 0],
+            rotation: [0, 0, 0, 1],
+            scale: [1, 1, 1],
+          },
+          materialOverrides: [],
+          metadata: { source: null, tags: [], label: 'missing Studio preview resource' },
+        },
+      }],
+    });
+    const after = {
+      runtime: viewport.channels.runtime.snapshot().hash,
+      authored: viewport.channels.authored.snapshot().hash,
+      overlay: viewport.channels.overlay.snapshot().hash,
+    };
+    this.resourceProbe.set({
+      status: receipt.applied ? 'unexpectedly_applied' : 'rejected_as_expected',
+      isolated: before.runtime === after.runtime
+        && before.authored === after.authored
+        && before.overlay === after.overlay,
+      diagnostic: receipt.diagnostics[0]?.message ?? null,
+    });
+    this.viewportReadout.set(viewport.readout());
+  }
 
-    this.camera.position.copy(toThreePosition(adapter.camera.position));
-    this.camera.up.copy(toThreePosition(adapter.camera.up));
-    this.camera.fov = adapter.camera.fovDegrees;
-    this.camera.near = adapter.camera.near;
-    this.camera.far = adapter.camera.far;
-    this.camera.lookAt(toThreePosition(adapter.camera.target));
-    this.camera.updateProjectionMatrix();
-    this.renderer.domElement.style.cursor = cursorForTool(
-      adapter.tool.activeTool,
-      this.dragState !== null,
+  private installInputListeners(canvas: HTMLCanvasElement): void {
+    canvas.addEventListener('pointerdown', this.handlePointerDown);
+    canvas.addEventListener('pointermove', this.handlePointerMove);
+    canvas.addEventListener('pointerup', this.handlePointerUp);
+    canvas.addEventListener('pointercancel', this.handlePointerUp);
+    canvas.addEventListener('contextmenu', this.handleContextMenu);
+    canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+  }
+
+  private removeInputListeners(): void {
+    const canvas = this.canvasElement;
+    if (canvas === null) {
+      return;
+    }
+    canvas.removeEventListener('pointerdown', this.handlePointerDown);
+    canvas.removeEventListener('pointermove', this.handlePointerMove);
+    canvas.removeEventListener('pointerup', this.handlePointerUp);
+    canvas.removeEventListener('pointercancel', this.handlePointerUp);
+    canvas.removeEventListener('contextmenu', this.handleContextMenu);
+    canvas.removeEventListener('wheel', this.handleWheel);
+  }
+
+  private syncViewport(
+    adapter: StudioViewportAdapterReadModel,
+    runtimeFrame: RenderFrameDiff | null,
+    runtimeKey: string | null,
+    materialPreviewFrame: RenderFrameDiff | null,
+    runtimeCamera: CameraSnapshot | null,
+  ): void {
+    const viewport = this.viewport;
+    const canvas = this.canvasElement;
+    if (viewport === null || canvas === null) {
+      return;
+    }
+    viewport.setCamera(
+      runtimeCamera === null
+        ? buildEditorViewportCamera(adapter)
+        : buildRuntimeViewportCamera(runtimeCamera),
     );
-
+    canvas.style.cursor = cursorForTool(adapter.tool.activeTool, this.dragState !== null);
     const sceneKey = [
       adapter.sceneHash,
       adapter.selectedRenderableId ?? 'none',
       adapter.renderSettings.renderSettingsHash,
+      materialPreviewFrame === null ? 'no-material-preview' : JSON.stringify(materialPreviewFrame),
     ].join(':');
     if (sceneKey !== this.renderedSceneKey) {
-      this.rebuildRenderables(adapter);
+      viewport.channels.authored.replace(buildViewportProjectionFrame(adapter, materialPreviewFrame));
+      viewport.channels.overlay.replace(buildViewportOverlayFrame(adapter, this.debugPick));
       this.renderedSceneKey = sceneKey;
     }
-    this.renderFrame();
-  }
-
-  private rebuildRenderables(adapter: StudioViewportAdapterReadModel): void {
-    for (const child of this.renderableGroup.children) {
-      disposeObject(child);
-    }
-    this.renderableGroup.clear();
-
-    const projection = new RenderProjection();
-    projection.applyFrame(buildViewportProjectionFrame(adapter));
-    const projectionByRenderableId = new Map(
-      projection.snapshot().nodes.map(node => [node.metadata.label, node]),
-    );
-
-    for (const renderable of adapter.renderables) {
-      const projectionNode = projectionByRenderableId.get(renderable.renderableId);
-      if (projectionNode === undefined) {
-        continue;
+    if (runtimeKey !== this.renderedRuntimeKey) {
+      if (runtimeFrame === null) {
+        viewport.channels.runtime.clear();
+      } else {
+        viewport.channels.runtime.replace(runtimeFrame);
       }
-      const object = this.createRenderableObject(renderable, projectionNode);
-      this.renderableGroup.add(object);
+      this.renderedRuntimeKey = runtimeKey;
     }
-
-    if (adapter.renderSettings.showGrid) {
-      const grid = new THREE.GridHelper(4, 16, '#365866', '#223846');
-      grid.position.set(1.5, -0.04, 1.5);
-      this.renderableGroup.add(grid);
-    }
+    viewport.renderOnce();
+    this.viewportReadout.set(viewport.readout());
   }
 
-  private createRenderableObject(
-    renderable: StudioViewportRenderableAdapter,
-    projectionNode: RenderProjectionNode,
-  ): THREE.Object3D {
-    const scale = projectionNode.transform.scale;
-    const projectedMaterial = projectionNode.material;
-    const geometry = new THREE.BoxGeometry(
-      scale[0],
-      scale[2],
-      scale[1],
-    );
-    const color = projectedMaterial === null
-      ? materialColor(renderable.kind, renderable.sourceState, renderable.selected)
-      : new THREE.Color(
-        projectedMaterial.color[0],
-        projectedMaterial.color[1],
-        projectedMaterial.color[2],
-      );
-    const opacity = projectedMaterial?.color[3] ?? materialOpacity(renderable);
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      opacity,
-      roughness: 0.72,
-      transparent: opacity < 1,
-      wireframe: projectedMaterial?.wireframe ?? renderable.kind === 'preview_ghost',
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(transformTranslationToThree(projectionNode.transform));
-    mesh.userData = { renderableId: renderable.renderableId };
-
-    if (renderable.selected) {
-      const outline = new THREE.LineSegments(
-        new THREE.EdgesGeometry(geometry),
-        new THREE.LineBasicMaterial({ color: '#54c7bd' }),
-      );
-      outline.position.copy(mesh.position);
-      outline.scale.setScalar(1.035);
-      outline.userData = { renderableId: renderable.renderableId };
-      const group = new THREE.Group();
-      group.add(mesh);
-      group.add(outline);
-      group.userData = { renderableId: renderable.renderableId };
-      return group;
-    }
-
-    return mesh;
-  }
-
-  private resizeRenderer(): void {
-    if (this.hostElement === null || this.renderer === null || this.camera === null) {
+  private resizeViewport(): void {
+    const host = this.hostElement;
+    const viewport = this.viewport;
+    if (host === null || viewport === null) {
       return;
     }
-    const rect = this.hostElement.getBoundingClientRect();
+    const rect = host.getBoundingClientRect();
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
-
-    if (width === this.renderedWidth && height === this.renderedHeight) {
-      return;
-    }
-    this.renderedWidth = width;
-    this.renderedHeight = height;
-    this.renderer.setSize(width, height, false);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.renderFrame();
-  }
-
-  private startRenderLoop(): void {
-    const tick = () => {
-      this.renderFrame();
-      this.animationFrameId = requestAnimationFrame(tick);
-    };
-    this.animationFrameId = requestAnimationFrame(tick);
-  }
-
-  private renderFrame(): void {
-    if (this.renderer === null || this.camera === null) {
-      return;
-    }
-    this.renderer.render(this.scene, this.camera);
+    viewport.resize({
+      width,
+      height,
+      pixelRatio: Math.min(globalThis.devicePixelRatio ?? 1, 2),
+    });
+    viewport.renderOnce();
+    this.viewportReadout.set(viewport.readout());
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
-    if (this.renderer === null || this.camera === null) {
+    const canvas = this.canvasElement;
+    if (canvas === null) {
       return;
     }
     const activeTool = this.store.viewportTool().activeTool;
@@ -784,8 +947,8 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         x: event.clientX,
         y: event.clientY,
       };
-      this.renderer.domElement.style.cursor = cursorForTool(dragTool, true);
-      this.renderer.domElement.setPointerCapture(event.pointerId);
+      canvas.style.cursor = cursorForTool(dragTool, true);
+      canvas.setPointerCapture(event.pointerId);
       return;
     }
     if (event.button !== 0) {
@@ -796,23 +959,40 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   };
 
   private selectAtPointer(event: PointerEvent): void {
-    if (this.renderer === null || this.camera === null) {
+    const viewport = this.viewport;
+    const canvas = this.canvasElement;
+    if (viewport === null || canvas === null) {
       return;
     }
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-
-    const intersections = this.raycaster.intersectObjects(this.renderableGroup.children, true);
-    const hit = intersections.find(intersection =>
-      typeof intersection.object.userData['renderableId'] === 'string',
-    );
-    if (hit !== undefined && typeof hit.object.userData['renderableId'] === 'string') {
-      if (this.store.renderSettings().showRaycastHitDebug) {
-        this.addRaycastDebugMarker(hit.point);
+    const rect = canvas.getBoundingClientRect();
+    const receipt = viewport.pick({
+      point: [event.clientX - rect.left, event.clientY - rect.top],
+      filter: { channels: ['authored', 'runtime'], layers: ['scene'] },
+    });
+    const hint = receipt.hint;
+    if (this.store.runtimeViewportEvidence().camera !== null) {
+      this.store.selectRuntimeVoxelAtViewport({
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+    if (hint !== null) {
+      this.showPickDebugHint(hint);
+      if (hint.channel === 'runtime') {
+        const scene = this.store.readRuntimeSceneObjectSnapshot();
+        const object = scene?.objects.find(entry => entry.hasRenderableAsset) ?? scene?.objects[0];
+        if (scene !== null && scene !== undefined && object !== undefined) {
+          this.store.applyRuntimeSceneObjectCommand({
+            expectedDocumentHash: scene.documentHash,
+            command: { kind: 'select', id: object.id },
+          });
+        }
+        this.viewportReadout.set(viewport.readout());
+        return;
       }
-      const renderableId = hit.object.userData['renderableId'];
+      const renderableId = hint.label;
       const renderable = this.store
         .workspace()
         .scene.renderables.find(item => item.renderableId === renderableId);
@@ -820,25 +1000,33 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         this.store.selectViewportHit(
           buildStudioViewportHitReadModel({
             renderable,
-            face: faceFromThreeNormal(hit.face?.normal ?? null),
-            worldPosition: fromThreePosition(hit.point),
+            face: faceFromProjectionNormal(hint.normal),
+            worldPosition: { x: hint.position[0], y: hint.position[1], z: hint.position[2] },
           }),
         );
       }
     }
+    this.viewportReadout.set(viewport.readout());
   }
 
-  private addRaycastDebugMarker(point: THREE.Vector3): void {
-    const marker = createRaycastDebugMarker(point);
-    this.raycastDebugGroup.add(marker);
-    this.renderFrame();
-    const timer = setTimeout(() => {
-      this.raycastDebugGroup.remove(marker);
-      disposeObject(marker);
-      this.raycastDebugTimers.delete(timer);
-      this.renderFrame();
+  private showPickDebugHint(hint: AshaRendererEditorViewportPickHint): void {
+    const viewport = this.viewport;
+    if (viewport === null || !this.store.renderSettings().showRaycastHitDebug) {
+      return;
+    }
+    this.debugPick = hint;
+    viewport.channels.overlay.replace(buildViewportOverlayFrame(this.store.viewportAdapter(), hint));
+    viewport.renderOnce();
+    if (this.debugPickTimer !== null) {
+      clearTimeout(this.debugPickTimer);
+    }
+    this.debugPickTimer = setTimeout(() => {
+      this.debugPick = null;
+      this.viewport?.channels.overlay.replace(buildViewportOverlayFrame(this.store.viewportAdapter(), null));
+      this.viewport?.renderOnce();
+      this.viewportReadout.set(this.viewport?.readout() ?? null);
+      this.debugPickTimer = null;
     }, 10_000);
-    this.raycastDebugTimers.add(timer);
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
@@ -853,9 +1041,17 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     };
 
     if (dragState.tool === 'orbit') {
-      this.store.orbitViewportCamera(delta);
+      if (this.store.runtimeViewportEvidence().camera === null) {
+        this.store.orbitViewportCamera(delta);
+      } else {
+        this.store.applyRuntimeViewportCameraInput('look', delta);
+      }
     } else if (dragState.tool === 'pan') {
-      this.store.panViewportCamera(delta);
+      if (this.store.runtimeViewportEvidence().camera === null) {
+        this.store.panViewportCamera(delta);
+      } else {
+        this.store.applyRuntimeViewportCameraInput('pan', delta);
+      }
     }
     this.dragState = {
       ...dragState,
@@ -866,11 +1062,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
     const dragState = this.dragState;
-    if (dragState?.pointerId !== event.pointerId || this.renderer === null) {
+    const canvas = this.canvasElement;
+    if (dragState?.pointerId !== event.pointerId || canvas === null) {
       return;
     }
-    if (this.renderer.domElement.hasPointerCapture(event.pointerId)) {
-      this.renderer.domElement.releasePointerCapture(event.pointerId);
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
     }
     const totalDeltaX = event.clientX - dragState.startX;
     const totalDeltaY = event.clientY - dragState.startY;
@@ -892,7 +1089,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.selectAtPointer(event);
     }
     this.dragState = null;
-    this.renderer.domElement.style.cursor = cursorForTool(
+    canvas.style.cursor = cursorForTool(
       this.store.viewportTool().activeTool,
       false,
     );
@@ -900,7 +1097,11 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private readonly handleWheel = (event: WheelEvent): void => {
     event.preventDefault();
-    this.store.zoomViewportCamera(event.deltaY);
+    if (this.store.runtimeViewportEvidence().camera === null) {
+      this.store.zoomViewportCamera(event.deltaY);
+    } else {
+      this.store.applyRuntimeViewportCameraInput('zoom', { deltaX: 0, deltaY: event.deltaY });
+    }
   };
 
   private readonly handleContextMenu = (event: MouseEvent): void => {

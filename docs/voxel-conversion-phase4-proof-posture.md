@@ -51,7 +51,7 @@ submits VoxelForge-shaped compact voxel edits, and records live readbacks in ign
 - The #4550 native launch proof now covers the small live Rust static-mesh
   conversion and compact edit smoke. It does not retroactively change the
   committed Phase 4 fixture artifact's non-claims.
-- Browser/Three preview remains display/readback evidence only. The Phase 4
+- Browser renderer-host preview remains display/readback evidence only. The Phase 4
   comparison uses fixture sample voxels and receipt metadata, not hardware GPU
   capture, performance evidence, or browser-rendered truth.
 - Neither proof claims production readiness for arbitrary meshes, external art

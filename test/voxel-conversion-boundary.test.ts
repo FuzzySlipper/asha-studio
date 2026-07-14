@@ -1348,7 +1348,8 @@ test('studio voxel viewport exposes compact edit placement preview from public h
   assert.match(viewportSource, /voxelCompactEditPlacement\(\)\.readoutHash/);
   assert.match(viewportSource, /store\.selectViewportHit/);
   assert.match(viewportSource, /buildStudioViewportHitReadModel/);
-  assert.match(viewportSource, /raycastDebugGroup/);
+  assert.match(viewportSource, /channels\.overlay\.replace/);
+  assert.match(viewportSource, /showPickDebugHint/);
 
   assert.match(proofSource, /compactVoxelEditPlacementReadout/);
   assert.match(proofSource, /data-voxel-edit-placement-action/);

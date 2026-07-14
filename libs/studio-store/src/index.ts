@@ -97,7 +97,14 @@ import {
   VOXEL_ASSET_EXTENSION,
   VOXEL_ASSET_MEDIA_TYPE,
   VOXEL_ASSET_SCHEMA_VERSION,
+  renderHandle,
+  type CameraSnapshot,
   type CommandBatch,
+  type ModelMaterialPreviewRequest,
+  type ModelMaterialPreviewSnapshot,
+  type PickResult,
+  type SceneObjectCommandResult,
+  type SceneObjectSnapshot,
   type VoxelCommand,
   type VoxelConversionEvidenceRef,
   type VoxelConversionFitPolicy,
@@ -159,6 +166,7 @@ import {
   type VoxelModelInfoRequest,
   type VoxelModelWindowReadout,
   type VoxelModelWindowRequest,
+  type VoxelSelectionSnapshot,
 } from '@asha/contracts';
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import type {
@@ -174,6 +182,8 @@ import {
   type CameraCreateRequest,
   type ProjectBundleLoadRequest,
   type RuntimeBridge,
+  type RuntimeBufferHandle,
+  type VoxelMeshEvidenceSnapshot,
 } from '@asha/runtime-bridge';
 import type {
   CombatFeedbackProjection,
@@ -221,6 +231,10 @@ const ASHA_BROWSER_HOST_PROVIDER_GLOBAL = NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_GL
 const ASHA_BROWSER_HOST_PROVIDER_KIND = NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_KIND;
 
 const WORKSPACE_STORAGE_KEY = 'asha-studio.workspace.v1';
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export const EMPTY_VOXEL_CONVERSION_AUTHORITY_STATE: StudioVoxelConversionAuthorityState = {
   plan: null,
@@ -338,6 +352,38 @@ const DEFAULT_VOXEL_ANNOTATION_CONTROL: StudioVoxelAnnotationControlReadModel = 
   exportReceipt: null,
   canSubmit: false,
   readoutHash: 'studio-voxel-annotation-control-draft',
+};
+
+export interface StudioRuntimeViewportEvidence {
+  readonly kind: 'studio_runtime_viewport_evidence.v0';
+  readonly status: 'missing_runtime' | 'healthy' | 'degraded';
+  readonly camera: CameraSnapshot | null;
+  readonly scene: SceneObjectSnapshot | null;
+  readonly materialPreview: ModelMaterialPreviewSnapshot | null;
+  readonly voxelMesh: VoxelMeshEvidenceSnapshot | null;
+  readonly voxelPick: PickResult | null;
+  readonly voxelSelection: VoxelSelectionSnapshot | null;
+  readonly sceneCommand: SceneObjectCommandResult | null;
+  readonly bufferLifetime: {
+    readonly handle: number;
+    readonly byteLength: number;
+    readonly released: boolean;
+  } | null;
+  readonly diagnostics: readonly string[];
+}
+
+const MISSING_RUNTIME_VIEWPORT_EVIDENCE: StudioRuntimeViewportEvidence = {
+  kind: 'studio_runtime_viewport_evidence.v0',
+  status: 'missing_runtime',
+  camera: null,
+  scene: null,
+  materialPreview: null,
+  voxelMesh: null,
+  voxelPick: null,
+  voxelSelection: null,
+  sceneCommand: null,
+  bufferLifetime: null,
+  diagnostics: ['Attach the public RuntimeSession to inspect current runtime projection.'],
 };
 
 export interface StudioProjectFileEntry {
@@ -1460,6 +1506,58 @@ const DEMO_RUNTIME_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
   sceneId: 4103,
+};
+
+const STUDIO_RUNTIME_MODEL_PREVIEW_REQUEST: ModelMaterialPreviewRequest = {
+  catalogEntry: {
+    id: 'material.studio-copper',
+    kind: 'material',
+    version: 1,
+    hash: 'sha256-studio-copper',
+    sourcePath: null,
+    label: 'Studio Copper',
+    dependencies: [],
+    material: {
+      render: {
+        color: { r: 0.8, g: 0.4, b: 0.2, a: 1 },
+        texture: null,
+        roughness: 0.6,
+        textureTint: { r: 1, g: 1, b: 1, a: 1 },
+        emissionColor: { r: 0.8, g: 0.4, b: 0.2, a: 1 },
+        emissive: 0,
+        uvStrategy: 'flat',
+      },
+      collision: {
+        solid: true,
+        collidable: true,
+        occludes: true,
+        structuralClass: 'solid',
+      },
+    },
+  },
+  meshAsset: {
+    asset: 'mesh.studio-preview-triangle',
+    payload: {
+      layout: {
+        vertexCount: 3,
+        indexCount: 3,
+        indexWidth: 'u32',
+        attributes: [{ name: 'position', components: 3, kind: 'f32' }],
+      },
+      groups: [{ materialSlot: 0, start: 0, count: 3 }],
+      bounds: { min: [0, 0, 0], max: [1, 1, 0] },
+      source: {
+        kind: 'inline',
+        positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
+        normals: [0, 0, 1, 0, 0, 1, 0, 0, 1],
+        indices: [0, 1, 2],
+      },
+      provenance: 'staticAsset',
+    },
+    materialSlots: [{ slot: 0, material: 'material.studio-copper' }],
+    collision: { kind: 'aabbFallback' },
+  },
+  instanceHandle: renderHandle(7001),
 };
 
 const STUDIO_PLAYABLE_LOOP_POLICY_SOURCE = 'export const policy = (view) => view;';
@@ -4731,6 +4829,9 @@ export class StudioWorkspaceStore {
   private readonly runtimeSessionStateSummaryState = signal<RuntimeSessionStateSummary | null>(null);
   private readonly runtimeSessionProjectionState = signal<RuntimeSessionProjectionSummary | null>(null);
   private readonly runtimeSessionTelemetryState = signal<RuntimeSessionTelemetrySummary | null>(null);
+  private readonly runtimeViewportEvidenceState = signal<StudioRuntimeViewportEvidence>(
+    MISSING_RUNTIME_VIEWPORT_EVIDENCE,
+  );
   private readonly runtimeSessionPausedState = signal(false);
   private readonly generatedLevelPresetDraftState = signal<StudioGeneratedLevelPresetDraft>({
     presetId: 'tiny-enclosed',
@@ -4927,6 +5028,8 @@ export class StudioWorkspaceStore {
           live: this.runtimeLiveState(),
         });
   });
+  readonly runtimeViewportProjection = computed(() => this.runtimeSessionProjectionState());
+  readonly runtimeViewportEvidence = computed(() => this.runtimeViewportEvidenceState());
   readonly runtimeSessionInspection = computed<StudioRuntimeSessionInspectionReadModel>(() =>
     buildStudioRuntimeSessionInspectionReadModel({
       workspace: this.workspaceState(),
@@ -7604,6 +7707,219 @@ export class StudioWorkspaceStore {
     this.selectedScenarioDraftIdState.set(scenarioId);
   }
 
+  applyRuntimeViewportCameraInput(
+    mode: 'look' | 'pan' | 'zoom',
+    delta: { readonly deltaX: number; readonly deltaY: number },
+  ): void {
+    const facade = this.runtimeSessionFacadeState();
+    const evidence = this.runtimeViewportEvidenceState();
+    const camera = evidence.camera;
+    if (facade === null || camera === null) {
+      this.runtimeConnectionMessageState.set('Attach RuntimeSession before routing authoritative camera input.');
+      return;
+    }
+    const clampAxis = (value: number): number => Math.max(-1, Math.min(1, value));
+    try {
+      const receipt = facade.applyFirstPersonCameraInput({
+        camera: camera.camera,
+        tick: camera.tick + 1,
+        input: {
+          moveForward: mode === 'zoom' ? clampAxis(-delta.deltaY / 120) : 0,
+          moveRight: mode === 'pan' ? clampAxis(-delta.deltaX / 80) : 0,
+          moveUp: mode === 'pan' ? clampAxis(delta.deltaY / 80) : 0,
+          yawDeltaDegrees: mode === 'look' ? -delta.deltaX * 0.12 : 0,
+          pitchDeltaDegrees: mode === 'look' ? -delta.deltaY * 0.12 : 0,
+          dtSeconds: 1 / 60,
+          moveSpeedUnitsPerSecond: 4,
+        },
+      });
+      this.runtimeViewportEvidenceState.set({
+        ...evidence,
+        camera: receipt.snapshot,
+      });
+      this.refreshRuntimeSessionInspectionReadout(facade);
+      this.menuMessageState.set(
+        `Runtime camera input accepted at tick ${receipt.snapshot.tick}; projection remains Rust authoritative.`,
+      );
+    } catch (error) {
+      this.runtimeViewportEvidenceState.set({
+        ...evidence,
+        status: 'degraded',
+        diagnostics: [...evidence.diagnostics, `camera_input: ${errorMessage(error)}`],
+      });
+    }
+  }
+
+  selectRuntimeVoxelAtViewport(input: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  }): void {
+    const bridge = this.runtimeSessionBridgeState();
+    const evidence = this.runtimeViewportEvidenceState();
+    const camera = evidence.camera;
+    if (bridge === null || camera === null) {
+      return;
+    }
+    try {
+      const selection = bridge.selectVoxel({
+        camera: camera.camera,
+        grid: 1,
+        viewport: { width: input.width, height: input.height },
+        screenPoint: { x: input.x, y: input.y, space: 'pixel' },
+        maxDistance: 100,
+      });
+      const pick = bridge.pickVoxel({
+        grid: selection.pickRay.grid,
+        origin: selection.pickRay.origin,
+        direction: selection.pickRay.direction,
+        maxDistance: selection.pickRay.maxDistance,
+      });
+      this.runtimeViewportEvidenceState.set({
+        ...evidence,
+        voxelPick: pick,
+        voxelSelection: selection,
+      });
+    } catch (error) {
+      this.runtimeViewportEvidenceState.set({
+        ...evidence,
+        status: 'degraded',
+        diagnostics: [...evidence.diagnostics, `voxel_pick: ${errorMessage(error)}`],
+      });
+    }
+  }
+
+  readRuntimeSceneObjectSnapshot(): SceneObjectSnapshot | null {
+    return this.runtimeViewportEvidenceState().scene;
+  }
+
+  applyRuntimeSceneObjectCommand(
+    request: Parameters<RuntimeBridge['applySceneObjectCommand']>[0],
+  ): SceneObjectCommandResult | null {
+    const bridge = this.runtimeSessionBridgeState();
+    const evidence = this.runtimeViewportEvidenceState();
+    if (bridge === null) {
+      return null;
+    }
+    try {
+      const result = bridge.applySceneObjectCommand(request);
+      this.runtimeViewportEvidenceState.set({
+        ...evidence,
+        scene: result.outcome?.snapshot ?? evidence.scene,
+        sceneCommand: result,
+      });
+      return result;
+    } catch (error) {
+      this.runtimeViewportEvidenceState.set({
+        ...evidence,
+        status: 'degraded',
+        diagnostics: [...evidence.diagnostics, `scene_command: ${errorMessage(error)}`],
+      });
+      return null;
+    }
+  }
+
+  private refreshRuntimeViewportEvidence(
+    bridge: NativeBrowserHostRuntimeBridge,
+    facade: RuntimeSessionFacade,
+  ): void {
+    const diagnostics: string[] = [];
+    let camera: CameraSnapshot | null = null;
+    let scene: SceneObjectSnapshot | null = null;
+    let materialPreview: ModelMaterialPreviewSnapshot | null = null;
+    let voxelMesh: VoxelMeshEvidenceSnapshot | null = null;
+    let voxelPick: PickResult | null = null;
+    let voxelSelection: VoxelSelectionSnapshot | null = null;
+    let bufferLifetime: StudioRuntimeViewportEvidence['bufferLifetime'] = null;
+
+    try {
+      camera = facade.createCamera(STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST).snapshot;
+      const cameraProjection = facade.readCameraProjection({
+        camera: camera.camera,
+        viewport: STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST.viewport,
+      });
+      camera = {
+        camera: cameraProjection.snapshot.camera,
+        tick: cameraProjection.snapshot.tick,
+        pose: cameraProjection.snapshot.pose,
+        basis: cameraProjection.snapshot.basis,
+        projection: cameraProjection.snapshot.projection,
+        viewport: cameraProjection.snapshot.viewport,
+      };
+    } catch (error) {
+      diagnostics.push(`camera_projection: ${errorMessage(error)}`);
+    }
+
+    try {
+      scene = bridge.readSceneObjectSnapshot();
+    } catch (error) {
+      diagnostics.push(`scene_snapshot: ${errorMessage(error)}`);
+    }
+
+    try {
+      materialPreview = bridge.readModelMaterialPreview(STUDIO_RUNTIME_MODEL_PREVIEW_REQUEST);
+      diagnostics.push(...materialPreview.diagnostics.map(entry => `material_preview: ${entry}`));
+    } catch (error) {
+      diagnostics.push(`material_preview: ${errorMessage(error)}`);
+    }
+
+    try {
+      voxelMesh = bridge.readVoxelMeshEvidence({ grid: 1, chunks: [] });
+      diagnostics.push(...voxelMesh.diagnostics.map(entry => `voxel_mesh: ${entry}`));
+    } catch (error) {
+      diagnostics.push(`voxel_mesh: ${errorMessage(error)}`);
+    }
+
+    if (camera !== null) {
+      try {
+        voxelSelection = bridge.selectVoxel({
+          camera: camera.camera,
+          grid: 1,
+          viewport: camera.viewport,
+          screenPoint: { x: 0.5, y: 0.5, space: 'normalized_0_1' },
+          maxDistance: 100,
+        });
+        voxelPick = bridge.pickVoxel({
+          grid: voxelSelection.pickRay.grid,
+          origin: voxelSelection.pickRay.origin,
+          direction: voxelSelection.pickRay.direction,
+          maxDistance: voxelSelection.pickRay.maxDistance,
+        });
+      } catch (error) {
+        diagnostics.push(`voxel_selection: ${errorMessage(error)}`);
+      }
+    }
+
+    const bufferHandle = 0 as RuntimeBufferHandle;
+    try {
+      const buffer = bridge.getBuffer(bufferHandle);
+      bufferLifetime = {
+        handle: buffer.handle as number,
+        byteLength: buffer.bytes.byteLength,
+        released: false,
+      };
+      bridge.releaseBuffer(buffer.handle);
+      bufferLifetime = { ...bufferLifetime, released: true };
+    } catch (error) {
+      diagnostics.push(`buffer_lifetime: ${errorMessage(error)}`);
+    }
+
+    this.runtimeViewportEvidenceState.set({
+      kind: 'studio_runtime_viewport_evidence.v0',
+      status: diagnostics.length === 0 ? 'healthy' : 'degraded',
+      camera,
+      scene,
+      materialPreview,
+      voxelMesh,
+      voxelPick,
+      voxelSelection,
+      sceneCommand: null,
+      bufferLifetime,
+      diagnostics,
+    });
+  }
+
   async attachRuntimeSessionInspection(): Promise<void> {
     const workspace = this.gameWorkspace();
     if (workspace === null) {
@@ -7633,6 +7949,7 @@ export class StudioWorkspaceStore {
       this.playableLoopRestartReceiptState.set(null);
       this.playableLoopEncounterTransitionReceiptState.set(null);
       this.playableLoopCombatFeedbackProjectionState.set(null);
+      this.refreshRuntimeViewportEvidence(attach.bridge, facade);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(
         `Rust RuntimeSession attached through ${attach.browserHost.compatibilityVersion}: ${initialized.sessionHash}.`,
@@ -7696,7 +8013,8 @@ export class StudioWorkspaceStore {
 
   restartRuntimeSessionInspection(): void {
     const facade = this.runtimeSessionFacadeState();
-    if (facade === null) {
+    const bridge = this.runtimeSessionBridgeState();
+    if (facade === null || bridge === null) {
       this.runtimeConnectionMessageState.set('Attach RuntimeSession before restarting.');
       return;
     }
@@ -7717,6 +8035,7 @@ export class StudioWorkspaceStore {
       this.playableLoopRestartReceiptState.set(null);
       this.playableLoopEncounterTransitionReceiptState.set(null);
       this.playableLoopCombatFeedbackProjectionState.set(null);
+      this.refreshRuntimeViewportEvidence(bridge, facade);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(`RuntimeSession restarted: ${restarted.sessionHash}.`);
       this.menuMessageState.set('Live Runtime Inspection restarted.');
@@ -7939,6 +8258,7 @@ export class StudioWorkspaceStore {
     this.runtimeSessionStateSummaryState.set(null);
     this.runtimeSessionProjectionState.set(null);
     this.runtimeSessionTelemetryState.set(null);
+    this.runtimeViewportEvidenceState.set(MISSING_RUNTIME_VIEWPORT_EVIDENCE);
     this.runtimeSessionPausedState.set(false);
     this.generatedTunnelReadoutState.set(null);
     this.generatedTunnelRegenerateReceiptState.set(null);
@@ -7950,7 +8270,16 @@ export class StudioWorkspaceStore {
     this.playableLoopLifecycleState.set(null);
     this.playableLoopRestartReceiptState.set(null);
     if (bridge !== null) {
+      let unloadFailure: unknown = null;
+      try {
+        bridge.unloadProjectBundle();
+      } catch (error) {
+        unloadFailure = error;
+      }
       disconnectStudioBrowserHostRuntimeBridge(bridge);
+      if (unloadFailure !== null) {
+        throw new Error(`Runtime ProjectBundle unload failed before browser-host disconnect: ${errorMessage(unloadFailure)}`);
+      }
     }
   }
 

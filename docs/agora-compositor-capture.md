@@ -4,6 +4,10 @@ Script status: `proof:agora-compositor` and `proof:browser` are historical or
 deferred proof command names, not current package scripts. Their status is
 tracked by `docs/script-reference-policy.json`.
 
+> Current renderer ownership: any future compositor capture observes the
+> engine-owned `@asha/renderer-host` realization. Studio no longer owns a
+> concrete renderer.
+
 Task `asha#3219`. Promotes Agora compositor capture from an ad-hoc/manual demo path into a formal,
 optional ASHA Studio visual proof backend with structured evidence classification and fail-closed
 diagnostics.
@@ -53,7 +57,8 @@ Negative smokes exercise each of these classes deterministically (see
 ## Non-claims preserved
 
 A real composited frame is **not** evidence of hardware GPU acceleration, performance, native runtime
-authority, or WASM authority — the Studio app still runs as the Three.js browser projection.
+authority, or WASM authority — the Studio app still presents non-authoritative
+browser projection through the engine-owned renderer host.
 Authoritative runtime/transform mutation remains deferred behind the runtime-bridge readiness gate
 (`asha#3047`). This backend does **not** assert `not_agora_compositor` (it *is* the compositor
 capture); that non-claim describes the separate browser-screenshot backend.
