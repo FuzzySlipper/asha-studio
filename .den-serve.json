@@ -1,0 +1,13 @@
+{
+  "project": "asha-studio",
+  "serve": {
+    "command": "pnpm run studio:dev:native-voxel",
+    "preferredPort": 4200,
+    "healthUrl": "/health",
+    "readyText": "\"project\": \"asha-studio\"",
+    "identityHeader": "X-ASHA-Browser-Host",
+    "identityHeaderValue": "browser-host.v0",
+    "reusePolicy": "broker_owned",
+    "startupTimeout": "120s"
+  }
+}

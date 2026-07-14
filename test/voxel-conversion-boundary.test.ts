@@ -536,6 +536,8 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /not_silent_sessionstate_promotion/);
   assert.match(storeSource, /not_vforge_file/);
   assert.match(proofSource, /process\.argv\.includes\('--serve'\)/);
+  assert.match(proofSource, /process\.env\['PORT'\]/);
+  assert.match(proofSource, /port: interactiveServePort\(\)/);
   assert.match(proofSource, /NativeVoxelLaunchMode = 'proof' \| 'interactive'/);
   assert.match(proofSource, /function injectBrowserHostScripts/);
   assert.match(proofSource, /automationPrelude\(referenceMeshImport\)/);

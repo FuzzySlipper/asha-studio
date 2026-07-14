@@ -26,6 +26,21 @@ const browserHost = '127.0.0.1';
 const chromium = '/usr/bin/chromium';
 const serveMode = process.argv.includes('--serve');
 
+function interactiveServePort(): number {
+  if (!serveMode) {
+    return 0;
+  }
+  const requestedPort = process.env['PORT'];
+  if (requestedPort === undefined || requestedPort.trim().length === 0) {
+    return 0;
+  }
+  const port = Number(requestedPort);
+  if (!Number.isSafeInteger(port) || port <= 0 || port > 65535) {
+    throw new Error('PORT must be an integer from 1 to 65535 for interactive Studio serving.');
+  }
+  return port;
+}
+
 interface ReferenceMeshImport {
   readonly sourcePath: string;
   readonly sourceBytes: readonly number[];
@@ -2186,7 +2201,7 @@ async function main(): Promise<void> {
   const launchServer = await launchNativeBrowserHost({
     uiRoot: preparedUi.uiRoot,
     host: bindHost,
-    port: 0,
+    port: interactiveServePort(),
     healthProject: 'asha-studio',
   });
   const baseUrl = `${launchServer.url.replace(bindHost, browserHost)}/`;
