@@ -1,6 +1,6 @@
 # Voxel Live Testing Agent Runbook
 
-Status: current for tasks #4550, #4778, #4779, and #5060.
+Status: current for tasks #4550, #4778, #4779, #5060, and #5795.
 
 This runbook is the agent entry point for VoxelForge-ish voxel conversion and
 compact-edit testing in Asha Studio. It is intentionally narrower than original
@@ -17,7 +17,30 @@ Asha RuntimeSession and Studio workflow surfaces.
   `codex-asha-engine` in the assignee and description.
 - Do not patch `/home/dev/asha-engine` from this Studio task lane.
 
-## Main Live Proof
+## Product Entry Points
+
+The supported outcome is the Studio product, not a proof script. In the normal
+voxel workspace a person can:
+
+- choose a catalog mesh or explicitly import a bounded `.glb` file;
+- inspect source metadata and run Plan, Preview, Apply, and evidence export;
+- initialize an empty authoring volume and use the visible block, fill, box,
+  line, viewport-pick, history, annotation, and material controls;
+- inspect resident model and material readbacks; and
+- export or save, unload the resident model, then load the retained Asha-native
+  asset back into RuntimeSession.
+
+External agents use the normal browser product API at
+`globalThis.ashaStudioVoxelWorkflow`. Its kind is
+`asha.studio.voxel_workflow.v1`; it exposes only enumerated typed workflow
+operations/readouts and strict transcript replay. It does not expose the Store,
+RuntimeBridge, native transport, private state, or method-name dispatch.
+
+The Agent Voxel Transcript section in the normal UI exercises the same strict
+parser and replay runner. Use `runAgentVoxelWorkflowOperation` for one typed
+operation or `runAgentVoxelOperationTranscriptReplay` for a bounded transcript.
+
+## Native Regression Gate
 
 Run from `/home/dev/asha-studio`:
 
@@ -28,8 +51,8 @@ pnpm run evidence -- native-voxel-runtime-launch
 The command builds Studio, serves a temporary copy of the built app through
 `@asha/browser-host` on `0.0.0.0`, installs the standard
 `globalThis.ashaRuntimeBridge` provider before application boot, attaches an
-isolated Rust RuntimeSession for each browser Session, and drives
-`StudioWorkspaceStore.runAgentVoxelWorkflowOperation`.
+isolated Rust RuntimeSession for each browser Session, and drives the normal
+`globalThis.ashaStudioVoxelWorkflow` product API.
 
 Studio does not build or copy the native addon and does not own a private RPC
 endpoint. The public host resolves the already staged engine provider, reports
@@ -66,8 +89,8 @@ It does not run the Chromium proof automation or write the `latest` proof
 artifact. Use it when a human or browser agent needs to click the voxel
 conversion/save/load controls in a real Studio page.
 
-Use the proof command, not the interactive command, when a task needs a
-deterministic review artifact.
+Use the native evidence command only when a change needs regression or review
+evidence. It is not an alternate product workflow and has no Store-only global.
 
 ## Expected Native Readbacks
 
@@ -115,12 +138,15 @@ contract internals.
 | --- | --- | --- |
 | `inspect` | supported | Agent surface/readout only. |
 | `register_conversion_source` | supported | RuntimeSessionFacade source registration. |
+| `import_conversion_mesh_source` | supported | Bounded GLB bytes selected by the user are parsed and registered by Rust authority. |
 | `configure_conversion` | supported | Studio settings patch for public conversion proposals. |
 | `run_conversion` | supported | Plan, preview, apply, and evidence export command ids. |
 | `get_model_info` | supported | RuntimeSessionFacade model-info readback. |
 | `export_voxel_volume_asset` | supported | RuntimeSessionFacade full converted voxel-volume export with asset/hash/diagnostic readout. |
 | `save_voxel_volume_asset` | supported | RuntimeSessionFacade explicit runtime-to-stored ProjectBundle save transaction readout. |
 | `load_voxel_volume_asset` | supported | RuntimeSessionFacade validated stored voxel-volume load back into RuntimeSession. |
+| `unload_voxel_volume_asset` | supported | Explicit resident-model teardown while stored assets remain available. |
+| `initialize_voxel_volume_authoring` | supported | Empty resident volume for scratch authoring without manufacturing a stored asset. |
 | `submit_voxel_edit` | supported | Low-level bounded `setVoxel` command batch. |
 | `submit_compact_voxel_edit` | supported | VoxelForge-shaped compact adapter over generated `setVoxel` commands. |
 | `view_from_angle` | projection-supported | Camera/readout evidence, not runtime authority or screenshot truth. |
@@ -220,11 +246,11 @@ Use broader `pnpm run verify` only when the task needs the full Studio gate.
 | `get_model_info` | Adapted through RuntimeSessionFacade model-info readback. |
 | `view_from_angle` | Adapted as projection-only camera/readout evidence. |
 | `publish_preview` | Adapted as bounded JSON preview evidence. |
-| `new_model` | Rejected for live runtime edit surface; belongs to stored ProjectBundle/workspace flows if needed. |
+| `new_model` | Adapted as `initialize_voxel_volume_authoring` for an empty resident scratch volume. |
 | `.vforge` save/load | Out of #4550 scope; no compatibility promise. |
 | Asha-native serialized voxel storage | Adapted under #4817 as `.avxl.json` ProjectBundle/asset proposal and reopen workflow over public `VoxelVolumeAsset` DTOs, not `.vforge` inheritance. |
 | VoxelForge MCP transport | Rejected for current successor shape; Asha/Studio already expose agent tools without carrying MCP. |
-| VoxelForge LLM operation import/replay | Rejected as compatibility work; proposed ASHA-native transcript envelope over Studio workflow operations lives in `docs/voxel-agent-operation-transcript-evaluation.md`. |
+| VoxelForge LLM operation import/replay | Rejected as compatibility work; implemented ASHA-native transcript replay over Studio workflow operations lives in `docs/voxel-agent-operation-transcript-evaluation.md`. |
 | C# sidecar/viewer/Electron packaging | Out of #4550 scope. |
 | Region labels, frame-swap animation, spatial queries, texture tools | Out of #4550 scope; reexamine under Den task #4785. |
 

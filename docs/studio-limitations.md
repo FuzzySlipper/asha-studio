@@ -44,6 +44,11 @@ import and local-link policy.
 
 ## Voxel Conversion
 
+- Voxel workflows are product-operable in the normal Studio workspace: bounded
+  GLB import, conversion, scratch initialization/editing, model/window readback,
+  explicit save/unload/load, and strict external-agent transcript replay all use
+  public RuntimeSession operations. `globalThis.ashaStudioVoxelWorkflow` exposes
+  a bounded product API without exposing the Store or RuntimeBridge.
 - The Phase 4 voxel conversion proof artifacts remain fixture-backed successor
   evidence for Studio proposal/readout behavior, Asha-authored fixture goldens,
   deterministic receipts, and before/after comparison readouts.
@@ -52,7 +57,7 @@ import and local-link policy.
   complete voxel-volume export, explicit save/load transactions, model-info
   readback, Asha-native `.avxl.json` artifact validation, and bounded compact
   voxel edit smoke through public Studio/runtime surfaces.
-- Current voxel proof does not claim hardware GPU evidence, conversion
+- Current voxel product and regression evidence do not claim hardware GPU evidence, conversion
   performance, arbitrary mesh support, external art asset provenance, VoxelForge
   runtime/API dependency, `.vforge` compatibility, or a VoxelForge-style preview
   file writer.

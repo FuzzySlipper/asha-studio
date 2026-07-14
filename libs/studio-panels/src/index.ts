@@ -2287,6 +2287,16 @@ export class StudioInspectorPanelComponent {
               </select>
             </label>
             <label>
+              Import GLB
+              <input
+                type="file"
+                accept=".glb,model/gltf-binary"
+                data-voxel-control="mesh-file-import"
+                (change)="store.importVoxelConversionMeshFile($any($event.target).files?.[0])"
+              />
+            </label>
+            <small>Selected files are passed to Rust mesh-import authority; Studio does not parse geometry.</small>
+            <label>
               Mesh primitive
               <input
                 type="text"
@@ -2739,12 +2749,30 @@ export class StudioInspectorPanelComponent {
           <div class="voxel-asset-workflow__actions">
             <button
               type="button"
+              data-voxel-asset-action="initialize_volume"
+              title="Initialize an empty resident voxel model for scratch authoring"
+              (click)="store.runVoxelAssetWorkflowControl('initialize_volume')"
+            >
+              <span>New</span>
+              <small>empty authored volume</small>
+            </button>
+            <button
+              type="button"
               data-voxel-asset-action="model_info"
               title="Read resident voxel model info"
               (click)="store.runVoxelAssetWorkflowControl('model_info')"
             >
               <span>Info</span>
               <small>resident model</small>
+            </button>
+            <button
+              type="button"
+              data-voxel-asset-action="unload_volume"
+              title="Unload the resident voxel model while retaining the last stored asset"
+              (click)="store.runVoxelAssetWorkflowControl('unload_volume')"
+            >
+              <span>Unload</span>
+              <small>clear RuntimeSession</small>
             </button>
             <button
               type="button"
@@ -2779,6 +2807,42 @@ export class StudioInspectorPanelComponent {
             <small data-voxel-asset-diagnostics>
               diagnostics {{ store.voxelAssetWorkflowControl().validationDiagnosticCodes.join(', ') }}
             </small>
+          }
+        </section>
+
+        <section
+          class="voxel-transcript-control"
+          aria-label="External agent voxel operation transcript"
+          [attr.data-voxel-transcript-status]="store.voxelTranscriptControl().status"
+        >
+          <header>
+            <div>
+              <span>Agent Voxel Transcript</span>
+              <strong>{{ store.voxelTranscriptControl().status }}</strong>
+              <small>{{ store.voxelTranscriptControl().message }}</small>
+            </div>
+          </header>
+          <textarea
+            data-voxel-transcript-control="draft"
+            aria-label="Strict voxel operation transcript JSON"
+            spellcheck="false"
+            [value]="store.voxelTranscriptControl().draft"
+            (input)="store.setVoxelTranscriptDraft($any($event.target).value)"
+          ></textarea>
+          <button
+            type="button"
+            data-voxel-transcript-action="run"
+            (click)="store.runVoxelTranscriptControl()"
+          >
+            Run typed transcript
+          </button>
+          @if (store.voxelTranscriptControl().receipt; as receipt) {
+            <dl data-voxel-transcript-receipt>
+              <dt>operations</dt>
+              <dd>{{ receipt.acceptedOperationCount }}/{{ receipt.operationCount }}</dd>
+              <dt>receipt hash</dt>
+              <dd>{{ receipt.receiptHash }}</dd>
+            </dl>
           }
         </section>
 
@@ -3363,6 +3427,7 @@ export class StudioInspectorPanelComponent {
       .voxel-state-strip article,
       .voxel-region-grid article,
       .voxel-asset-workflow,
+      .voxel-transcript-control,
       .voxel-compact-edit,
       .voxel-action-row button,
       .voxel-diagnostics {
@@ -3475,6 +3540,37 @@ export class StudioInspectorPanelComponent {
         border: 1px solid var(--asha-color-border);
         grid-template-columns: minmax(14rem, 0.7fr) minmax(20rem, 1.1fr) minmax(19rem, 1fr) minmax(20rem, 1fr);
         padding: 0.55rem;
+      }
+
+      .voxel-transcript-control {
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.45rem;
+        grid-template-columns: minmax(13rem, 0.5fr) minmax(24rem, 1.5fr) minmax(10rem, 0.4fr) minmax(16rem, 0.7fr);
+        padding: 0.55rem;
+      }
+
+      .voxel-transcript-control[data-voxel-transcript-status='rejected'] {
+        border-color: var(--asha-color-warning);
+      }
+
+      .voxel-transcript-control textarea {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        font: 0.72rem/1.35 monospace;
+        min-height: 7rem;
+        min-width: 0;
+        padding: 0.45rem;
+        resize: vertical;
+      }
+
+      .voxel-transcript-control button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        min-height: 3.2rem;
+        padding: 0.45rem 0.55rem;
       }
 
       .voxel-compact-edit {
@@ -3686,6 +3782,7 @@ export class StudioInspectorPanelComponent {
         .voxel-command-timeline,
         .voxel-evidence-readout,
         .voxel-asset-workflow,
+        .voxel-transcript-control,
         .voxel-compact-edit,
         .voxel-action-row {
           grid-template-columns: 1fr;

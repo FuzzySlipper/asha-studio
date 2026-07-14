@@ -567,7 +567,6 @@ function providerScenarioPrelude(): string {
   return `
 (() => {
   const mode = new URLSearchParams(location.hash.slice(1)).get('provider') || 'native';
-  globalThis.ashaStudioNativeVoxelLaunchProof = { enabled: true };
   if (mode === 'missing') {
     delete globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL};
   } else if (mode === 'invalid') {
@@ -589,8 +588,6 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   return `
 (() => {
   const mode = new URLSearchParams(location.hash.slice(1)).get('provider') || 'native';
-  globalThis.ashaStudioNativeVoxelLaunchProof = globalThis.ashaStudioNativeVoxelLaunchProof || { enabled: true };
-  globalThis.ashaStudioNativeVoxelLaunchProof.enabled = true;
   const browserHostProvider = globalThis.${ASHA_BROWSER_HOST_PROVIDER_GLOBAL};
   const referenceMeshImport = ${JSON.stringify(referenceMeshImport)};
   const proof = {
@@ -727,14 +724,16 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
 
   async function proofStore() {
     return waitFor(
-      () => globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store,
-      'Studio proof store',
+      () => globalThis.ashaStudioVoxelWorkflow?.kind === 'asha.studio.voxel_workflow.v1'
+        ? globalThis.ashaStudioVoxelWorkflow
+        : null,
+      'Studio voxel workflow product API',
     );
   }
 
   function collect() {
     const runtimeText = text();
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const storeRuntimeMessage = store && typeof store.runtimeConnectionMessage === 'function'
       ? store.runtimeConnectionMessage()
       : '';
@@ -786,7 +785,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function storeShell() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     return store && typeof store.voxelConversionWorkspaceShell === 'function'
       ? store.voxelConversionWorkspaceShell()
       : null;
@@ -801,7 +800,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function attachedStore() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const inspection = store && typeof store.runtimeSessionInspection === 'function'
       ? store.runtimeSessionInspection()
       : null;
@@ -828,7 +827,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function compactVoxelEditControlReadout() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const control = store && typeof store.voxelCompactEditControl === 'function'
       ? store.voxelCompactEditControl()
       : null;
@@ -850,7 +849,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function compactVoxelEditPlacementReadout() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const placement = store && typeof store.voxelCompactEditPlacement === 'function'
       ? store.voxelCompactEditPlacement()
       : null;
@@ -871,7 +870,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function voxelHistoryPanelReadout() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const panel = store && typeof store.voxelHistoryPanel === 'function'
       ? store.voxelHistoryPanel()
       : null;
@@ -902,7 +901,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function runVoxelHistoryControl(action) {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     if (!store || typeof store.runVoxelHistoryControl !== 'function') {
       throw new Error('Voxel history store method unavailable');
     }
@@ -915,7 +914,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function previewVoxelHistoryRevert() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const panel = voxelHistoryPanelReadout();
     const target = panel.entries.at(-1);
     if (!store || typeof store.selectVoxelHistoryTarget !== 'function' || !target) {
@@ -930,7 +929,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     if (!(button instanceof HTMLButtonElement)) {
       throw new Error('Missing voxel asset save action');
     }
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     if (!store || typeof store.voxelAssetWorkflowControl !== 'function') {
       throw new Error('Voxel asset workflow control readout unavailable');
     }
@@ -942,7 +941,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function voxelPaletteEditorReadout() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const editor = store && typeof store.voxelMaterialPaletteEditor === 'function'
       ? store.voxelMaterialPaletteEditor()
       : null;
@@ -994,7 +993,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function voxelAnnotationControlReadout() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const control = store && typeof store.voxelAnnotationControl === 'function'
       ? store.voxelAnnotationControl()
       : null;
@@ -1055,7 +1054,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function setViewportVoxelHit(coord, face) {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     if (!store || typeof store.selectViewportHit !== 'function') {
       throw new Error('Viewport hit store method unavailable');
     }
@@ -1073,7 +1072,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     if (!(button instanceof HTMLButtonElement)) {
       throw new Error('Missing compact voxel edit placement action ' + endpoint);
     }
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     if (!store || typeof store.applyViewportHitToVoxelCompactEditControl !== 'function') {
       throw new Error('Compact voxel edit placement store method unavailable');
     }
@@ -1207,7 +1206,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
   }
 
   function failClosedProviderDiagnostic() {
-    const store = globalThis.ashaStudioNativeVoxelLaunchProof && globalThis.ashaStudioNativeVoxelLaunchProof.store;
+    const store = globalThis.ashaStudioVoxelWorkflow;
     const storeMessage = store && typeof store.runtimeConnectionMessage === 'function'
       ? store.runtimeConnectionMessage()
       : '';
@@ -2219,8 +2218,8 @@ async function main(): Promise<void> {
       providerKind: ASHA_BROWSER_HOST_PROVIDER_KIND,
       sessionId: nativeProof.browserHost.sessionId,
     });
-    assert.match(nativeProof.browserHost.sessionId ?? '', /^(0|[1-9][0-9]*)$/u);
-    assert.match(isolatedNativeProof.browserHost.sessionId ?? '', /^(0|[1-9][0-9]*)$/u);
+    assert.match(nativeProof.browserHost.sessionId ?? '', /^[A-Za-z0-9_-]{32}$/u);
+    assert.match(isolatedNativeProof.browserHost.sessionId ?? '', /^[A-Za-z0-9_-]{32}$/u);
     assert.notEqual(nativeProof.browserHost.sessionId, isolatedNativeProof.browserHost.sessionId);
     assert.equal(nativeProof.rendererViewport.owner, 'asha-renderer-host');
     assert.equal(nativeProof.rendererViewport.classification, 'stored-authored-preview');

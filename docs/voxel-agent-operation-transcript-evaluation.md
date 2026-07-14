@@ -1,6 +1,6 @@
 # Voxel Agent Operation Transcript Evaluation
 
-Status: proposed for task #5269.
+Status: implemented as a normal product surface by tasks #5269 and #5795.
 
 ASHA Studio should support a provider-neutral voxel operation transcript, but it
 should not import VoxelForge `.vforge` files, VoxelForge MCP calls, raw method
@@ -13,14 +13,25 @@ bookkeeping. They are not sufficient as a durable import/replay format because
 they mix proof output, DOM evidence, runtime receipts, and generated artifact
 hashes with the operations that produced them.
 
-The durable import shape should be a narrow ASHA Studio transcript envelope over
-the existing `StudioAgentVoxelWorkflowOperation` union. Replay should execute
-each operation through `StudioWorkspaceStore.runAgentVoxelWorkflowOperation`,
-then emit a deterministic replay receipt artifact. Studio stays a typed
+The durable import shape is a narrow ASHA Studio transcript envelope over
+the existing `StudioAgentVoxelWorkflowOperation` union. Replay executes each
+operation through `StudioWorkspaceStore.runAgentVoxelWorkflowOperation`, then
+emits a deterministic replay receipt. Studio stays a typed
 workflow runner; Rust RuntimeSession remains authority for conversion, voxel
 edits, save/load, history, model info, and validation.
 
-## Proposed Envelope
+## Product Access
+
+The visible Agent Voxel Transcript panel accepts this JSON and shows the replay
+status, operation count, and receipt hash. Browser agents may use
+`globalThis.ashaStudioVoxelWorkflow.runAgentVoxelOperationTranscriptReplay(...)`.
+That product object is installed during normal Studio startup and exposes no
+Store reference, RuntimeBridge, native provider, or arbitrary dispatch method.
+
+The native launch evidence command calls this same product API. It is regression
+coverage, not the implementation or a second agent-only route.
+
+## Envelope
 
 ```json
 {
@@ -110,6 +121,5 @@ edits, save/load, history, model info, and validation.
 
 ## Follow-Ups
 
-Create Studio implementation work for a transcript envelope and replay proof.
-Create testing fixture work only after Studio has a stable transcript artifact
-and receipt shape. No VoxelForge compatibility task is needed.
+Add cross-repository conformance fixtures only if more than one consumer needs
+the transcript shape as a compatibility contract. No VoxelForge compatibility task is needed.

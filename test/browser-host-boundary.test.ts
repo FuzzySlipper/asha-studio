@@ -35,7 +35,10 @@ function browserHostBridge(sessionId: string, onDisconnect: () => void): NativeB
   return operations as NativeBrowserHostRuntimeBridge;
 }
 
-function browserHostScope(bridge: RuntimeBridge, sessionId = '7'): NativeBrowserHostProviderScope {
+const SESSION_A = 'session_AAAAAAAAAAAAAAAAAAAAAAAA';
+const SESSION_B = 'session_BBBBBBBBBBBBBBBBBBBBBBBB';
+
+function browserHostScope(bridge: RuntimeBridge, sessionId = SESSION_A): NativeBrowserHostProviderScope {
   return {
     ashaRuntimeBridge: {
       kind: ASHA_BROWSER_HOST_PROVIDER_KIND,
@@ -51,7 +54,7 @@ function browserHostScope(bridge: RuntimeBridge, sessionId = '7'): NativeBrowser
 
 void test('Studio resolves only the standard one-cell browser-host provider and disconnects its lifecycle once', async () => {
   let disconnects = 0;
-  const bridge = browserHostBridge('7', () => { disconnects += 1; });
+  const bridge = browserHostBridge(SESSION_A, () => { disconnects += 1; });
   const resolved = await resolveStudioBrowserHostRuntimeBridge(browserHostScope(bridge));
 
   assert.equal(resolved.bridge, bridge);
@@ -60,7 +63,7 @@ void test('Studio resolves only the standard one-cell browser-host provider and 
     lifecycleStatus: 'active',
     providerGlobal: 'globalThis.ashaRuntimeBridge',
     providerKind: 'asha.runtime_bridge.native_rust_provider.v1',
-    sessionId: '7',
+    sessionId: SESSION_A,
   });
 
   disconnectStudioBrowserHostRuntimeBridge(resolved.bridge);
@@ -91,13 +94,13 @@ void test('Studio fails closed for missing legacy spoofed partial and non-browse
         backend: 'reference_bridge',
         productAuthority: false,
         referenceFallback: true,
-        createRuntimeBridge: () => browserHostBridge('8', () => undefined),
+        createRuntimeBridge: () => browserHostBridge(SESSION_B, () => undefined),
       },
     }),
     /public native Rust contract/u,
   );
   await assert.rejects(
-    resolveStudioBrowserHostRuntimeBridge(browserHostScope({} as RuntimeBridge, '9')),
+    resolveStudioBrowserHostRuntimeBridge(browserHostScope({} as RuntimeBridge, SESSION_A)),
     /missing required operation/u,
   );
 
@@ -105,7 +108,29 @@ void test('Studio fails closed for missing legacy spoofed partial and non-browse
     MANIFEST_OPERATIONS.map(({ facadeMethod }) => [facadeMethod, () => ({})]),
   ) as unknown as RuntimeBridge;
   await assert.rejects(
-    resolveStudioBrowserHostRuntimeBridge(browserHostScope(noLifecycle, '10')),
+    resolveStudioBrowserHostRuntimeBridge(browserHostScope(noLifecycle, SESSION_A)),
+    /did not create an active browser-host\.v0 client lifecycle/u,
+  );
+});
+
+void test('Studio rejects malformed opaque browser Session evidence and provider lifecycle mismatches', async () => {
+  for (const sessionId of ['', '7', 'too-short', 'session.with.invalid.characters!!']) {
+    const bridge = browserHostBridge(sessionId, () => undefined);
+    await assert.rejects(
+      resolveStudioBrowserHostRuntimeBridge(browserHostScope(bridge, sessionId)),
+      /must carry browser-host\.v0 browser Session evidence/u,
+    );
+  }
+
+  const bridge = browserHostBridge(SESSION_A, () => undefined);
+  await assert.rejects(
+    resolveStudioBrowserHostRuntimeBridge(browserHostScope(bridge, SESSION_B)),
+    /did not create an active browser-host\.v0 client lifecycle/u,
+  );
+
+  disconnectStudioBrowserHostRuntimeBridge(bridge);
+  await assert.rejects(
+    resolveStudioBrowserHostRuntimeBridge(browserHostScope(bridge, SESSION_A)),
     /did not create an active browser-host\.v0 client lifecycle/u,
   );
 });

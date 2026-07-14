@@ -490,6 +490,12 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(storeSource, /runAgentVoxelWorkflowOperation/);
   assert.match(storeSource, /parseStudioAgentVoxelOperationTranscript/);
   assert.match(storeSource, /runAgentVoxelOperationTranscriptReplay/);
+  assert.match(storeSource, /ashaStudioVoxelWorkflow/);
+  assert.match(storeSource, /asha\.studio\.voxel_workflow\.v1/);
+  assert.match(storeSource, /createStudioVoxelWorkflowProductApi/);
+  assert.doesNotMatch(storeSource, /ashaStudioNativeVoxelLaunchProof/);
+  assert.match(proofSource, /ashaStudioVoxelWorkflow/);
+  assert.doesNotMatch(proofSource, /ashaStudioNativeVoxelLaunchProof/);
   assert.match(storeSource, /studio_agent_voxel_operation_transcript_replay/);
   assert.match(storeSource, /agentVoxelTranscriptOperationToWorkflowOperation/);
   assert.match(storeSource, /unsupported agent voxel workflow operation/);
@@ -964,9 +970,11 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.doesNotMatch(storeSource, /projectBundle: 'asha-demo',\n\s+assetPath: `assets\/voxels/);
 
   for (const operation of [
+    'initialize_voxel_volume_authoring',
     'get_model_info',
     'export_voxel_volume_asset',
     'save_voxel_volume_asset',
+    'unload_voxel_volume_asset',
     'load_voxel_volume_asset',
   ]) {
     assert.match(storeSource, new RegExp(operation));
@@ -978,7 +986,7 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(panelSource, /data-voxel-asset-target-control="asset_path"/);
   assert.match(panelSource, /data-voxel-asset-target-action="reset"/);
 
-  for (const action of ['model_info', 'export_volume', 'save_volume', 'load_volume']) {
+  for (const action of ['initialize_volume', 'model_info', 'export_volume', 'save_volume', 'unload_volume', 'load_volume']) {
     assert.match(panelSource, new RegExp(`data-voxel-asset-action="${action}"`));
     assert.match(panelSource, new RegExp(`runVoxelAssetWorkflowControl\\('${action}'\\)`));
   }
@@ -992,6 +1000,14 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(panelSource, /canonicalJsonHash/);
   assert.match(panelSource, /voxelDataHash/);
   assert.match(storeSource, /does not match target/);
+  assert.match(storeSource, /importVoxelConversionMeshFile/);
+  assert.match(storeSource, /VOXEL_CONVERSION_MESH_IMPORT_MAX_SOURCE_BYTES/);
+  assert.match(panelSource, /data-voxel-control="mesh-file-import"/);
+  assert.match(panelSource, /accept="\.glb,model\/gltf-binary"/);
+  assert.match(panelSource, /data-voxel-transcript-control="draft"/);
+  assert.match(panelSource, /data-voxel-transcript-action="run"/);
+  assert.match(panelSource, /data-voxel-transcript-receipt/);
+  assert.match(storeSource, /runVoxelTranscriptControl/);
 });
 
 test('studio voxel conversion workspace exposes compact voxel creation controls', () => {
