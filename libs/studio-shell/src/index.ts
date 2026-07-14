@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
 import {
   StudioAssetsBottomPanelComponent,
   StudioHierarchyPanelComponent,
@@ -64,14 +64,17 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
             Preferences
           </button>
         </div>
-        <span class="studio-menu__status">{{ store.menuMessage() }}</span>
+        <span class="studio-menu__status">
+          {{ store.activeSceneFilePath() ?? 'Untitled Scene' }}{{ store.sceneDirty() ? ' *' : '' }}
+          — {{ store.menuMessage() }}
+        </span>
 
         @if (store.activeMenu() === 'file') {
           <section class="menu-popover menu-popover--file" aria-label="File menu">
-            <button type="button" (click)="newWorkspace()">New</button>
-            <button type="button" (click)="saveScene()">Save</button>
+            <button type="button" (click)="newWorkspace()">New Scene</button>
+            <button type="button" (click)="saveScene()">Save Scene</button>
             <label class="menu-popover__field">
-              <span>Save As</span>
+              <span>Host path</span>
               <input
                 type="text"
                 [value]="store.saveAsPath()"
@@ -79,12 +82,13 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                 (keydown.enter)="saveSceneAs()"
               />
             </label>
-            <button type="button" (click)="saveSceneAs()">Save As</button>
-            <div class="project-file-browser" aria-label="Project files">
+            <button type="button" (click)="saveSceneAs()">Save Scene As…</button>
+            <div class="project-file-browser" aria-label="Studio host files">
               <div class="project-file-browser__bar">
                 <button type="button" (click)="refreshProjectFiles()">Refresh</button>
                 <button type="button" (click)="openProjectParentDir()">Up</button>
               </div>
+              <small>Browsing files on the Studio host</small>
               <small>{{ store.projectFileDialog().message }}</small>
               <small>{{ store.projectFileDialog().currentDir || '/' }}</small>
               <div class="scene-file-list" aria-label="Open scene source">
@@ -105,10 +109,27 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                   [disabled]="!selectedPath.endsWith('.scene.json')"
                   (click)="openSelectedProjectFile()"
                 >
-                  Open {{ selectedPath }}
+                  Open Scene… {{ selectedPath }}
                 </button>
               }
             </div>
+            @if (store.unsavedScenePrompt(); as prompt) {
+              <section class="menu-popover__notice" aria-label="Unsaved scene changes">
+                <strong>Unsaved changes</strong>
+                <span>{{ prompt.message }}</span>
+                <button type="button" (click)="confirmDiscardUnsavedScene()">Discard and continue</button>
+                <button type="button" (click)="cancelDiscardUnsavedScene()">Cancel</button>
+              </section>
+            }
+            @if (store.sceneFileConflict(); as conflict) {
+              <section class="menu-popover__notice" aria-label="External scene file change">
+                <strong>File changed on the Studio host</strong>
+                <span>{{ conflict.path }}</span>
+                <button type="button" (click)="reloadSceneFileAfterConflict()">Reload from Host</button>
+                <button type="button" (click)="overwriteSceneFileAfterConflict()">Overwrite Host File</button>
+                <button type="button" (click)="cancelSceneFileConflict()">Cancel</button>
+              </section>
+            }
             <button
               type="button"
               (click)="saveWorkspace()"
@@ -644,7 +665,6 @@ export class StudioShellComponent {
 
   newWorkspace(): void {
     this.store.newWorkspace();
-    this.store.setActiveMenu(null);
   }
 
   saveWorkspace(): void {
@@ -654,12 +674,10 @@ export class StudioShellComponent {
 
   saveScene(): void {
     this.store.saveSceneFile();
-    this.store.setActiveMenu(null);
   }
 
   saveSceneAs(): void {
     this.store.saveSceneFileAs();
-    this.store.setActiveMenu(null);
   }
 
   setSaveAsPath(path: string): void {
@@ -680,7 +698,33 @@ export class StudioShellComponent {
 
   openSelectedProjectFile(): void {
     this.store.openSelectedProjectFile();
-    this.store.setActiveMenu(null);
+  }
+
+  confirmDiscardUnsavedScene(): void {
+    this.store.confirmDiscardUnsavedScene();
+  }
+
+  cancelDiscardUnsavedScene(): void {
+    this.store.cancelDiscardUnsavedScene();
+  }
+
+  reloadSceneFileAfterConflict(): void {
+    this.store.reloadSceneFileAfterConflict();
+  }
+
+  overwriteSceneFileAfterConflict(): void {
+    this.store.overwriteSceneFileAfterConflict();
+  }
+
+  cancelSceneFileConflict(): void {
+    this.store.cancelSceneFileConflict();
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  protectUnsavedScene(event: BeforeUnloadEvent): void {
+    if (this.store.sceneDirty()) {
+      event.preventDefault();
+    }
   }
 
   refreshRunningProjectSessions(): void {

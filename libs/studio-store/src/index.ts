@@ -19,7 +19,6 @@ import {
   buildStudioGameWorkspaceReadout,
   buildStudioRuntimeSessionInspectionReadModel,
   buildStudioSceneFileList,
-  buildStudioSceneFileSaveReadback,
   buildStudioRunningProjectDiscovery,
   loadStudioAssetInventory,
   loadStudioPublishEvidence,
@@ -31,8 +30,6 @@ import {
   clearStudioWorkspaceReadModel,
   createLoadReferenceAssetIntent,
   createLoadScenarioIntent,
-  createOpenSceneFileIntent,
-  createSaveSceneFileIntent,
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
@@ -44,6 +41,7 @@ import {
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
+  applyCanonicalSceneDocumentReadModel,
   applyOpenSceneFileReadModel,
   applyStudioCatalogAuthoringOperation,
   loadScenarioReadModel,
@@ -53,7 +51,6 @@ import {
   refreshStudioGameWorkspaceLiveReadModel,
   recordStudioWorkspaceUiCommand,
   restoreStudioWorkspaceArtifact,
-  serializeWorkspaceSceneSource,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
   stageStudioProjectWorkspaceLoad,
@@ -75,8 +72,6 @@ import {
   type StudioAshaDemoProductPathReadModel,
   type StudioRunningProjectDiscoveryReadModel,
   type StudioRuntimeSessionInspectionReadModel,
-  type StudioSceneFileListReadModel,
-  type StudioSceneFileSourceInput,
   type StudioAssetInventoryEntryReadModel,
   type StudioAssetInventoryLoadResult,
   type StudioCatalogSourceEvidenceInput,
@@ -107,6 +102,7 @@ import {
   type ModelMaterialPreviewSnapshot,
   type PickResult,
   type EntityId,
+  type FlatSceneDocument,
   type RenderHandle,
   type SceneObjectCommandResult,
   type SceneObjectSnapshot,
@@ -422,13 +418,27 @@ export interface StudioProjectFileEntry {
 }
 
 export interface StudioProjectFileDialogReadModel {
-  readonly backend: 'project-server' | 'fallback';
+  readonly backend: 'host-server';
   readonly connected: boolean;
-  readonly projectRoot: string | null;
+  readonly startDirectory: string | null;
   readonly currentDir: string;
   readonly entries: readonly StudioProjectFileEntry[];
   readonly selectedPath: string | null;
   readonly message: string;
+}
+
+export interface StudioUnsavedScenePromptReadModel {
+  readonly action: 'new' | 'open' | 'scenario' | 'project-workspace';
+  readonly path: string | null;
+  readonly message: string;
+}
+
+export interface StudioSceneFileConflictReadModel {
+  readonly path: string;
+  readonly expectedHash: string | null;
+  readonly actualHash: string | null;
+  readonly canonicalJson: string;
+  readonly document: FlatSceneDocument;
 }
 
 export interface StudioVoxelConversionWorkspaceShellRegion {
@@ -1787,15 +1797,6 @@ const DEMO_PROOF_SCENES = [
   },
 ] as const;
 
-const DEMO_MINIMAL_SCENE_SOURCE = {
-  schemaVersion: 1,
-  sceneId: 1001,
-  name: 'ASHA Demo Minimal Cube',
-  description: 'Minimal game-workflow scene that loads through the public ASHA runtime path.',
-  catalogAssetIds: ['mesh.demo-cube'],
-  runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
-} as const;
-
 function stableBrowserHash(text: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < text.length; index += 1) {
@@ -1804,31 +1805,6 @@ function stableBrowserHash(text: string): string {
   }
   return `sha256:browser-${hash.toString(16).padStart(8, '0')}`;
 }
-
-function demoSceneSource(path: string, scene: (typeof DEMO_PROOF_SCENES)[number]): StudioSceneFileSourceInput {
-  const text = `${JSON.stringify({
-    schemaVersion: scene.schemaVersion,
-    sceneId: scene.sceneId,
-    name: scene.name,
-    description: scene.description,
-    catalogAssetIds: scene.catalogAssetIds,
-    runtimeFixture: scene.runtimeFixture,
-  }, null, 2)}\n`;
-  return {
-    path,
-    text,
-    sha256: stableBrowserHash(text),
-  };
-}
-
-const DEMO_SCENE_FILE_SOURCES: readonly StudioSceneFileSourceInput[] = [
-  demoSceneSource('scenes/material-proof.scene.json', DEMO_PROOF_SCENES[0]),
-  {
-    path: 'scenes/minimal.scene.json',
-    text: `${JSON.stringify(DEMO_MINIMAL_SCENE_SOURCE, null, 2)}\n`,
-    sha256: stableBrowserHash(`${JSON.stringify(DEMO_MINIMAL_SCENE_SOURCE, null, 2)}\n`),
-  },
-];
 
 const DEMO_PUBLISH_EVIDENCE = {
   evidenceKind: 'asha_demo_publish_evidence_manifest',
@@ -4720,10 +4696,11 @@ function projectFileApiBase(): string {
 }
 
 function normalizeProjectFilePath(path: string): string {
-  return path
-    .replaceAll('\\', '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '/');
+  const normalized = path.replaceAll('\\', '/').replace(/\/+/g, '/');
+  if (normalized === '/') {
+    return normalized;
+  }
+  return normalized.replace(/\/$/, '');
 }
 
 function isCanonicalProjectFileSha256(value: string): boolean {
@@ -4733,7 +4710,10 @@ function isCanonicalProjectFileSha256(value: string): boolean {
 function parentProjectDir(path: string): string {
   const normalized = normalizeProjectFilePath(path).replace(/\/$/, '');
   const slashIndex = normalized.lastIndexOf('/');
-  return slashIndex <= 0 ? '' : normalized.slice(0, slashIndex);
+  if (slashIndex < 0) {
+    return '';
+  }
+  return slashIndex === 0 ? '/' : normalized.slice(0, slashIndex);
 }
 
 function projectFileEntrySort(left: StudioProjectFileEntry, right: StudioProjectFileEntry): number {
@@ -4844,17 +4824,21 @@ export class StudioWorkspaceStore {
     buildStudioViewportToolReadModel(),
   );
   private readonly projectWorkspaceArtifactHashState = signal<string | null>(null);
-  private readonly sceneFileSourcesState = signal<readonly StudioSceneFileSourceInput[]>(
-    DEMO_SCENE_FILE_SOURCES,
-  );
   private readonly activeSceneFilePathState = signal<string | null>(null);
-  private readonly saveAsPathState = signal('scenes/studio-save-as.scene.json');
+  private readonly activeSceneFileHashState = signal<string | null>(null);
+  private readonly cleanSceneDocumentHashState = signal(
+    stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument)),
+  );
+  private readonly saveAsPathState = signal('untitled.scene.json');
   private readonly projectFileEntriesState = signal<readonly StudioProjectFileEntry[]>([]);
   private readonly projectFileCurrentDirState = signal('');
   private readonly projectFileSelectedPathState = signal<string | null>(null);
   private readonly projectFileConnectedState = signal(false);
   private readonly projectFileRootState = signal<string | null>(null);
-  private readonly projectFileMessageState = signal('Project file server not connected.');
+  private readonly projectFileMessageState = signal('Studio host file service not connected.');
+  private readonly unsavedScenePromptState = signal<StudioUnsavedScenePromptReadModel | null>(null);
+  private readonly sceneFileConflictState = signal<StudioSceneFileConflictReadModel | null>(null);
+  private readonly sceneDocumentCodecBridgeState = signal<NativeBrowserHostRuntimeBridge | null>(null);
   private readonly assetBrowserCategoryState = signal<StudioAssetBrowserCategory>('all');
   private readonly activeMenuState = signal<StudioApplicationMenu | null>(null);
   private readonly bottomPanelTabState = signal<StudioBottomPanelTab>('timeline');
@@ -5018,21 +5002,20 @@ export class StudioWorkspaceStore {
   readonly voxelMaterialPaletteEditor = this.voxelMaterialPaletteEditorState.asReadonly();
   readonly projectWorkspaceArtifactHash = this.projectWorkspaceArtifactHashState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
+  readonly sceneDirty = computed(() =>
+    stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument))
+      !== this.cleanSceneDocumentHashState(),
+  );
   readonly saveAsPath = this.saveAsPathState.asReadonly();
+  readonly unsavedScenePrompt = this.unsavedScenePromptState.asReadonly();
+  readonly sceneFileConflict = this.sceneFileConflictState.asReadonly();
   readonly projectFileDialog = computed<StudioProjectFileDialogReadModel>(() => {
-    const fallbackFiles = this.sceneFiles().files.map((file): StudioProjectFileEntry => ({
-      path: file.path,
-      name: file.path.split('/').at(-1) ?? file.path,
-      kind: 'file',
-      size: null,
-      mtimeMs: null,
-    }));
     return {
-      backend: this.projectFileConnectedState() ? 'project-server' : 'fallback',
+      backend: 'host-server',
       connected: this.projectFileConnectedState(),
-      projectRoot: this.projectFileRootState(),
+      startDirectory: this.projectFileRootState(),
       currentDir: this.projectFileCurrentDirState(),
-      entries: this.projectFileConnectedState() ? this.projectFileEntriesState() : fallbackFiles,
+      entries: this.projectFileEntriesState(),
       selectedPath: this.projectFileSelectedPathState(),
       message: this.projectFileMessageState(),
     };
@@ -5052,16 +5035,6 @@ export class StudioWorkspaceStore {
   readonly gameWorkspace = computed(() => {
     const overview = this.gameWorkspaceState();
     return overview.ok ? overview.workspace : null;
-  });
-  readonly sceneFiles = computed<StudioSceneFileListReadModel>(() => {
-    const result = buildStudioSceneFileList({
-      workspace: this.gameWorkspace(),
-      manifestPath: 'asha.game.toml',
-      manifestHash: this.gameWorkspace()?.workspaceHash ?? null,
-      sourceFiles: this.sceneFileSourcesState(),
-      allowProjectRoot: this.projectFileConnectedState(),
-    });
-    return result.sceneFiles;
   });
   readonly publishEvidence = computed(() =>
     loadStudioPublishEvidence(DEMO_PUBLISH_EVIDENCE, {
@@ -8616,7 +8589,15 @@ export class StudioWorkspaceStore {
     this.runtimeConnectionMessageState.set(outputSummary);
   }
 
-  loadScenario(scenarioId: string): void {
+  loadScenario(scenarioId: string, authorizedDiscard = false): void {
+    if (this.sceneDirty() && !authorizedDiscard) {
+      this.unsavedScenePromptState.set({
+        action: 'scenario',
+        path: scenarioId,
+        message: `Discard unsaved scene changes and switch to ${scenarioId}?`,
+      });
+      return;
+    }
     const intent = createLoadScenarioIntent(this.workspaceState(), scenarioId);
     const dispatchResult = mapStudioIntentToCommand(intent);
     if (
@@ -8643,70 +8624,86 @@ export class StudioWorkspaceStore {
   }
 
   newWorkspace(): void {
-    this.workspaceState.set(clearStudioWorkspaceReadModel(this.workspaceState()));
-    this.activeSceneFilePathState.set(null);
-    this.viewportHitState.set(null);
-    this.viewportCameraState.set(buildStudioViewportCameraReadModel());
-    this.viewportToolState.set(buildStudioViewportToolReadModel());
-    this.menuMessageState.set('New scene created.');
+    if (this.sceneDirty()) {
+      this.unsavedScenePromptState.set({
+        action: 'new',
+        path: null,
+        message: 'Discard unsaved scene changes and create a new scene?',
+      });
+      return;
+    }
+    void this.createNewScene();
   }
 
-  openSceneFile(path: string): void {
-    const sceneFile = this.sceneFiles().files.find(file => file.path === path);
-    if (sceneFile === undefined) {
-      this.menuMessageState.set(`Scene source not available: ${path}.`);
-      return;
+  confirmDiscardUnsavedScene(): void {
+    const prompt = this.unsavedScenePromptState();
+    this.unsavedScenePromptState.set(null);
+    if (prompt?.action === 'new') {
+      void this.createNewScene();
+    } else if (prompt?.action === 'open' && prompt.path !== null) {
+      void this.openSceneFileFromHost(prompt.path, true);
+    } else if (prompt?.action === 'scenario' && prompt.path !== null) {
+      this.loadScenario(prompt.path, true);
+    } else if (prompt?.action === 'project-workspace') {
+      void this.restoreProjectWorkspace();
     }
-    const source = this.sceneFileSourcesState().find(file => file.path === path);
-    if (source === undefined || source.sha256 !== sceneFile.hash) {
-      this.menuMessageState.set(`Scene source changed before open: ${path}.`);
-      return;
-    }
-    const dispatchResult = mapStudioIntentToCommand(
-      createOpenSceneFileIntent(this.workspaceState(), sceneFile),
-    );
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'scene.open_source'
-      || dispatchResult.proposal.path !== path
-      || dispatchResult.proposal.expectedHash !== source.sha256
-    ) {
-      this.menuMessageState.set(dispatchResult.diagnostic ?? 'Scene open rejected.');
-      return;
-    }
+  }
 
-    const workspace = applyOpenSceneFileReadModel(this.workspaceState(), sceneFile);
-    this.workspaceState.set(workspace);
-    this.activeSceneFilePathState.set(path);
-    this.viewportHitState.set(null);
-    this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
-    this.viewportToolState.set(buildStudioViewportToolReadModel());
-    this.assetBrowserCategoryState.set('all');
-    this.menuMessageState.set(`Opened ${sceneFile.name}.`);
+  cancelDiscardUnsavedScene(): void {
+    this.unsavedScenePromptState.set(null);
+    this.menuMessageState.set('Scene operation canceled; unsaved changes were preserved.');
+  }
+
+  private async createNewScene(): Promise<void> {
+    const cleared = clearStudioWorkspaceReadModel(this.workspaceState());
+    try {
+      const bridge = await this.sceneDocumentCodecBridge();
+      const result = bridge.encodeSceneDocument({ document: cleared.flatSceneDocument });
+      if (!result.accepted || result.document === null) {
+        throw new Error(this.sceneCodecDiagnostic(result));
+      }
+      const workspace = applyCanonicalSceneDocumentReadModel(cleared, result.document, null);
+      this.workspaceState.set(workspace);
+      this.activeSceneFilePathState.set(null);
+      this.activeSceneFileHashState.set(null);
+      this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));
+      this.sceneFileConflictState.set(null);
+      this.viewportHitState.set(null);
+      this.viewportCameraState.set(buildStudioViewportCameraReadModel());
+      this.viewportToolState.set(buildStudioViewportToolReadModel());
+      this.menuMessageState.set('New untitled scene created.');
+    } catch (error) {
+      this.menuMessageState.set(`New Scene failed without replacing the current document: ${errorMessage(error)}`);
+    }
   }
 
   async refreshProjectFiles(dir = this.projectFileCurrentDirState()): Promise<void> {
-    const normalizedDir = normalizeProjectFilePath(dir);
+    const requestedDir = normalizeProjectFilePath(dir);
     try {
-      const response = await fetch(`${projectFileApiBase()}/api/project/list?dir=${encodeURIComponent(normalizedDir)}`);
+      const response = await fetch(`${projectFileApiBase()}/api/host-files/list?dir=${encodeURIComponent(requestedDir)}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
       const payload = await response.json() as {
-        readonly projectRoot?: string;
+        readonly ok?: boolean;
+        readonly startDirectory?: string;
         readonly dir?: string;
         readonly entries?: readonly StudioProjectFileEntry[];
+        readonly message?: string;
       };
+      if (payload.ok === false) {
+        throw new Error(payload.message ?? 'Host directory listing failed.');
+      }
       this.projectFileConnectedState.set(true);
-      this.projectFileRootState.set(payload.projectRoot ?? null);
-      this.projectFileCurrentDirState.set(normalizeProjectFilePath(payload.dir ?? normalizedDir));
+      this.projectFileRootState.set(payload.startDirectory ?? null);
+      this.projectFileCurrentDirState.set(normalizeProjectFilePath(payload.dir ?? requestedDir));
       this.projectFileEntriesState.set([...(payload.entries ?? [])].sort(projectFileEntrySort));
-      this.projectFileMessageState.set('Project file server connected.');
-    } catch {
+      this.projectFileMessageState.set('Browsing files on the Studio host.');
+    } catch (error) {
       this.projectFileConnectedState.set(false);
       this.projectFileRootState.set(null);
       this.projectFileEntriesState.set([]);
-      this.projectFileMessageState.set('Using fallback scene list. Start the project file server for full project-root open/save.');
+      this.projectFileMessageState.set(`Studio host file service unavailable: ${errorMessage(error)}`);
     }
   }
 
@@ -8735,38 +8732,67 @@ export class StudioWorkspaceStore {
   }
 
   private async openSceneFileFromProject(path: string): Promise<void> {
-    if (!this.projectFileConnectedState()) {
-      this.openSceneFile(path);
+    if (this.sceneDirty()) {
+      this.unsavedScenePromptState.set({
+        action: 'open',
+        path,
+        message: `Discard unsaved scene changes and open ${path}?`,
+      });
+      return;
+    }
+    await this.openSceneFileFromHost(path, true);
+  }
+
+  private async openSceneFileFromHost(path: string, authorizedDiscard: boolean): Promise<void> {
+    if (!authorizedDiscard && this.sceneDirty()) {
+      this.unsavedScenePromptState.set({ action: 'open', path, message: `Discard unsaved scene changes and open ${path}?` });
       return;
     }
     const normalizedPath = normalizeProjectFilePath(path);
     try {
-      const response = await fetch(`${projectFileApiBase()}/api/project/file?path=${encodeURIComponent(normalizedPath)}`);
+      const response = await fetch(`${projectFileApiBase()}/api/host-files/file?path=${encodeURIComponent(normalizedPath)}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
       const payload = await response.json() as {
         readonly ok?: boolean;
-        readonly path: string;
-        readonly text: string;
-        readonly sha256: string;
+        readonly path?: string;
+        readonly text?: string;
+        readonly sha256?: string;
+        readonly message?: string;
       };
-      if (payload.ok === false || typeof payload.text !== 'string' || typeof payload.sha256 !== 'string') {
-        throw new Error('invalid project file readback');
+      if (
+        payload.ok === false
+        || typeof payload.path !== 'string'
+        || typeof payload.text !== 'string'
+        || typeof payload.sha256 !== 'string'
+      ) {
+        throw new Error(payload.message ?? 'Invalid host file readback.');
       }
-      const nextSource: StudioSceneFileSourceInput = {
-        path: normalizeProjectFilePath(payload.path),
-        text: payload.text,
-        sha256: payload.sha256,
-      };
-      this.sceneFileSourcesState.set([
-        ...this.sceneFileSourcesState().filter(file => file.path !== nextSource.path),
-        nextSource,
-      ].sort((left, right) => left.path.localeCompare(right.path)));
-      this.openSceneFile(nextSource.path);
-      this.projectFileSelectedPathState.set(nextSource.path);
-    } catch {
-      this.menuMessageState.set(`Could not open ${normalizedPath} from the project file server.`);
+      const bridge = await this.sceneDocumentCodecBridge();
+      const result = bridge.decodeSceneDocument({ sourceText: payload.text });
+      if (!result.accepted || result.document === null) {
+        throw new Error(this.sceneCodecDiagnostic(result));
+      }
+      const absolutePath = normalizeProjectFilePath(payload.path);
+      const workspace = applyCanonicalSceneDocumentReadModel(
+        this.workspaceState(),
+        result.document,
+        absolutePath,
+      );
+      this.workspaceState.set(workspace);
+      this.activeSceneFilePathState.set(absolutePath);
+      this.activeSceneFileHashState.set(payload.sha256);
+      this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));
+      this.projectFileSelectedPathState.set(absolutePath);
+      this.saveAsPathState.set(absolutePath);
+      this.sceneFileConflictState.set(null);
+      this.viewportHitState.set(null);
+      this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
+      this.viewportToolState.set(buildStudioViewportToolReadModel());
+      this.menuMessageState.set(`Opened ${absolutePath} from the Studio host.`);
+    } catch (error) {
+      this.menuMessageState.set(`Open failed without replacing the current document: ${errorMessage(error)}`);
     }
   }
 
@@ -8785,9 +8811,8 @@ export class StudioWorkspaceStore {
   }
 
   setSaveAsPath(path: string): void {
-    const normalizedPath = normalizeProjectFilePath(path);
-    this.saveAsPathState.set(normalizedPath);
-    this.projectFileSelectedPathState.set(normalizedPath);
+    this.saveAsPathState.set(path);
+    this.projectFileSelectedPathState.set(path);
   }
 
   saveProjectWorkspace(): void {
@@ -8796,90 +8821,147 @@ export class StudioWorkspaceStore {
 
   private async writeSceneFile(path: string, saveAs: boolean): Promise<void> {
     const normalizedPath = normalizeProjectFilePath(path);
-    const previous = this.sceneFileSourcesState().find(file => file.path === normalizedPath) ?? null;
-    const expectedPreviousHash = saveAs ? null : previous?.sha256 ?? null;
-    const dispatchResult = mapStudioIntentToCommand(
-      createSaveSceneFileIntent(this.workspaceState(), {
-        path: normalizedPath,
-        expectedPreviousHash,
-        saveAs,
-      }),
-    );
-    const expectedCommandId = saveAs ? 'scene.save_source_as' : 'scene.save_source';
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== expectedCommandId
-      || dispatchResult.proposal.path !== normalizedPath
-    ) {
-      this.menuMessageState.set(dispatchResult.diagnostic ?? 'Scene save rejected.');
+    if (normalizedPath.length === 0) {
+      this.menuMessageState.set('Save Scene As requires a host filesystem path.');
       return;
     }
-
-    const nextText = serializeWorkspaceSceneSource(this.workspaceState());
-    const nextHash = stableBrowserHash(nextText);
-    const saveReadback = buildStudioSceneFileSaveReadback({
-      commandId: expectedCommandId,
-      path: normalizedPath,
-      previousHash: previous?.sha256 ?? null,
-      expectedPreviousHash,
-      nextText,
-      nextHash,
-      workspace: this.gameWorkspace(),
-      allowProjectRoot: this.projectFileConnectedState(),
-    });
-    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-      commandId: expectedCommandId,
-      label: saveAs ? 'Save Scene Source As' : 'Save Scene Source',
-      inputSummary: `path=${normalizedPath};previousHash=${previous?.sha256 ?? 'none'}`,
-      outputSummary: saveReadback.diagnostics.length === 0
-        ? `Scene source ${normalizedPath} saved.`
-        : saveReadback.diagnostics.at(0)?.message ?? 'Scene save failed.',
-      status: saveReadback.diagnostics.length === 0 ? 'ok' : 'rejected',
-    });
-    this.workspaceState.set(recorded.workspace);
-    if (saveReadback.diagnostics.length > 0) {
-      this.menuMessageState.set(saveReadback.diagnostics.at(0)?.message ?? 'Scene save failed.');
-      return;
-    }
-
-    let persistedHash = nextHash;
-    if (this.projectFileConnectedState()) {
-      try {
-        const response = await fetch(`${projectFileApiBase()}/api/project/file`, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            path: normalizedPath,
-            text: nextText,
-            expectedHash: expectedPreviousHash,
-          }),
+    try {
+      const bridge = await this.sceneDocumentCodecBridge();
+      const result = bridge.encodeSceneDocument({ document: this.workspaceState().flatSceneDocument });
+      if (!result.accepted || result.document === null || result.canonicalJson === null) {
+        throw new Error(this.sceneCodecDiagnostic(result));
+      }
+      const expectedHash = saveAs ? null : this.activeSceneFileHashState();
+      const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path: normalizedPath, text: result.canonicalJson, expectedHash }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly path?: string;
+        readonly sha256?: string;
+        readonly diagnostic?: string;
+        readonly message?: string;
+        readonly previousHash?: string | null;
+      };
+      if (payload.ok === false && payload.diagnostic === 'stale_file_hash') {
+        this.sceneFileConflictState.set({
+          path: normalizedPath,
+          expectedHash,
+          actualHash: payload.previousHash ?? null,
+          canonicalJson: result.canonicalJson,
+          document: result.document,
         });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        const payload = await response.json() as { readonly ok?: boolean; readonly sha256?: string; readonly diagnostic?: string };
-        if (payload.ok === false) {
-          throw new Error(payload.diagnostic ?? 'project file write rejected');
-        }
-        persistedHash = payload.sha256 ?? nextHash;
-        await this.refreshProjectFiles(parentProjectDir(normalizedPath));
-      } catch {
-        this.menuMessageState.set(`Could not write ${normalizedPath} through the project file server.`);
+        this.menuMessageState.set(`Save paused: ${normalizedPath} changed on the Studio host.`);
         return;
       }
+      if (payload.ok === false || typeof payload.path !== 'string' || typeof payload.sha256 !== 'string') {
+        throw new Error(payload.message ?? payload.diagnostic ?? 'Host file write failed.');
+      }
+      this.commitSceneFileSave(payload.path, payload.sha256, result.document, saveAs);
+      await this.refreshProjectFiles(parentProjectDir(payload.path));
+    } catch (error) {
+      this.menuMessageState.set(`Save failed without changing the current document identity: ${errorMessage(error)}`);
     }
+  }
 
-    const nextSource = { path: normalizedPath, text: nextText, sha256: persistedHash };
-    this.sceneFileSourcesState.set([
-      ...this.sceneFileSourcesState().filter(file => file.path !== normalizedPath),
-      nextSource,
-    ].sort((left, right) => left.path.localeCompare(right.path)));
-    this.activeSceneFilePathState.set(normalizedPath);
-    this.projectFileSelectedPathState.set(normalizedPath);
-    this.menuMessageState.set(saveAs ? `Saved scene as ${normalizedPath}.` : `Saved scene ${normalizedPath}.`);
+  reloadSceneFileAfterConflict(): void {
+    const conflict = this.sceneFileConflictState();
+    if (conflict === null) {
+      return;
+    }
+    this.sceneFileConflictState.set(null);
+    void this.openSceneFileFromHost(conflict.path, true);
+  }
+
+  overwriteSceneFileAfterConflict(): void {
+    const conflict = this.sceneFileConflictState();
+    if (conflict === null) {
+      return;
+    }
+    void this.persistConflictOverwrite(conflict);
+  }
+
+  cancelSceneFileConflict(): void {
+    this.sceneFileConflictState.set(null);
+    this.menuMessageState.set('Save conflict left unresolved; the current document was preserved.');
+  }
+
+  private async persistConflictOverwrite(conflict: StudioSceneFileConflictReadModel): Promise<void> {
+    try {
+      const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          path: conflict.path,
+          text: conflict.canonicalJson,
+          expectedHash: conflict.actualHash,
+        }),
+      });
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly path?: string;
+        readonly sha256?: string;
+        readonly message?: string;
+      };
+      if (!response.ok || payload.ok === false || typeof payload.path !== 'string' || typeof payload.sha256 !== 'string') {
+        throw new Error(payload.message ?? `HTTP ${response.status}`);
+      }
+      this.commitSceneFileSave(payload.path, payload.sha256, conflict.document, false);
+    } catch (error) {
+      this.menuMessageState.set(`Overwrite failed; the conflict remains active: ${errorMessage(error)}`);
+    }
+  }
+
+  private commitSceneFileSave(
+    path: string,
+    sha256: string,
+    document: FlatSceneDocument,
+    saveAs: boolean,
+  ): void {
+    this.workspaceState.update(workspace => ({ ...workspace, flatSceneDocument: document }));
+    this.activeSceneFilePathState.set(path);
+    this.activeSceneFileHashState.set(sha256);
+    this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(document)));
+    this.projectFileSelectedPathState.set(path);
+    this.saveAsPathState.set(path);
+    this.sceneFileConflictState.set(null);
+    this.menuMessageState.set(saveAs ? `Saved scene as ${path}.` : `Saved scene ${path}.`);
+  }
+
+  private async sceneDocumentCodecBridge(): Promise<NativeBrowserHostRuntimeBridge> {
+    const existing = this.sceneDocumentCodecBridgeState();
+    if (existing !== null) {
+      return existing;
+    }
+    const resolved = await resolveStudioBrowserHostRuntimeBridge();
+    resolved.bridge.initializeEngine({ seed: 5802 });
+    this.sceneDocumentCodecBridgeState.set(resolved.bridge);
+    return resolved.bridge;
+  }
+
+  private sceneCodecDiagnostic(result: {
+    readonly diagnostics: readonly { readonly code: string; readonly message: string }[];
+    readonly validation: { readonly errors: readonly { readonly code: string }[] };
+  }): string {
+    return result.diagnostics.at(0)?.message
+      ?? result.validation.errors.at(0)?.code
+      ?? 'Rust rejected the scene document.';
   }
 
   loadProjectWorkspace(): void {
+    if (this.sceneDirty()) {
+      this.unsavedScenePromptState.set({
+        action: 'project-workspace',
+        path: null,
+        message: 'Discard unsaved scene changes and switch project workspace?',
+      });
+      return;
+    }
     void this.restoreProjectWorkspace();
   }
 
@@ -8901,11 +8983,8 @@ export class StudioWorkspaceStore {
         throw new Error('Project manifest readback returned a different path.');
       }
       const sceneReadback = await this.readProjectText(activeScenePath);
-      const knownSceneSource = this.sceneFileSourcesState().find(source => source.path === activeScenePath) ?? null;
       if (
-        sceneReadback.path !== activeScenePath
-        || knownSceneSource === null
-        || knownSceneSource.sha256 !== sceneReadback.sha256
+        normalizeProjectFilePath(sceneReadback.path) !== normalizeProjectFilePath(activeScenePath)
       ) {
         throw new Error('Active scene source is stale; reopen or save it before saving the project workspace.');
       }
@@ -9006,10 +9085,6 @@ export class StudioWorkspaceStore {
         outputSummary: `Loaded hash-pinned scene source ${sceneRef.path}.`,
       });
       this.workspaceState.set(recorded.workspace);
-      this.sceneFileSourcesState.set([
-        ...this.sceneFileSourcesState().filter(source => source.path !== sceneReadback.path),
-        sceneReadback,
-      ].sort((left, right) => left.path.localeCompare(right.path)));
       this.activeSceneFilePathState.set(sceneReadback.path);
       this.projectFileSelectedPathState.set(sceneReadback.path);
       this.projectWorkspaceArtifactHashState.set(artifactReadback.sha256);
@@ -9040,7 +9115,7 @@ export class StudioWorkspaceStore {
     if (!this.projectFileConnectedState()) {
       throw new Error('project file server is not connected');
     }
-    const response = await fetch(`${projectFileApiBase()}/api/project/file?path=${encodeURIComponent(normalizedPath)}`);
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/file?path=${encodeURIComponent(normalizedPath)}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -9072,7 +9147,7 @@ export class StudioWorkspaceStore {
     if (!this.projectFileConnectedState()) {
       throw new Error('project file server is not connected');
     }
-    const response = await fetch(`${projectFileApiBase()}/api/project/file`, {
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path: normalizedPath, text, expectedHash }),
@@ -9101,9 +9176,6 @@ export class StudioWorkspaceStore {
       throw new Error('invalid project file write readback');
     }
     const readbackPath = normalizeProjectFilePath(payload.path);
-    if (readbackPath !== normalizedPath) {
-      throw new Error('project file write readback returned a different path');
-    }
     return { path: readbackPath, sha256: payload.sha256 };
   }
 

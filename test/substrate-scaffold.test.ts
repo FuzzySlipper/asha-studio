@@ -9,11 +9,13 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { COMMAND_IDS } from '@asha/command-registry';
+import { sceneId, sceneNodeId } from '@asha/contracts';
 import { buildDevtoolsProtocolGoldenFixtures, createDevtoolsFixtureEndpoint } from '@asha/devtools';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
   addReferenceRenderableReadModel,
+  applyCanonicalSceneDocumentReadModel,
   attachStudioGameWorkspaceDevtools,
   applySelectedEntityReadModel,
   buildStudioGameWorkspaceHandshakeRequest,
@@ -524,6 +526,47 @@ test('workspace new clears scene through a recorded read-model command', () => {
   assert.equal(cleared.timeline.at(-1)?.commandId, 'workspace.new');
   assert.equal(cleared.commandResults.at(-1)?.changedScene, true);
   assert.equal(cleared.scenarios.find(scenario => scenario.scenarioId === 'voxel-basic')?.label, 'Basic Voxel Scenario');
+});
+
+test('canonical scene documents project by authored node identity without runtime state', () => {
+  const initial = buildInitialWorkspaceReadModel();
+  const document = {
+    schemaVersion: 1,
+    id: sceneId(77),
+    metadata: { name: 'Host Scene', authoringFormatVersion: 1 },
+    dependencies: [{ id: 'mesh.host-cube', version: { req: 'any' as const }, hash: null }],
+    nodes: [
+      {
+        id: sceneNodeId(90),
+        parent: null,
+        childOrder: 0,
+        label: 'Root',
+        tags: [],
+        transform: { translation: [0, 0, 0] as const, rotation: [0, 0, 0, 1] as const, scale: [1, 1, 1] as const },
+        kind: { kind: 'emptyGroup' as const },
+      },
+      {
+        id: sceneNodeId(450),
+        parent: sceneNodeId(90),
+        childOrder: 0,
+        label: 'Host Cube',
+        tags: ['authored'],
+        transform: { translation: [4, 2, -1] as const, rotation: [0, 0, 0, 1] as const, scale: [2, 4, 6] as const },
+        kind: {
+          kind: 'staticMesh' as const,
+          asset: { id: 'mesh.host-cube', version: { req: 'any' as const }, hash: null },
+        },
+      },
+    ],
+  };
+
+  const projected = applyCanonicalSceneDocumentReadModel(initial, document, '/tmp/host.scene.json');
+
+  assert.equal(projected.flatSceneDocument, document);
+  assert.equal(projected.scene.sceneId, 'scene-document:77');
+  assert.equal(projected.scene.renderables[0]?.renderableId, 'scene-node-renderable:450');
+  assert.equal(projected.sceneObjectSnapshot.objects.some(object => object.sceneNodeId === sceneNodeId(450)), true);
+  assert.equal(projected.session.scenarioLabel, 'Host Scene');
 });
 
 test('scenario load projects selected scenario scene through the timeline', () => {
@@ -3737,11 +3780,11 @@ test('project workspace canonical fixture matches inspectable serialization', ()
   );
 });
 
-test('project file service enforces bounded stale-safe atomic writes', async () => {
-  const projectRoot = await mkdtemp(join(tmpdir(), 'asha-studio-project-files-'));
-  const outsideRoot = await mkdtemp(join(tmpdir(), 'asha-studio-project-files-outside-'));
+test('host file service supports arbitrary paths with stale-safe atomic writes', async () => {
+  const startDirectory = await mkdtemp(join(tmpdir(), 'asha-studio-host-files-'));
+  const outsideDirectory = await mkdtemp(join(tmpdir(), 'asha-studio-host-files-outside-'));
   try {
-    const first = await writeStudioProjectFile(projectRoot, {
+    const first = await writeStudioProjectFile(startDirectory, {
       path: 'studio/asha-studio-workspace.json',
       text: '{"version":1}\n',
       expectedHash: null,
@@ -3749,7 +3792,7 @@ test('project file service enforces bounded stale-safe atomic writes', async () 
     assert.equal(first.ok, true);
     assert.match(first.sha256 ?? '', /^sha256:[0-9a-f]{64}$/);
 
-    const stale = await writeStudioProjectFile(projectRoot, {
+    const stale = await writeStudioProjectFile(startDirectory, {
       path: 'studio/asha-studio-workspace.json',
       text: '{"version":2}\n',
       expectedHash: `sha256:${'0'.repeat(64)}`,
@@ -3758,45 +3801,29 @@ test('project file service enforces bounded stale-safe atomic writes', async () 
     assert.equal(stale.diagnostic, 'stale_file_hash');
     assert.equal(stale.previousHash, first.sha256);
 
-    const escape = await writeStudioProjectFile(projectRoot, {
-      path: '../outside.json',
-      text: '{}\n',
+    const outsidePath = join(outsideDirectory, 'arbitrary.scene.json');
+    const outsideWrite = await writeStudioProjectFile(startDirectory, {
+      path: outsidePath,
+      text: '{"outside":true}\n',
       expectedHash: null,
-    }) as { readonly ok: boolean; readonly diagnostic?: string };
-    assert.equal(escape.ok, false);
-    assert.equal(escape.diagnostic, 'path_outside_project_root');
-
-    await writeFile(join(outsideRoot, 'secret.json'), '{"outside":true}\n', 'utf8');
-    await symlink(outsideRoot, join(projectRoot, 'linked-outside'));
-    const symlinkEscape = await readStudioProjectFile(projectRoot, 'linked-outside/secret.json') as {
+    }) as { readonly ok: boolean; readonly path?: string };
+    assert.equal(outsideWrite.ok, true);
+    const outsideRead = await readStudioProjectFile(startDirectory, outsidePath) as {
       readonly ok: boolean;
-      readonly diagnostic?: string;
+      readonly path?: string;
+      readonly text?: string;
     };
-    assert.equal(symlinkEscape.ok, false);
-    assert.equal(symlinkEscape.diagnostic, 'path_outside_project_root');
+    assert.equal(outsideRead.ok, true);
+    assert.equal(outsideRead.path, outsidePath);
+    assert.equal(outsideRead.text, '{"outside":true}\n');
 
-    const escapedDirectory = join(outsideRoot, 'new-dir');
-    assert.equal(existsSync(escapedDirectory), false);
-    const symlinkedParentWrite = await writeStudioProjectFile(projectRoot, {
-      path: 'linked-outside/new-dir/workspace.json',
-      text: '{}\n',
-      expectedHash: null,
-    }) as { readonly ok: boolean; readonly diagnostic?: string };
-    assert.equal(symlinkedParentWrite.ok, false);
-    assert.equal(symlinkedParentWrite.diagnostic, 'path_outside_project_root');
-    assert.equal(
-      existsSync(escapedDirectory),
-      false,
-      'rejected symlink-parent write must not create directories outside the project root',
-    );
-
-    const second = await writeStudioProjectFile(projectRoot, {
+    const second = await writeStudioProjectFile(startDirectory, {
       path: 'studio/asha-studio-workspace.json',
       text: '{"version":2}\n',
       expectedHash: first.sha256,
     }) as { readonly ok: boolean; readonly sha256?: string };
     const readback = await readStudioProjectFile(
-      projectRoot,
+      startDirectory,
       'studio/asha-studio-workspace.json',
     ) as { readonly ok: boolean; readonly text?: string; readonly sha256?: string };
     assert.equal(second.ok, true);
@@ -3804,12 +3831,12 @@ test('project file service enforces bounded stale-safe atomic writes', async () 
     assert.equal(readback.sha256, second.sha256);
 
     const concurrent = await Promise.all([
-      writeStudioProjectFile(projectRoot, {
+      writeStudioProjectFile(startDirectory, {
         path: 'studio/asha-studio-workspace.json',
         text: '{"version":3,"writer":"a"}\n',
         expectedHash: second.sha256,
       }),
-      writeStudioProjectFile(projectRoot, {
+      writeStudioProjectFile(startDirectory, {
         path: 'studio/asha-studio-workspace.json',
         text: '{"version":3,"writer":"b"}\n',
         expectedHash: second.sha256,
@@ -3818,12 +3845,12 @@ test('project file service enforces bounded stale-safe atomic writes', async () 
     assert.equal(concurrent.filter(result => result.ok).length, 1);
     assert.equal(concurrent.filter(result => result.diagnostic === 'stale_file_hash').length, 1);
     assert.deepEqual(
-      (await readdir(join(projectRoot, 'studio'))).filter(path => path.endsWith('.tmp')),
+      (await readdir(join(startDirectory, 'studio'))).filter(path => path.endsWith('.tmp')),
       [],
     );
   } finally {
-    await rm(projectRoot, { recursive: true, force: true });
-    await rm(outsideRoot, { recursive: true, force: true });
+    await rm(startDirectory, { recursive: true, force: true });
+    await rm(outsideDirectory, { recursive: true, force: true });
   }
 });
 
@@ -4426,16 +4453,16 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(sceneFileMenuWorkflowSource.includes("artifactKind: 'studio_scene_file_menu_browser_proof'"), true);
   assert.equal(sceneFileMenuWorkflowSource.includes('structured scene file readout JSON is required'), true);
   assert.equal(sceneFileMenuWorkflowSource.includes('negative_marker_only_dom_failed_closed'), true);
-  assert.equal(projectFileServerSource.includes('/api/project/list'), true);
-  assert.equal(projectFileServerSource.includes('/api/project/file'), true);
-  assert.equal(projectFileServerSource.includes('ASHA_STUDIO_PROJECT_ROOT'), true);
+  assert.equal(projectFileServerSource.includes('/api/host-files/list'), true);
+  assert.equal(projectFileServerSource.includes('/api/host-files/file'), true);
+  assert.equal(projectFileServerSource.includes('ASHA_STUDIO_PROJECT_ROOT'), false);
   assert.equal(projectFileServiceSource.includes("flag: 'wx'"), true);
   assert.equal(projectFileServiceSource.includes('await rename(temporaryPath, resolved.absolutePath)'), true);
-  assert.equal(projectFileServiceSource.includes("segment === '..'"), true);
+  assert.equal(projectFileServiceSource.includes("segment === '..'"), false);
   assert.equal(shellSource.includes('projectFileDialog()'), true);
   assert.equal(shellSource.includes('Save Project Workspace'), true);
   assert.equal(shellSource.includes('Browser Slot'), false);
-  assert.equal(shellSource.includes('Open {{ selectedPath }}'), true);
+  assert.equal(shellSource.includes('Open Scene… {{ selectedPath }}'), true);
   assert.equal(storeSource.includes('refreshProjectFiles'), true);
   assert.equal(storeSource.includes('projectFileApiBase'), true);
   assert.equal(storeSource.includes('asha-studio.workspace.v1'), false);

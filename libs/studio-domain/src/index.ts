@@ -8519,6 +8519,81 @@ export function clearStudioWorkspaceReadModel(
   };
 }
 
+/**
+ * Projects a Rust-validated stored scene document into Studio's authored read model.
+ * The document remains the source of truth; renderables are only an editor projection.
+ */
+export function applyCanonicalSceneDocumentReadModel(
+  readModel: StudioWorkspaceReadModel,
+  document: FlatSceneDocument,
+  sourcePath: string | null,
+): StudioWorkspaceReadModel {
+  const renderableNodes = document.nodes.filter(node => node.kind.kind !== 'emptyGroup');
+  const renderables = renderableNodes.map((node): StudioSceneRenderableReadModel => {
+    const [x, y, z] = node.transform.translation;
+    const [scaleX, scaleY, scaleZ] = node.transform.scale.map(value => Math.abs(value)) as [number, number, number];
+    const asset = 'asset' in node.kind ? node.kind.asset : null;
+    const kind: StudioRenderableKind = node.kind.kind === 'voxelVolume'
+      ? 'voxel_grid'
+      : node.kind.kind === 'staticMesh'
+        ? 'static_mesh'
+        : 'preview_ghost';
+    return {
+      renderableId: `scene-node-renderable:${node.id}`,
+      label: node.label ?? `Scene node ${node.id}`,
+      kind,
+      sourceState: 'authoritative',
+      bounds: {
+        min: { x: x - scaleX / 2, y: y - scaleY / 2, z: z - scaleZ / 2 },
+        max: { x: x + scaleX / 2, y: y + scaleY / 2, z: z + scaleZ / 2 },
+      },
+      meshRef: asset?.id ?? null,
+      materialRef: null,
+      renderHash: fnv1aHash('canonical-scene-node', node),
+      visible: true,
+      pickable: true,
+    };
+  });
+  const selectedRenderableId = renderables.at(0)?.renderableId ?? null;
+  const scene: StudioSceneReadModel = {
+    sceneId: `scene-document:${document.id}`,
+    selectedRenderableId,
+    renderables,
+    sceneHash: buildSceneHash(renderables),
+  };
+  const renderableLinks = renderableNodes.map((node, index) => ({
+    sceneNodeId: node.id,
+    renderableId: renderables[index]?.renderableId ?? `scene-node-renderable:${node.id}`,
+  }));
+  const sceneObjectSnapshot = buildSceneObjectSnapshot({ document, renderableLinks });
+  const session: StudioSessionReadModel = {
+    ...readModel.session,
+    scenarioLabel: document.metadata.name ?? (sourcePath === null ? 'Untitled Scene' : sourcePath),
+  };
+  const command = createTimelineEntry({
+    index: readModel.timeline.length,
+    commandId: sourcePath === null ? 'workspace.new' : 'scene.open_document',
+    label: sourcePath === null ? 'New Scene' : 'Open Scene',
+    requestedBy: 'gui',
+    inputSummary: sourcePath === null ? 'untitled' : `hostPath=${sourcePath}`,
+    outputSummary: `Projected ${document.nodes.length} authored scene nodes.`,
+    changedScene: true,
+    changedSelection: readModel.selectedEntityId !== null || selectedRenderableId !== null,
+  });
+  return {
+    ...readModel,
+    session,
+    scene,
+    flatSceneDocument: document,
+    sceneObjectSnapshot,
+    entities: projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities),
+    selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, selectedRenderableId),
+    timeline: [...readModel.timeline, command.timelineEntry],
+    commandResults: [...readModel.commandResults, command.commandResult],
+    timelineSequence: readModel.timelineSequence + 1,
+  };
+}
+
 export function recordStudioWorkspaceUiCommand(
   readModel: StudioWorkspaceReadModel,
   options: {

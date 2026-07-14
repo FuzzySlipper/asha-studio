@@ -1,15 +1,13 @@
 #!/usr/bin/env tsx
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import {
-  listStudioProjectDir,
-  readStudioProjectFile,
-  writeStudioProjectFile,
+  listStudioHostDir,
+  readStudioHostFile,
+  writeStudioHostFile,
 } from './studio-project-file-service';
 
-const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const projectRoot = resolve(process.env.ASHA_STUDIO_PROJECT_ROOT ?? join(repoRoot, '../asha-testing'));
+const startDirectory = resolve(process.env.ASHA_STUDIO_START_DIRECTORY ?? process.cwd());
 const host = process.env.ASHA_STUDIO_FILE_HOST ?? '0.0.0.0';
 const port = Number(process.env.ASHA_STUDIO_FILE_PORT ?? '4300');
 
@@ -44,29 +42,30 @@ const server = createServer(async (request, response) => {
 
   try {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
-    if (request.method === 'GET' && url.pathname === '/api/project/list') {
-      sendJson(response, 200, await listStudioProjectDir(projectRoot, url.searchParams.get('dir') ?? ''));
+    if (request.method === 'GET' && url.pathname === '/api/host-files/list') {
+      sendJson(response, 200, await listStudioHostDir(startDirectory, url.searchParams.get('dir') ?? startDirectory));
       return;
     }
-    if (request.method === 'GET' && url.pathname === '/api/project/file') {
-      sendJson(response, 200, await readStudioProjectFile(projectRoot, url.searchParams.get('path') ?? ''));
+    if (request.method === 'GET' && url.pathname === '/api/host-files/file') {
+      sendJson(response, 200, await readStudioHostFile(startDirectory, url.searchParams.get('path') ?? ''));
       return;
     }
-    if (request.method === 'PUT' && url.pathname === '/api/project/file') {
-      sendJson(response, 200, await writeStudioProjectFile(projectRoot, JSON.parse(await readBody(request))));
+    if (request.method === 'PUT' && url.pathname === '/api/host-files/file') {
+      sendJson(response, 200, await writeStudioHostFile(startDirectory, JSON.parse(await readBody(request))));
       return;
     }
-    sendJson(response, 404, { ok: false, diagnostic: 'not_found' });
+    sendJson(response, 404, { ok: false, diagnostic: 'not_found', message: 'Unknown host file route.' });
   } catch (error) {
     sendJson(response, 500, {
       ok: false,
-      diagnostic: 'project_file_server_error',
+      diagnostic: 'host_file_server_error',
       message: error instanceof Error ? error.message : String(error),
     });
   }
 });
 
 server.listen(port, host, () => {
-  console.log(`ASHA Studio project file server: http://${host}:${port}`);
-  console.log(`Project root: ${projectRoot}`);
+  console.log(`ASHA Studio trusted host file service: http://${host}:${port}`);
+  console.log(`Initial directory: ${startDirectory}`);
+  console.warn('This service exposes the Studio host filesystem and is intended for trusted LAN environments only.');
 });

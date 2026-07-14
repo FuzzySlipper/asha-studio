@@ -1,198 +1,153 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
-export type StudioProjectFileDiagnosticCode =
+export type StudioHostFileDiagnosticCode =
   | 'invalid_write_payload'
-  | 'path_outside_project_root'
-  | 'project_file_not_found'
+  | 'invalid_path'
+  | 'host_file_not_found'
+  | 'permission_denied'
+  | 'host_io_error'
   | 'stale_file_hash';
 
-export interface StudioProjectFileFailure {
+export interface StudioHostFileFailure {
   readonly ok: false;
-  readonly diagnostic: StudioProjectFileDiagnosticCode;
+  readonly diagnostic: StudioHostFileDiagnosticCode;
+  readonly message: string;
   readonly previousHash?: string | null;
 }
 
-export interface StudioProjectFileResolution {
+export interface StudioHostFileResolution {
   readonly ok: true;
   readonly absolutePath: string;
-  readonly relativePath: string;
 }
 
-export interface StudioProjectFileWriteRequest {
+export interface StudioHostFileWriteRequest {
   readonly path: string;
   readonly text: string;
   readonly expectedHash?: string | null;
 }
 
-const projectFileWriteQueues = new Map<string, Promise<void>>();
+const hostFileWriteQueues = new Map<string, Promise<void>>();
 
-async function withProjectFileWriteLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
-  const previous = projectFileWriteQueues.get(path) ?? Promise.resolve();
+async function withHostFileWriteLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
+  const previous = hostFileWriteQueues.get(path) ?? Promise.resolve();
   let release = (): void => undefined;
   const current = new Promise<void>(resolveCurrent => {
     release = resolveCurrent;
   });
   const queued = previous.then(() => current);
-  projectFileWriteQueues.set(path, queued);
+  hostFileWriteQueues.set(path, queued);
   await previous;
   try {
     return await operation();
   } finally {
     release();
-    if (projectFileWriteQueues.get(path) === queued) {
-      projectFileWriteQueues.delete(path);
+    if (hostFileWriteQueues.get(path) === queued) {
+      hostFileWriteQueues.delete(path);
     }
   }
 }
 
-export function studioProjectFileSha256(text: string): string {
+export function studioHostFileSha256(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex')}`;
 }
 
-export function normalizeStudioProjectFilePath(path: string): string | null {
-  const withForwardSlashes = path.replaceAll('\\', '/');
-  if (withForwardSlashes.startsWith('/') || /^[a-zA-Z]:\//.test(withForwardSlashes)) {
-    return null;
-  }
-  const segments = withForwardSlashes.split('/').filter(segment => segment.length > 0);
-  if (segments.some(segment => segment === '.' || segment === '..')) {
-    return null;
-  }
-  return segments.join('/');
-}
-
-export function resolveStudioProjectFilePath(
-  projectRoot: string,
-  path: string,
-): StudioProjectFileResolution | StudioProjectFileFailure {
-  const normalizedRoot = resolve(projectRoot);
-  const relativePath = normalizeStudioProjectFilePath(path);
-  if (relativePath === null) {
-    return { ok: false, diagnostic: 'path_outside_project_root' };
-  }
-  const absolutePath = resolve(normalizedRoot, relativePath);
-  const rootWithSep = normalizedRoot.endsWith(sep) ? normalizedRoot : `${normalizedRoot}${sep}`;
-  if (absolutePath !== normalizedRoot && !absolutePath.startsWith(rootWithSep)) {
-    return { ok: false, diagnostic: 'path_outside_project_root' };
-  }
-  return {
-    ok: true,
-    absolutePath,
-    relativePath: relative(normalizedRoot, absolutePath).replaceAll('\\', '/'),
-  };
-}
-
-function isPathInsideRoot(root: string, path: string): boolean {
-  const rootWithSep = root.endsWith(sep) ? root : `${root}${sep}`;
-  return path === root || path.startsWith(rootWithSep);
-}
-
-function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
-}
-
-async function validateNearestExistingWriteAncestor(
-  projectRoot: string,
-  targetParent: string,
-): Promise<
-  | { readonly ok: true; readonly canonicalRoot: string }
-  | StudioProjectFileFailure
-> {
-  let canonicalRoot: string;
-  try {
-    canonicalRoot = await realpath(resolve(projectRoot));
-  } catch {
-    return { ok: false, diagnostic: 'project_file_not_found' };
-  }
-
-  let candidate = targetParent;
-  while (true) {
-    try {
-      const canonicalCandidate = await realpath(candidate);
-      if (!isPathInsideRoot(canonicalRoot, canonicalCandidate)) {
-        return { ok: false, diagnostic: 'path_outside_project_root' };
-      }
-      return { ok: true, canonicalRoot };
-    } catch (error) {
-      if (!isMissingPathError(error)) {
-        return { ok: false, diagnostic: 'project_file_not_found' };
-      }
-      const parent = dirname(candidate);
-      if (parent === candidate) {
-        return { ok: false, diagnostic: 'path_outside_project_root' };
-      }
-      candidate = parent;
-    }
-  }
-}
-
-async function resolveExistingStudioProjectFilePath(
-  projectRoot: string,
-  path: string,
-): Promise<StudioProjectFileResolution | StudioProjectFileFailure> {
-  const resolved = resolveStudioProjectFilePath(projectRoot, path);
-  if (!resolved.ok) {
-    return resolved;
-  }
-  let canonicalRoot: string;
-  let canonicalTarget: string;
-  try {
-    canonicalRoot = await realpath(resolve(projectRoot));
-    canonicalTarget = await realpath(resolved.absolutePath);
-  } catch {
-    return { ok: false, diagnostic: 'project_file_not_found' };
-  }
-  if (!isPathInsideRoot(canonicalRoot, canonicalTarget)) {
-    return { ok: false, diagnostic: 'path_outside_project_root' };
-  }
-  return { ...resolved, absolutePath: canonicalTarget };
-}
-
-export async function listStudioProjectDir(projectRoot: string, dir: string): Promise<unknown> {
-  const resolved = await resolveExistingStudioProjectFilePath(projectRoot, dir);
-  if (!resolved.ok) {
-    return resolved;
-  }
-  const entries = await readdir(resolved.absolutePath, { withFileTypes: true });
-  const projected = await Promise.all(entries.map(async entry => {
-    const absolutePath = join(resolved.absolutePath, entry.name);
-    const relativePath = relative(resolve(projectRoot), absolutePath).replaceAll('\\', '/');
-    const fileStat = await stat(absolutePath);
+function hostFileFailure(error: unknown, operation: string, path: string): StudioHostFileFailure {
+  const code = error instanceof Error && 'code' in error
+    ? (error as NodeJS.ErrnoException).code
+    : undefined;
+  if (code === 'ENOENT') {
     return {
-      path: relativePath,
-      name: entry.name,
-      kind: entry.isDirectory() ? 'directory' : 'file',
-      size: entry.isDirectory() ? null : fileStat.size,
-      mtimeMs: fileStat.mtimeMs,
+      ok: false,
+      diagnostic: 'host_file_not_found',
+      message: `${operation} failed because the host path does not exist: ${path}`,
     };
-  }));
+  }
+  if (code === 'EACCES' || code === 'EPERM') {
+    return {
+      ok: false,
+      diagnostic: 'permission_denied',
+      message: `${operation} was denied by the host operating system: ${path}`,
+    };
+  }
   return {
-    ok: true,
-    projectRoot: resolve(projectRoot),
-    dir: resolved.relativePath,
-    entries: projected,
+    ok: false,
+    diagnostic: 'host_io_error',
+    message: `${operation} failed for ${path}: ${error instanceof Error ? error.message : String(error)}`,
   };
 }
 
-export async function readStudioProjectFile(projectRoot: string, path: string): Promise<unknown> {
-  const resolved = await resolveExistingStudioProjectFilePath(projectRoot, path);
+export function resolveStudioHostFilePath(
+  startDirectory: string,
+  path: string,
+): StudioHostFileResolution | StudioHostFileFailure {
+  const trimmedPath = path.trim();
+  if (trimmedPath.length === 0 || trimmedPath.includes('\0')) {
+    return {
+      ok: false,
+      diagnostic: 'invalid_path',
+      message: 'A non-empty host filesystem path is required.',
+    };
+  }
+  return {
+    ok: true,
+    absolutePath: isAbsolute(trimmedPath)
+      ? resolve(trimmedPath)
+      : resolve(startDirectory, trimmedPath),
+  };
+}
+
+export async function listStudioHostDir(startDirectory: string, dir: string): Promise<unknown> {
+  const resolved = resolveStudioHostFilePath(startDirectory, dir || startDirectory);
   if (!resolved.ok) {
     return resolved;
   }
-  const text = await readFile(resolved.absolutePath, 'utf8');
-  return {
-    ok: true,
-    projectRoot: resolve(projectRoot),
-    path: resolved.relativePath,
-    text,
-    sha256: studioProjectFileSha256(text),
-  };
+  try {
+    const entries = await readdir(resolved.absolutePath, { withFileTypes: true });
+    const projected = await Promise.all(entries.map(async entry => {
+      const absolutePath = join(resolved.absolutePath, entry.name);
+      const fileStat = await stat(absolutePath);
+      return {
+        path: absolutePath,
+        name: entry.name,
+        kind: entry.isDirectory() ? 'directory' : 'file',
+        size: entry.isDirectory() ? null : fileStat.size,
+        mtimeMs: fileStat.mtimeMs,
+      };
+    }));
+    return {
+      ok: true,
+      startDirectory: resolve(startDirectory),
+      dir: resolved.absolutePath,
+      entries: projected,
+    };
+  } catch (error) {
+    return hostFileFailure(error, 'Listing directory', resolved.absolutePath);
+  }
 }
 
-export async function writeStudioProjectFile(
-  projectRoot: string,
+export async function readStudioHostFile(startDirectory: string, path: string): Promise<unknown> {
+  const resolved = resolveStudioHostFilePath(startDirectory, path);
+  if (!resolved.ok) {
+    return resolved;
+  }
+  try {
+    const text = await readFile(resolved.absolutePath, 'utf8');
+    return {
+      ok: true,
+      startDirectory: resolve(startDirectory),
+      path: resolved.absolutePath,
+      text,
+      sha256: studioHostFileSha256(text),
+    };
+  } catch (error) {
+    return hostFileFailure(error, 'Reading file', resolved.absolutePath);
+  }
+}
+
+export async function writeStudioHostFile(
+  startDirectory: string,
   request: unknown,
 ): Promise<unknown> {
   if (
@@ -202,71 +157,74 @@ export async function writeStudioProjectFile(
     || typeof (request as Record<string, unknown>)['path'] !== 'string'
     || typeof (request as Record<string, unknown>)['text'] !== 'string'
   ) {
-    return { ok: false, diagnostic: 'invalid_write_payload' } satisfies StudioProjectFileFailure;
+    return {
+      ok: false,
+      diagnostic: 'invalid_write_payload',
+      message: 'Host file writes require string path and text fields.',
+    } satisfies StudioHostFileFailure;
   }
-  const parsed = request as StudioProjectFileWriteRequest;
+  const parsed = request as StudioHostFileWriteRequest;
   if (
     'expectedHash' in parsed
     && typeof parsed.expectedHash !== 'string'
     && parsed.expectedHash !== null
   ) {
-    return { ok: false, diagnostic: 'invalid_write_payload' } satisfies StudioProjectFileFailure;
+    return {
+      ok: false,
+      diagnostic: 'invalid_write_payload',
+      message: 'expectedHash must be a string or null when supplied.',
+    } satisfies StudioHostFileFailure;
   }
-  const resolved = resolveStudioProjectFilePath(projectRoot, parsed.path);
-  if (!resolved.ok || resolved.relativePath.length === 0) {
-    return { ok: false, diagnostic: 'path_outside_project_root' } satisfies StudioProjectFileFailure;
+  const resolved = resolveStudioHostFilePath(startDirectory, parsed.path);
+  if (!resolved.ok) {
+    return resolved;
   }
-  return withProjectFileWriteLock(resolved.absolutePath, async () => {
-    const targetParent = dirname(resolved.absolutePath);
-    const ancestor = await validateNearestExistingWriteAncestor(projectRoot, targetParent);
-    if (!ancestor.ok) {
-      return ancestor;
-    }
-    await mkdir(targetParent, { recursive: true });
-    const canonicalParent = await realpath(targetParent);
-    if (!isPathInsideRoot(ancestor.canonicalRoot, canonicalParent)) {
-      return { ok: false, diagnostic: 'path_outside_project_root' } satisfies StudioProjectFileFailure;
-    }
-    try {
-      if ((await lstat(resolved.absolutePath)).isSymbolicLink()) {
-        return { ok: false, diagnostic: 'path_outside_project_root' } satisfies StudioProjectFileFailure;
-      }
-    } catch {
-      // A missing leaf is the normal create path. Its canonical parent was checked above.
-    }
+  return withHostFileWriteLock(resolved.absolutePath, async () => {
     let previousHash: string | null = null;
     try {
-      previousHash = studioProjectFileSha256(await readFile(resolved.absolutePath, 'utf8'));
-    } catch {
-      previousHash = null;
-    }
-    if (typeof parsed.expectedHash === 'string' || parsed.expectedHash === null) {
-      if (previousHash !== parsed.expectedHash) {
-        return {
-          ok: false,
-          diagnostic: 'stale_file_hash',
-          previousHash,
-        } satisfies StudioProjectFileFailure;
+      previousHash = studioHostFileSha256(await readFile(resolved.absolutePath, 'utf8'));
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT')) {
+        return hostFileFailure(error, 'Reading existing file', resolved.absolutePath);
       }
     }
+    if (parsed.expectedHash !== undefined && previousHash !== parsed.expectedHash) {
+      return {
+        ok: false,
+        diagnostic: 'stale_file_hash',
+        message: `The host file changed since it was opened: ${resolved.absolutePath}`,
+        previousHash,
+      } satisfies StudioHostFileFailure;
+    }
 
+    const targetParent = dirname(resolved.absolutePath);
     const temporaryPath = join(
-      dirname(resolved.absolutePath),
+      targetParent,
       `.${basename(resolved.absolutePath)}.${process.pid}.${randomUUID()}.tmp`,
     );
     try {
+      await mkdir(targetParent, { recursive: true });
       await writeFile(temporaryPath, parsed.text, { encoding: 'utf8', flag: 'wx' });
       await rename(temporaryPath, resolved.absolutePath);
+      const nextText = await readFile(resolved.absolutePath, 'utf8');
+      return {
+        ok: true,
+        startDirectory: resolve(startDirectory),
+        path: resolved.absolutePath,
+        previousHash,
+        sha256: studioHostFileSha256(nextText),
+      };
+    } catch (error) {
+      return hostFileFailure(error, 'Writing file', resolved.absolutePath);
     } finally {
-      await rm(temporaryPath, { force: true });
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
     }
-    const nextText = await readFile(resolved.absolutePath, 'utf8');
-    return {
-      ok: true,
-      projectRoot: resolve(projectRoot),
-      path: resolved.relativePath,
-      previousHash,
-      sha256: studioProjectFileSha256(nextText),
-    };
   });
 }
+
+// Transitional aliases while #5803 removes the old project-file naming from callers.
+export const studioProjectFileSha256 = studioHostFileSha256;
+export const resolveStudioProjectFilePath = resolveStudioHostFilePath;
+export const listStudioProjectDir = listStudioHostDir;
+export const readStudioProjectFile = readStudioHostFile;
+export const writeStudioProjectFile = writeStudioHostFile;
