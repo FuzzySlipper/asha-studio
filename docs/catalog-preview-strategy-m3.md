@@ -30,4 +30,4 @@ The Catalog tab must preserve these non-claims until a later renderer/runtime pr
 
 ## Evidence
 
-The workflow proof is `pnpm run evidence -- catalog-workflow-m3`. It must show the human-visible Catalog tab, create/load/link/validate affordances, bounded project-root file readback, and fail-closed diagnostics for missing source evidence and invalid/private catalog paths.
+The workflow proof is `pnpm run evidence -- catalog-workflow-m3`. It must show the human-visible Catalog tab, create/load/link/validate affordances, catalog-source readback, and diagnostics for missing or invalid catalog evidence. Scene files use the separate trusted host-filesystem path described in `project-workspace-persistence.md`.

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "artifactKind": "agent_readout",
-  "artifactId": "agent-readout:session-preview-0001",
+  "artifactId": "agent-readout:studio-authoring",
   "generatedAtIso": "1970-01-01T00:00:00.000Z",
   "workspaceId": "asha-studio-substrate",
   "compatibilityMarker": "asha-studio-substrate.angular-nx.v0",
   "session": {
-    "sessionId": "session-preview-0001",
-    "scenarioId": "voxel-basic",
-    "scenarioLabel": "Basic Voxel Scenario",
+    "sessionId": "studio-authoring",
+    "scenarioId": "untitled",
+    "scenarioLabel": "Untitled Scene",
     "runtimeMode": "reference",
     "status": "ready",
     "startedAtIso": "1970-01-01T00:00:00.000Z"
@@ -44,108 +44,15 @@
     "diagnostics": []
   },
   "scene": {
-    "sceneId": "scene-view:voxel-basic:v1",
-    "selectedRenderableId": "selected-voxel:0,0,0",
-    "renderables": [
-      {
-        "renderableId": "terrain-test-grid",
-        "label": "Terrain Grid",
-        "kind": "voxel_grid",
-        "sourceState": "authoritative",
-        "bounds": {
-          "min": {
-            "x": 0,
-            "y": 0,
-            "z": 0
-          },
-          "max": {
-            "x": 3,
-            "y": 3,
-            "z": 1
-          }
-        },
-        "meshRef": "generated:voxel-grid",
-        "materialRef": "material:grid-reference",
-        "renderHash": "render-before-voxel-basic",
-        "visible": true,
-        "pickable": true
-      },
-      {
-        "renderableId": "selected-voxel:0,0,0",
-        "label": "Voxel (0, 0, 0)",
-        "kind": "voxel_cell",
-        "sourceState": "authoritative",
-        "bounds": {
-          "min": {
-            "x": 0,
-            "y": 0,
-            "z": 0
-          },
-          "max": {
-            "x": 1,
-            "y": 1,
-            "z": 1
-          }
-        },
-        "meshRef": "generated:voxel-cell",
-        "materialRef": "material:authority-voxel",
-        "renderHash": "render-selected-voxel-000",
-        "visible": true,
-        "pickable": true
-      },
-      {
-        "renderableId": "preview-ghost:1,0,0",
-        "label": "Preview Ghost (1, 0, 0)",
-        "kind": "preview_ghost",
-        "sourceState": "pending",
-        "bounds": {
-          "min": {
-            "x": 1,
-            "y": 0,
-            "z": 0
-          },
-          "max": {
-            "x": 2,
-            "y": 1,
-            "z": 1
-          }
-        },
-        "meshRef": "generated:voxel-cell",
-        "materialRef": "material:preview-ghost",
-        "renderHash": "render-preview-ghost-100",
-        "visible": true,
-        "pickable": false
-      },
-      {
-        "renderableId": "model-preview-crate",
-        "label": "Demo Crate Preview",
-        "kind": "static_mesh",
-        "sourceState": "reference",
-        "bounds": {
-          "min": {
-            "x": 1.125,
-            "y": 1.125,
-            "z": 0.275
-          },
-          "max": {
-            "x": 1.875,
-            "y": 1.875,
-            "z": 1.025
-          }
-        },
-        "meshRef": "static-mesh:demo-crate",
-        "materialRef": "material:crate-reference",
-        "renderHash": "render-model-preview-crate",
-        "visible": true,
-        "pickable": false
-      }
-    ],
-    "sceneHash": "scene-view-57349d34"
+    "sceneId": "scene-document:1",
+    "selectedRenderableId": null,
+    "renderables": [],
+    "sceneHash": "scene-view-741638a5"
   },
   "entities": [
     {
-      "id": "session:session-preview-0001",
-      "label": "Basic Voxel Scenario",
+      "id": "session:studio-authoring",
+      "label": "Untitled Scene",
       "kind": "session",
       "sourceState": "reference",
       "badge": "reference",
@@ -157,7 +64,7 @@
       "sceneObjectId": null
     },
     {
-      "id": "scene-view:voxel-basic:v1",
+      "id": "scene-document:1",
       "label": "Scene View",
       "kind": "scene",
       "sourceState": "authoritative",
@@ -176,67 +83,15 @@
       "sourceState": "reference",
       "badge": "reference",
       "depth": 2,
-      "expanded": true,
+      "expanded": false,
       "selectable": true,
       "selected": false,
       "renderableId": null,
       "sceneObjectId": "scene-node:1"
-    },
-    {
-      "id": "scene-node:2",
-      "label": "Terrain Grid",
-      "kind": "voxel_grid",
-      "sourceState": "authoritative",
-      "badge": "authority-backed",
-      "depth": 3,
-      "expanded": false,
-      "selectable": true,
-      "selected": false,
-      "renderableId": "terrain-test-grid",
-      "sceneObjectId": "scene-node:2"
-    },
-    {
-      "id": "scene-node:3",
-      "label": "Voxel (0, 0, 0)",
-      "kind": "voxel_cell",
-      "sourceState": "authoritative",
-      "badge": "selected",
-      "depth": 3,
-      "expanded": false,
-      "selectable": true,
-      "selected": true,
-      "renderableId": "selected-voxel:0,0,0",
-      "sceneObjectId": "scene-node:3"
-    },
-    {
-      "id": "scene-node:4",
-      "label": "Preview Ghost (1, 0, 0)",
-      "kind": "preview_ghost",
-      "sourceState": "pending",
-      "badge": "preview-only",
-      "depth": 3,
-      "expanded": false,
-      "selectable": true,
-      "selected": false,
-      "renderableId": "preview-ghost:1,0,0",
-      "sceneObjectId": "scene-node:4"
-    },
-    {
-      "id": "scene-node:5",
-      "label": "Demo Crate Preview",
-      "kind": "static_mesh",
-      "sourceState": "reference",
-      "badge": "projected",
-      "depth": 3,
-      "expanded": false,
-      "selectable": true,
-      "selected": false,
-      "renderableId": "model-preview-crate",
-      "sceneObjectId": "scene-node:5"
     }
   ],
-  "selectedEntityId": "scene-node:3",
-  "entityListHash": "entity-list-15b7463d",
+  "selectedEntityId": null,
+  "entityListHash": "entity-list-51753cd2",
   "viewport": {
     "readoutVersion": "studio-viewport-readout.v0",
     "camera": {
@@ -272,9 +127,9 @@
     "wireframeEnabled": false,
     "showGrid": true,
     "showPreviewGhosts": true,
-    "showReadbackOverlay": true,
+    "showReadbackOverlay": false,
     "showRaycastHitDebug": false,
-    "renderSettingsHash": "render-settings-60324d5a"
+    "renderSettingsHash": "render-settings-5c4c5ef7"
   },
   "uiState": {
     "schemaVersion": 1,
@@ -284,14 +139,13 @@
     "bottomPanelTab": "timeline",
     "assetBrowserCategory": "all",
     "hierarchy": {
-      "expandedCount": 3,
-      "totalCount": 7
+      "expandedCount": 2,
+      "totalCount": 3
     },
-    "selectedScenarioDraftId": "voxel-basic",
     "hierarchyFilter": "",
     "menuMessage": "Workspace ready.",
     "projectWorkspaceAvailable": false,
-    "uiStateHash": "studio-ui-state-1fd9bcc0",
+    "uiStateHash": "studio-ui-state-2fcc8ffb",
     "nonClaims": [
       "ui_affordance_state_only",
       "not_scene_authority",
@@ -302,76 +156,25 @@
   "commandTimeline": [
     {
       "sequenceId": "seq-0001",
-      "commandId": "session.start",
-      "label": "Start Session",
+      "commandId": "workspace.start",
+      "label": "Open Studio",
       "requestedBy": "gui",
       "status": "ok",
-      "inputSummary": "scenarioId=voxel-basic",
-      "outputSummary": "Session session-preview-0001 started."
-    },
-    {
-      "sequenceId": "seq-0002",
-      "commandId": "session.load_scenario",
-      "label": "Load Scenario",
-      "requestedBy": "agent",
-      "status": "ok",
-      "inputSummary": "scenarioId=voxel-basic",
-      "outputSummary": "Loaded Basic Voxel Scenario."
-    },
-    {
-      "sequenceId": "seq-0003",
-      "commandId": "inspection.editor_state",
-      "label": "Read Editor State",
-      "requestedBy": "gui",
-      "status": "ok",
-      "inputSummary": "sessionId=session-preview-0001",
-      "outputSummary": "Projected scene read model with 4 renderables."
-    },
-    {
-      "sequenceId": "seq-0004",
-      "commandId": "selection.set_active_entity",
-      "label": "Set Active Entity",
-      "requestedBy": "gui",
-      "status": "ok",
-      "inputSummary": "entityId=selected-voxel:0,0,0",
-      "outputSummary": "Selected Voxel (0, 0, 0)."
+      "inputSummary": "scene=untitled",
+      "outputSummary": "Created an empty authored scene."
     }
   ],
   "commandResults": [
     {
       "sequenceId": "seq-0001",
-      "commandId": "session.start",
+      "commandId": "workspace.start",
       "status": "ok",
       "changedScene": false,
       "changedSelection": false,
-      "outputSummary": "Session session-preview-0001 started."
-    },
-    {
-      "sequenceId": "seq-0002",
-      "commandId": "session.load_scenario",
-      "status": "ok",
-      "changedScene": true,
-      "changedSelection": false,
-      "outputSummary": "Loaded Basic Voxel Scenario."
-    },
-    {
-      "sequenceId": "seq-0003",
-      "commandId": "inspection.editor_state",
-      "status": "ok",
-      "changedScene": false,
-      "changedSelection": false,
-      "outputSummary": "Projected scene read model with 4 renderables."
-    },
-    {
-      "sequenceId": "seq-0004",
-      "commandId": "selection.set_active_entity",
-      "status": "ok",
-      "changedScene": false,
-      "changedSelection": true,
-      "outputSummary": "Selected Voxel (0, 0, 0)."
+      "outputSummary": "Created an empty authored scene."
     }
   ],
-  "readbackMarker": "session-preview-0001:scene-view-57349d34:4",
+  "readbackMarker": "studio-authoring:scene-view-741638a5:1",
   "diagnostics": [],
   "knownLimitations": [
     "Current Angular base is a browser reference projection; native runtime authority, hardware GPU evidence, and Agora compositor capture remain gated behind later proof slices."

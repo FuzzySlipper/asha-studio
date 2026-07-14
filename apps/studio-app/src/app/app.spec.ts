@@ -140,7 +140,7 @@ describe('StudioShellComponent', () => {
     );
   });
 
-  it('renders proof scenes tied to catalog assets in the Proof Scenes tab', async () => {
+  it('keeps legacy proof-scene and temporary-scenario loaders out of product chrome', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -149,39 +149,13 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    const proofScenesButton = Array.from(element.querySelectorAll('button')).find(
-      button => button.textContent?.trim() === 'Proof Scenes',
-    );
-    proofScenesButton?.click();
-    fixture.detectChanges();
-
-    const panel = element.querySelector('[data-visual-id="studio-proof-scene-panel"]');
-    expect(panel?.textContent).toContain('ASHA Demo Material Proof');
-    expect(panel?.textContent).toContain('mesh.demo-cube');
-    expect(panel?.textContent).toContain('material.demo-copper');
-    expect(panel?.textContent).toContain('texture.demo-checker');
-    expect(panel?.textContent).toContain('harness/conformance/fixtures/minimal-world.json');
-    expect(element.querySelector('[data-proof-scene-id="1002"]')).not.toBeNull();
-  });
-
-  it('keeps temporary scenarios in the Runtime menu without exposing proof session rows', async () => {
-    await TestBed.configureTestingModule({
-      imports: [StudioShellComponent],
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(StudioShellComponent);
-    fixture.detectChanges();
-
-    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelector('[data-visual-id="studio-proof-scene-panel"]')).toBeNull();
     expect(element.querySelector('[data-visual-id="studio-runtime-session-panel"]')).toBeNull();
     selectRuntimeSection(fixture, 'session');
     fixture.detectChanges();
 
     const menu = element.querySelector('[data-visual-id="studio-runtime-tools-menu"]');
-    expect(menu?.textContent).toContain('Temporary scenarios');
-    expect(menu?.textContent).toContain('Basic Voxel Scenario');
-    expect(menu?.textContent).toContain('Placeholder Scenario');
-    expect(menu?.textContent).toContain('Project scene open/save is under File');
+    expect(menu?.textContent).not.toContain('scenarios');
     expect(menu?.textContent).not.toContain('fixture_reserved');
     expect(menu?.textContent).not.toContain('replay_reserved');
   });

@@ -14,7 +14,6 @@ import { buildDevtoolsProtocolGoldenFixtures, createDevtoolsFixtureEndpoint } fr
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
-  addReferenceRenderableReadModel,
   applyCanonicalSceneDocumentReadModel,
   attachStudioGameWorkspaceDevtools,
   applySelectedEntityReadModel,
@@ -22,8 +21,6 @@ import {
   buildAssetBrowserCategories,
   buildInitialWorkspaceReadModel,
   buildStudioGameWorkspaceReadout,
-  buildStudioSceneFileList,
-  buildStudioSceneFileSaveReadback,
   buildStudioWorkspaceOpenReadModel,
   buildStudioSceneAuthoringOperation,
   buildStudioCatalogAuthoringOperation,
@@ -32,7 +29,6 @@ import {
   buildStudioAuthoredBrowserDebugReadModel,
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioLiveDebugCommandProposalSurface,
-  buildStudioProofSceneList,
   buildStudioAuthoredStatePanelReflection,
   buildStudioLiveDebugSessionIdentity,
   buildStudioLiveAssetResourceDebugInspector,
@@ -52,10 +48,6 @@ import {
   computeEntityListHash,
   createStudioAgentReadout,
   createStudioCompactAgentReadout,
-  createLoadReferenceAssetIntent,
-  createLoadScenarioIntent,
-  createOpenSceneFileIntent,
-  createSaveSceneFileIntent,
   createCreateSceneObjectRequest,
   applySceneObjectCommandReadModel,
   applyStudioCatalogAuthoringOperation,
@@ -70,8 +62,7 @@ import {
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   filterAssetBrowserRenderables,
-  applyOpenSceneFileReadModel,
-  loadScenarioReadModel,
+  findUnresolvedSceneAssetIds,
   loadStudioAssetInventory,
   loadStudioGameWorkspaceManifest,
   loadStudioPublishEvidence,
@@ -81,7 +72,6 @@ import {
   recordStudioWorkspaceUiCommand,
   refreshStudioGameWorkspaceLiveReadModel,
   restoreStudioWorkspaceArtifact,
-  serializeWorkspaceSceneSource,
   serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
   stageStudioProjectWorkspaceLoad,
@@ -117,6 +107,54 @@ function evidenceProcessTest(name: string, fn: () => void): void {
 
 function loadDemoPackageScripts(): Record<string, string> {
   return JSON.parse(readFileSync(join(demoRoot, 'package.json'), 'utf8')).scripts;
+}
+
+function buildAuthoredWorkspaceReadModel() {
+  const workspace = buildInitialWorkspaceReadModel();
+  return applyCanonicalSceneDocumentReadModel(workspace, {
+    schemaVersion: 1,
+    id: sceneId(81),
+    metadata: { name: 'Authored Test Scene', authoringFormatVersion: 1 },
+    dependencies: [
+      { id: 'voxel.authored', version: { req: 'any' }, hash: null },
+      { id: 'mesh.authored', version: { req: 'any' }, hash: null },
+      { id: 'sprite.authored-a', version: { req: 'any' }, hash: null },
+      { id: 'sprite.authored-b', version: { req: 'any' }, hash: null },
+    ],
+    nodes: [
+      {
+        id: sceneNodeId(1),
+        parent: null,
+        childOrder: 0,
+        label: 'Scene Root',
+        tags: [],
+        transform: { translation: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+        kind: { kind: 'emptyGroup' },
+      },
+      {
+        id: sceneNodeId(2),
+        parent: sceneNodeId(1),
+        childOrder: 0,
+        label: 'Authored Voxel Volume',
+        tags: ['authored'],
+        transform: { translation: [0.5, 0.5, 0.5], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+        kind: { kind: 'voxelVolume', asset: { id: 'voxel.authored', version: { req: 'any' }, hash: null } },
+      },
+      ...[
+        { id: 3, order: 1, label: 'Authored Mesh', kind: 'staticMesh' as const, assetId: 'mesh.authored', x: 2 },
+        { id: 4, order: 2, label: 'Authored Sprite A', kind: 'sprite' as const, assetId: 'sprite.authored-a', x: 3 },
+        { id: 5, order: 3, label: 'Authored Sprite B', kind: 'sprite' as const, assetId: 'sprite.authored-b', x: 4 },
+      ].map(item => ({
+        id: sceneNodeId(item.id),
+        parent: sceneNodeId(1),
+        childOrder: item.order,
+        label: item.label,
+        tags: ['authored'],
+        transform: { translation: [item.x, 0.5, 0.5] as const, rotation: [0, 0, 0, 1] as const, scale: [1, 1, 1] as const },
+        kind: { kind: item.kind, asset: { id: item.assetId, version: { req: 'any' as const }, hash: null } },
+      })),
+    ],
+  }, '/tmp/asha-studio-authored-test.scene.json');
 }
 
 function loadDemoPackageName(): string {
@@ -370,9 +408,9 @@ function samplePublishEvidenceArtifact() {
 }
 
 test('selection intent maps through the public command identity before read model update', () => {
-  const initialReadModel = buildInitialWorkspaceReadModel();
+  const initialReadModel = buildAuthoredWorkspaceReadModel();
   const modelEntity = initialReadModel.entities.find(
-    entity => entity.renderableId === 'model-preview-crate',
+    entity => entity.renderableId === 'scene-node-renderable:3',
   );
 
   assert.ok(modelEntity);
@@ -381,7 +419,7 @@ test('selection intent maps through the public command identity before read mode
 
   assert.equal(dispatchResult.accepted, true);
   assert.equal(dispatchResult.proposal?.commandId, 'selection.set_active_entity');
-  assert.equal(initialReadModel.session.sessionId, 'session-preview-0001');
+  assert.equal(initialReadModel.session.sessionId, 'studio-authoring');
   assert.equal(initialReadModel.scene.renderables.length, 4);
   assert.equal(initialReadModel.timeline.length, initialReadModel.commandResults.length);
 
@@ -391,13 +429,13 @@ test('selection intent maps through the public command identity before read mode
   );
 
   assert.equal(updatedReadModel.selectedEntityId, modelEntity.id);
-  assert.equal(updatedReadModel.scene.selectedRenderableId, 'model-preview-crate');
-  assert.equal(updatedReadModel.timelineSequence, 5);
+  assert.equal(updatedReadModel.scene.selectedRenderableId, 'scene-node-renderable:3');
+  assert.equal(updatedReadModel.timelineSequence, initialReadModel.timelineSequence + 1);
   assert.equal(updatedReadModel.timeline.at(-1)?.commandId, 'selection.set_active_entity');
 });
 
 test('viewport adapter marks the shared selected renderable without owning state', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const adapter = buildStudioViewportAdapterReadModel({
     scene: readModel.scene,
     camera: buildStudioViewportCameraReadModel(),
@@ -407,7 +445,7 @@ test('viewport adapter marks the shared selected renderable without owning state
 
   assert.equal(adapter.adapterVersion, 'studio-viewport-adapter.v0');
   assert.equal(adapter.renderables.length, readModel.scene.renderables.length);
-  assert.equal(selectedRenderable?.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(selectedRenderable?.renderableId, 'scene-node-renderable:2');
   assert.equal(adapter.tool.activeTool, 'select');
   assert.match(adapter.camera.cameraHash, /^viewport-camera-/);
   assert.match(adapter.readbackHash, /^viewport-readback-/);
@@ -444,7 +482,7 @@ test('raycast hit debug is a hashed render setting for viewport diagnostics', ()
 });
 
 test('viewport camera controls produce deterministic camera read-model updates', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const initialCamera = buildStudioViewportCameraReadModel();
   const orbited = orbitStudioViewportCamera(initialCamera, { deltaX: 24, deltaY: -12 });
   const panned = panStudioViewportCamera(orbited, { deltaX: 16, deltaY: 8 });
@@ -455,13 +493,13 @@ test('viewport camera controls produce deterministic camera read-model updates',
   assert.notEqual(panned.cameraHash, orbited.cameraHash);
   assert.notEqual(zoomed.cameraHash, panned.cameraHash);
   assert.match(framed.cameraHash, /^viewport-camera-/);
-  assert.equal(framed.target.x, 1.5);
-  assert.equal(framed.target.y, 1.5);
+  assert.equal(framed.target.x, 2.25);
+  assert.equal(framed.target.y, 0.5);
 });
 
 test('selected viewport framing targets the selected renderable bounds', () => {
-  const readModel = buildInitialWorkspaceReadModel();
-  const framed = frameStudioViewportCameraOnRenderable(readModel.scene, 'selected-voxel:0,0,0');
+  const readModel = buildAuthoredWorkspaceReadModel();
+  const framed = frameStudioViewportCameraOnRenderable(readModel.scene, 'scene-node-renderable:2');
 
   assert.match(framed.cameraHash, /^viewport-camera-/);
   assert.equal(framed.target.x, 0.5);
@@ -480,9 +518,9 @@ test('selected viewport framing falls back to the full scene when selection is m
 });
 
 test('viewport hit read model records face and voxel detail deterministically', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const renderable = readModel.scene.renderables.find(
-    item => item.renderableId === 'selected-voxel:0,0,0',
+    item => item.renderableId === 'scene-node-renderable:2',
   );
 
   assert.ok(renderable);
@@ -492,16 +530,16 @@ test('viewport hit read model records face and voxel detail deterministically', 
     worldPosition: { x: 0.25, y: 0.75, z: 0.99 },
   });
 
-  assert.equal(hit.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(hit.renderableId, 'scene-node-renderable:2');
   assert.equal(hit.face, 'z_max');
   assert.deepEqual(hit.voxelCoord, { x: 0, y: 0, z: 0 });
   assert.match(hit.hitHash, /^viewport-hit-/);
 });
 
 test('viewport hit read model leaves non-voxel assets without voxel coordinates', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const renderable = readModel.scene.renderables.find(
-    item => item.renderableId === 'model-preview-crate',
+    item => item.renderableId === 'scene-node-renderable:3',
   );
 
   assert.ok(renderable);
@@ -525,7 +563,7 @@ test('workspace new clears scene through a recorded read-model command', () => {
   assert.equal(cleared.timelineSequence, readModel.timelineSequence + 1);
   assert.equal(cleared.timeline.at(-1)?.commandId, 'workspace.new');
   assert.equal(cleared.commandResults.at(-1)?.changedScene, true);
-  assert.equal(cleared.scenarios.find(scenario => scenario.scenarioId === 'voxel-basic')?.label, 'Basic Voxel Scenario');
+  assert.equal(cleared.session.scenarioLabel, 'Empty Scene');
 });
 
 test('canonical scene documents project by authored node identity without runtime state', () => {
@@ -567,38 +605,8 @@ test('canonical scene documents project by authored node identity without runtim
   assert.equal(projected.scene.renderables[0]?.renderableId, 'scene-node-renderable:450');
   assert.equal(projected.sceneObjectSnapshot.objects.some(object => object.sceneNodeId === sceneNodeId(450)), true);
   assert.equal(projected.session.scenarioLabel, 'Host Scene');
-});
-
-test('scenario load projects selected scenario scene through the timeline', () => {
-  const readModel = buildInitialWorkspaceReadModel();
-  const dispatchResult = mapStudioIntentToCommand(
-    createLoadScenarioIntent(readModel, 'scenario-placeholder'),
-  );
-
-  assert.equal(dispatchResult.accepted, true);
-  assert.equal(dispatchResult.proposal?.commandId, 'session.load_scenario');
-  const loaded = loadScenarioReadModel(readModel, dispatchResult.proposal?.scenarioId ?? '');
-
-  assert.equal(loaded.ok, true);
-  assert.equal(loaded.workspace.session.scenarioId, 'scenario-placeholder');
-  assert.equal(loaded.workspace.session.scenarioLabel, 'Placeholder Scenario');
-  assert.equal(loaded.workspace.scene.sceneId, 'scene-view:scenario-placeholder:v1');
-  assert.equal(loaded.workspace.scene.renderables.length, 3);
-  assert.equal(loaded.workspace.scene.selectedRenderableId, 'placeholder-ground-grid');
-  assert.equal(loaded.workspace.timeline.at(-1)?.commandId, 'session.load_scenario');
-  assert.equal(
-    loaded.workspace.scenarios.find(scenario => scenario.scenarioId === 'scenario-placeholder')?.status,
-    'loaded',
-  );
-});
-
-test('scenario load fails closed for unknown scenario ids', () => {
-  const readModel = buildInitialWorkspaceReadModel();
-  const loaded = loadScenarioReadModel(readModel, 'scenario-missing');
-
-  assert.equal(loaded.ok, false);
-  assert.equal(loaded.workspace, readModel);
-  assert.equal(loaded.diagnostics.at(0)?.code, 'scenario_load_unknown');
+  assert.deepEqual(findUnresolvedSceneAssetIds(document, []), ['mesh.host-cube']);
+  assert.deepEqual(findUnresolvedSceneAssetIds(document, ['mesh.host-cube']), []);
 });
 
 test('game workspace loader opens the asha-testing manifest without path guessing', () => {
@@ -663,7 +671,7 @@ test('game workspace loader opens the asha-testing manifest without path guessin
   assert.ok(COMMAND_IDS.includes('workspace.validate_game_manifest'));
 });
 
-test('workspace open/read model enumerates bounded scene and catalog refs', () => {
+test('workspace open/read model enumerates catalog refs without owning scene files', () => {
   const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
   const result = loadStudioGameWorkspaceManifest({
     workspaceRoot: demoRoot,
@@ -676,11 +684,7 @@ test('workspace open/read model enumerates bounded scene and catalog refs', () =
   assert.equal(result.ok, true);
   if (!result.ok) throw new Error('asha-testing workspace should load');
 
-  const sourcePaths = [
-    'scenes/material-proof.scene.json',
-    'scenes/minimal.scene.json',
-    'packages/game-catalogs/catalog.json',
-  ];
+  const sourcePaths = ['packages/game-catalogs/catalog.json'];
   const openRead = buildStudioWorkspaceOpenReadModel({
     workspace: result.workspace,
     manifestPath: 'asha.game.toml',
@@ -696,14 +700,9 @@ test('workspace open/read model enumerates bounded scene and catalog refs', () =
   assert.equal(openRead.openRead.openReadVersion, 'studio-workspace-open-read.v0');
   assert.equal(openRead.openRead.manifestPath, 'asha.game.toml');
   assert.equal(openRead.openRead.authoringPersistenceVersion, 'authoring-persistence.v0');
-  assert.deepEqual(openRead.openRead.allowedSceneRoots, ['scenes']);
   assert.deepEqual(openRead.openRead.allowedCatalogRoots, ['packages/game-catalogs']);
   assert.deepEqual(openRead.openRead.sourceFiles.map(file => file.path), sourcePaths);
-  assert.deepEqual(openRead.openRead.sourceFiles.map(file => file.schemaKind), [
-    'proof-scene-json.v1',
-    'proof-scene-json.v1',
-    'asset-catalog-json.v1',
-  ]);
+  assert.deepEqual(openRead.openRead.sourceFiles.map(file => file.schemaKind), ['asset-catalog-json.v1']);
   assert.ok(openRead.openRead.sourceFiles.every(file => file.hash.startsWith('sha256:')));
   assert.ok(openRead.openRead.nonClaims.includes('not_repo_crawler'));
   assert.ok(openRead.openRead.nonClaims.includes('not_source_write'));
@@ -750,182 +749,6 @@ test('workspace open/read model fails closed on missing manifest and unsupported
   assert.ok(failed.diagnostics.some(diagnostic => diagnostic.code === 'unsupported_file_kind'));
 });
 
-evidenceProcessTest('workspace open/read proof command emits bounded source evidence', () => {
-  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'workspace-open-read'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    timeout: 120000,
-  });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /artifacts\/workspace-open-read-proof\/latest\/index\.json/);
-
-  const artifact = JSON.parse(readFileSync(
-    join(repoRoot, 'artifacts/workspace-open-read-proof/latest/index.json'),
-    'utf8',
-  ));
-  assert.equal(artifact.artifactKind, 'studio_workspace_open_read_proof');
-  assert.equal(artifact.openRead.openReadVersion, 'studio-workspace-open-read.v0');
-  const sourcePaths = artifact.openRead.sourceFiles.map((file: { path: string }) => file.path);
-  assert.ok(sourcePaths.includes('packages/game-catalogs/catalog.json'));
-  assert.ok(sourcePaths.includes('scenes/material-proof.scene.json'));
-  assert.ok(sourcePaths.includes('scenes/minimal.scene.json'));
-  assert.ok(sourcePaths.every((path: string) => path === 'packages/game-catalogs/catalog.json' || path.endsWith('.scene.json')));
-  assert.ok(artifact.validations.includes('negative_missing_manifest_failed_closed'));
-  assert.ok(artifact.validations.includes('negative_private_repo_scan_failed_closed'));
-  assert.ok(artifact.nonClaims.includes('not_repo_crawler'));
-  assert.match(artifact.artifactHash, /^sha256:/);
-});
-
-test('scene file list and open command project bounded scene sources', () => {
-  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
-  const workspaceResult = loadStudioGameWorkspaceManifest({
-    workspaceRoot: demoRoot,
-    manifestPath: 'asha.game.toml',
-    gameId: loadDemoPackageName(),
-    manifestText,
-    packageScripts: loadDemoPackageScripts(),
-    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
-  });
-  assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
-
-  const sourcePath = 'scenes/material-proof.scene.json';
-  const sourceText = readFileSync(join(demoRoot, sourcePath), 'utf8');
-  const sceneFiles = buildStudioSceneFileList({
-    workspace: workspaceResult.workspace,
-    manifestPath: 'asha.game.toml',
-    manifestHash: sha256(manifestText),
-    sourceFiles: [{ path: sourcePath, text: sourceText, sha256: sha256(sourceText) }],
-  });
-
-  assert.equal(sceneFiles.ok, true);
-  assert.equal(sceneFiles.sceneFiles.commandIds.open, 'scene.open_source');
-  assert.equal(sceneFiles.sceneFiles.files.at(0)?.name, 'ASHA Demo Material Proof');
-  assert.deepEqual(sceneFiles.sceneFiles.files.at(0)?.catalogAssetIds, [
-    'mesh.demo-cube',
-    'material.demo-copper',
-    'texture.demo-checker',
-  ]);
-  assert.ok(sceneFiles.sceneFiles.nonClaims.includes('not_private_file_picker'));
-
-  const readModel = buildInitialWorkspaceReadModel();
-  const sceneFile = sceneFiles.sceneFiles.files[0];
-  const dispatchResult = mapStudioIntentToCommand(createOpenSceneFileIntent(readModel, sceneFile));
-  assert.equal(dispatchResult.accepted, true);
-  assert.equal(dispatchResult.proposal?.commandId, 'scene.open_source');
-  assert.equal(dispatchResult.proposal?.path, sourcePath);
-
-  const opened = applyOpenSceneFileReadModel(readModel, sceneFile);
-  assert.equal(opened.session.scenarioLabel, 'ASHA Demo Material Proof');
-  assert.equal(opened.timeline.at(-1)?.commandId, 'scene.open_source');
-  assert.ok(opened.scene.renderables.some(renderable => renderable.renderableId === 'scene-file-asset:mesh.demo-cube'));
-});
-
-test('scene file save and save-as commands validate bounded source readback', () => {
-  const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
-  const workspaceResult = loadStudioGameWorkspaceManifest({
-    workspaceRoot: demoRoot,
-    manifestPath: 'asha.game.toml',
-    gameId: loadDemoPackageName(),
-    manifestText,
-    packageScripts: loadDemoPackageScripts(),
-    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
-  });
-  assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('asha-testing workspace should load');
-
-  const readModel = buildInitialWorkspaceReadModel();
-  const payloadText = serializeWorkspaceSceneSource(readModel);
-  const payloadHash = sha256(payloadText);
-  const saveIntent = createSaveSceneFileIntent(readModel, {
-    path: 'scenes/studio-save-as.scene.json',
-    expectedPreviousHash: null,
-    saveAs: true,
-  });
-  const dispatchResult = mapStudioIntentToCommand(saveIntent);
-  assert.equal(dispatchResult.accepted, true);
-  assert.equal(dispatchResult.proposal?.commandId, 'scene.save_source_as');
-
-  const saveReadback = buildStudioSceneFileSaveReadback({
-    commandId: 'scene.save_source_as',
-    path: 'scenes/studio-save-as.scene.json',
-    previousHash: null,
-    expectedPreviousHash: null,
-    nextText: payloadText,
-    nextHash: payloadHash,
-    workspace: workspaceResult.workspace,
-  });
-  assert.equal(saveReadback.diagnostics.length, 0);
-  assert.equal(saveReadback.commandId, 'scene.save_source_as');
-  assert.match(saveReadback.sceneFileHash, /^studio-scene-file-/);
-  assert.ok(saveReadback.nonClaims.includes('not_private_file_write'));
-
-  const staleReadback = buildStudioSceneFileSaveReadback({
-    commandId: 'scene.save_source',
-    path: 'scenes/studio-save-as.scene.json',
-    previousHash: 'sha256:changed',
-    expectedPreviousHash: null,
-    nextText: payloadText,
-    nextHash: payloadHash,
-    workspace: workspaceResult.workspace,
-  });
-  assert.ok(staleReadback.diagnostics.some(diagnostic => diagnostic.code === 'scene_file_stale_hash'));
-});
-
-evidenceProcessTest('scene file menu browser proof captures structured open save workflow', () => {
-  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-file-menu-workflow'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    timeout: 120000,
-  });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /artifacts\/scene-file-menu-workflow\/latest\/index\.json/);
-
-  const artifact = JSON.parse(readFileSync(
-    join(repoRoot, 'artifacts/scene-file-menu-workflow/latest/index.json'),
-    'utf8',
-  ));
-  assert.equal(artifact.artifactKind, 'studio_scene_file_menu_browser_proof');
-  assert.deepEqual(artifact.readout.fileMenu.timelineCommandIds, [
-    'scene.open_source',
-    'scene.save_source_as',
-    'scene.save_source',
-  ]);
-  assert.ok(artifact.validations.includes('browser_dom_contains_structured_scene_file_readout'));
-  assert.ok(artifact.validations.includes('negative_marker_only_dom_failed_closed'));
-  assert.ok(artifact.nonClaims.includes('not_private_file_picker'));
-  assert.match(artifact.browser.screenshotHash, /^sha256:/);
-});
-
-evidenceProcessTest('scene save roundtrip proof command writes validates reopens and cleans up', () => {
-  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'scene-save-roundtrip'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    timeout: 120000,
-  });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /artifacts\/scene-save-roundtrip-proof\/latest\/index\.json/);
-
-  const artifact = JSON.parse(readFileSync(
-    join(repoRoot, 'artifacts/scene-save-roundtrip-proof/latest/index.json'),
-    'utf8',
-  ));
-  assert.equal(artifact.artifactKind, 'studio_scene_save_roundtrip_proof');
-  assert.equal(artifact.save.ok, true);
-  assert.equal(artifact.save.readback.normalizedPath, 'scenes/studio-roundtrip.scene.json');
-  assert.equal(artifact.save.readback.previousFileHash, null);
-  assert.match(artifact.save.readback.nextFileHash, /^sha256:/);
-  assert.match(artifact.save.readback.semanticDiffHash, /^sha256:/);
-  assert.equal(artifact.reopened.ok, true);
-  assert.deepEqual(artifact.reopened.openRead.sourceFiles.map((file: { path: string }) => file.path), [
-    'scenes/studio-roundtrip.scene.json',
-  ]);
-  assert.ok(artifact.validations.includes('negative_stale_base_hash_failed_closed'));
-  assert.ok(artifact.validations.includes('negative_invalid_scene_shape_failed_closed'));
-  assert.ok(artifact.validations.includes('negative_disallowed_path_failed_closed'));
-  assert.equal(existsSync(join(demoRoot, 'scenes/studio-roundtrip.scene.json')), false);
-});
-
 evidenceProcessTest('catalog save roundtrip proof command writes validates reopens and restores', () => {
   const beforeCatalog = readFileSync(join(demoRoot, 'packages/game-catalogs/catalog.json'), 'utf8');
   const result = spawnSync('pnpm', ['run', 'evidence', '--', 'catalog-save-roundtrip'], {
@@ -953,39 +776,6 @@ evidenceProcessTest('catalog save roundtrip proof command writes validates reope
   assert.ok(artifact.validations.includes('negative_stale_base_hash_failed_closed'));
   assert.ok(artifact.validations.includes('negative_invalid_asset_refs_failed_closed'));
   assert.ok(artifact.validations.includes('negative_disallowed_path_failed_closed'));
-});
-
-evidenceProcessTest('persistence M1 proof command aggregates workspace scene and catalog gates', () => {
-  const result = spawnSync('pnpm', ['run', 'evidence', '--', 'persistence-m1'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    timeout: 240000,
-  });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /artifacts\/persistence-m1-proof\/latest\/index\.json/);
-
-  const artifact = JSON.parse(readFileSync(
-    join(repoRoot, 'artifacts/persistence-m1-proof/latest/index.json'),
-    'utf8',
-  ));
-  assert.equal(artifact.artifactKind, 'studio_persistence_m1_proof');
-  assert.deepEqual(artifact.childArtifacts.map((child: { kind: string }) => child.kind), [
-    'studio_workspace_open_read_proof',
-    'studio_scene_save_roundtrip_proof',
-    'studio_catalog_save_roundtrip_proof',
-  ]);
-  assert.ok(artifact.childArtifacts.every((child: { fileHash: string; artifactHash: string }) =>
-    child.fileHash.startsWith('sha256:') && child.artifactHash.startsWith('sha256:'),
-  ));
-  assert.ok(artifact.validations.includes('boundary_guard_passed'));
-  assert.ok(artifact.validations.includes('negative_smokes_present'));
-  assert.deepEqual(artifact.workspaceOpen.allowedSceneRoots, ['scenes']);
-  assert.deepEqual(artifact.workspaceOpen.allowedCatalogRoots, ['packages/game-catalogs']);
-  assert.match(artifact.saveHashes.sceneAfter, /^sha256:/);
-  assert.match(artifact.saveHashes.catalogAfter, /^sha256:/);
-  assert.ok(artifact.diagnostics.sceneNegativeCount > 0);
-  assert.ok(artifact.diagnostics.catalogNegativeCount > 0);
-  assert.ok(artifact.nonClaims.includes('not_product_readiness'));
 });
 
 test('game workspace attach client performs typed devtools handshake', async () => {
@@ -1280,7 +1070,7 @@ test('live debug session identity records attached session freshness and child e
 });
 
 test('live scene/entity debug inspector projects selected scene readback without private ECS state', async () => {
-  const workspace = buildInitialWorkspaceReadModel();
+  const workspace = buildAuthoredWorkspaceReadModel();
   const identityResult = buildStudioLiveDebugSessionIdentity({
     runtimeSessions: {
       runtimeSessionListVersion: 'studio-runtime-session-list.v0',
@@ -1335,7 +1125,7 @@ test('live scene/entity debug inspector projects selected scene readback without
   assert.equal(inspector.inspector.scene.renderableCount, workspace.scene.renderables.length);
   assert.equal(inspector.inspector.scene.selectedRenderableId, workspace.scene.selectedRenderableId);
   assert.equal(inspector.inspector.entity.entityId, workspace.selectedEntityId);
-  assert.equal(inspector.inspector.entity.label, 'Voxel (0, 0, 0)');
+  assert.equal(inspector.inspector.entity.label, 'Authored Voxel Volume');
   assert.equal(inspector.inspector.entity.provenance?.renderableId, workspace.scene.selectedRenderableId);
   assert.deepEqual(inspector.inspector.entity.transform?.translation, [0.5, 0.5, 0.5]);
   assert.ok(inspector.inspector.nonClaims.includes('not_private_ecs_read'));
@@ -1547,7 +1337,7 @@ test('live debug command proposal surface bounds actions to shared command evide
   assert.equal(identity.ok, true);
   if (!identity.ok) throw new Error('identity should validate');
   const sceneInspector = buildStudioLiveSceneEntityDebugInspector({
-    workspace: buildInitialWorkspaceReadModel(),
+    workspace: buildAuthoredWorkspaceReadModel(),
     liveSessionIdentity: identity.identity,
   });
   assert.equal(sceneInspector.ok, true);
@@ -2023,26 +1813,6 @@ test('game workspace loader fails closed for invalid manifests and missing comma
   assert.equal(result.diagnostics.some(diagnostic => diagnostic.code === 'manifest_invalid'), true);
 });
 
-test('hierarchy add action projects a reference renderable through scene.load_asset', () => {
-  const readModel = buildInitialWorkspaceReadModel();
-  const dispatchResult = mapStudioIntentToCommand(createLoadReferenceAssetIntent(readModel));
-
-  assert.equal(dispatchResult.accepted, true);
-  assert.equal(dispatchResult.proposal?.commandId, 'scene.load_asset');
-  assert.equal(dispatchResult.proposal?.assetId, 'static-mesh:reference-placeholder');
-  const updated = addReferenceRenderableReadModel(readModel);
-
-  assert.equal(updated.scene.renderables.length, readModel.scene.renderables.length + 1);
-  assert.equal(updated.scene.selectedRenderableId, 'reference-placeholder-1');
-  assert.equal(
-    updated.entities.find(entity => entity.id === updated.selectedEntityId)?.renderableId,
-    'reference-placeholder-1',
-  );
-  assert.equal(updated.timeline.at(-1)?.commandId, 'scene.load_asset');
-  assert.equal(updated.commandResults.at(-1)?.changedScene, true);
-  assert.equal(updated.entities.some(entity => entity.renderableId === 'reference-placeholder-1'), true);
-});
-
 test('hierarchy expansion can be updated without changing scene state', () => {
   const readModel = buildInitialWorkspaceReadModel();
   const collapsed = setHierarchyExpansionReadModel(readModel, false);
@@ -2053,14 +1823,14 @@ test('hierarchy expansion can be updated without changing scene state', () => {
 });
 
 test('scene hierarchy projects canonical scene objects distinct from renderables', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const selectedEntity = readModel.entities.find(entity => entity.id === readModel.selectedEntityId);
 
   assert.equal(readModel.flatSceneDocument.nodes.at(0)?.label, 'Scene Root');
   assert.equal(readModel.sceneObjectSnapshot.snapshotVersion, 'scene-object-snapshot.v0');
   assert.equal(readModel.sceneObjectSnapshot.objects.length, readModel.scene.renderables.length + 1);
   assert.equal(selectedEntity?.id.startsWith('scene-node:'), true);
-  assert.equal(selectedEntity?.renderableId, 'selected-voxel:0,0,0');
+  assert.equal(selectedEntity?.renderableId, 'scene-node-renderable:2');
   assert.equal(
     readModel.sceneObjectSnapshot.objects.some(
       object => object.objectId === selectedEntity?.sceneObjectId,
@@ -2254,7 +2024,7 @@ evidenceProcessTest('scene object create authoring proof command records operati
 });
 
 test('scene object edit authoring workflow rejects unsupported fields', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const targetId = readModel.selectedEntityId;
   assert.ok(targetId?.startsWith('scene-node:'));
   const result = buildStudioSceneAuthoringOperation(readModel.flatSceneDocument, {
@@ -2314,7 +2084,7 @@ test('scene hierarchy root selection clears viewport renderable without private 
 });
 
 test('scene object rename flows through public apply command and updates canonical hierarchy', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const selectedObjectId = readModel.selectedEntityId;
 
   assert.ok(selectedObjectId?.startsWith('scene-node:'));
@@ -2340,7 +2110,7 @@ test('scene object rename flows through public apply command and updates canonic
 });
 
 test('scene object command rejects stale expected document hashes without private mutation', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const selectedObjectId = readModel.selectedEntityId;
 
   assert.ok(selectedObjectId?.startsWith('scene-node:'));
@@ -2358,7 +2128,7 @@ test('scene object command rejects stale expected document hashes without privat
 });
 
 test('scene object translate and rotate flow through public apply command readout', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const selectedObjectId = readModel.selectedEntityId;
 
   assert.ok(selectedObjectId?.startsWith('scene-node:'));
@@ -2429,18 +2199,18 @@ test('scene object transform command rejects readonly root transforms', () => {
 });
 
 test('asset browser categories filter scene renderables deterministically', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const categories = buildAssetBrowserCategories(readModel.scene.renderables);
 
   assert.equal(categories.find(category => category.category === 'all')?.count, 4);
   assert.equal(categories.find(category => category.category === 'static_meshes')?.count, 1);
-  assert.equal(categories.find(category => category.category === 'materials')?.count, 4);
-  assert.equal(categories.find(category => category.category === 'generated')?.count, 3);
+  assert.equal(categories.find(category => category.category === 'materials')?.count, 0);
+  assert.equal(categories.find(category => category.category === 'generated')?.count, 1);
   assert.deepEqual(
     filterAssetBrowserRenderables(readModel.scene.renderables, 'preview').map(
       renderable => renderable.renderableId,
     ),
-    ['preview-ghost:1,0,0'],
+    ['scene-node-renderable:4', 'scene-node-renderable:5'],
   );
 });
 
@@ -2698,7 +2468,7 @@ test('catalog workflow read model exposes bounded human commands and preview non
 });
 
 test('authored state panel reflection proves saved scene and catalog readouts are visible', () => {
-  const workspace = buildInitialWorkspaceReadModel();
+  const workspace = buildAuthoredWorkspaceReadModel();
   const selectedObjectId = workspace.selectedEntityId;
   assert.ok(selectedObjectId?.startsWith('scene-node:'));
   const renamed = applySceneObjectCommandReadModel(
@@ -3372,153 +3142,6 @@ test('game asset inventory fails closed for broken assets instead of directory s
   assert.equal(inventory.diagnostics.some(diagnostic => diagnostic.message === 'asset file missing'), true);
 });
 
-test('proof scene read model ties named scenes to catalog ids and evidence status', () => {
-  const workspaceResult = loadStudioGameWorkspaceManifest({
-    workspaceRoot: demoRoot,
-    manifestPath: 'asha.game.toml',
-    gameId: loadDemoPackageName(),
-    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
-    packageScripts: loadDemoPackageScripts(),
-    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
-  });
-  assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('workspace should load');
-  const inventoryResult = loadStudioAssetInventory({
-    artifactKind: 'asha_demo_asset_inventory',
-    artifactVersion: 'asset-inventory.v1',
-    status: 'ok',
-    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
-    catalog: { path: 'packages/game-catalogs/catalog.json', hash: 'sha256:catalog' },
-    diagnostics: [],
-    dependencyOrder: ['texture.demo-checker', 'material.demo-copper', 'mesh.demo-cube'],
-    entries: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'].map(assetId => ({
-      assetId,
-      kind: assetId.startsWith('mesh') ? 'static_mesh' : assetId.startsWith('material') ? 'material' : 'texture',
-      sourcePath: `assets/${assetId}.json`,
-      dependencies: [],
-      devResolution: {
-        sourceHash: `sha256:${assetId}`,
-        devCacheKey: `dev-cache/${assetId}`,
-        generatedArtifactVersion: 'asset-import.v1',
-        importStatus: 'clean',
-        publishOutputKey: `${assetId}.json`,
-      },
-      publishResolution: {
-        outputKey: `${assetId}.json`,
-        packedPath: `harness/out/publish/resources/${assetId}.json`,
-        packedHash: `sha256:packed-${assetId}`,
-        packedBytes: 1,
-      },
-      diagnostics: [],
-      evidenceRefs: [],
-    })),
-  });
-  assert.equal(inventoryResult.ok, true);
-  if (!inventoryResult.ok) throw new Error('inventory should load');
-
-  const proofScenes = buildStudioProofSceneList({
-    workspace: workspaceResult.workspace,
-    assetInventory: inventoryResult.inventory,
-    scenes: [
-      {
-        path: 'scenes/material-proof.scene.json',
-        schemaVersion: 1,
-        sceneId: 1002,
-        name: 'ASHA Demo Material Proof',
-        description: 'Proof scene that references mesh, material, and texture catalog assets together.',
-        catalogAssetIds: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'],
-        runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
-      },
-    ],
-    evidence: {
-      proofSceneCommandStatus: 'passed',
-      proofSceneCommand: '/usr/bin/node scripts/check-proof-scenes.mjs',
-      assetInventoryArtifactPath: 'harness/out/asset-inventory/latest/index.json',
-      assetInventoryArtifactHash: 'sha256:inventory',
-    },
-  });
-
-  assert.equal(proofScenes.ok, true);
-  if (!proofScenes.ok) throw new Error('proof scenes should load');
-  assert.equal(proofScenes.proofScenes.scenes.at(0)?.name, 'ASHA Demo Material Proof');
-  assert.deepEqual(proofScenes.proofScenes.scenes.at(0)?.catalogAssetIds, [
-    'mesh.demo-cube',
-    'material.demo-copper',
-    'texture.demo-checker',
-  ]);
-  assert.equal(proofScenes.proofScenes.scenes.at(0)?.catalogStatus, 'resolved');
-  assert.equal(proofScenes.proofScenes.scenes.at(0)?.evidenceStatus, 'passed');
-  assert.match(proofScenes.proofScenes.proofSceneListHash, /^studio-proof-scene-list-/);
-});
-
-test('proof scene read model fails closed on missing catalog references', () => {
-  const workspaceResult = loadStudioGameWorkspaceManifest({
-    workspaceRoot: demoRoot,
-    manifestPath: 'asha.game.toml',
-    gameId: loadDemoPackageName(),
-    manifestText: readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8'),
-    packageScripts: loadDemoPackageScripts(),
-    pathExists: relativePath => existsSync(join(demoRoot, relativePath)),
-  });
-  assert.equal(workspaceResult.ok, true);
-  if (!workspaceResult.ok) throw new Error('workspace should load');
-  const inventoryResult = loadStudioAssetInventory({
-    artifactKind: 'asha_demo_asset_inventory',
-    artifactVersion: 'asset-inventory.v1',
-    status: 'ok',
-    sourceManifest: { path: 'asha.game.toml', hash: 'sha256:manifest' },
-    catalog: { path: 'packages/game-catalogs/catalog.json', hash: 'sha256:catalog' },
-    diagnostics: [],
-    dependencyOrder: ['mesh.demo-cube'],
-    entries: [
-      {
-        assetId: 'mesh.demo-cube',
-        kind: 'static_mesh',
-        sourcePath: 'assets/meshes/demo-cube.mesh.json',
-        dependencies: [],
-        devResolution: {
-          sourceHash: 'sha256:mesh',
-          devCacheKey: 'dev-cache/static_mesh/mesh.demo-cube',
-          generatedArtifactVersion: 'asset-import.v1',
-          importStatus: 'clean',
-          publishOutputKey: 'meshes/demo-cube.mesh.json',
-        },
-        publishResolution: {
-          outputKey: 'meshes/demo-cube.mesh.json',
-          packedPath: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
-          packedHash: 'sha256:packed',
-          packedBytes: 1,
-        },
-        diagnostics: [],
-        evidenceRefs: [],
-      },
-    ],
-  });
-  assert.equal(inventoryResult.ok, true);
-  if (!inventoryResult.ok) throw new Error('inventory should load');
-
-  const proofScenes = buildStudioProofSceneList({
-    workspace: workspaceResult.workspace,
-    assetInventory: inventoryResult.inventory,
-    scenes: [
-      {
-        path: 'scenes/broken.scene.json',
-        schemaVersion: 1,
-        sceneId: 'broken',
-        name: 'Broken Proof',
-        catalogAssetIds: ['mesh.demo-cube', 'material.missing'],
-        runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
-      },
-    ],
-    evidence: { proofSceneCommandStatus: 'passed' },
-  });
-
-  assert.equal(proofScenes.ok, false);
-  assert.equal(proofScenes.proofScenes.scenes.at(0)?.catalogStatus, 'missing');
-  assert.deepEqual(proofScenes.proofScenes.scenes.at(0)?.missingCatalogAssetIds, ['material.missing']);
-  assert.equal(proofScenes.diagnostics.at(0)?.code, 'proof_scene_missing_catalog_reference');
-});
-
 test('publish evidence read model loads latest asha-demo publish proof status', () => {
   const workspaceResult = loadStudioGameWorkspaceManifest({
     workspaceRoot: demoRoot,
@@ -3595,22 +3218,6 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
   const inventory = loadStudioAssetInventory(sampleAssetInventoryArtifact());
   assert.equal(inventory.ok, true);
   if (!inventory.ok) throw new Error('inventory should load');
-  const proofScenes = buildStudioProofSceneList({
-    workspace: workspaceResult.workspace,
-    assetInventory: inventory.inventory,
-    scenes: [
-      {
-        path: 'scenes/material-proof.scene.json',
-        schemaVersion: 1,
-        sceneId: 1002,
-        name: 'ASHA Demo Material Proof',
-        catalogAssetIds: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'],
-        runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
-      },
-    ],
-    evidence: { proofSceneCommandStatus: 'passed' },
-  });
-  assert.equal(proofScenes.ok, true);
   const runtimeSessions = buildStudioRuntimeSessionList({ workspace: workspaceResult.workspace });
   const command = buildDevtoolsProtocolGoldenFixtures().commandProposal;
   const commandProposal = buildStudioGameWorkspaceCommandProposalReadModel({
@@ -3639,7 +3246,6 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
   const markers = [
     'studio-game-workspace-overview',
     'studio-assets-panel',
-    'studio-proof-scene-panel',
     'studio-runtime-session-panel',
     'studio-command-proposal-panel',
     'studio-publish-evidence-panel',
@@ -3648,7 +3254,6 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
     studioWorkspace: buildInitialWorkspaceReadModel(),
     gameWorkspace: workspaceResult.workspace,
     assetInventory: inventory.inventory,
-    proofScenes: proofScenes.proofScenes,
     runtimeSessions,
     commandProposalPanel: commandPanel,
     publishEvidence: publishEvidence.publishEvidence,
@@ -3658,7 +3263,6 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
     studioWorkspace: buildInitialWorkspaceReadModel(),
     gameWorkspace: workspaceResult.workspace,
     assetInventory: inventory.inventory,
-    proofScenes: proofScenes.proofScenes,
     runtimeSessions,
     commandProposalPanel: commandPanel,
     publishEvidence: publishEvidence.publishEvidence,
@@ -3676,31 +3280,19 @@ test('workspace cockpit evidence export covers panel readouts and fails closed o
   assert.equal(missingMarker.diagnostics.at(0)?.code, 'cockpit_missing_panel_marker');
 });
 
-test('asset browser categories include newly loaded reference placeholders', () => {
-  const readModel = addReferenceRenderableReadModel(buildInitialWorkspaceReadModel());
-
-  assert.equal(
-    filterAssetBrowserRenderables(readModel.scene.renderables, 'static_meshes').some(
-      renderable => renderable.renderableId === 'reference-placeholder-1',
-    ),
-    true,
-  );
-  assert.equal(buildAssetBrowserCategories(readModel.scene.renderables).at(0)?.count, 5);
-});
-
 test('project workspace artifact serializes only hash-pinned authored content', () => {
   const project = {
     gameId: 'asha-demo',
     manifestPath: 'asha.game.toml',
     manifestSha256: `sha256:${'c'.repeat(64)}`,
   };
-  const sceneSource = {
-    path: 'scenes/minimal.scene.json',
+  const sceneFile = {
+    path: '/tmp/asha-scenes/minimal.scene.json',
     sha256: `sha256:${'a'.repeat(64)}`,
   };
   const text = serializeStudioWorkspaceArtifact({
     project,
-    sceneSource,
+    sceneFile,
     savedAtIso: '2026-06-27T00:00:00.000Z',
   });
   const restored = restoreStudioWorkspaceArtifact(text, { expectedProject: project });
@@ -3708,7 +3300,7 @@ test('project workspace artifact serializes only hash-pinned authored content', 
   assert.equal(restored.ok, true);
   if (!restored.ok || restored.artifact === null) throw new Error('project workspace should restore');
   assert.equal(restored.artifact.artifactKind, 'studio_project_workspace');
-  assert.deepEqual(restored.artifact.authoredContent.sceneSource, sceneSource);
+  assert.deepEqual(restored.artifact.authoredContent.sceneFile, sceneFile);
   assert.equal(restored.artifact.stateClassification.editorPreferences, 'browser_local_not_serialized');
   assert.equal(restored.artifact.stateClassification.attachedRuntime, 'disconnect_and_reconnect_not_serialized');
   assert.equal(text.includes('viewportCamera'), false);
@@ -3716,12 +3308,10 @@ test('project workspace artifact serializes only hash-pinned authored content', 
   assert.equal(text.includes('runtimeAttachState'), false);
 
   const currentReference = validateStudioWorkspaceArtifactSceneReference(restored.artifact, {
-    ...sceneSource,
-    text: '{}',
+    ...sceneFile,
   });
   const staleReference = validateStudioWorkspaceArtifactSceneReference(restored.artifact, {
-    ...sceneSource,
-    text: '{}',
+    ...sceneFile,
     sha256: `sha256:${'b'.repeat(64)}`,
   });
   assert.equal(currentReference.ok, true);
@@ -3729,7 +3319,7 @@ test('project workspace artifact serializes only hash-pinned authored content', 
   assert.equal(staleReference.diagnostics.at(0)?.code, 'workspace_artifact_scene_hash_mismatch');
 });
 
-test('project workspace artifact rejects malformed, foreign, and escaping inputs', () => {
+test('project workspace artifact rejects malformed and foreign inputs while allowing arbitrary host scene paths', () => {
   const project = {
     gameId: 'asha-demo',
     manifestPath: 'asha.game.toml',
@@ -3737,8 +3327,8 @@ test('project workspace artifact rejects malformed, foreign, and escaping inputs
   };
   const text = serializeStudioWorkspaceArtifact({
     project,
-    sceneSource: {
-      path: 'scenes/minimal.scene.json',
+    sceneFile: {
+      path: '../outside.scene.json',
       sha256: `sha256:${'a'.repeat(64)}`,
     },
   });
@@ -3751,13 +3341,13 @@ test('project workspace artifact rejects malformed, foreign, and escaping inputs
   assert.equal(malformed.diagnostics.at(0)?.code, 'workspace_artifact_shape_mismatch');
   assert.equal(foreign.ok, false);
   assert.equal(foreign.diagnostics.at(0)?.code, 'workspace_artifact_foreign_project');
-  assert.throws(() => serializeStudioWorkspaceArtifact({
+  assert.doesNotThrow(() => serializeStudioWorkspaceArtifact({
     project,
-    sceneSource: {
+    sceneFile: {
       path: '../outside.scene.json',
       sha256: `sha256:${'a'.repeat(64)}`,
     },
-  }), /bounded paths/);
+  }));
 });
 
 test('project workspace canonical fixture matches inspectable serialization', () => {
@@ -3767,8 +3357,8 @@ test('project workspace canonical fixture matches inspectable serialization', ()
       manifestPath: 'asha.game.toml',
       manifestSha256: 'sha256:eff8415dc697c49b3936671c7c6d0a50c81490347d44c954a197bb438653dfdc',
     },
-    sceneSource: {
-      path: 'scenes/minimal.scene.json',
+    sceneFile: {
+      path: '/tmp/asha-scenes/minimal.scene.json',
       sha256: 'sha256:9bce31bf50692b7afc36151ac3b2fe1488fb00e0ce916a2de06ba9ee2579bdc8',
     },
     savedAtIso: '1970-01-01T00:00:00.000Z',
@@ -3854,7 +3444,7 @@ test('host file service supports arbitrary paths with stale-safe atomic writes',
   }
 });
 
-test('project workspace load stages a complete source round-trip before state replacement', () => {
+test('project workspace load stages a decoded canonical scene before state replacement', () => {
   const manifestText = readFileSync(join(demoRoot, 'asha.game.toml'), 'utf8');
   const manifestSha256 = sha256(manifestText);
   const projectResult = loadStudioGameWorkspaceManifest({
@@ -3868,16 +3458,16 @@ test('project workspace load stages a complete source round-trip before state re
   assert.equal(projectResult.ok, true);
   if (!projectResult.ok) throw new Error('asha-testing workspace should load');
 
-  const scenePath = 'scenes/minimal.scene.json';
-  const sceneText = readFileSync(join(demoRoot, scenePath), 'utf8');
-  const sceneSource = { path: scenePath, text: sceneText, sha256: sha256(sceneText) };
+  const scenePath = '/tmp/asha-scenes/minimal.scene.json';
+  const sceneDocument = buildInitialWorkspaceReadModel().flatSceneDocument;
+  const sceneFile = { path: scenePath, sha256: `sha256:${'a'.repeat(64)}` };
   const artifactText = serializeStudioWorkspaceArtifact({
     project: {
       gameId: projectResult.workspace.gameId,
       manifestPath: projectResult.workspace.manifestPath,
       manifestSha256,
     },
-    sceneSource,
+    sceneFile,
   });
   const currentWorkspace = buildInitialWorkspaceReadModel();
   const currentWorkspaceSnapshot = JSON.stringify(currentWorkspace);
@@ -3886,27 +3476,30 @@ test('project workspace load stages a complete source round-trip before state re
     project: projectResult.workspace,
     manifestSha256,
     artifactText,
-    sceneSource,
+    sceneFile,
+    sceneDocument,
   });
   const stale = stageStudioProjectWorkspaceLoad({
     currentWorkspace,
     project: projectResult.workspace,
     manifestSha256,
     artifactText,
-    sceneSource: { ...sceneSource, sha256: `sha256:${'b'.repeat(64)}` },
+    sceneFile: { ...sceneFile, sha256: `sha256:${'b'.repeat(64)}` },
+    sceneDocument,
   });
   const malformed = stageStudioProjectWorkspaceLoad({
     currentWorkspace,
     project: projectResult.workspace,
     manifestSha256,
     artifactText: '{not-json',
-    sceneSource,
+    sceneFile,
+    sceneDocument,
   });
 
   assert.equal(staged.ok, true);
   if (!staged.ok) throw new Error('valid project workspace should stage');
-  assert.equal(staged.workspace.session.scenarioId, scenePath);
-  assert.equal(staged.workspace.timeline.at(-1)?.commandId, 'scene.open_source');
+  assert.equal(staged.workspace.flatSceneDocument, sceneDocument);
+  assert.equal(staged.sceneDocument, sceneDocument);
   assert.equal(stale.ok, false);
   assert.equal(stale.diagnostics.at(0)?.code, 'workspace_artifact_scene_hash_mismatch');
   assert.equal(malformed.ok, false);
@@ -3914,45 +3507,29 @@ test('project workspace load stages a complete source round-trip before state re
   assert.equal(JSON.stringify(currentWorkspace), currentWorkspaceSnapshot);
 });
 
-test('project workspace persistence does not depend on browser storage profile data', () => {
+test('ordinary scene persistence does not depend on browser storage profile data', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs', 'studio-store', 'src', 'index.ts'), 'utf8');
   const shellSource = readFileSync(join(repoRoot, 'libs', 'studio-shell', 'src', 'index.ts'), 'utf8');
 
   assert.equal(storeSource.includes('asha-studio.workspace.v1'), false);
   assert.equal(storeSource.includes('WORKSPACE_STORAGE_KEY'), false);
   assert.equal(storeSource.includes('browserStorage()?.setItem'), false);
-  assert.equal(storeSource.includes('ASHA_STUDIO_PROJECT_WORKSPACE_PATH'), true);
-  assert.equal(shellSource.includes('Save Project Workspace'), true);
-  assert.equal(shellSource.includes('Load Project Workspace'), true);
+  assert.equal(storeSource.includes('ASHA_STUDIO_PROJECT_WORKSPACE_PATH'), false);
+  assert.equal(shellSource.includes('Save Project Workspace'), false);
+  assert.equal(shellSource.includes('Load Project Workspace'), false);
 });
 
-test('workspace persistence and render preferences are timeline-observable UI commands', () => {
+test('render preferences are timeline-observable UI commands', () => {
   const readModel = buildInitialWorkspaceReadModel();
-  const saved = recordStudioWorkspaceUiCommand(readModel, {
-    commandId: 'workspace.save_project_artifact',
-    label: 'Save Project Workspace',
-    inputSummary: `sceneHash=${readModel.scene.sceneHash}`,
-    outputSummary: `Workspace artifact saved to ${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}.`,
-  }).workspace;
-  const preference = recordStudioWorkspaceUiCommand(saved, {
+  const preference = recordStudioWorkspaceUiCommand(readModel, {
     commandId: 'preferences.set_render_setting',
     label: 'Set Render Preference',
     inputSummary: 'showGrid=false',
     outputSummary: 'Render setting showGrid updated.',
   }).workspace;
-  const rejectedLoad = recordStudioWorkspaceUiCommand(preference, {
-    commandId: 'workspace.load_project_artifact',
-    label: 'Load Project Workspace',
-    inputSummary: `source=${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}`,
-    outputSummary: 'Studio project workspace artifact is not valid JSON.',
-    status: 'rejected',
-  }).workspace;
-
-  assert.equal(saved.timeline.at(-1)?.commandId, 'workspace.save_project_artifact');
   assert.equal(preference.timeline.at(-1)?.commandId, 'preferences.set_render_setting');
-  assert.equal(rejectedLoad.timeline.at(-1)?.status, 'rejected');
-  assert.equal(rejectedLoad.scene.sceneHash, readModel.scene.sceneHash);
-  assert.equal(rejectedLoad.timelineSequence, readModel.timelineSequence + 3);
+  assert.equal(preference.scene.sceneHash, readModel.scene.sceneHash);
+  assert.equal(preference.timelineSequence, readModel.timelineSequence + 1);
 });
 
 test('studio UI state readout classifies non-authoritative affordance state', () => {
@@ -3962,7 +3539,6 @@ test('studio UI state readout classifies non-authoritative affordance state', ()
     bottomPanelTab: 'assets',
     assetBrowserCategory: 'materials',
     entities: readModel.entities,
-    selectedScenarioDraftId: 'scenario-placeholder',
     hierarchyFilter: 'scenario-placeholder',
     menuMessage: 'Assets filter selected.',
     projectWorkspaceAvailable: true,
@@ -4007,7 +3583,7 @@ test('compatibility evidence fails closed on required package link drift', () =>
 });
 
 test('hierarchy projection validation detects drift, stale hashes, and missing selection', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const entityListHash = computeEntityListHash(readModel.entities);
   const sceneRenderableIds = readModel.scene.renderables.map(renderable => renderable.renderableId);
   const diagnostics = validateEntityProjection({
@@ -4025,7 +3601,7 @@ test('hierarchy projection validation detects drift, stale hashes, and missing s
 });
 
 test('selection sync validation keeps hierarchy and viewport on the shared command path', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const selectableIds = readModel.entities
     .filter(entity => entity.selectable)
     .map(entity => entity.id);
@@ -4069,7 +3645,7 @@ test('agent readout fixture reflects the current Angular substrate model', () =>
   assert.equal(fixture.compatibilityMarker, readModel.compatibilityMarker);
   assert.equal(fixture.commandTimeline.length, readModel.timeline.length);
   assert.equal(fixture.commandResults.length, readModel.commandResults.length);
-  assert.equal(fixture.entities.some(entity => entity.renderableId === 'selected-voxel:0,0,0'), true);
+  assert.equal(fixture.entities.length, readModel.entities.length);
   assert.equal(fixture.entityListHash, computeEntityListHash(readModel.entities));
   assert.equal(fixture.viewport?.readoutVersion, 'studio-viewport-readout.v0');
   assert.equal(fixture.renderSettings?.renderSettingsHash.startsWith('render-settings-'), true);
@@ -4077,10 +3653,10 @@ test('agent readout fixture reflects the current Angular substrate model', () =>
 });
 
 test('compact agent readout summarizes shared Studio state without proof harness sprawl', () => {
-  const readModel = buildInitialWorkspaceReadModel();
+  const readModel = buildAuthoredWorkspaceReadModel();
   const renderSettings = buildStudioPreferencesReadModel().render;
   const selectedRenderable = readModel.scene.renderables.find(
-    renderable => renderable.renderableId === 'selected-voxel:0,0,0',
+    renderable => renderable.renderableId === 'scene-node-renderable:2',
   );
 
   assert.ok(selectedRenderable);
@@ -4100,15 +3676,15 @@ test('compact agent readout summarizes shared Studio state without proof harness
 
   assert.equal(readout.artifactKind, 'compact_agent_readout');
   assert.equal(readout.readoutVersion, 'studio-compact-readout.v0');
-  assert.equal(readout.session.scenarioId, 'voxel-basic');
-  assert.equal(readout.scene.selectedRenderableId, 'selected-voxel:0,0,0');
-  assert.equal(readout.selectedEntity?.label, 'Voxel (0, 0, 0)');
+  assert.equal(readout.session.scenarioId, 'untitled');
+  assert.equal(readout.scene.selectedRenderableId, 'scene-node-renderable:2');
+  assert.equal(readout.selectedEntity?.label, 'Authored Voxel Volume');
   assert.equal(readout.latestViewportHit?.face, 'z_max');
   assert.equal(readout.viewport.tool.activeTool, 'orbit');
   assert.match(readout.viewport.cameraHash, /^viewport-camera-/);
   assert.equal(readout.uiState?.artifactKind, 'studio_ui_state');
-  assert.equal(readout.latestCommand?.commandId, 'selection.set_active_entity');
-  assert.equal(readout.latestCommandResult?.commandId, 'selection.set_active_entity');
+  assert.equal(readout.latestCommand?.commandId, 'scene.open_document');
+  assert.equal(readout.latestCommandResult?.commandId, 'scene.open_document');
   assert.ok(readout.nonClaims.includes('not_proof_harness'));
 });
 
@@ -4167,8 +3743,8 @@ test('runtime tools are menu-scoped without a permanent proof session strip', ()
 
   assert.equal(panelSource.includes("selector: 'asha-runtime-tools-menu'"), true);
   assert.equal(panelSource.includes('data-visual-id="studio-runtime-tools-menu"'), true);
-  assert.equal(panelSource.includes('Temporary scenarios'), true);
-  assert.equal(panelSource.includes('Project scene open/save is under File'), true);
+  assert.equal(panelSource.includes('Temporary scenarios'), false);
+  assert.equal(panelSource.includes('Project scene open/save is under File'), false);
   assert.equal(panelSource.includes('data-visual-id="studio-runtime-session-panel"'), false);
   assert.equal(shellSource.includes("store.activeMenu() === 'runtime'"), true);
   assert.equal(shellSource.includes('<asha-runtime-tools-menu />'), true);
@@ -4287,10 +3863,6 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   };
   const browserSmokeSource = readFileSync(
     join(repoRoot, 'scripts', 'proof-selected-backend-browser-smoke.ts'),
-    'utf8',
-  );
-  const sceneFileMenuWorkflowSource = readFileSync(
-    join(repoRoot, 'scripts', 'proof-scene-file-menu-workflow.ts'),
     'utf8',
   );
   const projectFileServerSource = readFileSync(
@@ -4413,7 +3985,6 @@ test('selected backend attach proof command has a stable reviewer artifact path'
     'selected-backend-attach',
     'selected-backend-command',
     'selected-backend-browser-smoke',
-    'scene-file-menu-workflow',
     'v2-live-backend-evidence',
     'authored-roundtrip-fixture',
     'authored-browser-runtime-load',
@@ -4450,9 +4021,6 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.match(catalogEntries.get('playable-loop-inspection')?.replacement ?? '', /asha-demo playable loop/);
   assert.equal(browserSmokeSource.includes('structured readout JSON is required'), true);
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
-  assert.equal(sceneFileMenuWorkflowSource.includes("artifactKind: 'studio_scene_file_menu_browser_proof'"), true);
-  assert.equal(sceneFileMenuWorkflowSource.includes('structured scene file readout JSON is required'), true);
-  assert.equal(sceneFileMenuWorkflowSource.includes('negative_marker_only_dom_failed_closed'), true);
   assert.equal(projectFileServerSource.includes('/api/host-files/list'), true);
   assert.equal(projectFileServerSource.includes('/api/host-files/file'), true);
   assert.equal(projectFileServerSource.includes('ASHA_STUDIO_PROJECT_ROOT'), false);
@@ -4460,7 +4028,7 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(projectFileServiceSource.includes('await rename(temporaryPath, resolved.absolutePath)'), true);
   assert.equal(projectFileServiceSource.includes("segment === '..'"), false);
   assert.equal(shellSource.includes('projectFileDialog()'), true);
-  assert.equal(shellSource.includes('Save Project Workspace'), true);
+  assert.equal(shellSource.includes('Save Project Workspace'), false);
   assert.equal(shellSource.includes('Browser Slot'), false);
   assert.equal(shellSource.includes('Open Scene… {{ selectedPath }}'), true);
   assert.equal(storeSource.includes('refreshProjectFiles'), true);

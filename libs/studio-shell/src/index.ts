@@ -130,20 +130,6 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                 <button type="button" (click)="cancelSceneFileConflict()">Cancel</button>
               </section>
             }
-            <button
-              type="button"
-              (click)="saveWorkspace()"
-              [disabled]="!store.projectFileDialog().connected"
-            >
-              Save Project Workspace
-            </button>
-            <button
-              type="button"
-              (click)="loadWorkspace()"
-              [disabled]="!store.projectFileDialog().connected"
-            >
-              Load Project Workspace
-            </button>
           </section>
         }
 
@@ -667,11 +653,6 @@ export class StudioShellComponent {
     this.store.newWorkspace();
   }
 
-  saveWorkspace(): void {
-    this.store.saveProjectWorkspace();
-    this.store.setActiveMenu(null);
-  }
-
   saveScene(): void {
     this.store.saveSceneFile();
   }
@@ -738,11 +719,6 @@ export class StudioShellComponent {
 
   disconnectRunningProject(): void {
     this.store.disconnectRunningProject();
-    this.store.setActiveMenu(null);
-  }
-
-  loadWorkspace(): void {
-    this.store.loadProjectWorkspace();
     this.store.setActiveMenu(null);
   }
 

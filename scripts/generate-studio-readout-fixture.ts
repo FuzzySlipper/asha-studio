@@ -25,7 +25,6 @@ const readout = createStudioAgentReadout(workspace, {
   renderSettings: buildStudioPreferencesReadModel().render,
   uiState: buildStudioUiStateReadModel({
     entities: workspace.entities,
-    selectedScenarioDraftId: workspace.session.scenarioId,
   }),
 });
 const fixtureDir = join(repoRoot, 'fixtures');

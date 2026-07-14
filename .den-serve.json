@@ -1,7 +1,7 @@
 {
   "project": "asha-studio",
   "serve": {
-    "command": "pnpm run studio:dev:native-voxel",
+    "command": "pnpm run studio:lan",
     "preferredPort": 4200,
     "healthUrl": "/health",
     "readyText": "\"project\": \"asha-studio\"",

@@ -90,7 +90,7 @@
       "role": "asha_studio_shell",
       "parent": "viewport",
       "layer": "z_0",
-      "text": "2ASHA StudioBasic Voxel Scenario / readycontracts.v0command-registry.v0command-registry.v0runtime-bridge.v0runtime bridg",
+      "text": "2ASHA StudioUntitled Scene / readycontracts.v0command-registry.v0command-registry.v0runtime-bridge.v0runtime bridg",
       "bounds": {
         "space": "viewport",
         "x": 0,
@@ -720,7 +720,7 @@
       "role": "scene_hierarchy_node",
       "parent": "scene_hierarchy",
       "layer": "z_0",
-      "text": "Select scene hierarchy row: Basic Voxel Scenario",
+      "text": "Select scene hierarchy row: Untitled Scene",
       "bounds": {
         "space": "viewport",
         "x": 0.0036458333333333334,

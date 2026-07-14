@@ -28,10 +28,13 @@ import and local-link policy.
   session, workspace identity, public RuntimeSession controls, and the detailed
   gameplay inspector. Static proof-session inventories remain in tests and
   readouts rather than normal product chrome.
-- `Basic Voxel Scenario` and `Placeholder Scenario` are temporary fixture
-  switcher entries, not the unified scene-loading model. They remain explicitly
-  labelled under Runtime for development compatibility; bounded scene open,
-  save, and save-as live under **File** and will supersede this switcher.
+- Scene startup and **New** are empty. **Open**, **Save**, and **Save As** use the
+  canonical engine scene document through the Rust codec and ordinary files on
+  the trusted Studio host. LAN browsers operate that host filesystem; this
+  deployment intentionally does not impose a project-root security boundary.
+- Unresolved scene asset references remain unchanged in the stored document and
+  are reported as visible Studio diagnostics. Studio does not fabricate cubes or
+  other stand-ins for missing authored assets.
 
 ## Visual Evidence
 

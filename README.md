@@ -61,11 +61,12 @@ current product evidence by default. Historical milestone and delegated proof
 scripts are classified in `scripts/studio-evidence-catalog.json`; they are not
 auto-discovered from `scripts/proof-*.ts`.
 
-Project workspace save/load uses the bounded project-root file service and the
-inspectable `studio/asha-studio-workspace.json` artifact. See
-`docs/project-workspace-persistence.md` for the hash-pinned authored-content
-contract, atomic/stale-write behavior, and the state that is intentionally not
-serialized.
+Scene **New**, **Open**, **Save**, and **Save As** use ordinary files on the
+Studio host. Paths may be absolute or relative to the host service start
+directory; a browser connected over LAN always operates on the host filesystem,
+not its own machine. See `docs/project-workspace-persistence.md` for canonical
+scene serialization, atomic/stale-write behavior, and the optional workspace
+pointer artifact.
 
 The current local ASHA package linkage uses package-root links to `/home/dev/asha-engine/ts/packages/*` because the ASHA packages are not published. The boundary checker reads ASHA's public-surface manifest at `/home/dev/asha-engine/harness/public-surface/ts-packages.json` for the `asha-studio` consumer role, then allows only those explicit public package roots and rejects source/internal/generated/raw transport imports.
 

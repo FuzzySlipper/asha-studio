@@ -83,7 +83,6 @@ function allStrings(value: unknown): string {
 }
 
 const commandRuns = [
-  run('pnpm', ['run', 'evidence', '--', 'persistence-m1']),
   run('pnpm', ['run', 'evidence', '--', 'authoring-ux-m2']),
   run('npm', ['run', 'browser:interactive-proof'], demoRoot),
   run('pnpm', ['run', 'evidence', '--', 'live-gameplay-debug-m4']),
@@ -92,10 +91,6 @@ const commandRuns = [
   run('npm', ['run', 'check:boundary'], demoRoot),
 ];
 
-const persistenceM1 = readArtifact(
-  'artifacts/persistence-m1-proof/latest/index.json',
-  'studio_persistence_m1_proof',
-);
 const authoringM2 = readArtifact(
   'artifacts/authoring-ux-m2-proof/latest/index.json',
   'studio_authoring_ux_m2_proof',
@@ -136,7 +131,6 @@ const studioV2 = readArtifact(
   'studio_v2_live_backend_evidence',
 );
 
-assert.equal(persistenceM1.artifact.validations.includes('workspace_open_child_passed'), true);
 assert.equal(authoringM2.artifact.validations.includes('authored_state_panel_reflection_child_passed'), true);
 assert.equal(browserM3.artifact.checks.interactive_browser_readback_ready ?? true, true);
 assert.equal(browserM3.artifact.browserProof.inputEventCount > 0, true);
@@ -149,7 +143,6 @@ assert.equal(demoWorkflowV2.artifact.validations.includes('v2_proof_index_check_
 assert.equal(studioV2.artifact.validations.includes('browser_smoke_consumes_current_command_proof'), true);
 
 const forbiddenText = allStrings([
-  persistenceM1.artifact,
   authoringM2.artifact,
   browserM3.artifact,
   liveDebugM4.artifact,
@@ -181,7 +174,6 @@ const missingStudioLiveV2Ref = {
 };
 
 const sourceArtifacts = [
-  persistenceM1,
   authoringM2,
   browserM3,
   liveDebugM4,
@@ -206,14 +198,11 @@ const artifactBody = {
     projectId: 'asha',
     parentTask: 'asha#3727',
     milestone: 'M6 proper end-to-end demo proof capstone',
-    verifiedMilestones: ['M1', 'M2', 'M3', 'M4', 'M5'],
+    verifiedMilestones: ['M2', 'M3', 'M4', 'M5'],
     deferredMilestones: ['M0 planning docs are contract inputs, not regenerated proof artifacts'],
   },
   sourceArtifacts,
   milestoneCoverage: {
-    workspacePersistenceM1: persistenceM1.artifact.validations.includes('workspace_open_child_passed')
-      && persistenceM1.artifact.validations.includes('scene_save_roundtrip_child_passed')
-      && persistenceM1.artifact.validations.includes('catalog_save_roundtrip_child_passed'),
     authoringUxM2: authoringM2.artifact.validations.includes('scene_object_create_child_passed')
       && authoringM2.artifact.validations.includes('catalog_entry_authoring_child_passed')
       && authoringM2.artifact.validations.includes('authored_state_panel_reflection_child_passed'),

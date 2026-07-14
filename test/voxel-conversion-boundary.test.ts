@@ -615,10 +615,10 @@ test('VoxelForge view_from_angle parity produces projection-only camera evidence
   assert.equal(capture.captureVersion, 'studio-agent-voxel-view-capture.v0');
   assert.equal(capture.angle, 'right');
   assert.equal(capture.target, 'selected');
-  assert.equal(capture.targetRenderableId, 'selected-voxel:0,0,0');
+  assert.equal(capture.targetRenderableId, null);
   assert.equal(capture.sessionId, workspace.session.sessionId);
   assert.equal(capture.sceneHash, workspace.scene.sceneHash);
-  assert.equal(capture.viewport.selectedRenderableId, 'selected-voxel:0,0,0');
+  assert.equal(capture.viewport.selectedRenderableId, null);
   assert.match(capture.camera.cameraHash, /^viewport-camera-/);
   assert.match(capture.viewport.readbackHash, /^viewport-readback-/);
   assert.match(capture.captureHash, /^studio-agent-voxel-view-capture-/);

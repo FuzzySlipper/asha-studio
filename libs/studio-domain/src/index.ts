@@ -103,7 +103,6 @@ export type StudioBottomPanelTab =
   | 'timeline'
   | 'assets'
   | 'catalog'
-  | 'proof_scenes'
   | 'commands'
   | 'publish'
   | 'evidence';
@@ -126,9 +125,6 @@ export type StudioUiEventCommandId =
   | 'workspace.save_project_artifact'
   | 'workspace.load_project_artifact'
   | 'preferences.set_render_setting'
-  | 'scene.open_source'
-  | 'scene.save_source'
-  | 'scene.save_source_as'
   | 'catalog.create_source'
   | 'catalog.load_source'
   | 'catalog.save_source'
@@ -246,27 +242,12 @@ export type StudioPublishEvidenceDiagnosticCode =
   | 'publish_evidence_stale'
   | 'publish_evidence_dependency_guard_failed'
   | 'publish_evidence_run_smoke_failed';
-export type StudioProofSceneDiagnosticCode =
-  | 'proof_scene_missing'
-  | 'proof_scene_unsupported_schema'
-  | 'proof_scene_missing_catalog_reference'
-  | 'proof_scene_missing_runtime_fixture'
-  | 'proof_scene_evidence_failed';
 export type StudioWorkspaceOpenReadDiagnosticCode =
   | 'missing_manifest'
   | 'workspace_source_path_escape'
   | 'private_repo_scan'
   | 'unsupported_file_kind'
   | 'workspace_source_not_allowed';
-export type StudioSceneFileDiagnosticCode =
-  | 'scene_file_missing_workspace'
-  | 'scene_file_not_found'
-  | 'scene_file_unsupported_schema'
-  | 'scene_file_invalid_json'
-  | 'scene_file_stale_hash'
-  | 'scene_file_path_not_allowed'
-  | 'scene_file_missing_name'
-  | 'scene_file_missing_catalog_assets';
 export type StudioSceneAuthoringDiagnosticCode =
   | 'stale_scene_source_hash'
   | 'duplicate_scene_object'
@@ -376,9 +357,7 @@ export interface StudioGameWorkspaceReadout {
   readonly diagnostics: readonly StudioDiagnostic[];
 }
 
-export type StudioWorkspaceSourceSchemaKind =
-  | 'proof-scene-json.v1'
-  | 'asset-catalog-json.v1';
+export type StudioWorkspaceSourceSchemaKind = 'asset-catalog-json.v1';
 
 export interface StudioWorkspaceSourceFileInput {
   readonly path: string;
@@ -391,7 +370,7 @@ export interface StudioWorkspaceSourceFileReadModel {
   readonly path: string;
   readonly hash: string;
   readonly schemaKind: StudioWorkspaceSourceSchemaKind;
-  readonly operationKind: 'authoring.scene.save_source' | 'authoring.catalog.save_source';
+  readonly operationKind: 'authoring.catalog.save_source';
   readonly allowedRoot: string;
   readonly diagnostics: readonly StudioDiagnostic[];
   readonly sourceHash: string;
@@ -406,7 +385,6 @@ export interface StudioWorkspaceOpenReadModel {
   readonly studioMode: Extract<StudioMode, 'definition_authoring'>;
   readonly runtimeSessionState: 'not_attached';
   readonly authoringPersistenceVersion: 'authoring-persistence.v0';
-  readonly allowedSceneRoots: readonly string[];
   readonly allowedCatalogRoots: readonly string[];
   readonly sourceFiles: readonly StudioWorkspaceSourceFileReadModel[];
   readonly diagnostics: readonly StudioDiagnostic[];
@@ -417,70 +395,6 @@ export interface StudioWorkspaceOpenReadModel {
     'not_runtime_authority',
   ];
   readonly openReadHash: string;
-}
-
-export interface StudioSceneFileSourceInput {
-  readonly path: string;
-  readonly text: string;
-  readonly sha256: string;
-}
-
-export interface StudioSceneFileReadModel {
-  readonly sceneFileVersion: 'studio-scene-file.v0';
-  readonly path: string;
-  readonly hash: string;
-  readonly sceneId: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly catalogAssetIds: readonly string[];
-  readonly runtimeFixture: string | null;
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly sceneFileHash: string;
-}
-
-export interface StudioSceneFileListReadModel {
-  readonly sceneFileListVersion: 'studio-scene-file-list.v0';
-  readonly workspaceHash: string;
-  readonly allowedSceneRoots: readonly string[];
-  readonly files: readonly StudioSceneFileReadModel[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly commandIds: {
-    readonly list: 'scene.list_sources';
-    readonly open: 'scene.open_source';
-  };
-  readonly nonClaims: readonly [
-    'not_repo_crawler',
-    'not_private_file_picker',
-    'not_runtime_authority',
-  ];
-  readonly sceneFileListHash: string;
-}
-
-export type StudioSceneFileListResult =
-  | {
-      readonly ok: true;
-      readonly sceneFiles: StudioSceneFileListReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly sceneFiles: StudioSceneFileListReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export interface StudioSceneFileSaveReadback {
-  readonly saveVersion: 'studio-scene-file-save.v0';
-  readonly commandId: 'scene.save_source' | 'scene.save_source_as';
-  readonly path: string;
-  readonly previousHash: string | null;
-  readonly nextHash: string;
-  readonly sceneFileHash: string;
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_file_write',
-  ];
-  readonly saveHash: string;
 }
 
 export type StudioWorkspaceOpenReadResult =
@@ -1865,7 +1779,6 @@ export type StudioPublishEvidenceLoadResult =
 export type StudioWorkspaceCockpitEvidenceDiagnosticCode =
   | 'cockpit_missing_game_workspace'
   | 'cockpit_missing_asset_inventory'
-  | 'cockpit_missing_proof_scenes'
   | 'cockpit_missing_runtime_sessions'
   | 'cockpit_missing_command_proposals'
   | 'cockpit_missing_publish_evidence'
@@ -1878,7 +1791,6 @@ export interface StudioWorkspaceCockpitEvidenceArtifact {
     readonly studioWorkspaceHash: string;
     readonly gameWorkspaceHash: string;
     readonly assetInventoryHash: string;
-    readonly proofSceneListHash: string;
     readonly runtimeSessionListHash: string;
     readonly commandProposalPanelHash: string;
     readonly publishEvidenceHash: string;
@@ -1896,10 +1808,6 @@ export interface StudioWorkspaceCockpitEvidenceArtifact {
       readonly status: string;
       readonly entryCount: number;
       readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
-    };
-    readonly proofScenes: {
-      readonly sceneIds: readonly string[];
-      readonly evidenceStatuses: readonly string[];
     };
     readonly runtimeSessions: {
       readonly activeSessionId: string;
@@ -1996,60 +1904,6 @@ export type StudioAssetInventoryLoadResult =
       readonly diagnostics: readonly StudioDiagnostic[];
     };
 
-export interface StudioProofSceneInput {
-  readonly path: string;
-  readonly schemaVersion: number;
-  readonly sceneId: number | string;
-  readonly name: string;
-  readonly description?: string;
-  readonly catalogAssetIds: readonly string[];
-  readonly runtimeFixture: string | null;
-}
-
-export interface StudioProofSceneEvidenceInput {
-  readonly proofSceneCommandStatus?: 'passed' | 'failed' | 'missing';
-  readonly proofSceneCommand?: string;
-  readonly assetInventoryArtifactPath?: string;
-  readonly assetInventoryArtifactHash?: string;
-}
-
-export interface StudioProofSceneReadModel {
-  readonly proofSceneVersion: 'studio-proof-scene.v0';
-  readonly path: string;
-  readonly sceneId: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly catalogAssetIds: readonly string[];
-  readonly catalogStatus: 'resolved' | 'missing';
-  readonly missingCatalogAssetIds: readonly string[];
-  readonly runtimeFixture: string | null;
-  readonly runtimeProfile: string;
-  readonly evidenceStatus: 'passed' | 'failed' | 'missing';
-  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly proofSceneHash: string;
-}
-
-export interface StudioProofSceneListReadModel {
-  readonly proofSceneListVersion: 'studio-proof-scene-list.v0';
-  readonly sceneRoots: readonly string[];
-  readonly scenes: readonly StudioProofSceneReadModel[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly proofSceneListHash: string;
-}
-
-export type StudioProofSceneListLoadResult =
-  | {
-      readonly ok: true;
-      readonly proofScenes: StudioProofSceneListReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly proofScenes: StudioProofSceneListReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
 export interface StudioCompatibilityRequirement {
   readonly packageName: string;
   readonly compatibilityVersion: string;
@@ -2094,11 +1948,6 @@ export interface StudioSessionReadModel {
   readonly startedAtIso: string;
 }
 
-export interface StudioScenarioSummary {
-  readonly scenarioId: string;
-  readonly label: string;
-  readonly status: 'available' | 'loaded';
-}
 
 export interface StudioVec3 {
   readonly x: number;
@@ -2248,7 +2097,6 @@ export interface StudioWorkspaceReadModel {
   readonly compatibilityMarker: string;
   readonly compatibility: StudioCompatibilityEvidence;
   readonly session: StudioSessionReadModel;
-  readonly scenarios: readonly StudioScenarioSummary[];
   readonly scene: StudioSceneReadModel;
   readonly flatSceneDocument: FlatSceneDocument;
   readonly sceneObjectSnapshot: EditorSceneObjectSnapshot;
@@ -2337,7 +2185,6 @@ export interface StudioUiStateReadModel {
     readonly expandedCount: number;
     readonly totalCount: number;
   };
-  readonly selectedScenarioDraftId: string;
   readonly hierarchyFilter: string;
   readonly menuMessage: string;
   readonly projectWorkspaceAvailable: boolean;
@@ -2359,7 +2206,7 @@ export interface StudioWorkspaceArtifact {
   readonly savedAtIso: string;
   readonly project: StudioProjectWorkspaceIdentity;
   readonly authoredContent: {
-    readonly sceneSource: {
+    readonly sceneFile: {
       readonly path: string;
       readonly sha256: string;
     };
@@ -2394,22 +2241,16 @@ export type StudioProjectWorkspaceLoadResult =
       readonly ok: true;
       readonly artifact: StudioWorkspaceArtifact;
       readonly workspace: StudioWorkspaceReadModel;
-      readonly sceneFile: StudioSceneFileReadModel;
+      readonly sceneDocument: FlatSceneDocument;
       readonly diagnostics: readonly [];
     }
   | {
       readonly ok: false;
       readonly artifact: null;
       readonly workspace: null;
-      readonly sceneFile: null;
+      readonly sceneDocument: null;
       readonly diagnostics: readonly StudioDiagnostic[];
     };
-
-export interface StudioScenarioLoadResult {
-  readonly ok: boolean;
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly diagnostics: readonly StudioDiagnostic[];
-}
 
 export interface StudioAssetBrowserCategoryReadModel {
   readonly category: StudioAssetBrowserCategory;
@@ -2442,33 +2283,6 @@ export interface SceneObjectCommandIntent {
   readonly expectedTimelineSequence: number;
 }
 
-export interface LoadScenarioIntent {
-  readonly kind: 'load_scenario';
-  readonly scenarioId: string;
-  readonly expectedTimelineSequence: number;
-}
-
-export interface LoadReferenceAssetIntent {
-  readonly kind: 'load_reference_asset';
-  readonly assetId: 'static-mesh:reference-placeholder';
-  readonly expectedTimelineSequence: number;
-}
-
-export interface OpenSceneFileIntent {
-  readonly kind: 'open_scene_file';
-  readonly path: string;
-  readonly expectedHash: string;
-  readonly expectedTimelineSequence: number;
-}
-
-export interface SaveSceneFileIntent {
-  readonly kind: 'save_scene_file';
-  readonly path: string;
-  readonly expectedPreviousHash: string | null;
-  readonly saveAs: boolean;
-  readonly expectedTimelineSequence: number;
-}
-
 export interface NoopIntent {
   readonly kind: 'noop';
   readonly reason: string;
@@ -2477,10 +2291,6 @@ export interface NoopIntent {
 export type StudioIntent =
   | SelectEntityIntent
   | SceneObjectCommandIntent
-  | LoadScenarioIntent
-  | LoadReferenceAssetIntent
-  | OpenSceneFileIntent
-  | SaveSceneFileIntent
   | NoopIntent;
 
 export interface StudioSceneObjectCommandApplyResult {
@@ -2866,9 +2676,6 @@ export function buildStudioWorkspaceOpenReadModel(input: {
   const persistence = workspace === null
     ? null
     : buildAshaAuthoringPersistenceContract(workspace.manifest);
-  const allowedSceneRoots = persistence?.writeScopes.find(
-    scope => scope.operationKind === 'authoring.scene.save_source',
-  )?.allowedRoots ?? [];
   const allowedCatalogRoots = persistence?.writeScopes.find(
     scope => scope.operationKind === 'authoring.catalog.save_source',
   )?.allowedRoots ?? [];
@@ -2882,7 +2689,7 @@ export function buildStudioWorkspaceOpenReadModel(input: {
         'workspace_source_path_escape',
         `Workspace source path must stay inside the game workspace: ${file.path}.`,
         file.path,
-        'Use manifest-declared relative scene/catalog paths only.',
+        'Use manifest-declared relative catalog paths only.',
       ));
     }
     if (file.path.startsWith('../asha-engine') || file.path.startsWith('../asha-studio') || file.path.includes('/src/')) {
@@ -2896,9 +2703,9 @@ export function buildStudioWorkspaceOpenReadModel(input: {
     if (operationKind === null) {
       fileDiagnostics.push(studioWorkspaceOpenReadDiagnostic(
         'unsupported_file_kind',
-        `Workspace open/read supports proof scene and catalog source files only: ${file.path}.`,
+        `Workspace open/read supports catalog files only: ${file.path}.`,
         file.path,
-        'Read scenes/*.scene.json and catalog package catalog.json files only.',
+        'Read catalog package catalog.json files only.',
       ));
     }
     if (workspace !== null && operationKind !== null) {
@@ -2920,9 +2727,7 @@ export function buildStudioWorkspaceOpenReadModel(input: {
           sourceVersion: 'studio-workspace-source-file.v0',
           path: resolution.normalizedPath,
           hash: file.sha256,
-          schemaKind: resolution.format === 'proof-scene-json.v1'
-            ? 'proof-scene-json.v1'
-            : 'asset-catalog-json.v1',
+          schemaKind: 'asset-catalog-json.v1',
           operationKind,
           allowedRoot: resolution.allowedRoot,
           diagnostics: [],
@@ -2949,7 +2754,6 @@ export function buildStudioWorkspaceOpenReadModel(input: {
     studioMode: 'definition_authoring',
     runtimeSessionState: 'not_attached',
     authoringPersistenceVersion: 'authoring-persistence.v0',
-    allowedSceneRoots,
     allowedCatalogRoots,
     sourceFiles,
     diagnostics,
@@ -2966,7 +2770,6 @@ export function buildStudioWorkspaceOpenReadModel(input: {
       manifestHash: input.manifestHash ?? 'missing',
       studioMode: 'definition_authoring',
       runtimeSessionState: 'not_attached',
-      allowedSceneRoots,
       allowedCatalogRoots,
       sourceFiles,
       diagnostics,
@@ -2976,220 +2779,6 @@ export function buildStudioWorkspaceOpenReadModel(input: {
   return diagnostics.length === 0
     ? { ok: true, openRead, diagnostics: [] }
     : { ok: false, openRead, diagnostics };
-}
-
-export function buildStudioSceneFileList(input: {
-  readonly workspace: StudioGameWorkspaceReadModel | null;
-  readonly manifestPath: string;
-  readonly manifestHash: string | null;
-  readonly sourceFiles: readonly StudioSceneFileSourceInput[];
-  readonly allowProjectRoot?: boolean;
-}): StudioSceneFileListResult {
-  const openRead = buildStudioWorkspaceOpenReadModel({
-    workspace: input.workspace,
-    manifestPath: input.manifestPath,
-    manifestHash: input.manifestHash,
-    sourceFiles: input.sourceFiles,
-  });
-  const allowProjectRoot = input.allowProjectRoot ?? false;
-  const diagnostics: StudioDiagnostic[] = allowProjectRoot ? [] : [...openRead.diagnostics];
-  const files: StudioSceneFileReadModel[] = [];
-
-  for (const source of input.sourceFiles) {
-    const readSource = openRead.openRead.sourceFiles.find(file => file.path === source.path);
-    const projectRootPathAllowed = allowProjectRoot
-      && source.path.endsWith('.scene.json')
-      && source.path.length > 0
-      && !source.path.startsWith('/')
-      && !source.path.split('/').includes('..');
-    if (
-      (readSource === undefined || readSource.schemaKind !== 'proof-scene-json.v1')
-      && !projectRootPathAllowed
-    ) {
-      diagnostics.push(sceneFileDiagnostic(
-        'scene_file_path_not_allowed',
-        `Scene source ${source.path} must be a .scene.json file under the project root.`,
-        source.path,
-        'Choose a .scene.json file from the project root.',
-      ));
-      continue;
-    }
-    const parsed = parseStudioSceneFileSource(source);
-    diagnostics.push(...parsed.diagnostics);
-    files.push({
-      sceneFileVersion: 'studio-scene-file.v0',
-      path: readSource?.path ?? source.path,
-      hash: source.sha256,
-      sceneId: parsed.sceneId,
-      name: parsed.name,
-      description: parsed.description,
-      catalogAssetIds: parsed.catalogAssetIds,
-      runtimeFixture: parsed.runtimeFixture,
-      diagnostics: parsed.diagnostics,
-      sceneFileHash: fnv1aHash('studio-scene-file', {
-        path: readSource?.path ?? source.path,
-        hash: source.sha256,
-        parsed,
-      }),
-    });
-  }
-
-  if (input.workspace === null) {
-    diagnostics.push(sceneFileDiagnostic(
-      'scene_file_missing_workspace',
-      'Scene file listing requires an opened game workspace manifest.',
-      input.manifestPath,
-      'Open asha.game.toml before listing scene sources.',
-    ));
-  }
-
-  const sceneFiles: StudioSceneFileListReadModel = {
-    sceneFileListVersion: 'studio-scene-file-list.v0',
-    workspaceHash: input.workspace?.workspaceHash ?? 'missing',
-    allowedSceneRoots: allowProjectRoot ? ['project-root'] : openRead.openRead.allowedSceneRoots,
-    files,
-    diagnostics,
-    commandIds: {
-      list: 'scene.list_sources',
-      open: 'scene.open_source',
-    },
-    nonClaims: [
-      'not_repo_crawler',
-      'not_private_file_picker',
-      'not_runtime_authority',
-    ],
-    sceneFileListHash: fnv1aHash('studio-scene-file-list', {
-      workspaceHash: input.workspace?.workspaceHash ?? 'missing',
-      allowedSceneRoots: allowProjectRoot ? ['project-root'] : openRead.openRead.allowedSceneRoots,
-      files,
-      diagnostics,
-    }),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, sceneFiles, diagnostics: [] }
-    : { ok: false, sceneFiles, diagnostics };
-}
-
-export function applyOpenSceneFileReadModel(
-  readModel: StudioWorkspaceReadModel,
-  sceneFile: StudioSceneFileReadModel,
-): StudioWorkspaceReadModel {
-  const renderables = buildSceneFileRenderables(sceneFile);
-  const selectedRenderableId = firstSelectableRenderableId(renderables);
-  const session: StudioSessionReadModel = {
-    ...readModel.session,
-    scenarioId: sceneFile.path,
-    scenarioLabel: sceneFile.name,
-    status: 'ready',
-  };
-  const scene: StudioSceneReadModel = {
-    sceneId: `scene-file:${sceneFile.sceneId}:v1`,
-    selectedRenderableId,
-    renderables,
-    sceneHash: buildSceneHash(renderables),
-  };
-  const flatSceneDocument = createStudioFlatSceneDocument(scene);
-  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
-  const entities = projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities);
-  const command = createTimelineEntry({
-    index: readModel.timeline.length,
-    commandId: 'scene.open_source',
-    label: 'Open Scene Source',
-    requestedBy: 'gui',
-    inputSummary: `path=${sceneFile.path};hash=${sceneFile.hash}`,
-    outputSummary: `Opened ${sceneFile.name}.`,
-    changedScene: true,
-    changedSelection: readModel.selectedEntityId !== selectedRenderableId,
-  });
-
-  return {
-    ...readModel,
-    session,
-    scene,
-    scenarios: readModel.scenarios.map(item => ({ ...item, status: 'available' })),
-    flatSceneDocument,
-    sceneObjectSnapshot,
-    entities,
-    selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, selectedRenderableId),
-    timeline: [...readModel.timeline, command.timelineEntry],
-    commandResults: [...readModel.commandResults, command.commandResult],
-    timelineSequence: readModel.timelineSequence + 1,
-  };
-}
-
-export function serializeWorkspaceSceneSource(
-  readModel: StudioWorkspaceReadModel,
-): string {
-  const catalogAssetIds = Array.from(new Set(readModel.scene.renderables
-    .filter(renderable => renderable.kind === 'static_mesh')
-    .map(renderable => renderable.meshRef?.replace(/^static-mesh:/, 'mesh.'))
-    .filter((assetId): assetId is string => assetId !== undefined && assetId.length > 0)));
-
-  return `${JSON.stringify({
-    schemaVersion: 1,
-    sceneId: readModel.session.scenarioId.startsWith('scenes/')
-      ? readModel.session.scenarioId.replace(/^scenes\//, '').replace(/\.scene\.json$/, '')
-      : readModel.session.scenarioId,
-    name: readModel.session.scenarioLabel,
-    description: `Saved from ASHA Studio scene hash ${readModel.scene.sceneHash}.`,
-    catalogAssetIds,
-    runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
-  }, null, 2)}\n`;
-}
-
-export function buildStudioSceneFileSaveReadback(input: {
-  readonly commandId: 'scene.save_source' | 'scene.save_source_as';
-  readonly path: string;
-  readonly previousHash: string | null;
-  readonly expectedPreviousHash: string | null;
-  readonly nextText: string;
-  readonly nextHash: string;
-  readonly workspace: StudioGameWorkspaceReadModel | null;
-  readonly allowProjectRoot?: boolean;
-}): StudioSceneFileSaveReadback {
-  const diagnostics: StudioDiagnostic[] = [];
-  const fileList = buildStudioSceneFileList({
-    workspace: input.workspace,
-    manifestPath: input.workspace?.manifestPath ?? 'missing',
-    manifestHash: input.workspace?.workspaceHash ?? null,
-    sourceFiles: [{ path: input.path, text: input.nextText, sha256: input.nextHash }],
-    allowProjectRoot: input.allowProjectRoot ?? false,
-  });
-  if (!fileList.ok) {
-    diagnostics.push(...fileList.diagnostics);
-  }
-  if (input.previousHash !== input.expectedPreviousHash) {
-    diagnostics.push(sceneFileDiagnostic(
-      'scene_file_stale_hash',
-      `Scene source ${input.path} changed before save.`,
-      input.path,
-      'Reopen the scene source before saving.',
-    ));
-  }
-  const sceneFileHash = fileList.sceneFiles.files.at(0)?.sceneFileHash ?? 'missing';
-
-  return {
-    saveVersion: 'studio-scene-file-save.v0',
-    commandId: input.commandId,
-    path: input.path,
-    previousHash: input.previousHash,
-    nextHash: input.nextHash,
-    sceneFileHash,
-    diagnostics,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_file_write',
-    ],
-    saveHash: fnv1aHash('studio-scene-file-save', {
-      commandId: input.commandId,
-      path: input.path,
-      previousHash: input.previousHash,
-      nextHash: input.nextHash,
-      sceneFileHash,
-      diagnostics,
-    }),
-  };
 }
 
 export function buildStudioGameWorkspaceHandshakeRequest(
@@ -4204,7 +3793,6 @@ export function buildStudioPlayableLoopTuningInspectionReadModel(input: {
   const defaultPresetReadout = catalogReadout.defaultPreset;
   const candidatePreset = applyStudioGameplayPresetDraft(defaultPresetReadout.preset, input.presetDraft);
   const validation = validateFpsGameplayPreset(candidatePreset);
-  const validatedPresetReadout = validation.readout ?? null;
   const authoringDiagnostics = validation.diagnostics.map(diagnostic =>
     studioGameplayPresetDiagnostic(diagnostic),
   );
@@ -6007,7 +5595,6 @@ export function exportStudioWorkspaceCockpitEvidence(input: {
   readonly studioWorkspace: StudioWorkspaceReadModel;
   readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
   readonly assetInventory: StudioAssetInventoryReadModel | null;
-  readonly proofScenes: StudioProofSceneListReadModel | null;
   readonly runtimeSessions: StudioRuntimeSessionListReadModel | null;
   readonly commandProposalPanel: StudioCommandProposalPanelReadModel | null;
   readonly publishEvidence: StudioPublishEvidenceReadModel | null;
@@ -6018,7 +5605,6 @@ export function exportStudioWorkspaceCockpitEvidence(input: {
   const requiredMarkers = [
     'studio-game-workspace-overview',
     'studio-assets-panel',
-    'studio-proof-scene-panel',
     'studio-runtime-session-panel',
     'studio-command-proposal-panel',
     'studio-publish-evidence-panel',
@@ -6035,14 +5621,6 @@ export function exportStudioWorkspaceCockpitEvidence(input: {
     diagnostics.push(studioWorkspaceCockpitDiagnostic(
       'cockpit_missing_asset_inventory',
       'Workspace cockpit evidence requires asset inventory readout data.',
-      null,
-      null,
-    ));
-  }
-  if (input.proofScenes === null || input.proofScenes.scenes.length === 0) {
-    diagnostics.push(studioWorkspaceCockpitDiagnostic(
-      'cockpit_missing_proof_scenes',
-      'Workspace cockpit evidence requires proof scene readout data.',
       null,
       null,
     ));
@@ -6084,7 +5662,6 @@ export function exportStudioWorkspaceCockpitEvidence(input: {
 
   const gameWorkspace = input.gameWorkspace;
   const assetInventory = input.assetInventory;
-  const proofScenes = input.proofScenes;
   const runtimeSessions = input.runtimeSessions;
   const commandProposalPanel = input.commandProposalPanel;
   const publishEvidence = input.publishEvidence;
@@ -6092,7 +5669,6 @@ export function exportStudioWorkspaceCockpitEvidence(input: {
     studioWorkspaceHash: input.studioWorkspace.scene.sceneHash,
     gameWorkspaceHash: gameWorkspace?.workspaceHash ?? 'missing',
     assetInventoryHash: assetInventory?.inventoryHash ?? 'missing',
-    proofSceneListHash: proofScenes?.proofSceneListHash ?? 'missing',
     runtimeSessionListHash: runtimeSessions?.sessionListHash ?? 'missing',
     commandProposalPanelHash: commandProposalPanel?.panelHash ?? 'missing',
     publishEvidenceHash: publishEvidence?.publishEvidenceHash ?? 'missing',
@@ -6112,10 +5688,6 @@ export function exportStudioWorkspaceCockpitEvidence(input: {
         status: assetInventory?.status ?? 'missing',
         entryCount: assetInventory?.entries.length ?? 0,
         evidenceRefs: assetInventory?.entries.flatMap(entry => entry.evidenceRefs) ?? [],
-      },
-      proofScenes: {
-        sceneIds: proofScenes?.scenes.map(scene => scene.sceneId) ?? [],
-        evidenceStatuses: proofScenes?.scenes.map(scene => scene.evidenceStatus) ?? [],
       },
       runtimeSessions: {
         activeSessionId: runtimeSessions?.activeSessionId ?? 'missing',
@@ -6806,125 +6378,6 @@ export function buildStudioAuthoredStatePanelReflection(input: {
     : { ok: false, reflection, diagnostics };
 }
 
-export function buildStudioProofSceneList(
-  input: {
-    readonly workspace: StudioGameWorkspaceReadModel;
-    readonly assetInventory: StudioAssetInventoryReadModel;
-    readonly scenes: readonly StudioProofSceneInput[];
-    readonly evidence?: StudioProofSceneEvidenceInput;
-  },
-): StudioProofSceneListLoadResult {
-  const catalogAssetIds = new Set(input.assetInventory.entries.map(entry => entry.assetId));
-  const diagnostics: StudioDiagnostic[] = [];
-
-  if (input.scenes.length === 0) {
-    diagnostics.push(studioProofSceneDiagnostic(
-      'proof_scene_missing',
-      'Workspace scene roots did not provide any proof scenes.',
-      input.workspace.sceneRoots.join(', '),
-      null,
-    ));
-  }
-
-  const scenes = input.scenes.map(scene => {
-    const sceneDiagnostics: StudioDiagnostic[] = [];
-    if (scene.schemaVersion !== 1) {
-      sceneDiagnostics.push(studioProofSceneDiagnostic(
-        'proof_scene_unsupported_schema',
-        `Proof scene ${scene.path} uses unsupported schema ${scene.schemaVersion}.`,
-        scene.path,
-        String(scene.schemaVersion),
-      ));
-    }
-
-    const missingCatalogAssetIds = scene.catalogAssetIds.filter(assetId => !catalogAssetIds.has(assetId));
-    if (missingCatalogAssetIds.length > 0) {
-      sceneDiagnostics.push(studioProofSceneDiagnostic(
-        'proof_scene_missing_catalog_reference',
-        `Proof scene ${scene.name} references missing catalog assets: ${missingCatalogAssetIds.join(', ')}.`,
-        scene.path,
-        missingCatalogAssetIds.join(', '),
-      ));
-    }
-
-    if (scene.runtimeFixture === null || scene.runtimeFixture.length === 0) {
-      sceneDiagnostics.push(studioProofSceneDiagnostic(
-        'proof_scene_missing_runtime_fixture',
-        `Proof scene ${scene.name} is missing a runtime fixture.`,
-        scene.path,
-        null,
-      ));
-    }
-
-    const evidenceStatus = input.evidence?.proofSceneCommandStatus ?? 'missing';
-    if (evidenceStatus === 'failed') {
-      sceneDiagnostics.push(studioProofSceneDiagnostic(
-        'proof_scene_evidence_failed',
-        `Proof scene evidence command failed for ${scene.name}.`,
-        scene.path,
-        input.evidence?.proofSceneCommand ?? null,
-      ));
-    }
-
-    diagnostics.push(...sceneDiagnostics);
-    const evidenceRefs: StudioAssetInventoryEvidenceRef[] = [
-      {
-        kind: 'proof-scene',
-        path: scene.path,
-        sha256: null,
-      },
-      ...(input.evidence?.assetInventoryArtifactPath === undefined
-        ? []
-        : [{
-            kind: 'asset-inventory',
-            path: input.evidence.assetInventoryArtifactPath,
-            sha256: input.evidence.assetInventoryArtifactHash ?? null,
-          }]),
-    ];
-    const readModel: StudioProofSceneReadModel = {
-      proofSceneVersion: 'studio-proof-scene.v0',
-      path: scene.path,
-      sceneId: String(scene.sceneId),
-      name: scene.name,
-      description: scene.description ?? null,
-      catalogAssetIds: scene.catalogAssetIds,
-      catalogStatus: missingCatalogAssetIds.length === 0 ? 'resolved' : 'missing',
-      missingCatalogAssetIds,
-      runtimeFixture: scene.runtimeFixture,
-      runtimeProfile: input.workspace.manifest.publishResourceProfile.resolutionPolicy,
-      evidenceStatus,
-      evidenceRefs,
-      diagnostics: sceneDiagnostics,
-      proofSceneHash: fnv1aHash('studio-proof-scene', {
-        workspaceHash: input.workspace.workspaceHash,
-        assetInventoryHash: input.assetInventory.inventoryHash,
-        scene,
-        evidenceStatus,
-        diagnostics: sceneDiagnostics,
-      }),
-    };
-    return readModel;
-  });
-
-  const proofScenes: StudioProofSceneListReadModel = {
-    proofSceneListVersion: 'studio-proof-scene-list.v0',
-    sceneRoots: input.workspace.sceneRoots,
-    scenes,
-    diagnostics,
-    proofSceneListHash: fnv1aHash('studio-proof-scene-list', {
-      workspaceHash: input.workspace.workspaceHash,
-      assetInventoryHash: input.assetInventory.inventoryHash,
-      sceneRoots: input.workspace.sceneRoots,
-      scenes,
-      diagnostics,
-    }),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, proofScenes, diagnostics: [] }
-    : { ok: false, proofScenes, diagnostics };
-}
-
 function npmRunScriptName(command: string): string | null {
   const match = /^npm run ([A-Za-z0-9:_-]+)$/.exec(command);
   return match?.[1] ?? null;
@@ -6932,10 +6385,7 @@ function npmRunScriptName(command: string): string | null {
 
 function workspaceSourceOperationKind(
   path: string,
-): 'authoring.scene.save_source' | 'authoring.catalog.save_source' | null {
-  if (path.endsWith('.scene.json')) {
-    return 'authoring.scene.save_source';
-  }
+): 'authoring.catalog.save_source' | null {
   if (path.endsWith('/catalog.json')) {
     return 'authoring.catalog.save_source';
   }
@@ -6959,21 +6409,6 @@ function studioGameWorkspaceDiagnostic(
 
 function studioWorkspaceOpenReadDiagnostic(
   code: StudioWorkspaceOpenReadDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function sceneFileDiagnostic(
-  code: StudioSceneFileDiagnosticCode,
   message: string,
   source: string | null,
   remediation: string | null,
@@ -7391,21 +6826,6 @@ function studioWorkspaceCockpitDiagnostic(
   };
 }
 
-function studioProofSceneDiagnostic(
-  code: StudioProofSceneDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
 function buildSceneHash(renderables: readonly StudioSceneRenderableReadModel[]): string {
   const hashPayload = renderables.map(renderable => ({
     renderableId: renderable.renderableId,
@@ -7578,7 +6998,6 @@ export function buildStudioUiStateReadModel(options: {
   readonly bottomPanelTab?: StudioBottomPanelTab;
   readonly assetBrowserCategory?: StudioAssetBrowserCategory;
   readonly entities?: readonly StudioEntityReadModel[];
-  readonly selectedScenarioDraftId?: string;
   readonly hierarchyFilter?: string;
   readonly menuMessage?: string;
   readonly projectWorkspaceAvailable?: boolean;
@@ -7593,7 +7012,6 @@ export function buildStudioUiStateReadModel(options: {
     bottomPanelTab: options.bottomPanelTab ?? 'timeline',
     assetBrowserCategory: options.assetBrowserCategory ?? 'all',
     hierarchy,
-    selectedScenarioDraftId: options.selectedScenarioDraftId ?? 'voxel-basic',
     hierarchyFilter: options.hierarchyFilter ?? '',
     menuMessage: options.menuMessage ?? 'Workspace ready.',
     projectWorkspaceAvailable: options.projectWorkspaceAvailable ?? false,
@@ -7900,231 +7318,6 @@ function createTimelineEntry(options: {
   };
 }
 
-function buildInitialRenderables(): readonly StudioSceneRenderableReadModel[] {
-  return [
-    {
-      renderableId: 'terrain-test-grid',
-      label: 'Terrain Grid',
-      kind: 'voxel_grid',
-      sourceState: 'authoritative',
-      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 3, y: 3, z: 1 } },
-      meshRef: 'generated:voxel-grid',
-      materialRef: 'material:grid-reference',
-      renderHash: 'render-before-voxel-basic',
-      visible: true,
-      pickable: true,
-    },
-    {
-      renderableId: 'selected-voxel:0,0,0',
-      label: 'Voxel (0, 0, 0)',
-      kind: 'voxel_cell',
-      sourceState: 'authoritative',
-      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } },
-      meshRef: 'generated:voxel-cell',
-      materialRef: 'material:authority-voxel',
-      renderHash: 'render-selected-voxel-000',
-      visible: true,
-      pickable: true,
-    },
-    {
-      renderableId: 'preview-ghost:1,0,0',
-      label: 'Preview Ghost (1, 0, 0)',
-      kind: 'preview_ghost',
-      sourceState: 'pending',
-      bounds: { min: { x: 1, y: 0, z: 0 }, max: { x: 2, y: 1, z: 1 } },
-      meshRef: 'generated:voxel-cell',
-      materialRef: 'material:preview-ghost',
-      renderHash: 'render-preview-ghost-100',
-      visible: true,
-      pickable: false,
-    },
-    {
-      renderableId: 'model-preview-crate',
-      label: 'Demo Crate Preview',
-      kind: 'static_mesh',
-      sourceState: 'reference',
-      bounds: { min: { x: 1.125, y: 1.125, z: 0.275 }, max: { x: 1.875, y: 1.875, z: 1.025 } },
-      meshRef: 'static-mesh:demo-crate',
-      materialRef: 'material:crate-reference',
-      renderHash: 'render-model-preview-crate',
-      visible: true,
-      pickable: false,
-    },
-  ];
-}
-
-function parseStudioSceneFileSource(source: StudioSceneFileSourceInput): {
-  readonly sceneId: string;
-  readonly name: string;
-  readonly description: string | null;
-  readonly catalogAssetIds: readonly string[];
-  readonly runtimeFixture: string | null;
-  readonly diagnostics: readonly StudioDiagnostic[];
-} {
-  const diagnostics: StudioDiagnostic[] = [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(source.text);
-  } catch {
-    return {
-      sceneId: source.path,
-      name: source.path,
-      description: null,
-      catalogAssetIds: [],
-      runtimeFixture: null,
-      diagnostics: [sceneFileDiagnostic(
-        'scene_file_invalid_json',
-        `Scene source ${source.path} must be valid JSON.`,
-        source.path,
-        'Fix the scene JSON before opening it in Studio.',
-      )],
-    };
-  }
-
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    diagnostics.push(sceneFileDiagnostic(
-      'scene_file_unsupported_schema',
-      `Scene source ${source.path} must be a JSON object.`,
-      source.path,
-      'Use proof-scene-json.v1 scene source shape.',
-    ));
-  }
-  const record = (parsed ?? {}) as Record<string, unknown>;
-  if (record.schemaVersion !== 1) {
-    diagnostics.push(sceneFileDiagnostic(
-      'scene_file_unsupported_schema',
-      `Scene source ${source.path} uses unsupported schema.`,
-      source.path,
-      String(record.schemaVersion ?? 'missing'),
-    ));
-  }
-  if (typeof record.name !== 'string' || record.name.trim().length === 0) {
-    diagnostics.push(sceneFileDiagnostic(
-      'scene_file_missing_name',
-      `Scene source ${source.path} is missing a display name.`,
-      source.path,
-      'Set a non-empty name before opening the scene.',
-    ));
-  }
-  const catalogAssetIds = Array.isArray(record.catalogAssetIds)
-    ? record.catalogAssetIds.filter((assetId): assetId is string => typeof assetId === 'string')
-    : [];
-  if (catalogAssetIds.length === 0) {
-    diagnostics.push(sceneFileDiagnostic(
-      'scene_file_missing_catalog_assets',
-      `Scene source ${source.path} has no catalog assets to project.`,
-      source.path,
-      'Add at least one catalog asset id for Studio viewport projection.',
-    ));
-  }
-
-  return {
-    sceneId: String(record.sceneId ?? source.path),
-    name: typeof record.name === 'string' && record.name.trim().length > 0 ? record.name : source.path,
-    description: typeof record.description === 'string' ? record.description : null,
-    catalogAssetIds,
-    runtimeFixture: typeof record.runtimeFixture === 'string' ? record.runtimeFixture : null,
-    diagnostics,
-  };
-}
-
-function buildSceneFileRenderables(
-  sceneFile: StudioSceneFileReadModel,
-): readonly StudioSceneRenderableReadModel[] {
-  const grid: StudioSceneRenderableReadModel = {
-    renderableId: `scene-file-grid:${sceneFile.sceneId}`,
-    label: `${sceneFile.name} Grid`,
-    kind: 'voxel_grid',
-    sourceState: 'reference',
-    bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: Math.max(2, sceneFile.catalogAssetIds.length + 1), y: 2, z: 0.2 } },
-    meshRef: 'generated:scene-file-grid',
-    materialRef: 'material:grid-reference',
-    renderHash: fnv1aHash('scene-file-grid-render', {
-      path: sceneFile.path,
-      hash: sceneFile.hash,
-    }),
-    visible: true,
-    pickable: true,
-  };
-  const assets = sceneFile.catalogAssetIds.map((assetId, index): StudioSceneRenderableReadModel => {
-    const x = 0.65 + index * 1.15;
-    return {
-      renderableId: `scene-file-asset:${assetId}`,
-      label: assetId,
-      kind: assetId.startsWith('mesh.') ? 'static_mesh' : 'preview_ghost',
-      sourceState: 'reference',
-      bounds: { min: { x, y: 0.65, z: 0.2 }, max: { x: x + 0.75, y: 1.4, z: 0.95 } },
-      meshRef: assetId.startsWith('mesh.') ? `static-mesh:${assetId.replace(/^mesh\./, '')}` : `asset:${assetId}`,
-      materialRef: sceneFile.catalogAssetIds.find(id => id.startsWith('material.')) ?? 'material:scene-file-reference',
-      renderHash: fnv1aHash('scene-file-asset-render', {
-        path: sceneFile.path,
-        assetId,
-        index,
-      }),
-      visible: true,
-      pickable: true,
-    };
-  });
-  return [grid, ...assets];
-}
-
-function buildPlaceholderScenarioRenderables(): readonly StudioSceneRenderableReadModel[] {
-  return [
-    {
-      renderableId: 'placeholder-ground-grid',
-      label: 'Placeholder Ground Grid',
-      kind: 'voxel_grid',
-      sourceState: 'reference',
-      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 4, y: 2, z: 0.35 } },
-      meshRef: 'generated:placeholder-grid',
-      materialRef: 'material:grid-reference',
-      renderHash: 'render-placeholder-grid',
-      visible: true,
-      pickable: true,
-    },
-    {
-      renderableId: 'placeholder-static-block',
-      label: 'Placeholder Static Block',
-      kind: 'static_mesh',
-      sourceState: 'reference',
-      bounds: { min: { x: 1.35, y: 0.55, z: 0.15 }, max: { x: 2.35, y: 1.55, z: 1.15 } },
-      meshRef: 'static-mesh:placeholder-block',
-      materialRef: 'material:placeholder-reference',
-      renderHash: 'render-placeholder-static-block',
-      visible: true,
-      pickable: true,
-    },
-    {
-      renderableId: 'placeholder-preview-anchor',
-      label: 'Placeholder Preview Anchor',
-      kind: 'preview_ghost',
-      sourceState: 'pending',
-      bounds: { min: { x: 2.5, y: 0.55, z: 0.15 }, max: { x: 3.1, y: 1.15, z: 0.75 } },
-      meshRef: 'generated:preview-anchor',
-      materialRef: 'material:preview-ghost',
-      renderHash: 'render-placeholder-preview-anchor',
-      visible: true,
-      pickable: false,
-    },
-  ];
-}
-
-function buildScenarioRenderables(scenarioId: string): readonly StudioSceneRenderableReadModel[] {
-  if (scenarioId === 'voxel-basic') {
-    return buildInitialRenderables();
-  }
-  if (scenarioId === 'scenario-placeholder') {
-    return buildPlaceholderScenarioRenderables();
-  }
-  return [];
-}
-
-function firstSelectableRenderableId(
-  renderables: readonly StudioSceneRenderableReadModel[],
-): string | null {
-  return renderables.find(renderable => renderable.pickable)?.renderableId ?? null;
-}
-
 function badgeForRenderable(
   renderable: StudioSceneRenderableReadModel,
   selected: boolean,
@@ -8385,40 +7578,13 @@ function buildInitialTimeline(): {
 } {
   const commands = [
     {
-      commandId: 'session.start',
-      label: 'Start Session',
+      commandId: 'workspace.start',
+      label: 'Open Studio',
       requestedBy: 'gui',
-      inputSummary: 'scenarioId=voxel-basic',
-      outputSummary: 'Session session-preview-0001 started.',
+      inputSummary: 'scene=untitled',
+      outputSummary: 'Created an empty authored scene.',
       changedScene: false,
       changedSelection: false,
-    },
-    {
-      commandId: 'session.load_scenario',
-      label: 'Load Scenario',
-      requestedBy: 'agent',
-      inputSummary: 'scenarioId=voxel-basic',
-      outputSummary: 'Loaded Basic Voxel Scenario.',
-      changedScene: true,
-      changedSelection: false,
-    },
-    {
-      commandId: 'inspection.editor_state',
-      label: 'Read Editor State',
-      requestedBy: 'gui',
-      inputSummary: 'sessionId=session-preview-0001',
-      outputSummary: 'Projected scene read model with 4 renderables.',
-      changedScene: false,
-      changedSelection: false,
-    },
-    {
-      commandId: 'selection.set_active_entity',
-      label: 'Set Active Entity',
-      requestedBy: 'gui',
-      inputSummary: 'entityId=selected-voxel:0,0,0',
-      outputSummary: 'Selected Voxel (0, 0, 0).',
-      changedScene: false,
-      changedSelection: true,
     },
   ] satisfies readonly Omit<Parameters<typeof createTimelineEntry>[0], 'index'>[];
 
@@ -8433,19 +7599,19 @@ function buildInitialTimeline(): {
 }
 
 export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
-  const renderables = buildInitialRenderables();
-  const selectedRenderableId = 'selected-voxel:0,0,0';
+  const renderables: readonly StudioSceneRenderableReadModel[] = [];
+  const selectedRenderableId = null;
   const compatibility = buildStudioCompatibilityEvidence();
   const session: StudioSessionReadModel = {
-    sessionId: 'session-preview-0001',
-    scenarioId: 'voxel-basic',
-    scenarioLabel: 'Basic Voxel Scenario',
+    sessionId: 'studio-authoring',
+    scenarioId: 'untitled',
+    scenarioLabel: 'Untitled Scene',
     runtimeMode: 'reference',
     status: 'ready',
     startedAtIso: '1970-01-01T00:00:00.000Z',
   };
   const scene: StudioSceneReadModel = {
-    sceneId: 'scene-view:voxel-basic:v1',
+    sceneId: 'scene-document:1',
     selectedRenderableId,
     renderables,
     sceneHash: buildSceneHash(renderables),
@@ -8459,10 +7625,6 @@ export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
     compatibilityMarker: 'asha-studio-substrate.angular-nx.v0',
     compatibility,
     session,
-    scenarios: [
-      { scenarioId: 'voxel-basic', label: 'Basic Voxel Scenario', status: 'loaded' },
-      { scenarioId: 'scenario-placeholder', label: 'Placeholder Scenario', status: 'available' },
-    ],
     scene,
     flatSceneDocument,
     sceneObjectSnapshot,
@@ -8504,11 +7666,6 @@ export function clearStudioWorkspaceReadModel(
     ...readModel,
     session,
     scene,
-    scenarios: readModel.scenarios.map(scenario =>
-      scenario.scenarioId === readModel.session.scenarioId
-        ? { ...scenario, status: 'loaded' }
-        : { ...scenario, status: scenario.status === 'loaded' ? 'available' : scenario.status },
-    ),
     flatSceneDocument,
     sceneObjectSnapshot,
     entities: projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities),
@@ -8594,6 +7751,18 @@ export function applyCanonicalSceneDocumentReadModel(
   };
 }
 
+export function findUnresolvedSceneAssetIds(
+  document: FlatSceneDocument,
+  availableAssetIds: readonly string[],
+): readonly string[] {
+  const available = new Set(availableAssetIds);
+  return [...new Set(document.nodes.flatMap(node => (
+    'asset' in node.kind && !available.has(node.kind.asset.id)
+      ? [node.kind.asset.id]
+      : []
+  )))].sort();
+}
+
 export function recordStudioWorkspaceUiCommand(
   readModel: StudioWorkspaceReadModel,
   options: {
@@ -8623,142 +7792,6 @@ export function recordStudioWorkspaceUiCommand(
       timelineSequence: readModel.timelineSequence + 1,
     },
     timelineEntry: command.timelineEntry,
-  };
-}
-
-export function addReferenceRenderableReadModel(
-  readModel: StudioWorkspaceReadModel,
-): StudioWorkspaceReadModel {
-  const referenceIndex = readModel.scene.renderables.filter(renderable =>
-    renderable.renderableId.startsWith('reference-placeholder-'),
-  ).length + 1;
-  const offset = 0.55 * referenceIndex;
-  const renderableId = `reference-placeholder-${referenceIndex}`;
-  const renderable: StudioSceneRenderableReadModel = {
-    renderableId,
-    label: `Reference Placeholder ${referenceIndex}`,
-    kind: 'static_mesh',
-    sourceState: 'reference',
-    bounds: {
-      min: { x: 2.1 + offset, y: 1.1, z: 0.25 },
-      max: { x: 2.75 + offset, y: 1.75, z: 0.9 },
-    },
-    meshRef: 'static-mesh:reference-placeholder',
-    materialRef: 'material:reference-placeholder',
-    renderHash: fnv1aHash('render-reference-placeholder', {
-      referenceIndex,
-      previousSceneHash: readModel.scene.sceneHash,
-    }),
-    visible: true,
-    pickable: true,
-  };
-  const renderables = [...readModel.scene.renderables, renderable];
-  const scene: StudioSceneReadModel = {
-    ...readModel.scene,
-    selectedRenderableId: renderableId,
-    renderables,
-    sceneHash: buildSceneHash(renderables),
-  };
-  const flatSceneDocument = createStudioFlatSceneDocument(scene);
-  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
-  const entities = projectEntitiesFromScene(
-    readModel.session,
-    scene,
-    sceneObjectSnapshot,
-    readModel.entities,
-  );
-  const command = createTimelineEntry({
-    index: readModel.timeline.length,
-    commandId: 'scene.load_asset',
-    label: 'Load Reference Placeholder',
-    requestedBy: 'gui',
-    inputSummary: 'assetId=static-mesh:reference-placeholder',
-    outputSummary: `Added ${renderable.label}.`,
-    changedScene: true,
-    changedSelection: true,
-  });
-
-  return {
-    ...readModel,
-    scene,
-    flatSceneDocument,
-    sceneObjectSnapshot,
-    entities,
-    selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, renderableId),
-    timeline: [...readModel.timeline, command.timelineEntry],
-    commandResults: [...readModel.commandResults, command.commandResult],
-    timelineSequence: readModel.timelineSequence + 1,
-  };
-}
-
-export function loadScenarioReadModel(
-  readModel: StudioWorkspaceReadModel,
-  scenarioId: string,
-): StudioScenarioLoadResult {
-  const scenario = readModel.scenarios.find(item => item.scenarioId === scenarioId);
-  if (scenario === undefined) {
-    return {
-      ok: false,
-      workspace: readModel,
-      diagnostics: [
-        diagnostic(
-          'error',
-          'scenario_load_unknown',
-          `Scenario ${scenarioId} is not available in the Studio workspace.`,
-          'session.load_scenario',
-          'Select one of the scenarios advertised by the workspace read model.',
-        ),
-      ],
-    };
-  }
-
-  const renderables = buildScenarioRenderables(scenarioId);
-  const selectedRenderableId = firstSelectableRenderableId(renderables);
-  const session: StudioSessionReadModel = {
-    ...readModel.session,
-    scenarioId,
-    scenarioLabel: scenario.label,
-    status: 'ready',
-  };
-  const scene: StudioSceneReadModel = {
-    sceneId: `scene-view:${scenarioId}:v1`,
-    selectedRenderableId,
-    renderables,
-    sceneHash: buildSceneHash(renderables),
-  };
-  const flatSceneDocument = createStudioFlatSceneDocument(scene);
-  const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
-  const entities = projectEntitiesFromScene(session, scene, sceneObjectSnapshot, readModel.entities);
-  const command = createTimelineEntry({
-    index: readModel.timeline.length,
-    commandId: 'session.load_scenario',
-    label: 'Load Scenario',
-    requestedBy: 'gui',
-    inputSummary: `scenarioId=${scenarioId}`,
-    outputSummary: `Loaded ${scenario.label}.`,
-    changedScene: true,
-    changedSelection: readModel.selectedEntityId !== selectedRenderableId,
-  });
-
-  return {
-    ok: true,
-    workspace: {
-      ...readModel,
-      session,
-      scene,
-      scenarios: readModel.scenarios.map(item => ({
-        ...item,
-        status: item.scenarioId === scenarioId ? 'loaded' : 'available',
-      })),
-      flatSceneDocument,
-      sceneObjectSnapshot,
-      entities,
-      selectedEntityId: selectedObjectIdForRenderable(sceneObjectSnapshot, selectedRenderableId),
-      timeline: [...readModel.timeline, command.timelineEntry],
-      commandResults: [...readModel.commandResults, command.commandResult],
-      timelineSequence: readModel.timelineSequence + 1,
-    },
-    diagnostics: [],
   };
 }
 
@@ -9208,63 +8241,6 @@ export function createSceneObjectCommandIntent(
   };
 }
 
-export function createLoadScenarioIntent(
-  readModel: StudioWorkspaceReadModel,
-  scenarioId: string,
-): StudioIntent {
-  const scenario = readModel.scenarios.find(item => item.scenarioId === scenarioId);
-  if (scenario === undefined) {
-    return {
-      kind: 'noop',
-      reason: `unknown scenario: ${scenarioId}`,
-    };
-  }
-  return {
-    kind: 'load_scenario',
-    scenarioId,
-    expectedTimelineSequence: readModel.timelineSequence,
-  };
-}
-
-export function createLoadReferenceAssetIntent(
-  readModel: StudioWorkspaceReadModel,
-): StudioIntent {
-  return {
-    kind: 'load_reference_asset',
-    assetId: 'static-mesh:reference-placeholder',
-    expectedTimelineSequence: readModel.timelineSequence,
-  };
-}
-
-export function createOpenSceneFileIntent(
-  readModel: StudioWorkspaceReadModel,
-  sceneFile: StudioSceneFileReadModel,
-): StudioIntent {
-  return {
-    kind: 'open_scene_file',
-    path: sceneFile.path,
-    expectedHash: sceneFile.hash,
-    expectedTimelineSequence: readModel.timelineSequence,
-  };
-}
-
-export function createSaveSceneFileIntent(
-  readModel: StudioWorkspaceReadModel,
-  options: {
-    readonly path: string;
-    readonly expectedPreviousHash: string | null;
-    readonly saveAs?: boolean;
-  },
-): StudioIntent {
-  return {
-    kind: 'save_scene_file',
-    path: options.path,
-    expectedPreviousHash: options.expectedPreviousHash,
-    saveAs: options.saveAs ?? false,
-    expectedTimelineSequence: readModel.timelineSequence,
-  };
-}
-
 export function createRenameSceneObjectRequest(
   readModel: StudioWorkspaceReadModel,
   objectId: SceneObjectId,
@@ -9559,24 +8535,24 @@ export function applySceneObjectCommandReadModel(
 
 export function serializeStudioWorkspaceArtifact(options: {
   readonly project: StudioProjectWorkspaceIdentity;
-  readonly sceneSource: {
+  readonly sceneFile: {
     readonly path: string;
     readonly sha256: string;
   };
   readonly savedAtIso?: string;
 }): string {
-  const normalizedScenePath = normalizeStudioProjectArtifactPath(options.sceneSource.path);
+  const scenePath = options.sceneFile.path.trim();
   const normalizedManifestPath = normalizeStudioProjectArtifactPath(options.project.manifestPath);
   const savedAtIso = options.savedAtIso ?? '1970-01-01T00:00:00.000Z';
   if (
-    normalizedScenePath === null
+    scenePath.length === 0
     || normalizedManifestPath === null
     || options.project.gameId.trim().length === 0
     || !isSha256Digest(options.project.manifestSha256)
-    || !isSha256Digest(options.sceneSource.sha256)
+    || !isSha256Digest(options.sceneFile.sha256)
     || !isUtcIsoTimestamp(savedAtIso)
   ) {
-    throw new Error('Studio project workspace requires project identity, bounded paths, and a canonical SHA-256 digest.');
+    throw new Error('Studio project workspace requires project identity, a host scene path, and canonical SHA-256 digests.');
   }
   const artifact: StudioWorkspaceArtifact = {
     schemaVersion: 1,
@@ -9590,9 +8566,9 @@ export function serializeStudioWorkspaceArtifact(options: {
       manifestSha256: options.project.manifestSha256,
     },
     authoredContent: {
-      sceneSource: {
-        path: normalizedScenePath,
-        sha256: options.sceneSource.sha256,
+      sceneFile: {
+        path: scenePath,
+        sha256: options.sceneFile.sha256,
       },
     },
     stateClassification: {
@@ -9602,7 +8578,7 @@ export function serializeStudioWorkspaceArtifact(options: {
       attachedRuntime: 'disconnect_and_reconnect_not_serialized',
     },
     serializationNotes: [
-      'Durable authored content remains in inspectable project-root source files referenced by hash.',
+      'The durable scene remains an ordinary host file referenced by absolute or relative path and hash.',
       'Editor preferences stay browser-local and are not project content.',
       'Transient projections are reconstructed from validated authored sources.',
       'Attached runtime authority is never serialized; reconnect after loading stored content.',
@@ -9694,11 +8670,10 @@ export function restoreStudioWorkspaceArtifact(
   const root = isRecord(parsed) ? parsed : {};
   const project = recordAt(root, 'project');
   const authoredContent = recordAt(root, 'authoredContent');
-  const sceneSource = recordAt(authoredContent, 'sceneSource');
+  const sceneFile = recordAt(authoredContent, 'sceneFile');
   const stateClassification = recordAt(root, 'stateClassification');
-  const scenePath = stringAt(sceneSource, 'path');
-  const sceneHash = stringAt(sceneSource, 'sha256');
-  const normalizedScenePath = scenePath === null ? null : normalizeStudioProjectArtifactPath(scenePath);
+  const scenePath = stringAt(sceneFile, 'path');
+  const sceneHash = stringAt(sceneFile, 'sha256');
   const manifestPath = stringAt(project, 'manifestPath');
   const normalizedManifestPath = manifestPath === null ? null : normalizeStudioProjectArtifactPath(manifestPath);
   const serializationNotes = stringArrayAt(root, 'serializationNotes');
@@ -9712,8 +8687,8 @@ export function restoreStudioWorkspaceArtifact(
     && normalizedManifestPath !== null
     && normalizedManifestPath === manifestPath
     && isSha256Digest(project['manifestSha256'])
-    && normalizedScenePath !== null
-    && normalizedScenePath === scenePath
+    && scenePath !== null
+    && scenePath.trim().length > 0
     && isSha256Digest(sceneHash)
     && stateClassification['durableAuthoredContent'] === 'hash_pinned_project_sources'
     && stateClassification['editorPreferences'] === 'browser_local_not_serialized'
@@ -9731,7 +8706,7 @@ export function restoreStudioWorkspaceArtifact(
           'workspace_artifact_shape_mismatch',
           'Studio project workspace artifact does not match studio-project-workspace.v1.',
           'studio_project_workspace',
-          'Load a bounded project artifact with typed state classification and a canonical scene digest.',
+          'Load a typed project artifact with a host scene-file path and canonical digests.',
         ),
       ],
     };
@@ -9749,7 +8724,7 @@ export function restoreStudioWorkspaceArtifact(
       manifestSha256: project['manifestSha256'] as string,
     },
     authoredContent: {
-      sceneSource: {
+      sceneFile: {
         path: scenePath as string,
         sha256: sceneHash as string,
       },
@@ -9793,9 +8768,9 @@ export function restoreStudioWorkspaceArtifact(
 
 export function validateStudioWorkspaceArtifactSceneReference(
   artifact: StudioWorkspaceArtifact,
-  source: StudioSceneFileSourceInput,
+  source: { readonly path: string; readonly sha256: string },
 ): StudioWorkspaceSceneReferenceValidationResult {
-  const expected = artifact.authoredContent.sceneSource;
+  const expected = artifact.authoredContent.sceneFile;
   if (source.path !== expected.path) {
     return {
       ok: false,
@@ -9803,7 +8778,7 @@ export function validateStudioWorkspaceArtifactSceneReference(
         diagnostic(
           'error',
           'workspace_artifact_scene_path_mismatch',
-          'Project workspace scene readback returned a different bounded path.',
+          'Project workspace scene readback returned a different host path.',
           source.path,
           `Read the exact referenced source ${expected.path}.`,
         ),
@@ -9832,7 +8807,8 @@ export function stageStudioProjectWorkspaceLoad(options: {
   readonly project: StudioGameWorkspaceReadModel;
   readonly manifestSha256: string;
   readonly artifactText: string;
-  readonly sceneSource: StudioSceneFileSourceInput;
+  readonly sceneFile: { readonly path: string; readonly sha256: string };
+  readonly sceneDocument: FlatSceneDocument;
 }): StudioProjectWorkspaceLoadResult {
   const restoreResult = restoreStudioWorkspaceArtifact(options.artifactText, {
     expectedProject: {
@@ -9846,45 +8822,32 @@ export function stageStudioProjectWorkspaceLoad(options: {
       ok: false,
       artifact: null,
       workspace: null,
-      sceneFile: null,
+      sceneDocument: null,
       diagnostics: restoreResult.diagnostics,
     };
   }
   const referenceValidation = validateStudioWorkspaceArtifactSceneReference(
     restoreResult.artifact,
-    options.sceneSource,
+    options.sceneFile,
   );
   if (!referenceValidation.ok) {
     return {
       ok: false,
       artifact: null,
       workspace: null,
-      sceneFile: null,
+      sceneDocument: null,
       diagnostics: referenceValidation.diagnostics,
-    };
-  }
-  const sceneValidation = buildStudioSceneFileList({
-    workspace: options.project,
-    manifestPath: options.project.manifestPath,
-    manifestHash: options.project.workspaceHash,
-    sourceFiles: [options.sceneSource],
-    allowProjectRoot: true,
-  });
-  const sceneFile = sceneValidation.sceneFiles.files.at(0) ?? null;
-  if (!sceneValidation.ok || sceneFile === null) {
-    return {
-      ok: false,
-      artifact: null,
-      workspace: null,
-      sceneFile: null,
-      diagnostics: sceneValidation.diagnostics,
     };
   }
   return {
     ok: true,
     artifact: restoreResult.artifact,
-    workspace: applyOpenSceneFileReadModel(options.currentWorkspace, sceneFile),
-    sceneFile,
+    workspace: applyCanonicalSceneDocumentReadModel(
+      options.currentWorkspace,
+      options.sceneDocument,
+      null,
+    ),
+    sceneDocument: options.sceneDocument,
     diagnostics: [],
   };
 }

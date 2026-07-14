@@ -12,7 +12,7 @@ the game asset database, runtime authority, or publish tool of record.
 
 The cockpit fits inside the existing Studio shell without replacing the scene
 viewport. The left hierarchy can keep entity/scene selection; the bottom asset
-area becomes the natural home for game workspace assets/proof scenes; the right
+area becomes the natural home for game workspace assets and ordinary scenes; the right
 inspector shows detail for the selected workspace/readout row. Workspace and
 runtime status are available on demand from the top-bar **Runtime** menu rather
 than occupying permanent strips above the viewport.
@@ -53,23 +53,20 @@ than occupying permanent strips above the viewport.
      scene asset must continue through `scene.load_asset` rather than direct
      component mutation.
 
-3. **Proof scenes and replays**
-   - Purpose: show named proof scenes and replay/proof evidence tied back to
-     catalog asset ids.
+3. **Scene files and resources**
+   - Purpose: open canonical engine scene documents and correlate their typed
+     asset references with the catalog and runtime projection.
    - Public inputs:
-     - Scene files listed by `AshaGameManifest.workspace.sceneRoots`.
-     - Proof-scene evidence emitted by `asha-testing` `scene:proof`,
-       `dev:smoke`, and `verify:assets-v1`, including
-       `artifactKind: "asha_demo_assets_v1_verification"`.
+     - Canonical scene files selected through the Studio host file service.
+     - The public engine scene codec and catalog/resource read models.
      - Existing Studio evidence/readout fixtures for visual capability,
        viewport editor, entity browser, inspector, transform gizmo, and demo
        asset load when they are shown as Studio-side proof refs.
-   - Read model fields: scene id/name/path, referenced catalog asset ids,
-     diagnostic status, associated replay/evidence artifact refs, and stale or
-     missing evidence classifications.
-   - Actions: select proof scene, show referenced assets, and request a future
-     public load/preview operation. V1 does not read arbitrary scene roots from
-     the browser at runtime.
+   - Read model fields: scene id/name/host path, referenced catalog asset ids,
+     canonical document hash, and unresolved-resource diagnostics.
+   - Actions: use File Open/Save against arbitrary trusted host paths and select
+     authored hierarchy objects. Missing resources never create placeholder
+     scene objects or mutate stored references.
 
 4. **Runtime session and attach status**
    - Purpose: make the active reference/native/degraded runtime session visible,
@@ -157,7 +154,7 @@ rather than letting panels parse unrelated shapes independently:
 interface StudioGameWorkspaceCockpitReadModel {
   readonly workspace: WorkspaceOverviewReadModel;
   readonly assets: AssetInventoryReadModel;
-  readonly proofScenes: ProofSceneListReadModel;
+  readonly activeScene: SceneDocumentReadModel | null;
   readonly runtime: RuntimeSessionReadModel;
   readonly commands: CommandProposalReadModel;
   readonly publish: PublishEvidenceReadModel;

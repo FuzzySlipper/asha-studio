@@ -76,13 +76,6 @@
       "summary": "Browser-facing running-project connection evidence over selected backend attach."
     },
     {
-      "name": "scene-file-menu-workflow",
-      "scriptPath": "scripts/proof-scene-file-menu-workflow.ts",
-      "status": "current_product",
-      "lane": "studio_authoring",
-      "summary": "Human-facing scene file menu workflow evidence."
-    },
-    {
       "name": "selected-backend-attach",
       "scriptPath": "scripts/proof-selected-backend-attach.ts",
       "status": "current_product",
@@ -191,13 +184,6 @@
       "summary": "M1 catalog save round-trip child evidence."
     },
     {
-      "name": "persistence-m1",
-      "scriptPath": "scripts/proof-persistence-m1.ts",
-      "status": "current_milestone",
-      "lane": "milestone_archive",
-      "summary": "M1 workspace persistence aggregate evidence."
-    },
-    {
       "name": "proper-demo-capstone-guard",
       "scriptPath": "scripts/proof-proper-demo-capstone-guard.ts",
       "status": "current_milestone",
@@ -234,20 +220,6 @@
       "status": "current_milestone",
       "lane": "milestone_archive",
       "summary": "M2 scene object edit child evidence."
-    },
-    {
-      "name": "scene-save-roundtrip",
-      "scriptPath": "scripts/proof-scene-save-roundtrip.ts",
-      "status": "current_milestone",
-      "lane": "milestone_archive",
-      "summary": "M1 scene save round-trip child evidence."
-    },
-    {
-      "name": "workspace-open-read",
-      "scriptPath": "scripts/proof-workspace-open-read.ts",
-      "status": "current_milestone",
-      "lane": "milestone_archive",
-      "summary": "M1 workspace open/read child evidence."
     },
     {
       "name": "asha-demo-product-path",

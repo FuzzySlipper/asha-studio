@@ -10,6 +10,7 @@
     "studio:dev": "pnpm run dev",
     "dev:files": "tsx scripts/studio-project-file-server.ts",
     "studio:files": "pnpm run dev:files",
+    "studio:lan": "tsx scripts/studio-lan.ts",
     "build": "NX_DAEMON=false nx run-many -t build --all",
     "build:studio-app": "NX_DAEMON=false nx build studio-app",
     "studio:build": "pnpm run build:studio-app",

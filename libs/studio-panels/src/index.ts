@@ -90,25 +90,6 @@ function filteredHierarchyEntities(
           <span>{{ store.workspace().session.runtimeMode }}</span>
           <span>{{ store.workspace().session.status }}</span>
         </div>
-        <div class="scenario-load" aria-label="Temporary scenario load">
-          <label>
-            <span>Temporary scenarios</span>
-            <select
-              [value]="store.selectedScenarioDraftId()"
-              (change)="store.setSelectedScenarioDraft($any($event.target).value)"
-            >
-              @for (scenario of store.workspace().scenarios; track scenario.scenarioId) {
-                <option [value]="scenario.scenarioId">
-                  {{ scenario.label }} · {{ scenario.status }}
-                </option>
-              }
-            </select>
-          </label>
-          <button type="button" (click)="loadSelectedScenario()">Load temporary scenario</button>
-          <small class="runtime-menu-note">
-            Fixture switcher for current development flows. Project scene open/save is under File and will replace this path.
-          </small>
-        </div>
       </section>
 
       <section
@@ -1343,10 +1324,6 @@ export class StudioRuntimeToolsMenuComponent {
     this.activeSection.set(section);
   }
 
-  loadSelectedScenario(): void {
-    this.store.loadScenario(this.store.selectedScenarioDraftId());
-  }
-
   togglePlayableLoopInspector(): void {
     this.playableLoopInspectorOpen.update(open => !open);
   }
@@ -1581,9 +1558,6 @@ export class StudioViewportToolbarPanelComponent {
           <strong>{{ store.workspace().session.scenarioLabel }}</strong>
         </div>
         <div class="header-actions" aria-label="Hierarchy actions">
-          <button type="button" title="Add reference placeholder" (click)="store.addReferenceRenderable()">
-            +
-          </button>
           <button
             type="button"
             title="Rename selected scene object"
@@ -3902,13 +3876,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
           </button>
           <button
             type="button"
-            [class.active]="store.bottomPanelTab() === 'proof_scenes'"
-            (click)="store.setBottomPanelTab('proof_scenes')"
-          >
-            Proof Scenes
-          </button>
-          <button
-            type="button"
             [class.active]="store.bottomPanelTab() === 'commands'"
             (click)="store.setBottomPanelTab('commands')"
           >
@@ -4137,60 +4104,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
                 }
               </section>
             }
-          }
-        </div>
-      } @else if (store.bottomPanelTab() === 'proof_scenes') {
-        <div class="proof-scene-panel" data-visual-id="studio-proof-scene-panel">
-          @if (store.proofScenes().proofScenes; as proofScenes) {
-            <section class="proof-scene-summary" data-proof-scene-list-summary>
-              <span>{{ proofScenes.proofSceneListVersion }}</span>
-              <strong>{{ proofScenes.scenes.length }} scenes</strong>
-              <small>{{ proofScenes.sceneRoots.join(', ') }} · {{ proofScenes.proofSceneListHash }}</small>
-            </section>
-            @if (proofScenes.diagnostics.length > 0) {
-              <section class="proof-scene-diagnostics" data-proof-scene-diagnostics="present">
-                @for (diagnostic of proofScenes.diagnostics; track diagnostic.code + diagnostic.source) {
-                  <span>{{ diagnostic.code }} · {{ diagnostic.message }}</span>
-                }
-              </section>
-            }
-            <div class="proof-scene-list">
-              @for (scene of proofScenes.scenes; track scene.proofSceneHash) {
-                <article
-                  class="proof-scene-entry"
-                  [class.proof-scene-entry--diagnostic]="scene.diagnostics.length > 0"
-                  [attr.data-proof-scene-id]="scene.sceneId"
-                >
-                  <header>
-                    <div>
-                      <strong>{{ scene.name }}</strong>
-                      <span>{{ scene.path }}</span>
-                    </div>
-                    <small>{{ scene.evidenceStatus }}</small>
-                  </header>
-                  <p>{{ scene.description ?? 'No description.' }}</p>
-                  <dl>
-                    <dt>catalog ids</dt>
-                    <dd>{{ scene.catalogAssetIds.join(', ') }}</dd>
-                    <dt>catalog status</dt>
-                    <dd>{{ scene.catalogStatus }}</dd>
-                    <dt>runtime fixture</dt>
-                    <dd>{{ scene.runtimeFixture ?? 'missing' }}</dd>
-                    <dt>runtime profile</dt>
-                    <dd>{{ scene.runtimeProfile }}</dd>
-                    <dt>hash</dt>
-                    <dd>{{ scene.proofSceneHash }}</dd>
-                  </dl>
-                  @if (scene.diagnostics[0]; as diagnostic) {
-                    <small class="proof-scene-entry__diagnostic">
-                      {{ diagnostic.code }} · {{ diagnostic.message }}
-                    </small>
-                  }
-                </article>
-              } @empty {
-                <p class="empty-assets">No proof scenes available.</p>
-              }
-            </div>
           }
         </div>
       } @else if (store.bottomPanelTab() === 'commands') {
@@ -4487,7 +4400,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
       .timeline-table-wrap,
       .asset-browser,
       .asset-grid,
-      .proof-scene-panel,
       .command-proposal-panel,
       .publish-evidence-panel,
       .evidence-panel {
@@ -4607,8 +4519,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
 
       .asset-inventory-summary,
       .asset-inventory-diagnostics,
-      .proof-scene-summary,
-      .proof-scene-diagnostics,
       .command-proposal-summary,
       .publish-evidence-summary,
       .publish-diagnostics {
@@ -4621,7 +4531,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
       }
 
       .asset-inventory-summary,
-      .proof-scene-summary,
       .command-proposal-summary,
       .publish-evidence-summary {
         background: #10161b;
@@ -4629,8 +4538,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
 
       .asset-inventory-diagnostics,
       .asset-entry--diagnostic,
-      .proof-scene-diagnostics,
-      .proof-scene-entry--diagnostic,
       .command-proposal--rejected,
       .publish-diagnostics,
       .publish-evidence-summary[data-publish-evidence-status='degraded'],
@@ -4643,14 +4550,10 @@ export class StudioVoxelConversionWorkspacePanelComponent {
       .asset-inventory-summary small,
       .asset-inventory-diagnostics span,
       .asset-entry__diagnostic,
-      .proof-scene-summary span,
-      .proof-scene-summary small,
       .command-proposal-summary span,
       .command-proposal-summary small,
       .publish-evidence-summary span,
       .publish-evidence-summary small,
-      .proof-scene-diagnostics span,
-      .proof-scene-entry__diagnostic,
       .publish-diagnostics span {
         color: var(--asha-color-muted);
         min-width: 0;
@@ -4660,14 +4563,11 @@ export class StudioVoxelConversionWorkspacePanelComponent {
       }
 
       .asset-inventory-summary strong,
-      .proof-scene-summary strong,
       .command-proposal-summary strong,
       .publish-evidence-summary strong {
         color: var(--asha-color-accent-text);
       }
 
-      .proof-scene-panel,
-      .proof-scene-list,
       .command-proposal-panel,
       .command-action-list,
       .command-proposal-list,
@@ -4713,7 +4613,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
         white-space: nowrap;
       }
 
-      .proof-scene-entry,
       .command-action,
       .command-proposal {
         border: 1px solid var(--asha-color-border);
@@ -4724,7 +4623,6 @@ export class StudioVoxelConversionWorkspacePanelComponent {
         padding: 0.55rem;
       }
 
-      .proof-scene-entry header,
       .command-action header,
       .command-proposal header {
         display: flex;
@@ -4732,20 +4630,12 @@ export class StudioVoxelConversionWorkspacePanelComponent {
         justify-content: space-between;
       }
 
-      .proof-scene-entry header div,
       .command-action header div,
       .command-proposal header div {
         display: grid;
         min-width: 0;
       }
 
-      .proof-scene-entry p {
-        color: var(--asha-color-muted);
-        font-size: 0.75rem;
-        margin: 0;
-      }
-
-      .proof-scene-entry dl,
       .command-action dl,
       .command-proposal dl {
         display: grid;
@@ -4754,16 +4644,12 @@ export class StudioVoxelConversionWorkspacePanelComponent {
         margin: 0;
       }
 
-      .proof-scene-entry dt,
       .command-action dt,
       .command-proposal dt {
         color: var(--asha-color-muted);
         font-size: 0.68rem;
       }
 
-      .proof-scene-entry dd,
-      .proof-scene-entry strong,
-      .proof-scene-entry span,
       .command-action dd,
       .command-action strong,
       .command-action span,

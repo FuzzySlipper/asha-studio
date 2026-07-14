@@ -1,15 +1,12 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
-  ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
-  addReferenceRenderableReadModel,
   attachStudioGameWorkspaceDevtools,
   buildStudioUiStateReadModel,
   applySceneObjectCommandReadModel,
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
-  buildStudioProofSceneList,
   buildStudioAshaDemoProductPathReadModel,
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
@@ -18,7 +15,6 @@ import {
   buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioGameWorkspaceReadout,
   buildStudioRuntimeSessionInspectionReadModel,
-  buildStudioSceneFileList,
   buildStudioRunningProjectDiscovery,
   loadStudioAssetInventory,
   loadStudioPublishEvidence,
@@ -28,8 +24,6 @@ import {
   buildStudioViewportCameraReadModel,
   buildStudioViewportToolReadModel,
   clearStudioWorkspaceReadModel,
-  createLoadReferenceAssetIntent,
-  createLoadScenarioIntent,
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
@@ -40,20 +34,16 @@ import {
   exportStudioWorkspaceCockpitEvidence,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
+  findUnresolvedSceneAssetIds,
   filterAssetBrowserRenderables,
   applyCanonicalSceneDocumentReadModel,
-  applyOpenSceneFileReadModel,
   applyStudioCatalogAuthoringOperation,
-  loadScenarioReadModel,
   loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
   refreshStudioGameWorkspaceLiveReadModel,
   recordStudioWorkspaceUiCommand,
-  restoreStudioWorkspaceArtifact,
-  serializeStudioWorkspaceArtifact,
   setHierarchyExpansionReadModel,
-  stageStudioProjectWorkspaceLoad,
   studioCatalogAuthoringBaseHash,
   updateStudioRenderSetting,
   zoomStudioViewportCamera,
@@ -76,7 +66,6 @@ import {
   type StudioAssetInventoryLoadResult,
   type StudioCatalogSourceEvidenceInput,
   type StudioCatalogWorkflowReadModel,
-  type StudioProofSceneListLoadResult,
   type StudioPreferencesReadModel,
   type StudioRenderSettingsReadModel,
   type StudioRenderSettingKey,
@@ -428,7 +417,7 @@ export interface StudioProjectFileDialogReadModel {
 }
 
 export interface StudioUnsavedScenePromptReadModel {
-  readonly action: 'new' | 'open' | 'scenario' | 'project-workspace';
+  readonly action: 'new' | 'open';
   readonly path: string | null;
   readonly message: string;
 }
@@ -1785,18 +1774,6 @@ const DEMO_ASSET_INVENTORY_ARTIFACT = {
   ],
 } as const;
 
-const DEMO_PROOF_SCENES = [
-  {
-    path: 'scenes/material-proof.scene.json',
-    schemaVersion: 1,
-    sceneId: 1002,
-    name: 'ASHA Demo Material Proof',
-    description: 'Proof scene that references mesh, material, and texture catalog assets together.',
-    catalogAssetIds: ['mesh.demo-cube', 'material.demo-copper', 'texture.demo-checker'],
-    runtimeFixture: 'harness/conformance/fixtures/minimal-world.json',
-  },
-] as const;
-
 function stableBrowserHash(text: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < text.length; index += 1) {
@@ -2046,63 +2023,6 @@ function inventoryFromCatalog(
       ],
     })),
   }, { referencedRenderableIds });
-}
-
-function loadDemoProofScenes(
-  workspace: StudioGameWorkspaceLoadResult,
-  inventory: StudioAssetInventoryLoadResult,
-): StudioProofSceneListLoadResult {
-  if (!workspace.ok || !inventory.ok) {
-    const fallbackWorkspace = workspace.ok ? workspace.workspace : null;
-    const fallbackInventory = inventory.inventory;
-    if (fallbackWorkspace !== null && fallbackInventory !== null) {
-      return buildStudioProofSceneList({
-        workspace: fallbackWorkspace,
-        assetInventory: fallbackInventory,
-        scenes: [],
-        evidence: { proofSceneCommandStatus: 'missing' },
-      });
-    }
-    return {
-      ok: false,
-      proofScenes: {
-        proofSceneListVersion: 'studio-proof-scene-list.v0',
-        sceneRoots: [],
-        scenes: [],
-        diagnostics: [
-          {
-            severity: 'error',
-            code: 'proof_scene_missing',
-            message: 'Proof scenes require a valid workspace and asset inventory.',
-            source: null,
-            remediation: null,
-          },
-        ],
-        proofSceneListHash: 'studio-proof-scene-list-unavailable',
-      },
-      diagnostics: [
-        {
-          severity: 'error',
-          code: 'proof_scene_missing',
-          message: 'Proof scenes require a valid workspace and asset inventory.',
-          source: null,
-          remediation: null,
-        },
-      ],
-    };
-  }
-
-  return buildStudioProofSceneList({
-    workspace: workspace.workspace,
-    assetInventory: inventory.inventory,
-    scenes: DEMO_PROOF_SCENES,
-    evidence: {
-      proofSceneCommandStatus: 'passed',
-      proofSceneCommand: '/usr/bin/node scripts/check-proof-scenes.mjs',
-      assetInventoryArtifactPath: 'harness/out/asset-inventory/latest/index.json',
-      assetInventoryArtifactHash: 'sha256:87d9ba8eb31307e0ded564e456f3721275e481fdbfeb29e6ec267ac7c64c3894',
-    },
-  });
 }
 
 function buildDemoCommandProposalRows(workspace: StudioGameWorkspaceReadModel) {
@@ -4823,7 +4743,6 @@ export class StudioWorkspaceStore {
   private readonly viewportToolState = signal<StudioViewportToolReadModel>(
     buildStudioViewportToolReadModel(),
   );
-  private readonly projectWorkspaceArtifactHashState = signal<string | null>(null);
   private readonly activeSceneFilePathState = signal<string | null>(null);
   private readonly activeSceneFileHashState = signal<string | null>(null);
   private readonly cleanSceneDocumentHashState = signal(
@@ -4842,7 +4761,6 @@ export class StudioWorkspaceStore {
   private readonly assetBrowserCategoryState = signal<StudioAssetBrowserCategory>('all');
   private readonly activeMenuState = signal<StudioApplicationMenu | null>(null);
   private readonly bottomPanelTabState = signal<StudioBottomPanelTab>('timeline');
-  private readonly selectedScenarioDraftIdState = signal(this.workspaceState().session.scenarioId);
   private readonly hierarchyFilterState = signal('');
   private readonly viewportHitState = signal<StudioViewportHitReadModel | null>(null);
   private readonly menuMessageState = signal('Workspace ready.');
@@ -4890,9 +4808,6 @@ export class StudioWorkspaceStore {
   private readonly catalogWorkflowMessageState = signal('Catalog workflow ready.');
   private readonly assetInventoryState = signal<StudioAssetInventoryLoadResult>(
     loadDemoAssetInventory(),
-  );
-  private readonly proofScenesState = signal<StudioProofSceneListLoadResult>(
-    loadDemoProofScenes(this.gameWorkspaceState(), this.assetInventoryState()),
   );
   private readonly voxelConversionDraftState = signal<StudioVoxelConversionSettingsDraft>(
     DEFAULT_VOXEL_CONVERSION_DRAFT,
@@ -5000,7 +4915,6 @@ export class StudioWorkspaceStore {
     }),
   );
   readonly voxelMaterialPaletteEditor = this.voxelMaterialPaletteEditorState.asReadonly();
-  readonly projectWorkspaceArtifactHash = this.projectWorkspaceArtifactHashState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
   readonly sceneDirty = computed(() =>
     stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument))
@@ -5023,7 +4937,6 @@ export class StudioWorkspaceStore {
   readonly assetBrowserCategory = this.assetBrowserCategoryState.asReadonly();
   readonly activeMenu = this.activeMenuState.asReadonly();
   readonly bottomPanelTab = this.bottomPanelTabState.asReadonly();
-  readonly selectedScenarioDraftId = this.selectedScenarioDraftIdState.asReadonly();
   readonly hierarchyFilter = this.hierarchyFilterState.asReadonly();
   readonly viewportHit = this.viewportHitState.asReadonly();
   readonly menuMessage = this.menuMessageState.asReadonly();
@@ -5031,7 +4944,6 @@ export class StudioWorkspaceStore {
   readonly runtimeConnectionMessage = this.runtimeConnectionMessageState.asReadonly();
   readonly catalogWorkflowMessage = this.catalogWorkflowMessageState.asReadonly();
   readonly assetInventory = this.assetInventoryState.asReadonly();
-  readonly proofScenes = this.proofScenesState.asReadonly();
   readonly gameWorkspace = computed(() => {
     const overview = this.gameWorkspaceState();
     return overview.ok ? overview.workspace : null;
@@ -5899,19 +5811,16 @@ export class StudioWorkspaceStore {
   }
   readonly workspaceCockpitEvidence = computed(() => {
     const assetInventory = this.assetInventoryState().inventory;
-    const proofScenes = this.proofScenesState().proofScenes;
     return exportStudioWorkspaceCockpitEvidence({
       studioWorkspace: this.workspaceState(),
       gameWorkspace: this.gameWorkspace(),
       assetInventory,
-      proofScenes,
       runtimeSessions: this.runtimeSessions(),
       commandProposalPanel: this.commandProposalPanel(),
       publishEvidence: this.publishEvidence().publishEvidence,
       visiblePanelMarkers: [
         'studio-game-workspace-overview',
         'studio-assets-panel',
-        'studio-proof-scene-panel',
         'studio-runtime-session-panel',
         'studio-command-proposal-panel',
         'studio-publish-evidence-panel',
@@ -6046,7 +5955,6 @@ export class StudioWorkspaceStore {
       bottomPanelTab: this.bottomPanelTabState(),
       assetBrowserCategory: this.assetBrowserCategoryState(),
       entities: this.workspaceState().entities,
-      selectedScenarioDraftId: this.selectedScenarioDraftIdState(),
       hierarchyFilter: this.hierarchyFilterState(),
       menuMessage: this.menuMessageState(),
       projectWorkspaceAvailable: this.projectFileConnectedState(),
@@ -6422,25 +6330,6 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(
       selectedRenderable === null ? 'Scene framed; no selected renderable.' : 'Selected renderable framed.',
     );
-  }
-
-  addReferenceRenderable(): void {
-    const intent = createLoadReferenceAssetIntent(this.workspaceState());
-    const dispatchResult = mapStudioIntentToCommand(intent);
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'scene.load_asset'
-      || dispatchResult.proposal.assetId !== 'static-mesh:reference-placeholder'
-    ) {
-      this.menuMessageState.set(dispatchResult.diagnostic ?? 'Reference asset load rejected.');
-      return;
-    }
-    const workspace = addReferenceRenderableReadModel(this.workspaceState());
-    this.workspaceState.set(workspace);
-    this.viewportCameraState.set(
-      frameStudioViewportCameraOnRenderable(workspace.scene, workspace.scene.selectedRenderableId),
-    );
-    this.menuMessageState.set('Reference placeholder added.');
   }
 
   setHierarchyExpanded(expanded: boolean): void {
@@ -7879,10 +7768,6 @@ export class StudioWorkspaceStore {
     }
   }
 
-  setSelectedScenarioDraft(scenarioId: string): void {
-    this.selectedScenarioDraftIdState.set(scenarioId);
-  }
-
   applyRuntimeViewportCameraInput(
     mode: 'look' | 'pan' | 'zoom',
     delta: { readonly deltaX: number; readonly deltaY: number },
@@ -8589,40 +8474,6 @@ export class StudioWorkspaceStore {
     this.runtimeConnectionMessageState.set(outputSummary);
   }
 
-  loadScenario(scenarioId: string, authorizedDiscard = false): void {
-    if (this.sceneDirty() && !authorizedDiscard) {
-      this.unsavedScenePromptState.set({
-        action: 'scenario',
-        path: scenarioId,
-        message: `Discard unsaved scene changes and switch to ${scenarioId}?`,
-      });
-      return;
-    }
-    const intent = createLoadScenarioIntent(this.workspaceState(), scenarioId);
-    const dispatchResult = mapStudioIntentToCommand(intent);
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'session.load_scenario'
-      || dispatchResult.proposal.scenarioId === undefined
-    ) {
-      this.menuMessageState.set(dispatchResult.diagnostic ?? 'Scenario load rejected.');
-      return;
-    }
-    const loadResult = loadScenarioReadModel(this.workspaceState(), scenarioId);
-    if (!loadResult.ok) {
-      this.menuMessageState.set(loadResult.diagnostics.at(0)?.message ?? 'Scenario load failed.');
-      return;
-    }
-
-    this.workspaceState.set(loadResult.workspace);
-    this.viewportHitState.set(null);
-    this.viewportCameraState.set(frameStudioViewportCamera(loadResult.workspace.scene));
-    this.viewportToolState.set(buildStudioViewportToolReadModel());
-    this.assetBrowserCategoryState.set('all');
-    this.selectedScenarioDraftIdState.set(scenarioId);
-    this.menuMessageState.set(`Loaded ${loadResult.workspace.session.scenarioLabel}.`);
-  }
-
   newWorkspace(): void {
     if (this.sceneDirty()) {
       this.unsavedScenePromptState.set({
@@ -8642,10 +8493,6 @@ export class StudioWorkspaceStore {
       void this.createNewScene();
     } else if (prompt?.action === 'open' && prompt.path !== null) {
       void this.openSceneFileFromHost(prompt.path, true);
-    } else if (prompt?.action === 'scenario' && prompt.path !== null) {
-      this.loadScenario(prompt.path, true);
-    } else if (prompt?.action === 'project-workspace') {
-      void this.restoreProjectWorkspace();
     }
   }
 
@@ -8790,7 +8637,12 @@ export class StudioWorkspaceStore {
       this.viewportHitState.set(null);
       this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
       this.viewportToolState.set(buildStudioViewportToolReadModel());
-      this.menuMessageState.set(`Opened ${absolutePath} from the Studio host.`);
+      const unresolvedAssetIds = this.unresolvedSceneAssetIds(result.document);
+      this.menuMessageState.set(
+        unresolvedAssetIds.length === 0
+          ? `Opened ${absolutePath} from the Studio host.`
+          : `Opened ${absolutePath}; unresolved scene assets: ${unresolvedAssetIds.join(', ')}.`,
+      );
     } catch (error) {
       this.menuMessageState.set(`Open failed without replacing the current document: ${errorMessage(error)}`);
     }
@@ -8813,10 +8665,6 @@ export class StudioWorkspaceStore {
   setSaveAsPath(path: string): void {
     this.saveAsPathState.set(path);
     this.projectFileSelectedPathState.set(path);
-  }
-
-  saveProjectWorkspace(): void {
-    void this.persistProjectWorkspace();
   }
 
   private async writeSceneFile(path: string, saveAs: boolean): Promise<void> {
@@ -8953,149 +8801,11 @@ export class StudioWorkspaceStore {
       ?? 'Rust rejected the scene document.';
   }
 
-  loadProjectWorkspace(): void {
-    if (this.sceneDirty()) {
-      this.unsavedScenePromptState.set({
-        action: 'project-workspace',
-        path: null,
-        message: 'Discard unsaved scene changes and switch project workspace?',
-      });
-      return;
-    }
-    void this.restoreProjectWorkspace();
-  }
-
-  private async persistProjectWorkspace(): Promise<void> {
-    const project = this.gameWorkspace();
-    const activeScenePath = this.activeSceneFilePathState();
-    if (!this.projectFileConnectedState() || project === null) {
-      this.menuMessageState.set('Connect the bounded project file service before saving the project workspace.');
-      return;
-    }
-    if (activeScenePath === null) {
-      this.menuMessageState.set('Open or save a project scene source before saving the project workspace.');
-      return;
-    }
-
-    try {
-      const manifestReadback = await this.readProjectText(project.manifestPath);
-      if (manifestReadback.path !== project.manifestPath) {
-        throw new Error('Project manifest readback returned a different path.');
-      }
-      const sceneReadback = await this.readProjectText(activeScenePath);
-      if (
-        normalizeProjectFilePath(sceneReadback.path) !== normalizeProjectFilePath(activeScenePath)
-      ) {
-        throw new Error('Active scene source is stale; reopen or save it before saving the project workspace.');
-      }
-      const sceneValidation = buildStudioSceneFileList({
-        workspace: project,
-        manifestPath: project.manifestPath,
-        manifestHash: project.workspaceHash,
-        sourceFiles: [sceneReadback],
-        allowProjectRoot: true,
-      });
-      if (!sceneValidation.ok || sceneValidation.sceneFiles.files.length !== 1) {
-        throw new Error(sceneValidation.diagnostics.at(0)?.message ?? 'Active scene source failed validation.');
-      }
-
-      const artifactText = serializeStudioWorkspaceArtifact({
-        project: {
-          gameId: project.gameId,
-          manifestPath: manifestReadback.path,
-          manifestSha256: manifestReadback.sha256,
-        },
-        sceneSource: {
-          path: sceneReadback.path,
-          sha256: sceneReadback.sha256,
-        },
-        savedAtIso: new Date().toISOString(),
-      });
-      const writeReadback = await this.writeProjectText(
-        ASHA_STUDIO_PROJECT_WORKSPACE_PATH,
-        artifactText,
-        this.projectWorkspaceArtifactHashState(),
-      );
-      const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-        commandId: 'workspace.save_project_artifact',
-        label: 'Save Project Workspace',
-        inputSummary: `path=${ASHA_STUDIO_PROJECT_WORKSPACE_PATH};scene=${sceneReadback.path};sceneHash=${sceneReadback.sha256}`,
-        outputSummary: `Project workspace saved with artifact hash ${writeReadback.sha256}.`,
-      });
-      this.workspaceState.set(recorded.workspace);
-      this.projectWorkspaceArtifactHashState.set(writeReadback.sha256);
-      this.menuMessageState.set(`Project workspace saved to ${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}.`);
-      await this.refreshProjectFiles(parentProjectDir(ASHA_STUDIO_PROJECT_WORKSPACE_PATH));
-    } catch (error) {
-      this.menuMessageState.set(`Project workspace save rejected: ${errorMessage(error)}`);
-    }
-  }
-
-  private async restoreProjectWorkspace(): Promise<void> {
-    const project = this.gameWorkspace();
-    if (!this.projectFileConnectedState() || project === null) {
-      this.menuMessageState.set('Connect the bounded project file service before loading the project workspace.');
-      return;
-    }
-
-    try {
-      const artifactReadback = await this.readProjectText(ASHA_STUDIO_PROJECT_WORKSPACE_PATH);
-      if (artifactReadback.path !== ASHA_STUDIO_PROJECT_WORKSPACE_PATH) {
-        throw new Error('Project workspace artifact readback returned a different path.');
-      }
-      const manifestReadback = await this.readProjectText(project.manifestPath);
-      if (manifestReadback.path !== project.manifestPath) {
-        throw new Error('Project manifest readback returned a different path.');
-      }
-      const restoreResult = restoreStudioWorkspaceArtifact(artifactReadback.text, {
-        expectedProject: {
-          gameId: project.gameId,
-          manifestPath: manifestReadback.path,
-          manifestSha256: manifestReadback.sha256,
-        },
-      });
-      if (!restoreResult.ok || restoreResult.artifact === null) {
-        throw new Error(restoreResult.diagnostics.at(0)?.message ?? 'Project workspace artifact failed validation.');
-      }
-
-      const sceneRef = restoreResult.artifact.authoredContent.sceneSource;
-      const sceneReadback = await this.readProjectText(sceneRef.path);
-      const stagedLoad = stageStudioProjectWorkspaceLoad({
-        currentWorkspace: this.workspaceState(),
-        project,
-        manifestSha256: manifestReadback.sha256,
-        artifactText: artifactReadback.text,
-        sceneSource: sceneReadback,
-      });
-      if (!stagedLoad.ok) {
-        throw new Error(stagedLoad.diagnostics.at(0)?.message ?? 'Project workspace load failed validation.');
-      }
-
-      const runtimeWasAttached = this.runtimeAttachState() !== null || this.runtimeSessionFacadeState() !== null;
-      if (runtimeWasAttached) {
-        this.disconnectRunningProject();
-      }
-      const openedWorkspace = runtimeWasAttached
-        ? applyOpenSceneFileReadModel(this.workspaceState(), stagedLoad.sceneFile)
-        : stagedLoad.workspace;
-      const recorded = recordStudioWorkspaceUiCommand(openedWorkspace, {
-        commandId: 'workspace.load_project_artifact',
-        label: 'Load Project Workspace',
-        inputSummary: `path=${artifactReadback.path};artifactHash=${artifactReadback.sha256}`,
-        outputSummary: `Loaded hash-pinned scene source ${sceneRef.path}.`,
-      });
-      this.workspaceState.set(recorded.workspace);
-      this.activeSceneFilePathState.set(sceneReadback.path);
-      this.projectFileSelectedPathState.set(sceneReadback.path);
-      this.projectWorkspaceArtifactHashState.set(artifactReadback.sha256);
-      this.selectedScenarioDraftIdState.set(sceneReadback.path);
-      this.viewportHitState.set(null);
-      this.viewportCameraState.set(frameStudioViewportCamera(recorded.workspace.scene));
-      this.viewportToolState.set(buildStudioViewportToolReadModel());
-      this.menuMessageState.set(`Project workspace loaded from ${ASHA_STUDIO_PROJECT_WORKSPACE_PATH}; reconnect runtime authority when needed.`);
-    } catch (error) {
-      this.menuMessageState.set(`Project workspace load rejected without replacing state: ${errorMessage(error)}`);
-    }
+  private unresolvedSceneAssetIds(document: FlatSceneDocument): readonly string[] {
+    return findUnresolvedSceneAssetIds(
+      document,
+      this.catalogSourceState().entries.map(entry => entry.id),
+    );
   }
 
   setRenderSetting(key: StudioRenderSettingKey, value: boolean): void {
@@ -9136,47 +8846,6 @@ export class StudioWorkspaceStore {
       throw new Error(payload.diagnostic ?? 'invalid project file readback');
     }
     return { path: normalizeProjectFilePath(payload.path), text: payload.text, sha256: payload.sha256 };
-  }
-
-  private async writeProjectText(
-    path: string,
-    text: string,
-    expectedHash: string | null,
-  ): Promise<{ readonly path: string; readonly sha256: string }> {
-    const normalizedPath = normalizeProjectFilePath(path);
-    if (!this.projectFileConnectedState()) {
-      throw new Error('project file server is not connected');
-    }
-    const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: normalizedPath, text, expectedHash }),
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const payload = await response.json() as {
-      readonly ok?: boolean;
-      readonly path?: string;
-      readonly sha256?: string;
-      readonly diagnostic?: string;
-      readonly previousHash?: string | null;
-    };
-    if (payload.ok === false) {
-      const staleContext = payload.diagnostic === 'stale_file_hash'
-        ? `; current hash is ${payload.previousHash ?? 'missing'}`
-        : '';
-      throw new Error(`${payload.diagnostic ?? 'project file write rejected'}${staleContext}`);
-    }
-    if (
-      typeof payload.path !== 'string'
-      || typeof payload.sha256 !== 'string'
-      || !isCanonicalProjectFileSha256(payload.sha256)
-    ) {
-      throw new Error('invalid project file write readback');
-    }
-    const readbackPath = normalizeProjectFilePath(payload.path);
-    return { path: readbackPath, sha256: payload.sha256 };
   }
 
   private voxelConversionProposalForCommand(

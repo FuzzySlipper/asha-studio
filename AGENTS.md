@@ -46,7 +46,7 @@ This local file is bootstrap context for agents entering the repository. It is n
 
 - Use public ASHA package roots and typed command/session surfaces.
 - Keep stored ProjectBundle/EntityDefinition/SceneDocument authoring distinct from live RuntimeSession inspection/control.
-- Remote filesystem writes must be bounded project-root operations, not browser local storage shortcuts.
+- Studio scene Open/Save uses trusted host filesystem paths, including arbitrary absolute paths. LAN clients operate the Studio host filesystem, never the browser/client filesystem.
 - Studio may propose typed commands and project/read state; it must not own runtime authority.
 - Do not add arbitrary `methodName + json` dispatch, private engine imports, generated contract edits, or raw native/WASM transport bypasses.
 
