@@ -413,9 +413,36 @@ export interface StudioProjectFileEntry {
 
 export type StudioSceneFileDialogMode = 'open' | 'save-as';
 
+export type StudioHostFileResourceKind = 'scene' | 'voxel-asset';
+
+export interface StudioHostFileDialogIntent {
+  readonly operation: StudioSceneFileDialogMode;
+  readonly resourceKind: StudioHostFileResourceKind;
+  readonly title: string;
+  readonly fileTypeLabel: string;
+  readonly acceptedExtensions: readonly string[];
+  readonly initialDirectory: string;
+  readonly initialFileName: string;
+  readonly confirmation: 'open-scene' | 'save-scene-as' | 'open-voxel-asset' | 'save-voxel-asset-as';
+  readonly dirtyPolicy: 'scene-and-voxel-authoring' | 'voxel-authoring' | 'none';
+}
+
+export interface StudioHostFileDialogResult {
+  readonly operation: StudioSceneFileDialogMode;
+  readonly resourceKind: StudioHostFileResourceKind;
+  readonly path: string;
+  readonly status: 'accepted' | 'rejected';
+  readonly message: string;
+}
+
 export interface StudioProjectFileDialogReadModel {
   readonly backend: 'host-server';
   readonly mode: StudioSceneFileDialogMode | null;
+  readonly intent: StudioHostFileDialogIntent | null;
+  readonly resourceKind: StudioHostFileResourceKind | null;
+  readonly title: string;
+  readonly fileTypeLabel: string;
+  readonly acceptedExtensions: readonly string[];
   readonly connected: boolean;
   readonly startDirectory: string | null;
   readonly currentDir: string;
@@ -426,10 +453,11 @@ export interface StudioProjectFileDialogReadModel {
   readonly targetPath: string;
   readonly canConfirm: boolean;
   readonly message: string;
+  readonly lastResult: StudioHostFileDialogResult | null;
 }
 
 export interface StudioUnsavedScenePromptReadModel {
-  readonly action: 'new' | 'open';
+  readonly action: 'new' | 'open' | 'open-voxel-asset';
   readonly path: string | null;
   readonly message: string;
 }
@@ -4943,7 +4971,12 @@ export class StudioWorkspaceStore {
     stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument)),
   );
   private readonly saveAsPathState = signal('untitled.scene.json');
-  private readonly sceneFileDialogModeState = signal<StudioSceneFileDialogMode | null>(null);
+  private readonly hostFileDialogIntentState = signal<StudioHostFileDialogIntent | null>(null);
+  private readonly hostFileDialogResultState = signal<StudioHostFileDialogResult | null>(null);
+  private readonly activeVoxelAssetFilePathState = signal<string | null>(null);
+  private readonly activeVoxelAssetFileHashState = signal<string | null>(null);
+  private readonly activeVoxelAssetIdState = signal<string | null>(null);
+  private readonly voxelAssetHostSavePathOverrideState = signal<string | null>(null);
   private readonly projectFileEntriesState = signal<readonly StudioProjectFileEntry[]>([]);
   private readonly projectFileCurrentDirState = signal('');
   private readonly projectFileDirectoryPathState = signal('');
@@ -5118,6 +5151,7 @@ export class StudioWorkspaceStore {
   );
   readonly voxelMaterialPaletteEditor = this.voxelMaterialPaletteEditorState.asReadonly();
   readonly activeSceneFilePath = this.activeSceneFilePathState.asReadonly();
+  readonly activeVoxelAssetFilePath = this.activeVoxelAssetFilePathState.asReadonly();
   readonly sceneDirty = computed(() =>
     stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument))
       !== this.cleanSceneDocumentHashState(),
@@ -5127,29 +5161,44 @@ export class StudioWorkspaceStore {
   readonly unsavedScenePrompt = this.unsavedScenePromptState.asReadonly();
   readonly sceneFileConflict = this.sceneFileConflictState.asReadonly();
   readonly projectFileDialog = computed<StudioProjectFileDialogReadModel>(() => {
-    const mode = this.sceneFileDialogModeState();
+    const intent = this.hostFileDialogIntentState();
+    const mode = intent?.operation ?? null;
     const fileName = this.projectFileNameState();
     const targetPath = joinProjectFilePath(this.projectFileCurrentDirState(), fileName);
     const selectedEntry = this.projectFileEntriesState().find(
       entry => entry.path === this.projectFileSelectedPathState(),
     );
+    const matchesAcceptedExtension = intent !== null
+      && intent.acceptedExtensions.some(extension => targetPath.endsWith(extension));
     const openTargetIsFile = selectedEntry?.kind === 'file'
-      || (selectedEntry === undefined && targetPath.endsWith('.scene.json'));
+      || (selectedEntry === undefined && matchesAcceptedExtension);
+    const entries = intent === null
+      ? this.projectFileEntriesState()
+      : this.projectFileEntriesState().filter(entry =>
+          entry.kind === 'directory'
+          || intent.acceptedExtensions.some(extension => entry.name.endsWith(extension)),
+        );
     return {
       backend: 'host-server',
       mode,
+      intent,
+      resourceKind: intent?.resourceKind ?? null,
+      title: intent?.title ?? 'Host File',
+      fileTypeLabel: intent?.fileTypeLabel ?? 'Supported files',
+      acceptedExtensions: intent?.acceptedExtensions ?? [],
       connected: this.projectFileConnectedState(),
       startDirectory: this.projectFileRootState(),
       currentDir: this.projectFileCurrentDirState(),
       directoryPath: this.projectFileDirectoryPathState(),
-      entries: this.projectFileEntriesState(),
+      entries,
       selectedPath: this.projectFileSelectedPathState(),
       fileName,
       targetPath,
       canConfirm: mode === 'open'
-        ? openTargetIsFile && targetPath.endsWith('.scene.json')
-        : mode === 'save-as' && targetPath.length > 0,
+        ? openTargetIsFile && matchesAcceptedExtension
+        : mode === 'save-as' && targetPath.length > 0 && matchesAcceptedExtension,
       message: this.projectFileMessageState(),
+      lastResult: this.hostFileDialogResultState(),
     };
   });
   readonly assetBrowserCategory = this.assetBrowserCategoryState.asReadonly();
@@ -7301,6 +7350,9 @@ export class StudioWorkspaceStore {
   }
 
   async createVoxelHouseTemplate(): Promise<void> {
+    this.activeVoxelAssetIdState.set(null);
+    this.activeVoxelAssetFilePathState.set(null);
+    this.activeVoxelAssetFileHashState.set(null);
     const target = this.voxelAssetWorkflowTargetForCurrentDraft();
     await this.runVoxelAssetWorkflowControl('initialize_volume');
     const initialized = this.voxelAssetWorkflowControlState();
@@ -7363,7 +7415,16 @@ export class StudioWorkspaceStore {
   private attachVoxelAssetToScene(target: StudioVoxelAssetWorkflowTarget): void {
     const workspace = this.workspaceState();
     const document = workspace.flatSceneDocument;
-    const existingNode = document.nodes.find(
+    const selectedSceneObjectId = workspace.entities.find(
+      entity => entity.id === workspace.selectedEntityId,
+    )?.sceneObjectId ?? null;
+    const selectedNodeId = selectedSceneObjectId?.startsWith('scene-node:') === true
+      ? Number.parseInt(selectedSceneObjectId.slice('scene-node:'.length), 10)
+      : null;
+    const selectedVoxelNode = selectedNodeId === null || !Number.isFinite(selectedNodeId)
+      ? undefined
+      : document.nodes.find(node => (node.id as number) === selectedNodeId && node.kind.kind === 'voxelVolume');
+    const existingNode = selectedVoxelNode ?? document.nodes.find(
       node => node.kind.kind === 'voxelVolume' && node.kind.asset.id === target.targetAssetId,
     );
     const pathTag = `asha-studio:voxel-asset-path:${target.assetPath}`;
@@ -7382,21 +7443,35 @@ export class StudioWorkspaceStore {
         ...(existingNode?.tags ?? []).filter(tag => !tag.startsWith('asha-studio:voxel-asset-path:')),
         pathTag,
       ],
-      transform: {
+      transform: existingNode?.transform ?? {
         translation: [5, 4, 6] as const,
         rotation: [0, 0, 0, 1] as const,
         scale: [11, 9, 13] as const,
       },
       kind: { kind: 'voxelVolume' as const, asset: assetReference },
     };
+    const nextNodes = existingNode === undefined
+      ? [...document.nodes, voxelNode]
+      : document.nodes.map(node => node.id === existingNode.id ? voxelNode : node);
+    const referencedAssetIds = new Set(
+      nextNodes.flatMap(node => node.kind.kind === 'voxelVolume' ? [node.kind.asset.id] : []),
+    );
+    const replacedAssetId = existingNode?.kind.kind === 'voxelVolume'
+      ? existingNode.kind.asset.id
+      : null;
     const nextDocument: FlatSceneDocument = {
       ...document,
-      dependencies: document.dependencies.some(dependency => dependency.id === target.targetAssetId)
-        ? document.dependencies
-        : [...document.dependencies, assetReference],
-      nodes: existingNode === undefined
-        ? [...document.nodes, voxelNode]
-        : document.nodes.map(node => node.id === existingNode.id ? voxelNode : node),
+      dependencies: [
+        ...document.dependencies.filter(dependency =>
+          dependency.id === target.targetAssetId
+          || dependency.id !== replacedAssetId
+          || referencedAssetIds.has(dependency.id),
+        ),
+        ...(document.dependencies.some(dependency => dependency.id === target.targetAssetId)
+          ? []
+          : [assetReference]),
+      ],
+      nodes: nextNodes,
     };
     const nextWorkspace = applyCanonicalSceneDocumentReadModel(
       workspace,
@@ -7411,6 +7486,11 @@ export class StudioWorkspaceStore {
   }
 
   async runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): Promise<void> {
+    if (action === 'initialize_volume') {
+      this.activeVoxelAssetIdState.set(null);
+      this.activeVoxelAssetFilePathState.set(null);
+      this.activeVoxelAssetFileHashState.set(null);
+    }
     const target = this.voxelAssetWorkflowTargetForCurrentDraft();
     if (action === 'initialize_volume') {
       const draft = this.voxelConversionDraftState();
@@ -7728,7 +7808,15 @@ export class StudioWorkspaceStore {
         return;
       }
       try {
-        const stored = await this.writeHostVoxelAsset(target.assetPath, saveReadout.serializedAsset);
+        const hostAssetPath = this.voxelAssetHostSavePathOverrideState() ?? target.assetPath;
+        const expectedHostHash = this.activeVoxelAssetFilePathState() === hostAssetPath
+          ? this.activeVoxelAssetFileHashState()
+          : undefined;
+        const stored = await this.writeHostVoxelAsset(
+          hostAssetPath,
+          saveReadout.serializedAsset,
+          expectedHostHash,
+        );
         const facade = this.workspaceAuthoringFacadeState();
         const state = facade?.readState() ?? null;
         if (facade === null || state === null) {
@@ -7740,12 +7828,15 @@ export class StudioWorkspaceStore {
           hostPath: stored.path,
           canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
         });
+        this.activeVoxelAssetFilePathState.set(stored.path);
+        this.activeVoxelAssetFileHashState.set(stored.sha256);
         this.workspaceAuthoringStateSummaryState.set(facade.readState());
-        if (this.workspaceState().flatSceneDocument.nodes.some(
-          node => node.kind.kind === 'voxelVolume' && node.kind.asset.id === target.targetAssetId,
-        )) {
-          this.attachVoxelAssetToScene(target);
-        }
+        this.activeVoxelAssetIdState.set(target.targetAssetId);
+        this.attachVoxelAssetToScene({
+          ...target,
+          assetPath: stored.path,
+          customAssetPath: true,
+        });
       } catch (error) {
         this.recordVoxelAssetWorkflowControl({
           action,
@@ -7763,7 +7854,14 @@ export class StudioWorkspaceStore {
         });
         return;
       }
-      this.recordVoxelAssetWorkflowControlFromSave(target, modelInfoResult.modelInfo, saveResult);
+      const storedTarget = this.activeVoxelAssetFilePathState() === null
+        ? target
+        : {
+            ...target,
+            assetPath: this.activeVoxelAssetFilePathState() ?? target.assetPath,
+            customAssetPath: true,
+          };
+      this.recordVoxelAssetWorkflowControlFromSave(storedTarget, modelInfoResult.modelInfo, saveResult);
       return;
     }
   }
@@ -7783,7 +7881,7 @@ export class StudioWorkspaceStore {
     return {
       grid: draft.targetGrid,
       volumeAssetId,
-      targetAssetId: `voxel-volume/${assetName}`,
+      targetAssetId: this.activeVoxelAssetIdState() ?? `voxel-volume/${assetName}`,
       projectBundle: targetDraft.targetProjectBundle ?? derivedProjectBundle,
       assetPath: targetDraft.targetAssetPath ?? derivedAssetPath,
       derivedProjectBundle,
@@ -7869,7 +7967,7 @@ export class StudioWorkspaceStore {
       accepted: result.accepted,
       target,
       message: result.accepted && saveReadout !== null
-        ? `Saved ${saveReadout.assetId ?? target.targetAssetId} to ${saveReadout.assetPath}.`
+        ? `Saved ${saveReadout.assetId ?? target.targetAssetId} to ${target.assetPath}.`
         : result.diagnostic ?? 'Voxel volume save failed.',
       residentModelId: modelInfo.modelId,
       volumeAssetId: modelInfo.volumeAssetId,
@@ -7913,12 +8011,13 @@ export class StudioWorkspaceStore {
   private async writeHostVoxelAsset(
     path: string,
     canonicalJson: string,
+    expectedHash?: string | null,
   ): Promise<{ readonly path: string; readonly sha256: string }> {
     const normalizedPath = normalizeProjectFilePath(path);
     const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: normalizedPath, text: canonicalJson }),
+      body: JSON.stringify({ path: normalizedPath, text: canonicalJson, expectedHash }),
     });
     const payload = await response.json() as {
       readonly ok?: boolean;
@@ -9139,6 +9238,8 @@ export class StudioWorkspaceStore {
       void this.createNewScene();
     } else if (prompt?.action === 'open' && prompt.path !== null) {
       void this.openSceneFileFromHost(prompt.path, true);
+    } else if (prompt?.action === 'open-voxel-asset' && prompt.path !== null) {
+      void this.openVoxelAssetFileFromHost(prompt.path, true);
     }
   }
 
@@ -9204,34 +9305,59 @@ export class StudioWorkspaceStore {
   }
 
   openSceneFileDialog(mode: StudioSceneFileDialogMode): void {
-    this.activeMenuState.set(null);
-    this.sceneFileDialogModeState.set(mode);
-    this.projectFileDirectoryPathState.set(this.projectFileCurrentDirState());
-
     const candidatePath = mode === 'save-as'
       ? this.activeSceneFilePathState() ?? this.saveAsPathState()
       : this.projectFileSelectedPathState() ?? '';
-    const candidateName = projectFileName(candidatePath);
-    this.projectFileNameState.set(
-      candidateName.length > 0
-        ? candidateName
-        : mode === 'save-as'
-          ? 'untitled.scene.json'
-          : '',
-    );
+    this.openHostFileDialog({
+      operation: mode,
+      resourceKind: 'scene',
+      title: mode === 'open' ? 'Open Scene' : 'Save Scene As',
+      fileTypeLabel: 'ASHA Scene (*.scene.json)',
+      acceptedExtensions: ['.scene.json'],
+      initialDirectory: parentProjectDir(candidatePath) || this.projectFileCurrentDirState(),
+      initialFileName: projectFileName(candidatePath) || (mode === 'save-as' ? 'untitled.scene.json' : ''),
+      confirmation: mode === 'open' ? 'open-scene' : 'save-scene-as',
+      dirtyPolicy: mode === 'open' ? 'scene-and-voxel-authoring' : 'none',
+    });
+  }
 
-    const candidateDirectory = parentProjectDir(candidatePath);
-    const directory = candidateDirectory.length > 0
-      ? candidateDirectory
-      : this.projectFileCurrentDirState();
-    void this.refreshProjectFiles(directory);
+  openVoxelAssetFileDialog(mode: StudioSceneFileDialogMode): void {
+    const target = this.voxelAssetWorkflowTargetForCurrentDraft();
+    const candidatePath = this.activeVoxelAssetFilePathState() ?? target.assetPath;
+    this.openHostFileDialog({
+      operation: mode,
+      resourceKind: 'voxel-asset',
+      title: mode === 'open' ? 'Open Voxel Asset' : 'Save Voxel Asset As',
+      fileTypeLabel: `ASHA Voxel Asset (*.${VOXEL_ASSET_EXTENSION})`,
+      acceptedExtensions: [`.${VOXEL_ASSET_EXTENSION}`],
+      initialDirectory: parentProjectDir(candidatePath) || this.projectFileCurrentDirState(),
+      initialFileName: mode === 'save-as' ? projectFileName(candidatePath) : '',
+      confirmation: mode === 'open' ? 'open-voxel-asset' : 'save-voxel-asset-as',
+      dirtyPolicy: mode === 'open' ? 'voxel-authoring' : 'none',
+    });
+  }
+
+  private openHostFileDialog(intent: StudioHostFileDialogIntent): void {
+    this.activeMenuState.set(null);
+    this.hostFileDialogIntentState.set(intent);
+    this.hostFileDialogResultState.set(null);
+    this.projectFileDirectoryPathState.set(intent.initialDirectory);
+    this.projectFileCurrentDirState.set(intent.initialDirectory);
+    this.projectFileSelectedPathState.set(null);
+    this.projectFileNameState.set(intent.initialFileName);
+    void this.refreshProjectFiles(intent.initialDirectory);
+  }
+
+  closeHostFileDialog(): void {
+    if (this.unsavedScenePromptState()?.action === 'open'
+      || this.unsavedScenePromptState()?.action === 'open-voxel-asset') {
+      this.cancelDiscardUnsavedScene();
+    }
+    this.hostFileDialogIntentState.set(null);
   }
 
   closeSceneFileDialog(): void {
-    if (this.unsavedScenePromptState()?.action === 'open') {
-      this.cancelDiscardUnsavedScene();
-    }
-    this.sceneFileDialogModeState.set(null);
+    this.closeHostFileDialog();
   }
 
   setProjectFileDirectoryPath(path: string): void {
@@ -9268,8 +9394,8 @@ export class StudioWorkspaceStore {
       return;
     }
     this.selectProjectFile(normalizedPath);
-    if (this.sceneFileDialogModeState() === 'open') {
-      this.confirmSceneFileDialog();
+    if (this.hostFileDialogIntentState()?.operation === 'open') {
+      this.confirmHostFileDialog();
     }
   }
 
@@ -9280,30 +9406,45 @@ export class StudioWorkspaceStore {
   openSelectedProjectFile(): void {
     const path = this.projectFileSelectedPathState();
     if (path === null) {
-      this.menuMessageState.set('Select a scene file to open.');
+      this.menuMessageState.set('Select a supported file to open.');
       return;
     }
-    void this.openSceneFileFromProject(path);
+    const confirmation = this.hostFileDialogIntentState()?.confirmation;
+    if (confirmation === 'open-scene') {
+      void this.openSceneFileFromProject(path);
+    } else if (confirmation === 'open-voxel-asset') {
+      void this.openVoxelAssetFileFromProject(path);
+    }
   }
 
-  confirmSceneFileDialog(): void {
+  confirmHostFileDialog(): void {
     const dialog = this.projectFileDialog();
+    const intent = dialog.intent;
+    if (intent === null) {
+      return;
+    }
     if (!dialog.canConfirm) {
       this.projectFileMessageState.set(
         dialog.mode === 'open'
-          ? 'Choose an ASHA .scene.json file to open.'
-          : 'Enter a file name for the scene.',
+          ? `Choose a ${intent.fileTypeLabel} file to open.`
+          : `Enter a file name ending in ${intent.acceptedExtensions.join(' or ')}.`,
       );
       return;
     }
-    if (dialog.mode === 'open') {
+    if (intent.operation === 'open') {
       this.projectFileSelectedPathState.set(dialog.targetPath);
       this.openSelectedProjectFile();
       return;
     }
-    if (dialog.mode === 'save-as') {
+    if (intent.confirmation === 'save-scene-as') {
       this.saveSceneFileAs(dialog.targetPath);
+    } else if (intent.confirmation === 'save-voxel-asset-as') {
+      void this.saveVoxelAssetFileAs(dialog.targetPath);
     }
+  }
+
+  confirmSceneFileDialog(): void {
+    this.confirmHostFileDialog();
   }
 
   private async openSceneFileFromProject(path: string): Promise<void> {
@@ -9316,6 +9457,96 @@ export class StudioWorkspaceStore {
       return;
     }
     await this.openSceneFileFromHost(path, true);
+  }
+
+  async openVoxelAssetFileFromProject(path: string): Promise<void> {
+    if (this.workspaceAuthoringDirty()) {
+      this.unsavedScenePromptState.set({
+        action: 'open-voxel-asset',
+        path,
+        message: `Discard unsaved voxel-asset authoring changes and open ${path}? The scene document will be preserved.`,
+      });
+      return;
+    }
+    await this.openVoxelAssetFileFromHost(path, true);
+  }
+
+  private async openVoxelAssetFileFromHost(path: string, authorizedDiscard: boolean): Promise<void> {
+    if (!authorizedDiscard && this.workspaceAuthoringDirty()) {
+      this.unsavedScenePromptState.set({
+        action: 'open-voxel-asset',
+        path,
+        message: `Discard unsaved voxel-asset authoring changes and open ${path}? The scene document will be preserved.`,
+      });
+      return;
+    }
+    const normalizedPath = normalizeProjectFilePath(path);
+    try {
+      const stored = await this.readHostVoxelAsset(normalizedPath);
+      const wireValue: unknown = JSON.parse(stored.text);
+      const target = this.voxelAssetWorkflowTargetForCurrentDraft();
+      // The cast satisfies the generated request signature only. No field from the
+      // wire value becomes Studio state until Rust accepts it and returns matching
+      // canonical and voxel-data hashes.
+      const candidate = wireValue as VoxelVolumeAsset;
+      const loadResult = this.runAgentVoxelWorkflowOperation({
+        kind: 'load_voxel_volume_asset',
+        loadRequest: {
+          asset: candidate,
+          targetGrid: target.grid,
+          targetVolumeAssetId: target.volumeAssetId,
+          replaceExisting: true,
+          includeMaterialCounts: true,
+        },
+      });
+      const loadReadout = loadResult.voxelVolumeLoad ?? null;
+      if (!loadResult.accepted || loadReadout === null) {
+        throw new Error(loadResult.diagnostic ?? 'Rust rejected the voxel asset.');
+      }
+      const acceptedTarget: StudioVoxelAssetWorkflowTarget = {
+        ...target,
+        targetAssetId: loadReadout.requestAssetId,
+        assetPath: stored.path,
+        customAssetPath: true,
+      };
+      this.activeVoxelAssetFilePathState.set(stored.path);
+      this.activeVoxelAssetFileHashState.set(stored.sha256);
+      this.activeVoxelAssetIdState.set(loadReadout.requestAssetId);
+      this.attachVoxelAssetToScene(acceptedTarget);
+      this.recordVoxelAssetWorkflowControl({
+        action: 'reopen_volume',
+        accepted: true,
+        target: acceptedTarget,
+        message: `Opened ${loadReadout.requestAssetId} from ${stored.path} through Rust workspace authority.`,
+        residentModelId: loadReadout.modelId,
+        volumeAssetId: loadReadout.volumeAssetId,
+        voxelCount: loadReadout.voxelCount,
+        materialSummary: materialCountsSummary(loadReadout.materialCounts),
+        canonicalJsonHash: loadReadout.canonicalJsonHash,
+        voxelDataHash: loadReadout.voxelDataHash,
+        validationDiagnosticCodes: loadReadout.validationDiagnosticCodes,
+        lastAsset: candidate,
+      });
+      this.hostFileDialogResultState.set({
+        operation: 'open',
+        resourceKind: 'voxel-asset',
+        path: stored.path,
+        status: 'accepted',
+        message: `Opened voxel asset ${stored.path}.`,
+      });
+      this.hostFileDialogIntentState.set(null);
+      this.menuMessageState.set(`Opened voxel asset ${stored.path}; the scene document was preserved.`);
+    } catch (error) {
+      const message = `Open voxel asset failed without replacing authoring state: ${errorMessage(error)}`;
+      this.hostFileDialogResultState.set({
+        operation: 'open',
+        resourceKind: 'voxel-asset',
+        path: normalizedPath,
+        status: 'rejected',
+        message,
+      });
+      this.menuMessageState.set(message);
+    }
   }
 
   private async openSceneFileFromHost(path: string, authorizedDiscard: boolean): Promise<void> {
@@ -9362,7 +9593,14 @@ export class StudioWorkspaceStore {
       this.projectFileSelectedPathState.set(absolutePath);
       this.saveAsPathState.set(absolutePath);
       this.projectFileNameState.set(projectFileName(absolutePath));
-      this.sceneFileDialogModeState.set(null);
+      this.hostFileDialogIntentState.set(null);
+      this.hostFileDialogResultState.set({
+        operation: 'open',
+        resourceKind: 'scene',
+        path: absolutePath,
+        status: 'accepted',
+        message: `Opened scene ${absolutePath}.`,
+      });
       this.sceneFileConflictState.set(null);
       this.viewportHitState.set(null);
       this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
@@ -9378,7 +9616,15 @@ export class StudioWorkspaceStore {
           : `Opened ${absolutePath}; unresolved scene assets: ${unresolvedAssetIds.join(', ')}.`,
       );
     } catch (error) {
-      this.menuMessageState.set(`Open failed without replacing the current document: ${errorMessage(error)}`);
+      const message = `Open failed without replacing the current document: ${errorMessage(error)}`;
+      this.hostFileDialogResultState.set({
+        operation: 'open',
+        resourceKind: 'scene',
+        path: normalizedPath,
+        status: 'rejected',
+        message,
+      });
+      this.menuMessageState.set(message);
     }
   }
 
@@ -9417,10 +9663,9 @@ export class StudioWorkspaceStore {
           targetGrid: receipt.grid,
           targetVolumeAssetId: volumeAssetId,
         }));
-        this.voxelAssetWorkflowTargetDraftState.update(draft => ({
-          ...draft,
-          targetAssetPath: assetPath,
-        }));
+        this.activeVoxelAssetFilePathState.set(stored.path);
+        this.activeVoxelAssetFileHashState.set(stored.sha256);
+        this.activeVoxelAssetIdState.set(receipt.requestAssetId);
         this.refreshWorkspaceAuthoringState(facade);
         this.voxelAssetWorkflowControlState.update(current => ({
           ...current,
@@ -9460,6 +9705,44 @@ export class StudioWorkspaceStore {
   saveSceneFileAs(path = this.saveAsPathState()): void {
     this.saveAsPathState.set(path);
     void this.writeSceneFile(path, true);
+  }
+
+  async saveVoxelAssetFileAs(path: string): Promise<void> {
+    const normalizedPath = normalizeProjectFilePath(path);
+    if (!normalizedPath.endsWith(`.${VOXEL_ASSET_EXTENSION}`)) {
+      this.projectFileMessageState.set(`Voxel asset paths must end in .${VOXEL_ASSET_EXTENSION}.`);
+      return;
+    }
+    this.voxelAssetHostSavePathOverrideState.set(normalizedPath);
+    try {
+      await this.runVoxelAssetWorkflowControl('save_volume');
+    } finally {
+      this.voxelAssetHostSavePathOverrideState.set(null);
+    }
+    const control = this.voxelAssetWorkflowControlState();
+    if (control.lastAction !== 'save_volume' || control.status !== 'accepted') {
+      this.hostFileDialogResultState.set({
+        operation: 'save-as',
+        resourceKind: 'voxel-asset',
+        path: normalizedPath,
+        status: 'rejected',
+        message: control.message,
+      });
+      return;
+    }
+    this.activeVoxelAssetFilePathState.set(normalizedPath);
+    this.hostFileDialogResultState.set({
+      operation: 'save-as',
+      resourceKind: 'voxel-asset',
+      path: normalizedPath,
+      status: 'accepted',
+      message: `Saved voxel asset as ${normalizedPath}.`,
+    });
+    this.hostFileDialogIntentState.set(null);
+    this.projectFileSelectedPathState.set(normalizedPath);
+    this.projectFileNameState.set(projectFileName(normalizedPath));
+    this.menuMessageState.set(`Saved voxel asset as ${normalizedPath}.`);
+    await this.refreshProjectFiles(parentProjectDir(normalizedPath));
   }
 
   setSaveAsPath(path: string): void {
@@ -9579,7 +9862,14 @@ export class StudioWorkspaceStore {
     this.projectFileSelectedPathState.set(path);
     this.saveAsPathState.set(path);
     this.projectFileNameState.set(projectFileName(path));
-    this.sceneFileDialogModeState.set(null);
+    this.hostFileDialogIntentState.set(null);
+    this.hostFileDialogResultState.set({
+      operation: 'save-as',
+      resourceKind: 'scene',
+      path,
+      status: 'accepted',
+      message: saveAs ? `Saved scene as ${path}.` : `Saved scene ${path}.`,
+    });
     this.sceneFileConflictState.set(null);
     this.menuMessageState.set(saveAs ? `Saved scene as ${path}.` : `Saved scene ${path}.`);
   }

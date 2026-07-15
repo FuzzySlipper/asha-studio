@@ -469,13 +469,11 @@ export type StudioVoxelToolsSection =
                   "
               /></label>
               <label
-                >Asset path
-                <input
-                  type="text"
-                  data-voxel-asset-target="path"
-                  [value]="store.voxelAssetWorkflowTarget().targetAssetPath"
-                  (input)="store.setVoxelAssetWorkflowTargetAssetPath($any($event.target).value)"
-              /></label>
+                >Asset file
+                <output data-voxel-asset-target="path">
+                  {{ store.activeVoxelAssetFilePath() ?? store.voxelAssetWorkflowTarget().targetAssetPath }}
+                </output>
+              </label>
             </div>
             <button
               type="button"
@@ -519,17 +517,17 @@ export type StudioVoxelToolsSection =
             </button>
             <button
               type="button"
-              data-voxel-asset-action="save_volume"
-              (click)="store.runVoxelAssetWorkflowControl('save_volume')"
+              data-voxel-asset-action="save_volume_as"
+              (click)="store.openVoxelAssetFileDialog('save-as')"
             >
-              Save to Studio host
+              Save Voxel Asset As…
             </button>
             <button
               type="button"
-              data-voxel-asset-action="reopen_volume"
-              (click)="store.runVoxelAssetWorkflowControl('reopen_volume')"
+              data-voxel-asset-action="open_volume"
+              (click)="store.openVoxelAssetFileDialog('open')"
             >
-              Reopen from Studio host
+              Open Voxel Asset…
             </button>
             </footer>
           </section>

@@ -991,13 +991,16 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(panelSource, /Workspace asset/);
   assert.match(panelSource, /Running game/);
   assert.match(panelSource, /setVoxelAssetWorkflowTargetProjectBundle/);
-  assert.match(panelSource, /setVoxelAssetWorkflowTargetAssetPath/);
+  assert.match(panelSource, /openVoxelAssetFileDialog\('open'\)/);
+  assert.match(panelSource, /openVoxelAssetFileDialog\('save-as'\)/);
   assert.match(panelSource, /resetVoxelAssetWorkflowTarget/);
 
-  for (const action of ['initialize_volume', 'model_info', 'export_volume', 'save_volume', 'reopen_volume', 'unload_volume', 'load_volume']) {
+  for (const action of ['initialize_volume', 'model_info', 'export_volume', 'unload_volume', 'load_volume']) {
     assert.match(panelSource, new RegExp(`data-voxel-asset-action="${action}"`));
     assert.match(panelSource, new RegExp(`runVoxelAssetWorkflowControl\\('${action}'\\)`));
   }
+  assert.match(panelSource, /data-voxel-asset-action="save_volume_as"/);
+  assert.match(panelSource, /data-voxel-asset-action="open_volume"/);
 
   assert.match(panelSource, /canLoadLastAsset/);
   assert.match(panelSource, /targetProjectBundle/);

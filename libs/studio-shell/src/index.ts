@@ -87,6 +87,8 @@ export * from './host-file-dialog-focus';
             <button type="button" (click)="openSceneFileDialog('open')">Open Scene…</button>
             <button type="button" (click)="saveScene()">Save Scene</button>
             <button type="button" (click)="openSceneFileDialog('save-as')">Save Scene As…</button>
+            <button type="button" (click)="openVoxelAssetFileDialog('open')">Open Voxel Asset…</button>
+            <button type="button" (click)="openVoxelAssetFileDialog('save-as')">Save Voxel Asset As…</button>
             @if (store.unsavedScenePrompt(); as prompt) {
               <section class="menu-popover__notice" aria-label="Unsaved scene changes">
                 <strong>Unsaved changes</strong>
@@ -272,6 +274,10 @@ export * from './host-file-dialog-focus';
 
         @if (store.activeMenu() === 'voxel') {
           <section class="menu-popover menu-popover--voxel" aria-label="Voxel menu">
+            <div class="menu-popover__actions" aria-label="Voxel asset files">
+              <button type="button" (click)="openVoxelAssetFileDialog('open')">Open Voxel Asset…</button>
+              <button type="button" (click)="openVoxelAssetFileDialog('save-as')">Save Voxel Asset As…</button>
+            </div>
             <asha-voxel-tools-menu />
           </section>
         }
@@ -291,22 +297,22 @@ export * from './host-file-dialog-focus';
         <div
           class="host-file-dialog-backdrop"
           data-visual-id="studio-host-file-dialog"
-          (mousedown)="closeSceneFileDialog()"
+          (mousedown)="closeHostFileDialog()"
         >
           <section
             class="host-file-dialog"
             role="dialog"
             aria-modal="true"
             tabindex="-1"
-            [attr.aria-label]="fileDialogMode === 'open' ? 'Open Scene' : 'Save Scene As'"
+            [attr.aria-label]="store.projectFileDialog().title"
             (mousedown)="$event.stopPropagation()"
           >
             <header class="host-file-dialog__header">
               <div>
-                <strong>{{ fileDialogMode === 'open' ? 'Open Scene' : 'Save Scene As' }}</strong>
+                <strong>{{ store.projectFileDialog().title }}</strong>
                 <small>Files on the Studio host</small>
               </div>
-              <button type="button" aria-label="Close file dialog" (click)="closeSceneFileDialog()">×</button>
+              <button type="button" aria-label="Close file dialog" (click)="closeHostFileDialog()">×</button>
             </header>
 
             <div class="host-file-dialog__location-bar">
@@ -357,7 +363,7 @@ export * from './host-file-dialog-focus';
                       <span>{{ file.name }}</span>
                     </span>
                     <span>
-                      {{ file.kind === 'directory' ? 'Folder' : file.name.endsWith('.scene.json') ? 'ASHA Scene' : 'File' }}
+                      {{ file.kind === 'directory' ? 'Folder' : store.projectFileDialog().resourceKind === 'scene' ? 'ASHA Scene' : 'ASHA Voxel Asset' }}
                     </span>
                     <span>{{ formatFileSize(file.size) }}</span>
                   </button>
@@ -374,17 +380,17 @@ export * from './host-file-dialog-focus';
                 <span>File name</span>
                 <input
                   type="text"
-                  aria-label="Scene file name"
+                  [attr.aria-label]="store.projectFileDialog().resourceKind === 'scene' ? 'Scene file name' : 'Voxel asset file name'"
                   [value]="store.projectFileDialog().fileName"
                   [title]="store.projectFileDialog().targetPath"
                   (input)="setProjectFileName($any($event.target).value)"
-                  (keydown.enter)="confirmSceneFileDialog()"
+                  (keydown.enter)="confirmHostFileDialog()"
                 />
               </label>
               <label class="host-file-dialog__file-type">
                 <span>File type</span>
-                <select disabled aria-label="Scene file type">
-                  <option>ASHA Scene (*.scene.json)</option>
+                <select disabled aria-label="File type">
+                  <option>{{ store.projectFileDialog().fileTypeLabel }}</option>
                 </select>
               </label>
               <div class="host-file-dialog__selected-path" [title]="store.projectFileDialog().targetPath">
@@ -411,12 +417,12 @@ export * from './host-file-dialog-focus';
               }
 
               <div class="host-file-dialog__actions">
-                <button type="button" (click)="closeSceneFileDialog()">Cancel</button>
+                <button type="button" (click)="closeHostFileDialog()">Cancel</button>
                 <button
                   type="button"
                   class="is-primary"
                   [disabled]="!store.projectFileDialog().canConfirm"
-                  (click)="confirmSceneFileDialog()"
+                  (click)="confirmHostFileDialog()"
                 >
                   {{ fileDialogMode === 'open' ? 'Open' : 'Save' }}
                 </button>
@@ -983,9 +989,19 @@ export class StudioShellComponent {
     this.focusFileDialogAfterOpen();
   }
 
-  closeSceneFileDialog(): void {
-    this.store.closeSceneFileDialog();
+  openVoxelAssetFileDialog(mode: 'open' | 'save-as'): void {
+    this.rememberFileDialogReturnTarget();
+    this.store.openVoxelAssetFileDialog(mode);
+    this.focusFileDialogAfterOpen();
+  }
+
+  closeHostFileDialog(): void {
+    this.store.closeHostFileDialog();
     this.restoreFocusAfterFileDialogClose();
+  }
+
+  closeSceneFileDialog(): void {
+    this.closeHostFileDialog();
   }
 
   setProjectFileDirectoryPath(path: string): void {
@@ -1018,7 +1034,11 @@ export class StudioShellComponent {
   }
 
   confirmSceneFileDialog(): void {
-    this.store.confirmSceneFileDialog();
+    this.confirmHostFileDialog();
+  }
+
+  confirmHostFileDialog(): void {
+    this.store.confirmHostFileDialog();
     this.restoreFocusIfFileDialogClosed();
   }
 
@@ -1060,7 +1080,7 @@ export class StudioShellComponent {
 
   @HostListener('window:beforeunload', ['$event'])
   protectUnsavedScene(event: BeforeUnloadEvent): void {
-    if (this.store.sceneDirty()) {
+    if (this.store.sceneDirty() || this.store.workspaceAuthoringDirty()) {
       event.preventDefault();
     }
   }
@@ -1070,7 +1090,7 @@ export class StudioShellComponent {
     if (this.store.projectFileDialog().mode === null) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      this.closeSceneFileDialog();
+      this.closeHostFileDialog();
       return;
     }
     if (event.key !== 'Tab') return;
