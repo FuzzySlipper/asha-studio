@@ -24,6 +24,7 @@ import {
   buildStudioViewportAdapterReadModel,
   buildStudioViewportCameraReadModel,
   buildStudioViewportToolReadModel,
+  buildStudioSceneAuthoringOperation,
   clearStudioWorkspaceReadModel,
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
@@ -47,6 +48,7 @@ import {
   recordStudioWorkspaceUiCommand,
   setHierarchyExpansionReadModel,
   studioCatalogAuthoringBaseHash,
+  studioSceneAuthoringBaseHash,
   updateStudioRenderSetting,
   updateStudioLightingMode,
   proposeStudioLightAddition,
@@ -104,10 +106,12 @@ import {
   type EntityId,
   type FlatSceneDocument,
   type RenderHandle,
+  type RenderFrameDiff,
   type SceneObjectCommandResult,
   type SceneObjectSnapshot,
   type SceneLight,
   type SceneNodeRecord,
+  type Transform,
   type VoxelCommand,
   type VoxelConversionEvidenceRef,
   type VoxelConversionFitPolicy,
@@ -5125,6 +5129,32 @@ interface StudioSceneLightHistory {
   readonly cursor: number;
 }
 
+interface StudioSceneTransformHistoryEntry {
+  readonly before: FlatSceneDocument;
+  readonly after: FlatSceneDocument;
+  readonly label: string;
+  readonly objectId: SceneObjectId;
+}
+
+interface StudioSceneTransformHistory {
+  readonly entries: readonly StudioSceneTransformHistoryEntry[];
+  readonly cursor: number;
+}
+
+export interface StudioSelectedSceneTransformTarget {
+  readonly objectId: SceneObjectId;
+  readonly renderableId: string | null;
+  readonly revision: string;
+  readonly transform: Transform;
+  readonly lightFrame: RenderFrameDiff;
+}
+
+export interface StudioSceneTransformCommitResult {
+  readonly accepted: boolean;
+  readonly diagnostic: string;
+  readonly revision: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class StudioWorkspaceStore {
   private readonly preferencesStore = inject(StudioPreferencesStore);
@@ -5189,6 +5219,9 @@ export class StudioWorkspaceStore {
   );
   private readonly voxelBrushState = signal<StudioVoxelBrushState>(INITIAL_VOXEL_BRUSH_STATE);
   private readonly sceneLightHistoryState = signal<StudioSceneLightHistory>({ entries: [], cursor: 0 });
+  private readonly sceneTransformHistoryState = signal<StudioSceneTransformHistory>({ entries: [], cursor: 0 });
+  private readonly transformManipulatorOrientationState = signal<'local' | 'world'>('world');
+  private readonly transformManipulatorSnappingState = signal(true);
   private readonly workspaceAuthoringMessageState = signal('Starting workspace authoring authority.');
   private readonly runtimeViewportEvidenceState = signal<StudioRuntimeViewportEvidence>(
     MISSING_RUNTIME_VIEWPORT_EVIDENCE,
@@ -6371,6 +6404,36 @@ export class StudioWorkspaceStore {
     );
   });
 
+  readonly selectedSceneTransformTarget = computed<StudioSelectedSceneTransformTarget | null>(() => {
+    if (!this.selectedSceneObjectTransformEditable()) return null;
+    const workspace = this.workspaceState();
+    const selectedEntity = workspace.entities.find(entity => entity.id === workspace.selectedEntityId);
+    const objectId = selectedEntity?.sceneObjectId ?? null;
+    if (objectId === null || !objectId.startsWith('scene-node:')) return null;
+    const nodeId = Number.parseInt(objectId.slice('scene-node:'.length), 10);
+    const node = workspace.flatSceneDocument.nodes.find(candidate => (candidate.id as number) === nodeId);
+    if (node === undefined || !Number.isSafeInteger(nodeId)) return null;
+    return {
+      objectId,
+      renderableId: workspace.scene.selectedRenderableId,
+      revision: studioSceneAuthoringBaseHash(workspace.flatSceneDocument),
+      transform: node.transform,
+      lightFrame: this.lightingProjection().frame,
+    };
+  });
+
+  readonly transformManipulatorOrientation = this.transformManipulatorOrientationState.asReadonly();
+  readonly transformManipulatorSnapping = this.transformManipulatorSnappingState.asReadonly();
+  readonly sceneTransformHistory = computed(() => {
+    const history = this.sceneTransformHistoryState();
+    return {
+      canUndo: history.cursor > 0,
+      canRedo: history.cursor < history.entries.length,
+      undoLabel: history.cursor > 0 ? history.entries[history.cursor - 1]?.label ?? null : null,
+      redoLabel: history.cursor < history.entries.length ? history.entries[history.cursor]?.label ?? null : null,
+    };
+  });
+
   readonly assetRenderables = computed(() => {
     const workspace = this.workspaceState();
     return filterAssetBrowserRenderables(
@@ -6863,6 +6926,145 @@ export class StudioWorkspaceStore {
     );
   }
 
+  setTransformManipulatorOrientation(orientation: 'local' | 'world'): void {
+    this.transformManipulatorOrientationState.set(orientation);
+  }
+
+  setTransformManipulatorSnapping(enabled: boolean): void {
+    this.transformManipulatorSnappingState.set(enabled);
+  }
+
+  previewSelectedSceneObjectTransform(
+    expectedRevision: string,
+    transform: Transform,
+  ): StudioSelectedSceneTransformTarget | null {
+    const target = this.selectedSceneTransformTarget();
+    if (
+      target === null
+      || target.revision !== expectedRevision
+      || this.voxelAuthoringModeState().mode === 'edit'
+    ) {
+      return null;
+    }
+    const operation = buildStudioSceneAuthoringOperation(this.workspaceState().flatSceneDocument, {
+      expectedBaseHash: expectedRevision,
+      actor: 'gui',
+      operation: {
+        kind: 'update_scene_object',
+        objectId: target.objectId,
+        patch: { transform },
+      },
+    });
+    if (!operation.ok) return null;
+    const document = this.sceneDocumentWithTransform(target.objectId, transform);
+    if (document === null) return null;
+    return {
+      ...target,
+      transform,
+      lightFrame: buildStudioLightingProjection(
+        document,
+        this.renderSettings().lightingMode,
+      ).frame,
+    };
+  }
+
+  commitSelectedSceneObjectTransform(
+    expectedRevision: string,
+    transform: Transform,
+  ): StudioSceneTransformCommitResult {
+    const target = this.selectedSceneTransformTarget();
+    if (this.voxelAuthoringModeState().mode === 'edit') {
+      return this.rejectSceneTransformCommit(expectedRevision, 'Exit Voxel Edit mode before moving a scene object.');
+    }
+    if (target === null) {
+      return this.rejectSceneTransformCommit(expectedRevision, 'Select a transform-editable scene object.');
+    }
+    const operation = buildStudioSceneAuthoringOperation(this.workspaceState().flatSceneDocument, {
+      expectedBaseHash: expectedRevision,
+      actor: 'gui',
+      operation: {
+        kind: 'update_scene_object',
+        objectId: target.objectId,
+        patch: { transform },
+      },
+    });
+    if (!operation.ok) {
+      const diagnostic = operation.diagnostics.at(0)?.message ?? 'Transform command rejected.';
+      return this.rejectSceneTransformCommit(expectedRevision, diagnostic);
+    }
+    const workspace = this.workspaceState();
+    const nextDocument = this.sceneDocumentWithTransform(target.objectId, transform);
+    if (nextDocument === null) {
+      return this.rejectSceneTransformCommit(expectedRevision, 'Selected scene object no longer exists.');
+    }
+    const history = this.sceneTransformHistoryState();
+    const entry: StudioSceneTransformHistoryEntry = {
+      before: workspace.flatSceneDocument,
+      after: nextDocument,
+      label: `Transform ${target.objectId}`,
+      objectId: target.objectId,
+    };
+    const entries = [...history.entries.slice(0, history.cursor), entry];
+    this.sceneTransformHistoryState.set({ entries, cursor: entries.length });
+    this.applySceneTransformDocument(nextDocument, target.objectId);
+    const revision = studioSceneAuthoringBaseHash(nextDocument);
+    this.menuMessageState.set(`Transformed ${target.objectId}.`);
+    return { accepted: true, diagnostic: 'Transform accepted.', revision };
+  }
+
+  undoSceneTransformEdit(): void {
+    const history = this.sceneTransformHistoryState();
+    const entry = history.cursor > 0 ? history.entries[history.cursor - 1] : undefined;
+    if (entry === undefined) return;
+    this.applySceneTransformDocument(entry.before, entry.objectId);
+    this.sceneTransformHistoryState.set({ ...history, cursor: history.cursor - 1 });
+    this.menuMessageState.set(`Undid ${entry.label}.`);
+  }
+
+  redoSceneTransformEdit(): void {
+    const history = this.sceneTransformHistoryState();
+    const entry = history.entries[history.cursor];
+    if (entry === undefined) return;
+    this.applySceneTransformDocument(entry.after, entry.objectId);
+    this.sceneTransformHistoryState.set({ ...history, cursor: history.cursor + 1 });
+    this.menuMessageState.set(`Redid ${entry.label}.`);
+  }
+
+  private sceneDocumentWithTransform(
+    objectId: SceneObjectId,
+    transform: Transform,
+  ): FlatSceneDocument | null {
+    const nodeId = Number.parseInt(objectId.slice('scene-node:'.length), 10);
+    const document = this.workspaceState().flatSceneDocument;
+    if (!Number.isSafeInteger(nodeId) || !document.nodes.some(node => (node.id as number) === nodeId)) {
+      return null;
+    }
+    return {
+      ...document,
+      nodes: document.nodes.map(node => (
+        (node.id as number) === nodeId ? { ...node, transform } : node
+      )),
+    };
+  }
+
+  private applySceneTransformDocument(document: FlatSceneDocument, objectId: SceneObjectId): void {
+    const projected = applyCanonicalSceneDocumentReadModel(
+      this.workspaceState(),
+      document,
+      this.activeSceneFilePathState(),
+    );
+    this.workspaceState.set(applySelectedEntityReadModel(projected, objectId));
+    this.refreshSceneVoxelProjection();
+  }
+
+  private rejectSceneTransformCommit(
+    revision: string,
+    diagnostic: string,
+  ): StudioSceneTransformCommitResult {
+    this.menuMessageState.set(diagnostic);
+    return { accepted: false, diagnostic, revision };
+  }
+
   setSelectedSceneObjectTransform(patch: {
     readonly translation?: readonly [number, number, number];
     readonly rotation?: readonly [number, number, number, number];
@@ -6897,22 +7099,10 @@ export class StudioWorkspaceStore {
       this.menuMessageState.set('Transform rejected: values must be finite, scale positive, and rotation nonzero.');
       return;
     }
-    const nextDocument: FlatSceneDocument = {
-      ...workspace.flatSceneDocument,
-      nodes: workspace.flatSceneDocument.nodes.map(candidate => (
-        candidate.id === node.id ? { ...candidate, transform: nextTransform } : candidate
-      )),
-    };
-    const projected = applyCanonicalSceneDocumentReadModel(
-      workspace,
-      nextDocument,
-      this.activeSceneFilePathState(),
+    this.commitSelectedSceneObjectTransform(
+      studioSceneAuthoringBaseHash(workspace.flatSceneDocument),
+      nextTransform,
     );
-    this.workspaceState.set(
-      objectId === null ? projected : applySelectedEntityReadModel(projected, objectId),
-    );
-    this.refreshSceneVoxelProjection();
-    this.menuMessageState.set(`Updated transform for ${objectId ?? `scene-node:${nodeId}`}.`);
   }
 
   duplicateSelectedVoxelInstance(): void {
@@ -10064,6 +10254,7 @@ export class StudioWorkspaceStore {
       const workspace = applyCanonicalSceneDocumentReadModel(cleared, result.document, null);
       this.workspaceState.set(workspace);
       this.sceneLightHistoryState.set({ entries: [], cursor: 0 });
+      this.sceneTransformHistoryState.set({ entries: [], cursor: 0 });
       this.activeSceneFilePathState.set(null);
       this.activeSceneFileHashState.set(null);
       this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));
@@ -10398,6 +10589,7 @@ export class StudioWorkspaceStore {
       );
       this.workspaceState.set(workspace);
       this.sceneLightHistoryState.set({ entries: [], cursor: 0 });
+      this.sceneTransformHistoryState.set({ entries: [], cursor: 0 });
       this.activeSceneFilePathState.set(absolutePath);
       this.activeSceneFileHashState.set(payload.sha256);
       this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));

@@ -9,6 +9,7 @@
     "@angular/common": "~21.2.0",
     "@angular/core": "~21.2.0",
     "@asha/renderer-host": "link:../../../asha-engine/ts/packages/renderer-host",
+    "@asha/editor-tools": "link:../../../asha-engine/ts/packages/editor-tools",
     "@asha-studio/domain": "workspace:*",
     "@asha-studio/store": "workspace:*",
     "tslib": "^2.3.0"

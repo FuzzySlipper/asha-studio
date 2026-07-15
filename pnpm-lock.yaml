@@ -332,6 +332,9 @@ importers:
       '@asha-studio/store':
         specifier: workspace:*
         version: link:../studio-store
+      '@asha/editor-tools':
+        specifier: link:../../../asha-engine/ts/packages/editor-tools
+        version: link:../../../asha-engine/ts/packages/editor-tools
       '@asha/renderer-host':
         specifier: link:../../../asha-engine/ts/packages/renderer-host
         version: link:../../../asha-engine/ts/packages/renderer-host

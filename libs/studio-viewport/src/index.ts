@@ -17,6 +17,18 @@ import type {
   Transform,
 } from '@asha/contracts';
 import { renderHandle } from '@asha/contracts';
+import {
+  DEFAULT_TRANSFORM_MANIPULATOR_SNAPPING,
+  beginTransformManipulatorDrag,
+  cancelTransformManipulatorDrag,
+  projectTransformManipulator,
+  transformManipulatorHandleFromId,
+  updateTransformManipulatorDrag,
+  type TransformManipulatorCandidate,
+  type TransformManipulatorDrag,
+  type TransformManipulatorHandle,
+  type TransformManipulatorMode,
+} from '@asha/editor-tools';
 import type {
   AshaRendererEditorViewport,
   AshaRendererEditorViewportCamera,
@@ -130,6 +142,18 @@ class AuthoredVoxelProjectionPickIndex {
     return this.instanceByRoot.get(raw)
       ?? this.instanceByRoot.get(this.rootByChild.get(raw) ?? -1)
       ?? null;
+  }
+
+  projectionForInstance(instanceId: string): {
+    readonly handle: RenderHandle;
+    readonly transform: Transform;
+  } | null {
+    const entry = [...this.instanceByRoot.entries()].find(([, candidate]) => candidate === instanceId);
+    if (entry === undefined) return null;
+    const transform = this.transformByHandle.get(entry[0]);
+    return transform === undefined
+      ? null
+      : { handle: renderHandle(entry[0]), transform };
   }
 
   brushOverlay(
@@ -531,6 +555,7 @@ function buildViewportOverlayFrame(
   adapter: StudioViewportAdapterReadModel,
   debugPick: AshaRendererEditorViewportPickHint | null,
   voxelBrushOverlay: StudioVoxelBrushOverlay | null,
+  manipulatorFrame: RenderFrameDiff,
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
   let handle = 1;
@@ -614,6 +639,7 @@ function buildViewportOverlayFrame(
       },
     });
   }
+  ops.push(...manipulatorFrame.ops);
   return { ops };
 }
 
@@ -624,13 +650,108 @@ function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string 
   if (tool === 'orbit' || tool === 'pan') {
     return 'grab';
   }
-  if (tool === 'move_object' || tool === 'rotate_object') {
+  if (tool === 'move_object' || tool === 'rotate_object' || tool === 'scale_object') {
     return 'move';
   }
   if (tool === 'select') {
     return 'crosshair';
   }
   return 'default';
+}
+
+function manipulatorModeForTool(tool: StudioViewportToolMode): TransformManipulatorMode | null {
+  if (tool === 'move_object') return 'translate';
+  if (tool === 'rotate_object') return 'rotate';
+  if (tool === 'scale_object') return 'scale';
+  return null;
+}
+
+function manipulatorCamera(
+  viewport: AshaRendererEditorViewport,
+): Parameters<typeof beginTransformManipulatorDrag>[0]['camera'] {
+  const camera = viewport.camera();
+  const size = viewport.readout().size;
+  return {
+    position: camera.pose.position,
+    basis: camera.basis,
+    fovYDegrees: camera.projection.fovYDegrees,
+    viewport: { width: size.width, height: size.height },
+  };
+}
+
+function renderableHandle(
+  adapter: StudioViewportAdapterReadModel,
+  renderableId: string,
+): RenderHandle | null {
+  let handle = 1_000_001;
+  for (const renderable of adapter.renderables) {
+    if (
+      !renderable.visible
+      || renderable.kind === 'voxel_grid'
+      || (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost')
+    ) {
+      continue;
+    }
+    if (renderable.renderableId === renderableId) return renderHandle(handle);
+    handle += 1;
+  }
+  return null;
+}
+
+function projectedPreviewTransform(
+  rendered: Transform,
+  source: Transform,
+  candidate: Transform,
+): Transform {
+  const inverseSourceRotation = [
+    -source.rotation[0],
+    -source.rotation[1],
+    -source.rotation[2],
+    source.rotation[3],
+  ] as const;
+  const rotationDelta = multiplyRotation(candidate.rotation, inverseSourceRotation);
+  return {
+    translation: [
+      rendered.translation[0] + candidate.translation[0] - source.translation[0],
+      rendered.translation[1] + candidate.translation[1] - source.translation[1],
+      rendered.translation[2] + candidate.translation[2] - source.translation[2],
+    ],
+    rotation: normalizeRotation(multiplyRotation(rotationDelta, rendered.rotation)),
+    scale: [
+      rendered.scale[0] * candidate.scale[0] / source.scale[0],
+      rendered.scale[1] * candidate.scale[1] / source.scale[1],
+      rendered.scale[2] * candidate.scale[2] / source.scale[2],
+    ],
+  };
+}
+
+function multiplyRotation(
+  left: Transform['rotation'],
+  right: Transform['rotation'],
+): Transform['rotation'] {
+  const [ax, ay, az, aw] = left;
+  const [bx, by, bz, bw] = right;
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
+
+function normalizeRotation(rotation: Transform['rotation']): Transform['rotation'] {
+  const magnitude = Math.hypot(...rotation);
+  return magnitude <= 0.000001
+    ? [0, 0, 0, 1]
+    : rotation.map(value => value / magnitude) as unknown as Transform['rotation'];
+}
+
+function lightingPreviewUpdates(frame: RenderFrameDiff): RenderFrameDiff {
+  return {
+    ops: frame.ops.flatMap(op => op.op === 'createLight'
+      ? [{ op: 'updateLight' as const, handle: op.handle, light: op.light }]
+      : []),
+  };
 }
 
 function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly z: number }): string {
@@ -1009,6 +1130,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private renderedSceneKey: string | null = null;
   private renderedRuntimeKey: string | null = null;
   private renderedAuthoringProjectionKey: string | null = null;
+  private renderedOverlayKey: string | null = null;
   private authoredBaseHandles: readonly RenderHandle[] = [];
   private readonly authoredVoxelPickIndex = new AuthoredVoxelProjectionPickIndex();
   private debugPick: AshaRendererEditorViewportPickHint | null = null;
@@ -1023,12 +1145,22 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   } | null = null;
   private dragState: {
     readonly pointerId: number;
-    readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan' | 'move_object' | 'rotate_object'>;
-    readonly startX: number;
-    readonly startY: number;
+    readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan'>;
     readonly x: number;
     readonly y: number;
   } | null = null;
+  private transformDragState: {
+    readonly pointerId: number;
+    readonly drag: TransformManipulatorDrag;
+    candidate: TransformManipulatorCandidate;
+  } | null = null;
+  private transformHoveredHandle: TransformManipulatorHandle | null = null;
+  private pendingTransformPointer: {
+    readonly point: readonly [number, number];
+    readonly fine: boolean;
+    readonly snapping: boolean;
+  } | null = null;
+  private transformPreviewFrameRequest: number | null = null;
 
   private readonly adapterEffect = effect(() => {
     const adapter = this.store.viewportAdapter();
@@ -1105,6 +1237,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (this.debugPickTimer !== null) {
       clearTimeout(this.debugPickTimer);
     }
+    if (this.transformPreviewFrameRequest !== null) {
+      cancelAnimationFrame(this.transformPreviewFrameRequest);
+    }
     this.viewport?.channels.runtime.clear();
     this.viewport?.channels.authored.clear();
     this.viewport?.channels.overlay.clear();
@@ -1164,6 +1299,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     canvas.addEventListener('pointercancel', this.handlePointerCancel);
     canvas.addEventListener('contextmenu', this.handleContextMenu);
     canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+    document.addEventListener('keydown', this.handleKeyDown);
   }
 
   private removeInputListeners(): void {
@@ -1177,6 +1313,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     canvas.removeEventListener('pointercancel', this.handlePointerCancel);
     canvas.removeEventListener('contextmenu', this.handleContextMenu);
     canvas.removeEventListener('wheel', this.handleWheel);
+    document.removeEventListener('keydown', this.handleKeyDown);
   }
 
   private syncViewport(
@@ -1198,14 +1335,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         ? buildEditorViewportCamera(adapter)
         : buildRuntimeViewportCamera(runtimeCamera),
     );
-    canvas.style.cursor = cursorForTool(adapter.tool.activeTool, this.dragState !== null);
-    const sceneKey = [
-      adapter.sceneHash,
-      adapter.selectedRenderableId ?? 'none',
-      adapter.renderSettings.renderSettingsHash,
-      materialPreviewFrame === null ? 'no-material-preview' : JSON.stringify(materialPreviewFrame),
-    ].join(':');
+    canvas.style.cursor = cursorForTool(
+      adapter.tool.activeTool,
+      this.dragState !== null || this.transformDragState !== null,
+    );
     const baseFrame = buildViewportProjectionFrame(adapter, materialPreviewFrame, lightingFrame);
+    const sceneKey = JSON.stringify(baseFrame);
     const projectionKey = authoringProjection === null
       ? null
       : [
@@ -1218,6 +1353,16 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         ].join(':');
     const sceneChanged = sceneKey !== this.renderedSceneKey;
     const projectionChanged = projectionKey !== this.renderedAuthoringProjectionKey;
+    const overlayKey = [
+      adapter.sceneHash,
+      adapter.selectedRenderableId ?? 'none',
+      adapter.renderSettings.renderSettingsHash,
+      adapter.tool.toolHash,
+      this.store.transformManipulatorOrientation(),
+      this.store.transformManipulatorSnapping() ? 'snap' : 'free',
+      this.store.voxelAuthoringMode().mode,
+      this.store.selectedSceneTransformTarget()?.revision ?? 'no-transform-target',
+    ].join(':');
 
     if (
       authoringProjection !== null
@@ -1321,12 +1466,14 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         }
       }
     }
-    if (sceneChanged) {
+    if (overlayKey !== this.renderedOverlayKey) {
       viewport.channels.overlay.replace(buildViewportOverlayFrame(
         adapter,
         this.debugPick,
         this.voxelBrushOverlay,
+        this.currentManipulatorFrame(adapter),
       ));
+      this.renderedOverlayKey = overlayKey;
     }
     if (runtimeKey !== this.renderedRuntimeKey) {
       if (runtimeFrame === null) {
@@ -1338,6 +1485,21 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     }
     viewport.renderOnce();
     this.viewportReadout.set(viewport.readout());
+  }
+
+  private syncCurrentViewport(): void {
+    const runtimeProjection = this.store.runtimeViewportProjection();
+    const authoringProjection = this.store.workspaceAuthoringProjection();
+    const runtimeEvidence = this.store.runtimeViewportEvidence();
+    this.syncViewport(
+      this.store.viewportAdapter(),
+      runtimeProjection?.frame ?? null,
+      runtimeProjection?.projectionHash ?? null,
+      runtimeEvidence.materialPreview?.previewDiff ?? null,
+      runtimeEvidence.camera,
+      authoringProjection,
+      this.store.lightingProjection().frame,
+    );
   }
 
   private publishVoxelInstanceBounds(): void {
@@ -1364,28 +1526,231 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportReadout.set(viewport.readout());
   }
 
+  private currentManipulatorFrame(adapter: StudioViewportAdapterReadModel): RenderFrameDiff {
+    const mode = manipulatorModeForTool(adapter.tool.activeTool);
+    const target = this.store.selectedSceneTransformTarget();
+    if (mode === null || target === null || this.store.voxelAuthoringMode().mode === 'edit') {
+      return { ops: [] };
+    }
+    const drag = this.transformDragState;
+    return projectTransformManipulator({
+      active: drag?.drag.handle ?? null,
+      hovered: this.transformHoveredHandle,
+      mode,
+      orientation: this.store.transformManipulatorOrientation(),
+      transform: drag?.candidate.transform ?? target.transform,
+      visible: true,
+    });
+  }
+
+  private pointerPoint(event: PointerEvent): readonly [number, number] {
+    const rect = this.canvasElement?.getBoundingClientRect();
+    return rect === undefined
+      ? [0, 0]
+      : [event.clientX - rect.left, event.clientY - rect.top];
+  }
+
+  private pickTransformManipulator(event: PointerEvent): TransformManipulatorHandle | null {
+    const viewport = this.viewport;
+    if (viewport === null) return null;
+    const handles = this.currentManipulatorFrame(this.store.viewportAdapter()).ops.flatMap(op => (
+      op.op === 'create' ? [op.handle] : []
+    ));
+    if (handles.length === 0) return null;
+    const hint = viewport.pick({
+      point: this.pointerPoint(event),
+      filter: { channels: ['overlay'], handles, layers: ['debug'] },
+    }).hint;
+    return hint === null ? null : transformManipulatorHandleFromId(hint.handle);
+  }
+
+  private beginTransformDrag(event: PointerEvent, mode: TransformManipulatorMode): boolean {
+    const viewport = this.viewport;
+    const canvas = this.canvasElement;
+    const target = this.store.selectedSceneTransformTarget();
+    const handle = this.pickTransformManipulator(event);
+    if (
+      viewport === null
+      || canvas === null
+      || target === null
+      || handle === null
+      || handle.mode !== mode
+      || this.store.voxelAuthoringMode().mode === 'edit'
+    ) {
+      return false;
+    }
+    const drag = beginTransformManipulatorDrag({
+      camera: manipulatorCamera(viewport),
+      handle,
+      orientation: this.store.transformManipulatorOrientation(),
+      pointer: this.pointerPoint(event),
+      revision: target.revision,
+      snapping: {
+        ...DEFAULT_TRANSFORM_MANIPULATOR_SNAPPING,
+        enabled: this.store.transformManipulatorSnapping(),
+      },
+      source: target.transform,
+    });
+    this.transformDragState = {
+      pointerId: event.pointerId,
+      drag,
+      candidate: updateTransformManipulatorDrag(drag, manipulatorCamera(viewport), this.pointerPoint(event)),
+    };
+    this.transformHoveredHandle = handle;
+    canvas.setPointerCapture(event.pointerId);
+    canvas.style.cursor = 'grabbing';
+    this.renderOverlay();
+    return true;
+  }
+
+  private applyTransformPreview(candidate: TransformManipulatorCandidate): boolean {
+    const viewport = this.viewport;
+    const dragState = this.transformDragState;
+    if (viewport === null || dragState === null) return false;
+    const target = this.store.previewSelectedSceneObjectTransform(
+      candidate.revision,
+      candidate.transform,
+    );
+    if (target === null) return false;
+    const ops: RenderDiff[] = [];
+    if (target.renderableId !== null) {
+      const adapter = this.store.viewportAdapter();
+      const renderable = adapter.renderables.find(item => item.renderableId === target.renderableId);
+      if (renderable?.kind === 'voxel_grid') {
+        const projection = this.authoredVoxelPickIndex.projectionForInstance(target.objectId);
+        if (projection !== null) {
+          ops.push({
+            op: 'update',
+            handle: projection.handle,
+            transform: projectedPreviewTransform(
+              projection.transform,
+              dragState.drag.source,
+              candidate.transform,
+            ),
+            material: null,
+            visible: null,
+            metadata: null,
+          });
+        }
+      } else if (renderable !== undefined) {
+        const handle = renderableHandle(adapter, renderable.renderableId);
+        if (handle !== null) {
+          ops.push({
+            op: 'update',
+            handle,
+            transform: projectedPreviewTransform(
+              renderableTransform(renderable),
+              dragState.drag.source,
+              candidate.transform,
+            ),
+            material: null,
+            visible: null,
+            metadata: null,
+          });
+        }
+      }
+    }
+    ops.push(...lightingPreviewUpdates(target.lightFrame).ops);
+    const receipt = viewport.channels.authored.apply({ ops });
+    if (!receipt.applied) return false;
+    dragState.candidate = candidate;
+    this.renderOverlay();
+    return true;
+  }
+
+  private restoreAuthoritativeTransform(): void {
+    const viewport = this.viewport;
+    const target = this.store.selectedSceneTransformTarget();
+    if (viewport === null || target === null) return;
+    const ops: RenderDiff[] = [];
+    if (target.renderableId !== null) {
+      const adapter = this.store.viewportAdapter();
+      const renderable = adapter.renderables.find(item => item.renderableId === target.renderableId);
+      if (renderable?.kind === 'voxel_grid') {
+        const projection = this.authoredVoxelPickIndex.projectionForInstance(target.objectId);
+        if (projection !== null) {
+          ops.push({ op: 'update', handle: projection.handle, transform: projection.transform, material: null, visible: null, metadata: null });
+        }
+      } else if (renderable !== undefined) {
+        const handle = renderableHandle(adapter, renderable.renderableId);
+        if (handle !== null) {
+          ops.push({ op: 'update', handle, transform: renderableTransform(renderable), material: null, visible: null, metadata: null });
+        }
+      }
+    }
+    ops.push(...lightingPreviewUpdates(target.lightFrame).ops);
+    viewport.channels.authored.apply({ ops });
+    viewport.renderOnce();
+  }
+
+  private queueTransformPreview(event: PointerEvent): void {
+    this.pendingTransformPointer = {
+      point: this.pointerPoint(event),
+      fine: event.shiftKey,
+      snapping: event.ctrlKey
+        ? !this.store.transformManipulatorSnapping()
+        : this.store.transformManipulatorSnapping(),
+    };
+    if (this.transformPreviewFrameRequest !== null) return;
+    this.transformPreviewFrameRequest = requestAnimationFrame(() => {
+      this.transformPreviewFrameRequest = null;
+      this.flushTransformPreview();
+    });
+  }
+
+  private flushTransformPreview(): void {
+    const viewport = this.viewport;
+    const dragState = this.transformDragState;
+    const pending = this.pendingTransformPointer;
+    this.pendingTransformPointer = null;
+    if (viewport === null || dragState === null || pending === null) return;
+    const candidate = updateTransformManipulatorDrag(
+      dragState.drag,
+      manipulatorCamera(viewport),
+      pending.point,
+      { fine: pending.fine, snapping: pending.snapping },
+    );
+    if (!this.applyTransformPreview(candidate)) this.cancelTransformDrag();
+  }
+
+  private cancelTransformDrag(): void {
+    const dragState = this.transformDragState;
+    if (dragState === null) return;
+    cancelTransformManipulatorDrag(dragState.drag);
+    if (this.transformPreviewFrameRequest !== null) {
+      cancelAnimationFrame(this.transformPreviewFrameRequest);
+      this.transformPreviewFrameRequest = null;
+    }
+    this.pendingTransformPointer = null;
+    this.restoreAuthoritativeTransform();
+    this.transformDragState = null;
+    this.renderOverlay();
+    if (this.canvasElement !== null) {
+      this.canvasElement.style.cursor = cursorForTool(this.store.viewportTool().activeTool, false);
+    }
+  }
+
   private readonly handlePointerDown = (event: PointerEvent): void => {
     const canvas = this.canvasElement;
     if (canvas === null) {
       return;
     }
     const activeTool = this.store.viewportTool().activeTool;
-    const dragTool =
-      event.button === 2
-        ? 'orbit'
-        : activeTool === 'orbit'
-          || activeTool === 'pan'
-          || activeTool === 'move_object'
-          || activeTool === 'rotate_object'
-          ? activeTool
-          : null;
+    const mode = manipulatorModeForTool(activeTool);
+    if (event.button === 0 && mode !== null && this.beginTransformDrag(event, mode)) {
+      event.preventDefault();
+      return;
+    }
+    const dragTool = event.button === 2
+      ? 'orbit'
+      : activeTool === 'orbit' || activeTool === 'pan'
+        ? activeTool
+        : null;
     if (dragTool !== null) {
       event.preventDefault();
       this.dragState = {
         pointerId: event.pointerId,
         tool: dragTool,
-        startX: event.clientX,
-        startY: event.clientY,
         x: event.clientX,
         y: event.clientY,
       };
@@ -1516,6 +1881,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.store.viewportAdapter(),
       this.debugPick,
       this.voxelBrushOverlay,
+      this.currentManipulatorFrame(this.store.viewportAdapter()),
     ));
     viewport.renderOnce();
     this.viewportReadout.set(viewport.readout());
@@ -1531,6 +1897,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.store.viewportAdapter(),
       hint,
       this.voxelBrushOverlay,
+      this.currentManipulatorFrame(this.store.viewportAdapter()),
     ));
     viewport.renderOnce();
     if (this.debugPickTimer !== null) {
@@ -1542,6 +1909,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         this.store.viewportAdapter(),
         null,
         this.voxelBrushOverlay,
+        this.currentManipulatorFrame(this.store.viewportAdapter()),
       ));
       this.viewport?.renderOnce();
       this.viewportReadout.set(this.viewport?.readout() ?? null);
@@ -1550,6 +1918,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    const transformDrag = this.transformDragState;
+    if (transformDrag?.pointerId === event.pointerId) {
+      event.preventDefault();
+      this.queueTransformPreview(event);
+      return;
+    }
     const voxelStroke = this.voxelStrokeState;
     if (voxelStroke !== null && voxelStroke.pointerId === event.pointerId) {
       event.preventDefault();
@@ -1565,6 +1939,14 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     }
     const dragState = this.dragState;
     if (dragState === null || dragState.pointerId !== event.pointerId) {
+      const mode = manipulatorModeForTool(this.store.viewportTool().activeTool);
+      if (dragState === null && event.buttons === 0 && mode !== null) {
+        const hovered = this.pickTransformManipulator(event);
+        if (JSON.stringify(hovered) !== JSON.stringify(this.transformHoveredHandle)) {
+          this.transformHoveredHandle = hovered;
+          this.renderOverlay();
+        }
+      }
       if (
         dragState === null
         && event.buttons === 0
@@ -1604,6 +1986,36 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
     const canvas = this.canvasElement;
+    const transformDrag = this.transformDragState;
+    if (transformDrag?.pointerId === event.pointerId && canvas !== null) {
+      event.preventDefault();
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      if (this.transformPreviewFrameRequest !== null) {
+        cancelAnimationFrame(this.transformPreviewFrameRequest);
+        this.transformPreviewFrameRequest = null;
+      }
+      this.pendingTransformPointer = {
+        point: this.pointerPoint(event),
+        fine: event.shiftKey,
+        snapping: event.ctrlKey
+          ? !this.store.transformManipulatorSnapping()
+          : this.store.transformManipulatorSnapping(),
+      };
+      this.flushTransformPreview();
+      const settledDrag = this.transformDragState;
+      if (settledDrag === null) return;
+      const result = this.store.commitSelectedSceneObjectTransform(
+        settledDrag.candidate.revision,
+        settledDrag.candidate.transform,
+      );
+      if (result.accepted) this.syncCurrentViewport();
+      else this.restoreAuthoritativeTransform();
+      this.transformDragState = null;
+      this.transformHoveredHandle = null;
+      this.renderOverlay();
+      canvas.style.cursor = cursorForTool(this.store.viewportTool().activeTool, false);
+      return;
+    }
     const voxelStroke = this.voxelStrokeState;
     if (voxelStroke?.pointerId === event.pointerId && canvas !== null) {
       const target = this.selectAtPointer(event);
@@ -1620,25 +2032,6 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (canvas.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
     }
-    const totalDeltaX = event.clientX - dragState.startX;
-    const totalDeltaY = event.clientY - dragState.startY;
-    if (dragState.tool === 'move_object' && Math.hypot(totalDeltaX, totalDeltaY) >= 2) {
-      this.store.translateSelectedSceneObject([
-        totalDeltaX / 160,
-        -totalDeltaY / 160,
-        0,
-      ]);
-    } else if (dragState.tool === 'rotate_object' && Math.abs(totalDeltaX) >= 2) {
-      const radians = totalDeltaX / 180;
-      this.store.rotateSelectedSceneObject([
-        0,
-        Math.sin(radians / 2),
-        0,
-        Math.cos(radians / 2),
-      ]);
-    } else if (dragState.tool === 'move_object' || dragState.tool === 'rotate_object') {
-      this.selectAtPointer(event);
-    }
     this.dragState = null;
     canvas.style.cursor = cursorForTool(
       this.store.viewportTool().activeTool,
@@ -1651,6 +2044,17 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (canvas?.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     if (this.voxelStrokeState?.pointerId === event.pointerId) this.voxelStrokeState = null;
     if (this.dragState?.pointerId === event.pointerId) this.dragState = null;
+    if (this.transformDragState?.pointerId === event.pointerId) this.cancelTransformDrag();
+  };
+
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || this.transformDragState === null) return;
+    event.preventDefault();
+    const pointerId = this.transformDragState.pointerId;
+    if (this.canvasElement?.hasPointerCapture(pointerId)) {
+      this.canvasElement.releasePointerCapture(pointerId);
+    }
+    this.cancelTransformDrag();
   };
 
   private readonly handleWheel = (event: WheelEvent): void => {

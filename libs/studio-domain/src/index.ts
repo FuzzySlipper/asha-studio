@@ -94,7 +94,14 @@ export type StudioEntityProjectionDiagnosticCode =
   | 'selection_sync_mismatch'
   | 'stale_entity_list'
   | 'unsupported_private_entity_source';
-export type StudioViewportToolMode = 'select' | 'orbit' | 'pan' | 'move_object' | 'rotate_object' | 'frame';
+export type StudioViewportToolMode =
+  | 'select'
+  | 'orbit'
+  | 'pan'
+  | 'move_object'
+  | 'rotate_object'
+  | 'scale_object'
+  | 'frame';
 export type StudioAssetBrowserCategory =
   | 'all'
   | 'static_meshes'

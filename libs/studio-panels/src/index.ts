@@ -1384,6 +1384,38 @@ type ViewportToolbarTool = {
       <span class="active-pill" data-toolbar-readout="active-tool">
         {{ activeToolLabel() }}
       </span>
+      <div class="mode-buttons" aria-label="Transform gizmo settings">
+        <button
+          type="button"
+          data-transform-orientation="world"
+          [class.active]="store.transformManipulatorOrientation() === 'world'"
+          (click)="store.setTransformManipulatorOrientation('world')"
+        >World</button>
+        <button
+          type="button"
+          data-transform-orientation="local"
+          [class.active]="store.transformManipulatorOrientation() === 'local'"
+          (click)="store.setTransformManipulatorOrientation('local')"
+        >Local</button>
+        <button
+          type="button"
+          data-transform-snapping
+          [class.active]="store.transformManipulatorSnapping()"
+          (click)="store.setTransformManipulatorSnapping(!store.transformManipulatorSnapping())"
+        >Snap</button>
+        <button
+          type="button"
+          data-transform-history="undo"
+          [disabled]="!store.sceneTransformHistory().canUndo"
+          (click)="store.undoSceneTransformEdit()"
+        >Undo</button>
+        <button
+          type="button"
+          data-transform-history="redo"
+          [disabled]="!store.sceneTransformHistory().canRedo"
+          (click)="store.redoSceneTransformEdit()"
+        >Redo</button>
+      </div>
       <div class="mode-buttons" aria-label="Lighting preview mode">
         <button
           type="button"
@@ -1690,6 +1722,13 @@ export class StudioViewportToolbarPanelComponent {
       requiresTransformEditable: true,
     },
     {
+      id: 'scale_object',
+      icon: 'Z',
+      title: 'Scale object with axis or uniform handles',
+      backedTool: 'scale_object',
+      requiresTransformEditable: true,
+    },
+    {
       id: 'frame',
       icon: 'F',
       title: 'Frame selected renderable',
@@ -1728,6 +1767,7 @@ export class StudioViewportToolbarPanelComponent {
       pan: 'pan view',
       move_object: 'move object',
       rotate_object: 'rotate object',
+      scale_object: 'scale object',
       frame: 'frame',
     };
     return labels[this.store.viewportTool().activeTool];

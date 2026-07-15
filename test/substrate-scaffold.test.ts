@@ -3777,8 +3777,10 @@ test('viewport toolbar exposes compact backed camera and object transform tools'
   assert.equal(panelSource.includes("id: 'orbit'"), true);
   assert.equal(panelSource.includes("id: 'move_object'"), true);
   assert.equal(panelSource.includes("id: 'rotate_object'"), true);
+  assert.equal(panelSource.includes("id: 'scale_object'"), true);
   assert.equal(panelSource.includes("backedTool: 'move_object'"), true);
   assert.equal(panelSource.includes("backedTool: 'rotate_object'"), true);
+  assert.equal(panelSource.includes("backedTool: 'scale_object'"), true);
   assert.equal(panelSource.includes('selectedSceneObjectTransformEditable'), true);
   assert.equal(panelSource.includes('data-toolbar-readout="grid"'), true);
   assert.equal(panelSource.includes('data-toolbar-readout="shading"'), true);
