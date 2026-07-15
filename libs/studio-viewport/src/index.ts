@@ -119,6 +119,10 @@ class AuthoredVoxelProjectionPickIndex {
       ?? null;
   }
 
+  voxelChunkHandles(): readonly RenderHandle[] {
+    return [...this.rootByChild.keys()].map(handle => renderHandle(handle));
+  }
+
   clear(): void {
     this.instanceByRoot.clear();
     this.rootByChild.clear();
@@ -315,6 +319,7 @@ function renderableNode(
 function buildViewportProjectionFrame(
   adapter: StudioViewportAdapterReadModel,
   materialPreviewFrame: RenderFrameDiff | null,
+  lightingFrame: RenderFrameDiff,
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
   let handle = 1_000_001;
@@ -341,6 +346,7 @@ function buildViewportProjectionFrame(
   if (materialPreviewFrame !== null) {
     ops.push(...remapRenderFrameHandles(materialPreviewFrame, 2_000_000).ops);
   }
+  ops.push(...lightingFrame.ops);
   return { ops };
 }
 
@@ -353,6 +359,7 @@ function remapRenderFrameHandles(frame: RenderFrameDiff, offset: number): Render
         case 'createStaticMeshInstance':
         case 'createAnimatedMeshInstance':
         case 'createSprite':
+        case 'createLight':
           return { ...op, handle: remap(op.handle), parent: op.parent === null ? null : remap(op.parent) };
         case 'update':
         case 'destroy':
@@ -360,6 +367,7 @@ function remapRenderFrameHandles(frame: RenderFrameDiff, offset: number): Render
         case 'setMaterialInstanceParameters':
         case 'setAnimatedMeshPlayback':
         case 'updateSprite':
+        case 'updateLight':
           return { ...op, handle: remap(op.handle) };
         default:
           return op;
@@ -374,9 +382,46 @@ function createdRenderHandles(frame: RenderFrameDiff): readonly RenderHandle[] {
       || op.op === 'createStaticMeshInstance'
       || op.op === 'createAnimatedMeshInstance'
       || op.op === 'createSprite'
+      || op.op === 'createLight'
       ? [op.handle]
       : []
   ));
+}
+
+function styleVoxelProjectionFrame(
+  frame: RenderFrameDiff,
+  wireframe: boolean,
+): RenderFrameDiff {
+  return {
+    ops: frame.ops.map(op => {
+      if (op.op !== 'create' || op.node.metadata.label?.startsWith('chunk ') !== true) {
+        return op;
+      }
+      return {
+        ...op,
+        node: {
+          ...op.node,
+          material: { ...op.node.material, wireframe },
+        },
+      };
+    }),
+  };
+}
+
+function voxelWireframeUpdates(
+  handles: readonly RenderHandle[],
+  wireframe: boolean,
+): RenderFrameDiff {
+  return {
+    ops: handles.map(handle => ({
+      op: 'update' as const,
+      handle,
+      transform: null,
+      material: { color: [1, 1, 1, 1], wireframe },
+      visible: null,
+      metadata: null,
+    })),
+  };
 }
 
 function replaceAuthoredBaseFrame(
@@ -913,6 +958,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const adapter = this.store.viewportAdapter();
     const runtimeProjection = this.store.runtimeViewportProjection();
     const authoringProjection = this.store.workspaceAuthoringProjection();
+    const lightingProjection = this.store.lightingProjection();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
       adapter,
@@ -921,6 +967,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
       authoringProjection,
+      lightingProjection.frame,
     );
   });
 
@@ -957,6 +1004,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.resizeViewport();
     const runtimeProjection = this.store.runtimeViewportProjection();
     const authoringProjection = this.store.workspaceAuthoringProjection();
+    const lightingProjection = this.store.lightingProjection();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
       this.store.viewportAdapter(),
@@ -965,6 +1013,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
       authoringProjection,
+      lightingProjection.frame,
     );
   }
 
@@ -1059,6 +1108,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     materialPreviewFrame: RenderFrameDiff | null,
     runtimeCamera: CameraSnapshot | null,
     authoringProjection: WorkspaceAuthoringProjectionSummary | null,
+    lightingFrame: RenderFrameDiff,
   ): void {
     const viewport = this.viewport;
     const canvas = this.canvasElement;
@@ -1077,7 +1127,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       adapter.renderSettings.renderSettingsHash,
       materialPreviewFrame === null ? 'no-material-preview' : JSON.stringify(materialPreviewFrame),
     ].join(':');
-    const baseFrame = buildViewportProjectionFrame(adapter, materialPreviewFrame);
+    const baseFrame = buildViewportProjectionFrame(adapter, materialPreviewFrame, lightingFrame);
     const projectionKey = authoringProjection === null
       ? null
       : [
@@ -1096,10 +1146,14 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       && projectionChanged
       && authoringProjection.delivery === 'replace'
     ) {
-      this.authoredVoxelPickIndex.replace(authoringProjection.frame);
+      const styledProjection = styleVoxelProjectionFrame(
+        authoringProjection.frame,
+        adapter.renderSettings.wireframeEnabled,
+      );
+      this.authoredVoxelPickIndex.replace(styledProjection);
       this.publishVoxelInstanceBounds();
       viewport.channels.authored.replace({
-        ops: [...baseFrame.ops, ...authoringProjection.frame.ops],
+        ops: [...baseFrame.ops, ...styledProjection.ops],
       });
       this.authoredBaseHandles = createdRenderHandles(baseFrame);
       this.renderedSceneKey = sceneKey;
@@ -1122,11 +1176,21 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         }
         this.authoredBaseHandles = nextBaseHandles;
         this.renderedSceneKey = sceneKey;
+        if (authoringProjection !== null) {
+          viewport.channels.authored.apply(voxelWireframeUpdates(
+            this.authoredVoxelPickIndex.voxelChunkHandles(),
+            adapter.renderSettings.wireframeEnabled,
+          ));
+        }
       }
       if (authoringProjection !== null && projectionChanged) {
-        this.authoredVoxelPickIndex.apply(authoringProjection.frame);
+        const styledProjection = styleVoxelProjectionFrame(
+          authoringProjection.frame,
+          adapter.renderSettings.wireframeEnabled,
+        );
+        this.authoredVoxelPickIndex.apply(styledProjection);
         this.publishVoxelInstanceBounds();
-        viewport.channels.authored.apply(authoringProjection.frame);
+        viewport.channels.authored.apply(styledProjection);
         this.renderedAuthoringProjectionKey = projectionKey;
       }
     }

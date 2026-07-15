@@ -7,6 +7,7 @@ import {
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
+  buildStudioLightingProjection,
   buildStudioAshaDemoProductPathReadModel,
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
@@ -47,6 +48,9 @@ import {
   setHierarchyExpansionReadModel,
   studioCatalogAuthoringBaseHash,
   updateStudioRenderSetting,
+  updateStudioLightingMode,
+  proposeStudioLightAddition,
+  proposeStudioLightUpdate,
   zoomStudioViewportCamera,
   type StudioAssetBrowserCategory,
   type StudioApplicationMenu,
@@ -71,6 +75,9 @@ import {
   type StudioPreferencesReadModel,
   type StudioRenderSettingsReadModel,
   type StudioRenderSettingKey,
+  type StudioLightingMode,
+  type StudioLightingProjectionReadModel,
+  type StudioAuthoredLightKind,
   type StudioViewportCameraControlDelta,
   type StudioViewportAdapterReadModel,
   type StudioViewportCameraReadModel,
@@ -99,6 +106,8 @@ import {
   type RenderHandle,
   type SceneObjectCommandResult,
   type SceneObjectSnapshot,
+  type SceneLight,
+  type SceneNodeRecord,
   type VoxelCommand,
   type VoxelConversionEvidenceRef,
   type VoxelConversionFitPolicy,
@@ -4968,6 +4977,10 @@ export class StudioPreferencesStore {
   setRenderSetting(key: StudioRenderSettingKey, value: boolean): void {
     this.preferencesState.set(updateStudioRenderSetting(this.preferencesState(), key, value));
   }
+
+  setLightingMode(mode: StudioLightingMode): void {
+    this.preferencesState.set(updateStudioLightingMode(this.preferencesState(), mode));
+  }
 }
 
 export interface StudioVoxelAuthoringModeReadModel {
@@ -4993,6 +5006,17 @@ const INITIAL_VOXEL_AUTHORING_MODE: StudioVoxelAuthoringModeReadModel = {
   editAnchor: null,
   message: 'Object mode edits SceneDocument placement. Select a voxel instance to enter Voxel Edit mode.',
 };
+
+interface StudioSceneLightHistoryEntry {
+  readonly before: FlatSceneDocument;
+  readonly after: FlatSceneDocument;
+  readonly label: string;
+}
+
+interface StudioSceneLightHistory {
+  readonly entries: readonly StudioSceneLightHistoryEntry[];
+  readonly cursor: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class StudioWorkspaceStore {
@@ -5053,6 +5077,7 @@ export class StudioWorkspaceStore {
   private readonly voxelAuthoringModeState = signal<StudioVoxelAuthoringModeReadModel>(
     INITIAL_VOXEL_AUTHORING_MODE,
   );
+  private readonly sceneLightHistoryState = signal<StudioSceneLightHistory>({ entries: [], cursor: 0 });
   private readonly workspaceAuthoringMessageState = signal('Starting workspace authoring authority.');
   private readonly runtimeViewportEvidenceState = signal<StudioRuntimeViewportEvidence>(
     MISSING_RUNTIME_VIEWPORT_EVIDENCE,
@@ -5257,6 +5282,35 @@ export class StudioWorkspaceStore {
   readonly workspaceAuthoringState = this.workspaceAuthoringStateSummaryState.asReadonly();
   readonly workspaceAuthoringProjection = this.workspaceAuthoringProjectionState.asReadonly();
   readonly voxelAuthoringMode = this.voxelAuthoringModeState.asReadonly();
+  readonly lightingProjection = computed<StudioLightingProjectionReadModel>(() =>
+    buildStudioLightingProjection(
+      this.workspaceState().flatSceneDocument,
+      this.renderSettings().lightingMode,
+    ),
+  );
+  readonly selectedAuthoredLight = computed<(SceneNodeRecord & {
+    readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'light' }>;
+  }) | null>(() => {
+    const objectId = this.selectedEntity()?.sceneObjectId ?? null;
+    const nodeId = objectId?.startsWith('scene-node:') === true
+      ? Number.parseInt(objectId.slice('scene-node:'.length), 10)
+      : Number.NaN;
+    const node = this.workspaceState().flatSceneDocument.nodes.find(
+      node => (node.id as number) === nodeId && node.kind.kind === 'light',
+    );
+    return node?.kind.kind === 'light'
+      ? node as SceneNodeRecord & { readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'light' }> }
+      : null;
+  });
+  readonly sceneLightHistory = computed(() => {
+    const history = this.sceneLightHistoryState();
+    return {
+      canUndo: history.cursor > 0,
+      canRedo: history.cursor < history.entries.length,
+      undoLabel: history.cursor > 0 ? history.entries[history.cursor - 1]?.label ?? null : null,
+      redoLabel: history.cursor < history.entries.length ? history.entries[history.cursor]?.label ?? null : null,
+    };
+  });
   readonly workspaceAuthoringMessage = this.workspaceAuthoringMessageState.asReadonly();
   readonly catalogWorkflowMessage = this.catalogWorkflowMessageState.asReadonly();
   readonly assetInventory = this.assetInventoryState.asReadonly();
@@ -9631,6 +9685,7 @@ export class StudioWorkspaceStore {
       }
       const workspace = applyCanonicalSceneDocumentReadModel(cleared, result.document, null);
       this.workspaceState.set(workspace);
+      this.sceneLightHistoryState.set({ entries: [], cursor: 0 });
       this.activeSceneFilePathState.set(null);
       this.activeSceneFileHashState.set(null);
       this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));
@@ -9963,6 +10018,7 @@ export class StudioWorkspaceStore {
         absolutePath,
       );
       this.workspaceState.set(workspace);
+      this.sceneLightHistoryState.set({ entries: [], cursor: 0 });
       this.activeSceneFilePathState.set(absolutePath);
       this.activeSceneFileHashState.set(payload.sha256);
       this.cleanSceneDocumentHashState.set(stableBrowserHash(JSON.stringify(result.document)));
@@ -10303,6 +10359,173 @@ export class StudioWorkspaceStore {
     });
     this.workspaceState.set(recorded.workspace);
     this.menuMessageState.set('View preference updated.');
+  }
+
+  setLightingMode(mode: StudioLightingMode): void {
+    this.preferencesStore.setLightingMode(mode);
+    const label = mode === 'work_light' ? 'Editor Work Lights' : 'Authored Lights';
+    const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
+      commandId: 'preferences.set_render_setting',
+      label: 'Set Lighting Preview',
+      inputSummary: `lightingMode=${mode}`,
+      outputSummary: `${label} preview enabled without changing the SceneDocument.`,
+    });
+    this.workspaceState.set(recorded.workspace);
+    this.menuMessageState.set(`${label} preview enabled.`);
+  }
+
+  async addAuthoredLight(kind: StudioAuthoredLightKind): Promise<void> {
+    const before = this.workspaceState().flatSceneDocument;
+    const proposal = proposeStudioLightAddition(before, kind);
+    await this.commitValidatedLightDocument(
+      before,
+      proposal.document,
+      `Add ${kind} light`,
+      proposal.nodeId as number,
+      true,
+    );
+  }
+
+  setSelectedLightColorAxis(axis: number, value: number): void {
+    if (axis < 0 || axis > 2 || !Number.isFinite(value)) return;
+    void this.updateSelectedLight(`Change light color`, light => ({
+      ...light,
+      color: light.color.map((entry, index) => index === axis ? value : entry) as [number, number, number],
+    }));
+  }
+
+  setSelectedLightIntensity(value: number): void {
+    if (!Number.isFinite(value)) return;
+    void this.updateSelectedLight('Change light intensity', light => ({ ...light, intensity: value }));
+  }
+
+  setSelectedLightEnabled(enabled: boolean): void {
+    void this.updateSelectedLight(enabled ? 'Enable light' : 'Disable light', light => ({ ...light, enabled }));
+  }
+
+  setSelectedLightShadowIntent(requested: boolean): void {
+    void this.updateSelectedLight('Change light shadow intent', light => ({
+      ...light,
+      shadowIntent: requested ? 'requested' : 'disabled',
+    }));
+  }
+
+  setSelectedLightRange(value: number | null): void {
+    if (value !== null && !Number.isFinite(value)) return;
+    void this.updateSelectedLight('Change light range', light => (
+      light.kind === 'point' || light.kind === 'spot' ? { ...light, range: value } : light
+    ));
+  }
+
+  setSelectedLightDecay(value: number): void {
+    if (!Number.isFinite(value)) return;
+    void this.updateSelectedLight('Change light decay', light => (
+      light.kind === 'point' || light.kind === 'spot' ? { ...light, decay: value } : light
+    ));
+  }
+
+  setSelectedSpotCone(value: number): void {
+    if (!Number.isFinite(value)) return;
+    void this.updateSelectedLight('Change spot cone', light => (
+      light.kind === 'spot' ? { ...light, outerAngleRadians: value } : light
+    ));
+  }
+
+  setSelectedSpotPenumbra(value: number): void {
+    if (!Number.isFinite(value)) return;
+    void this.updateSelectedLight('Change spot penumbra', light => (
+      light.kind === 'spot' ? { ...light, penumbra: value } : light
+    ));
+  }
+
+  undoSceneLightEdit(): void {
+    const history = this.sceneLightHistoryState();
+    const entry = history.cursor > 0 ? history.entries[history.cursor - 1] : undefined;
+    if (entry === undefined) return;
+    void this.commitValidatedLightDocument(
+      this.workspaceState().flatSceneDocument,
+      entry.before,
+      `Undo ${entry.label}`,
+      null,
+      false,
+    ).then(accepted => {
+      if (accepted) this.sceneLightHistoryState.set({ ...history, cursor: history.cursor - 1 });
+    });
+  }
+
+  redoSceneLightEdit(): void {
+    const history = this.sceneLightHistoryState();
+    const entry = history.cursor < history.entries.length ? history.entries[history.cursor] : undefined;
+    if (entry === undefined) return;
+    void this.commitValidatedLightDocument(
+      this.workspaceState().flatSceneDocument,
+      entry.after,
+      `Redo ${entry.label}`,
+      null,
+      false,
+    ).then(accepted => {
+      if (accepted) this.sceneLightHistoryState.set({ ...history, cursor: history.cursor + 1 });
+    });
+  }
+
+  private async updateSelectedLight(
+    label: string,
+    update: (light: SceneLight) => SceneLight,
+  ): Promise<void> {
+    const node = this.selectedAuthoredLight();
+    if (node === null || node.kind.kind !== 'light') {
+      this.menuMessageState.set('Select an authored light before editing light settings.');
+      return;
+    }
+    const before = this.workspaceState().flatSceneDocument;
+    const draft = proposeStudioLightUpdate(before, node.id, update(node.kind.sceneLight));
+    await this.commitValidatedLightDocument(before, draft, label, node.id as number, true);
+  }
+
+  private async commitValidatedLightDocument(
+    before: FlatSceneDocument,
+    draft: FlatSceneDocument,
+    label: string,
+    selectNodeId: number | null,
+    recordHistory: boolean,
+  ): Promise<boolean> {
+    try {
+      const bridge = await this.sceneDocumentCodecBridge();
+      const result = bridge.encodeSceneDocument({ document: draft });
+      if (!result.accepted || result.document === null) {
+        this.menuMessageState.set(`Light edit rejected by Rust: ${this.sceneCodecDiagnostic(result)}`);
+        return false;
+      }
+      let workspace = applyCanonicalSceneDocumentReadModel(
+        this.workspaceState(),
+        result.document,
+        this.activeSceneFilePathState(),
+      );
+      if (selectNodeId !== null) {
+        workspace = applySelectedEntityReadModel(workspace, `scene-node:${selectNodeId}`);
+      }
+      this.workspaceState.set(workspace);
+      if (selectNodeId !== null) {
+        this.viewportCameraState.set(frameStudioViewportCameraOnRenderable(
+          workspace.scene,
+          workspace.scene.selectedRenderableId,
+        ));
+      }
+      this.refreshSceneVoxelProjection();
+      if (recordHistory) {
+        const history = this.sceneLightHistoryState();
+        const entries = [
+          ...history.entries.slice(0, history.cursor),
+          { before, after: result.document, label },
+        ];
+        this.sceneLightHistoryState.set({ entries, cursor: entries.length });
+      }
+      this.menuMessageState.set(`${label}.`);
+      return true;
+    } catch (error) {
+      this.menuMessageState.set(`Light edit failed without changing the scene: ${errorMessage(error)}`);
+      return false;
+    }
   }
 
   private async readProjectText(path: string): Promise<{ readonly path: string; readonly text: string; readonly sha256: string }> {

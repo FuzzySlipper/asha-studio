@@ -44,6 +44,9 @@ export * from './host-file-dialog-focus';
           <button type="button" [class.is-active]="store.activeMenu() === 'edit'" (click)="toggleMenu('edit')">
             Edit
           </button>
+          <button type="button" [class.is-active]="store.activeMenu() === 'scene'" (click)="toggleMenu('scene')">
+            Scene
+          </button>
           <button type="button" [class.is-active]="store.activeMenu() === 'view'" (click)="toggleMenu('view')">
             View
           </button>
@@ -111,8 +114,22 @@ export * from './host-file-dialog-focus';
 
         @if (store.activeMenu() === 'edit') {
           <section class="menu-popover menu-popover--edit" aria-label="Edit menu">
-            <button type="button" disabled>Undo</button>
-            <button type="button" disabled>Redo</button>
+            <button type="button" [disabled]="!store.sceneLightHistory().canUndo" (click)="store.undoSceneLightEdit()">
+              Undo {{ store.sceneLightHistory().undoLabel ?? '' }}
+            </button>
+            <button type="button" [disabled]="!store.sceneLightHistory().canRedo" (click)="store.redoSceneLightEdit()">
+              Redo {{ store.sceneLightHistory().redoLabel ?? '' }}
+            </button>
+          </section>
+        }
+
+        @if (store.activeMenu() === 'scene') {
+          <section class="menu-popover menu-popover--scene" aria-label="Scene menu">
+            <strong>Add Light</strong>
+            <button type="button" data-add-light="ambient" (click)="store.addAuthoredLight('ambient')">Ambient Light</button>
+            <button type="button" data-add-light="directional" (click)="store.addAuthoredLight('directional')">Directional Light</button>
+            <button type="button" data-add-light="point" (click)="store.addAuthoredLight('point')">Point Light</button>
+            <button type="button" data-add-light="spot" (click)="store.addAuthoredLight('spot')">Spot Light</button>
           </section>
         }
 
@@ -158,6 +175,27 @@ export * from './host-file-dialog-focus';
               />
               Raycast Hit Debug
             </label>
+            <fieldset class="menu-popover__fieldset">
+              <legend>Lighting Preview</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="view-lighting-mode"
+                  [checked]="store.renderSettings().lightingMode === 'work_light'"
+                  (change)="store.setLightingMode('work_light')"
+                />
+                Editor Work Lights
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="view-lighting-mode"
+                  [checked]="store.renderSettings().lightingMode === 'authored_lights'"
+                  (change)="store.setLightingMode('authored_lights')"
+                />
+                Authored Lights
+              </label>
+            </fieldset>
           </section>
         }
 
@@ -969,7 +1007,7 @@ export class StudioShellComponent {
   private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private fileDialogReturnTarget: HTMLElement | null = null;
 
-  toggleMenu(menu: 'file' | 'edit' | 'view' | 'project' | 'runtime' | 'voxel' | 'preferences'): void {
+  toggleMenu(menu: 'file' | 'edit' | 'scene' | 'view' | 'project' | 'runtime' | 'voxel' | 'preferences'): void {
     this.store.toggleActiveMenu(menu);
   }
 

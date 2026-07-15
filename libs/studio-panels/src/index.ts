@@ -1384,6 +1384,20 @@ type ViewportToolbarTool = {
       <span class="active-pill" data-toolbar-readout="active-tool">
         {{ activeToolLabel() }}
       </span>
+      <div class="mode-buttons" aria-label="Lighting preview mode">
+        <button
+          type="button"
+          data-lighting-mode="work_light"
+          [class.active]="store.renderSettings().lightingMode === 'work_light'"
+          (click)="store.setLightingMode('work_light')"
+        >Work Light</button>
+        <button
+          type="button"
+          data-lighting-mode="authored_lights"
+          [class.active]="store.renderSettings().lightingMode === 'authored_lights'"
+          (click)="store.setLightingMode('authored_lights')"
+        >Authored</button>
+      </div>
       <strong class="viewport-title">
         Viewport - {{ store.viewportAdapter().selectedRenderableId ?? store.viewportAdapter().sceneId }}
       </strong>
@@ -1398,6 +1412,10 @@ type ViewportToolbarTool = {
         <span data-toolbar-readout="shading">
           shading: {{ store.viewportAdapter().renderSettings.wireframeEnabled ? 'wire' : 'solid' }}
         </span>
+        <span data-toolbar-readout="lighting">
+          lighting: {{ store.renderSettings().lightingMode === 'work_light' ? 'work' : 'authored' }}
+          · {{ store.lightingProjection().activeLightCount }} active
+        </span>
       </div>
     </section>
   `,
@@ -1410,7 +1428,7 @@ type ViewportToolbarTool = {
         box-sizing: border-box;
         display: grid;
         gap: 0.55rem;
-        grid-template-columns: auto auto auto minmax(9rem, 1fr) auto;
+        grid-template-columns: auto auto auto auto minmax(9rem, 1fr) auto;
         height: 100%;
         min-width: 0;
         overflow: hidden;
@@ -2119,6 +2137,107 @@ export class StudioHierarchyPanelComponent {
               <dd>{{ store.readbackMarker() }}</dd>
             </dl>
           </section>
+          @if (store.selectedAuthoredLight(); as lightNode) {
+            <section class="field-section" data-inspector-section="authored-light">
+              <h2>{{ lightNode.kind.sceneLight.kind }} Light</h2>
+              <label>
+                <input
+                  type="checkbox"
+                  [checked]="lightNode.kind.sceneLight.enabled"
+                  (change)="store.setSelectedLightEnabled($any($event.target).checked)"
+                />
+                Enabled
+              </label>
+              <strong>Linear RGB Color</strong>
+              @for (axis of [0, 1, 2]; track axis) {
+                <label>
+                  {{ ['R', 'G', 'B'][axis] }}
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    [value]="lightNode.kind.sceneLight.color[axis]"
+                    [attr.data-light-color-axis]="axis"
+                    (change)="store.setSelectedLightColorAxis(axis, $any($event.target).valueAsNumber)"
+                  />
+                </label>
+              }
+              <label>
+                Intensity
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  data-light-field="intensity"
+                  [value]="lightNode.kind.sceneLight.intensity"
+                  (change)="store.setSelectedLightIntensity($any($event.target).valueAsNumber)"
+                />
+              </label>
+              @if (lightNode.kind.sceneLight.kind === 'point' || lightNode.kind.sceneLight.kind === 'spot') {
+                <label>
+                  Range (0 for unlimited)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    data-light-field="range"
+                    [value]="lightNode.kind.sceneLight.range ?? 0"
+                    (change)="store.setSelectedLightRange($any($event.target).valueAsNumber === 0 ? null : $any($event.target).valueAsNumber)"
+                  />
+                </label>
+                <label>
+                  Decay
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    data-light-field="decay"
+                    [value]="lightNode.kind.sceneLight.decay"
+                    (change)="store.setSelectedLightDecay($any($event.target).valueAsNumber)"
+                  />
+                </label>
+              }
+              @if (lightNode.kind.sceneLight.kind === 'spot') {
+                <label>
+                  Cone (radians)
+                  <input
+                    type="number"
+                    min="0.01"
+                    max="1.56"
+                    step="0.05"
+                    data-light-field="outer-angle"
+                    [value]="lightNode.kind.sceneLight.outerAngleRadians"
+                    (change)="store.setSelectedSpotCone($any($event.target).valueAsNumber)"
+                  />
+                </label>
+                <label>
+                  Penumbra
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    data-light-field="penumbra"
+                    [value]="lightNode.kind.sceneLight.penumbra"
+                    (change)="store.setSelectedSpotPenumbra($any($event.target).valueAsNumber)"
+                  />
+                </label>
+              }
+              <label>
+                <input
+                  type="checkbox"
+                  [checked]="lightNode.kind.sceneLight.shadowIntent === 'requested'"
+                  (change)="store.setSelectedLightShadowIntent($any($event.target).checked)"
+                />
+                Request shadows
+              </label>
+              <small data-light-shadow-capability>
+                Shadow requests are retained. The renderer reports active or degraded support; Studio does not fake availability.
+              </small>
+              <small>Directional and spot lights point along local −Z from the stored scene transform.</small>
+            </section>
+          }
         </div>
       } @else {
         <p class="empty-state">No selected renderable.</p>

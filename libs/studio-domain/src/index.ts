@@ -62,6 +62,9 @@ import type {
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
 } from '@asha/runtime-session';
+import type { StudioLightingMode } from './studio-lighting.js';
+
+export * from './studio-lighting.js';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
@@ -110,6 +113,7 @@ export type StudioCommandProposalActionId = 'set_voxel_reference';
 export type StudioApplicationMenu =
   | 'file'
   | 'edit'
+  | 'scene'
   | 'view'
   | 'project'
   | 'runtime'
@@ -2016,6 +2020,7 @@ export interface StudioRenderSettingsReadModel {
   readonly showPreviewGhosts: boolean;
   readonly showReadbackOverlay: boolean;
   readonly showRaycastHitDebug: boolean;
+  readonly lightingMode: StudioLightingMode;
   readonly renderSettingsHash: string;
 }
 
@@ -6842,6 +6847,7 @@ export function buildStudioRenderSettingsReadModel(options: {
   readonly showPreviewGhosts?: boolean;
   readonly showReadbackOverlay?: boolean;
   readonly showRaycastHitDebug?: boolean;
+  readonly lightingMode?: StudioLightingMode;
 } = {}): StudioRenderSettingsReadModel {
   const render = {
     wireframeEnabled: options.wireframeEnabled ?? false,
@@ -6849,6 +6855,7 @@ export function buildStudioRenderSettingsReadModel(options: {
     showPreviewGhosts: options.showPreviewGhosts ?? true,
     showReadbackOverlay: options.showReadbackOverlay ?? false,
     showRaycastHitDebug: options.showRaycastHitDebug ?? false,
+    lightingMode: options.lightingMode ?? 'work_light',
   };
   return {
     ...render,
@@ -6885,8 +6892,18 @@ export function updateStudioRenderSetting(
       showPreviewGhosts: preferences.render.showPreviewGhosts,
       showReadbackOverlay: preferences.render.showReadbackOverlay,
       showRaycastHitDebug: preferences.render.showRaycastHitDebug,
+      lightingMode: preferences.render.lightingMode,
       [key]: value,
     },
+  });
+}
+
+export function updateStudioLightingMode(
+  preferences: StudioPreferencesReadModel,
+  lightingMode: StudioLightingMode,
+): StudioPreferencesReadModel {
+  return buildStudioPreferencesReadModel({
+    render: { ...preferences.render, lightingMode },
   });
 }
 
