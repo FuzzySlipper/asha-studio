@@ -27,7 +27,6 @@ import {
   mountAshaRendererEditorViewport,
   resolveAshaStoredEditorCamera,
 } from '@asha/renderer-host';
-import type { WorkspaceAuthoringProjectionSummary } from '@asha/runtime-session';
 import type {
   StudioBounds,
   StudioEntitySourceState,
@@ -39,7 +38,10 @@ import type {
   StudioViewportToolMode,
 } from '@asha-studio/domain';
 import { buildStudioViewportHitReadModel } from '@asha-studio/domain';
-import { StudioWorkspaceStore } from '@asha-studio/store';
+import {
+  StudioWorkspaceStore,
+  type StudioWorkspaceProjectionDelivery,
+} from '@asha-studio/store';
 import { resolveStudioViewportPickRoute } from './viewport-pick-routing.js';
 
 export {
@@ -1183,7 +1185,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     runtimeKey: string | null,
     materialPreviewFrame: RenderFrameDiff | null,
     runtimeCamera: CameraSnapshot | null,
-    authoringProjection: WorkspaceAuthoringProjectionSummary | null,
+    authoringProjection: StudioWorkspaceProjectionDelivery | null,
     lightingFrame: RenderFrameDiff,
   ): void {
     const viewport = this.viewport;
@@ -1226,14 +1228,27 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         authoringProjection.frame,
         adapter.renderSettings.wireframeEnabled,
       );
-      this.authoredVoxelPickIndex.replace(styledProjection);
-      this.publishVoxelInstanceBounds();
-      viewport.channels.authored.replace({
+      const startedAtMs = performance.now();
+      const receipt = viewport.channels.authored.replace({
         ops: [...baseFrame.ops, ...styledProjection.ops],
       });
-      this.authoredBaseHandles = createdRenderHandles(baseFrame);
-      this.renderedSceneKey = sceneKey;
-      this.renderedAuthoringProjectionKey = projectionKey;
+      if (receipt.applied) {
+        this.authoredVoxelPickIndex.replace(styledProjection);
+        this.publishVoxelInstanceBounds();
+        this.authoredBaseHandles = createdRenderHandles(baseFrame);
+        this.renderedSceneKey = sceneKey;
+        this.renderedAuthoringProjectionKey = projectionKey;
+        this.store.recordWorkspaceAuthoringProjectionDelivery({
+          channelReplaced: true,
+          projectionHash: authoringProjection.projectionHash,
+          recovered: false,
+          renderApplyMs: performance.now() - startedAtMs,
+        });
+      } else {
+        this.store.reportWorkspaceAuthoringProjectionFailure(
+          receipt.diagnostics[0]?.message ?? 'authored replacement frame rejected',
+        );
+      }
     } else {
       if (authoringProjection === null && this.renderedAuthoringProjectionKey !== null) {
         this.authoredVoxelPickIndex.clear();
@@ -1264,10 +1279,46 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
           authoringProjection.frame,
           adapter.renderSettings.wireframeEnabled,
         );
-        this.authoredVoxelPickIndex.apply(styledProjection);
-        this.publishVoxelInstanceBounds();
-        viewport.channels.authored.apply(styledProjection);
-        this.renderedAuthoringProjectionKey = projectionKey;
+        const startedAtMs = performance.now();
+        const receipt = viewport.channels.authored.apply(styledProjection);
+        if (receipt.applied) {
+          this.authoredVoxelPickIndex.apply(styledProjection);
+          this.publishVoxelInstanceBounds();
+          this.renderedAuthoringProjectionKey = projectionKey;
+          this.store.recordWorkspaceAuthoringProjectionDelivery({
+            channelReplaced: false,
+            projectionHash: authoringProjection.projectionHash,
+            recovered: false,
+            renderApplyMs: performance.now() - startedAtMs,
+          });
+        } else {
+          const recoveryProjection = styleVoxelProjectionFrame(
+            authoringProjection.recoveryFrame,
+            adapter.renderSettings.wireframeEnabled,
+          );
+          const recoveryReceipt = viewport.channels.authored.replace({
+            ops: [...baseFrame.ops, ...recoveryProjection.ops],
+          });
+          if (recoveryReceipt.applied) {
+            this.authoredVoxelPickIndex.replace(recoveryProjection);
+            this.publishVoxelInstanceBounds();
+            this.authoredBaseHandles = createdRenderHandles(baseFrame);
+            this.renderedSceneKey = sceneKey;
+            this.renderedAuthoringProjectionKey = projectionKey;
+            this.store.recordWorkspaceAuthoringProjectionDelivery({
+              channelReplaced: true,
+              projectionHash: authoringProjection.projectionHash,
+              recovered: true,
+              renderApplyMs: performance.now() - startedAtMs,
+            });
+          } else {
+            this.store.reportWorkspaceAuthoringProjectionFailure(
+              recoveryReceipt.diagnostics[0]?.message
+                ?? receipt.diagnostics[0]?.message
+                ?? 'authored incremental and recovery frames rejected',
+            );
+          }
+        }
       }
     }
     if (sceneChanged) {

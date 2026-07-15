@@ -174,6 +174,16 @@ import {
   type VoxelSelectionSnapshot,
 } from '@asha/contracts';
 import {
+  retainStudioWorkspaceProjection,
+  type StudioWorkspaceProjectionDelivery,
+} from './workspace-projection-delivery.js';
+import {
+  appendStudioWorkspaceProjectionSample,
+  buildStudioWorkspaceProjectionPerformanceReadModel,
+  type StudioWorkspaceProjectionRenderSample,
+  type StudioWorkspaceProjectionTiming,
+} from './workspace-projection-performance.js';
+import {
   buildStudioVoxelProjectionBindingPlan,
   buildStudioVoxelRendererPickEvidence,
   voxelInstanceId,
@@ -212,7 +222,6 @@ import type {
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
   WorkspaceAuthoringFacade,
-  WorkspaceAuthoringProjectionSummary,
   WorkspaceAuthoringStateSummary,
 } from '@asha/runtime-session';
 
@@ -242,6 +251,19 @@ export {
   voxelInstanceId,
   worldTransformForSceneNode,
 } from './voxel-instance-authoring.js';
+export {
+  compactStudioWorkspaceProjectionFrame,
+  retainStudioWorkspaceProjection,
+  type StudioWorkspaceProjectionDelivery,
+  type StudioWorkspaceProjectionDeliveryMetrics,
+} from './workspace-projection-delivery.js';
+export {
+  appendStudioWorkspaceProjectionSample,
+  buildStudioWorkspaceProjectionPerformanceReadModel,
+  type StudioWorkspaceProjectionPerformanceReadModel,
+  type StudioWorkspaceProjectionRenderSample,
+  type StudioWorkspaceProjectionTiming,
+} from './workspace-projection-performance.js';
 
 // The compatibility marker is browser-visible metadata installed by
 // @asha/browser-host. Provider identity comes from the browser-safe public
@@ -2005,6 +2027,10 @@ function stableBrowserHash(text: string): string {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return `sha256:browser-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function studioMonotonicNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 const DEMO_PUBLISH_EVIDENCE = {
@@ -5076,32 +5102,6 @@ export function compileStudioVoxelBrushStroke(input: {
   };
 }
 
-export function retainStudioWorkspaceProjection(
-  previous: WorkspaceAuthoringProjectionSummary | null,
-  projection: WorkspaceAuthoringProjectionSummary,
-): WorkspaceAuthoringProjectionSummary {
-  const canAppend = projection.delivery === 'apply'
-    && previous !== null
-    && previous.workspaceId === projection.workspaceId
-    && previous.generation === projection.generation;
-  const frame = canAppend
-    ? { ops: [...previous.frame.ops, ...projection.frame.ops] }
-    : projection.frame;
-  return {
-    ...projection,
-    delivery: 'replace',
-    frame,
-    renderDiffCount: frame.ops.length,
-    projectionHash: stableBrowserHash(JSON.stringify({
-      workspaceId: projection.workspaceId,
-      generation: projection.generation,
-      workingRevision: projection.workingRevision,
-      cursor: projection.cursor,
-      frame,
-    })),
-  };
-}
-
 const INITIAL_VOXEL_AUTHORING_MODE: StudioVoxelAuthoringModeReadModel = {
   mode: 'object',
   activeAssetId: null,
@@ -5179,7 +5179,10 @@ export class StudioWorkspaceStore {
   private readonly workspaceAuthoringBridgeState = signal<NativeBrowserHostRuntimeBridge | null>(null);
   private readonly workspaceAuthoringFacadeState = signal<WorkspaceAuthoringFacade | null>(null);
   private readonly workspaceAuthoringStateSummaryState = signal<WorkspaceAuthoringStateSummary | null>(null);
-  private readonly workspaceAuthoringProjectionState = signal<WorkspaceAuthoringProjectionSummary | null>(null);
+  private readonly workspaceAuthoringProjectionState = signal<StudioWorkspaceProjectionDelivery | null>(null);
+  private workspaceAuthoringProjectionAcknowledgedHash: string | null = null;
+  private readonly workspaceAuthoringProjectionTimings = new Map<string, StudioWorkspaceProjectionTiming>();
+  private readonly workspaceAuthoringProjectionSamplesState = signal<readonly StudioWorkspaceProjectionRenderSample[]>([]);
   private readonly voxelProjectionBindingReceiptState = signal<VoxelProjectionBindingReceipt | null>(null);
   private readonly voxelAuthoringModeState = signal<StudioVoxelAuthoringModeReadModel>(
     INITIAL_VOXEL_AUTHORING_MODE,
@@ -5389,6 +5392,9 @@ export class StudioWorkspaceStore {
   readonly runtimeConnectionMessage = this.runtimeConnectionMessageState.asReadonly();
   readonly workspaceAuthoringState = this.workspaceAuthoringStateSummaryState.asReadonly();
   readonly workspaceAuthoringProjection = this.workspaceAuthoringProjectionState.asReadonly();
+  readonly workspaceAuthoringProjectionPerformance = computed(() =>
+    buildStudioWorkspaceProjectionPerformanceReadModel(this.workspaceAuthoringProjectionSamplesState()),
+  );
   readonly voxelAuthoringMode = this.voxelAuthoringModeState.asReadonly();
   readonly voxelBrush = computed<StudioVoxelBrushReadModel>(() => {
     const state = this.voxelBrushState();
@@ -9420,7 +9426,7 @@ export class StudioWorkspaceStore {
       this.workspaceAuthoringBridgeState.set(null);
       this.workspaceAuthoringFacadeState.set(null);
       this.workspaceAuthoringStateSummaryState.set(null);
-      this.workspaceAuthoringProjectionState.set(null);
+      this.clearWorkspaceAuthoringProjectionDelivery();
       this.workspaceAuthoringMessageState.set(
         error instanceof Error ? error.message : 'Workspace authoring authority failed to start.',
       );
@@ -9441,7 +9447,7 @@ export class StudioWorkspaceStore {
     this.workspaceAuthoringFacadeState.set(null);
     this.workspaceAuthoringBridgeState.set(null);
     this.workspaceAuthoringStateSummaryState.set(null);
-    this.workspaceAuthoringProjectionState.set(null);
+    this.clearWorkspaceAuthoringProjectionDelivery();
     this.voxelProjectionBindingReceiptState.set(null);
     this.voxelAuthoringModeState.set(INITIAL_VOXEL_AUTHORING_MODE);
     if (bridge !== null) {
@@ -9467,16 +9473,36 @@ export class StudioWorkspaceStore {
       this.activeVoxelAssetIdState(),
     );
     try {
+      const startedAtMs = studioMonotonicNow();
+      const configureStartedAtMs = startedAtMs;
       const receipt = facade.configureVoxelProjectionInstances({
         registryDigest: plan.registryDigest,
         instances: plan.instances,
       });
+      const configureCompletedAtMs = studioMonotonicNow();
       this.voxelProjectionBindingReceiptState.set(receipt);
+      const readStartedAtMs = studioMonotonicNow();
       const projection = facade.readProjection();
-      this.workspaceAuthoringProjectionState.set(retainStudioWorkspaceProjection(
+      const readCompletedAtMs = studioMonotonicNow();
+      const reconcileStartedAtMs = readCompletedAtMs;
+      const delivery = retainStudioWorkspaceProjection(
         this.workspaceAuthoringProjectionState(),
         projection,
-      ));
+        this.workspaceAuthoringProjectionAcknowledgedHash,
+      );
+      this.workspaceAuthoringProjectionState.set(delivery);
+      this.workspaceAuthoringProjectionTimings.set(delivery.projectionHash, {
+        configureMs: configureCompletedAtMs - configureStartedAtMs,
+        projectionHash: delivery.projectionHash,
+        readMs: readCompletedAtMs - readStartedAtMs,
+        reconcileMs: studioMonotonicNow() - reconcileStartedAtMs,
+        startedAtMs,
+      });
+      while (this.workspaceAuthoringProjectionTimings.size > 8) {
+        const oldest = this.workspaceAuthoringProjectionTimings.keys().next().value;
+        if (typeof oldest !== 'string') break;
+        this.workspaceAuthoringProjectionTimings.delete(oldest);
+      }
       this.voxelAuthoringModeState.update(context => {
         const stillBound = context.activeInstanceId === null
           || plan.instances.some(instance => instance.instanceId === context.activeInstanceId);
@@ -9509,9 +9535,48 @@ export class StudioWorkspaceStore {
       }
     } catch (error) {
       this.voxelProjectionBindingReceiptState.set(null);
-      this.workspaceAuthoringProjectionState.set(null);
+      this.clearWorkspaceAuthoringProjectionDelivery();
       this.workspaceAuthoringMessageState.set(`Voxel instance projection rejected: ${errorMessage(error)}`);
     }
+  }
+
+  recordWorkspaceAuthoringProjectionDelivery(input: {
+    readonly channelReplaced: boolean;
+    readonly projectionHash: string;
+    readonly recovered: boolean;
+    readonly renderApplyMs: number;
+  }): void {
+    const projection = this.workspaceAuthoringProjectionState();
+    if (projection === null || projection.projectionHash !== input.projectionHash) return;
+    this.workspaceAuthoringProjectionAcknowledgedHash = input.projectionHash;
+    const timing = this.workspaceAuthoringProjectionTimings.get(input.projectionHash);
+    this.workspaceAuthoringProjectionTimings.delete(input.projectionHash);
+    const now = studioMonotonicNow();
+    const sample: StudioWorkspaceProjectionRenderSample = {
+      channelReplaced: input.channelReplaced,
+      commitToRenderMs: timing === undefined ? input.renderApplyMs : now - timing.startedAtMs,
+      configureMs: timing?.configureMs ?? 0,
+      meshPayloadOpCount: projection.studioMetrics.meshPayloadOpCount,
+      pendingOpCount: projection.studioMetrics.pendingOpCount,
+      readMs: timing?.readMs ?? 0,
+      reconcileMs: timing?.reconcileMs ?? 0,
+      recovered: input.recovered,
+      renderApplyMs: input.renderApplyMs,
+      retainedOpCount: projection.studioMetrics.retainedOpCount,
+    };
+    this.workspaceAuthoringProjectionSamplesState.update(samples =>
+      appendStudioWorkspaceProjectionSample(samples, sample),
+    );
+  }
+
+  reportWorkspaceAuthoringProjectionFailure(message: string): void {
+    this.workspaceAuthoringMessageState.set(`Viewport projection delivery failed: ${message}`);
+  }
+
+  private clearWorkspaceAuthoringProjectionDelivery(): void {
+    this.workspaceAuthoringProjectionState.set(null);
+    this.workspaceAuthoringProjectionAcknowledgedHash = null;
+    this.workspaceAuthoringProjectionTimings.clear();
   }
 
   private refreshSceneVoxelProjection(): void {
@@ -10982,6 +11047,7 @@ function createStudioVoxelWorkflowProductApi(store: StudioWorkspaceStore) {
       store.openWorkspaceAuthoring(...args),
     workspaceAuthoringState: () => store.workspaceAuthoringState(),
     workspaceAuthoringProjection: () => store.workspaceAuthoringProjection(),
+    workspaceAuthoringProjectionPerformance: () => store.workspaceAuthoringProjectionPerformance(),
     workspaceAuthoringMessage: () => store.workspaceAuthoringMessage(),
     workspaceAuthoringAvailable: () => store.workspaceAuthoringAvailable(),
     liveRuntimeAvailable: () => store.liveRuntimeAvailable(),
