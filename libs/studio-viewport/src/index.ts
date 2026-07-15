@@ -56,6 +56,146 @@ interface StudioViewportResourceProbe {
   readonly diagnostic: string | null;
 }
 
+class AuthoredVoxelProjectionPickIndex {
+  private readonly instanceByRoot = new Map<number, string>();
+  private readonly rootByChild = new Map<number, number>();
+  private readonly transformByHandle = new Map<number, Transform>();
+  private readonly meshBoundsByChild = new Map<number, StudioBounds>();
+
+  replace(frame: RenderFrameDiff): void {
+    this.clear();
+    this.apply(frame);
+  }
+
+  apply(frame: RenderFrameDiff): void {
+    for (const op of frame.ops) {
+      if (op.op === 'create') {
+        const handle = op.handle as number;
+        this.transformByHandle.set(handle, op.node.transform);
+        const label = op.node.metadata.label;
+        const match = label?.match(/^voxel instance (\S+) asset /);
+        if (match?.[1] !== undefined) {
+          this.instanceByRoot.set(handle, match[1]);
+        }
+        if (op.parent !== null) {
+          this.rootByChild.set(handle, op.parent as number);
+        }
+      } else if (op.op === 'update' && op.transform !== null) {
+        this.transformByHandle.set(op.handle as number, op.transform);
+      } else if (op.op === 'replaceMeshPayload') {
+        this.meshBoundsByChild.set(op.handle as number, {
+          min: {
+            x: op.payload.bounds.min[0],
+            y: op.payload.bounds.min[1],
+            z: op.payload.bounds.min[2],
+          },
+          max: {
+            x: op.payload.bounds.max[0],
+            y: op.payload.bounds.max[1],
+            z: op.payload.bounds.max[2],
+          },
+        });
+      } else if (op.op === 'destroy') {
+        const handle = op.handle as number;
+        this.instanceByRoot.delete(handle);
+        this.rootByChild.delete(handle);
+        this.transformByHandle.delete(handle);
+        this.meshBoundsByChild.delete(handle);
+        for (const [child, root] of this.rootByChild) {
+          if (root === handle) {
+            this.rootByChild.delete(child);
+            this.transformByHandle.delete(child);
+            this.meshBoundsByChild.delete(child);
+          }
+        }
+      }
+    }
+  }
+
+  instanceForHandle(handle: RenderHandle): string | null {
+    const raw = handle as number;
+    return this.instanceByRoot.get(raw)
+      ?? this.instanceByRoot.get(this.rootByChild.get(raw) ?? -1)
+      ?? null;
+  }
+
+  clear(): void {
+    this.instanceByRoot.clear();
+    this.rootByChild.clear();
+    this.transformByHandle.clear();
+    this.meshBoundsByChild.clear();
+  }
+
+  instanceBounds(): readonly (readonly [string, StudioBounds])[] {
+    const result: Array<readonly [string, StudioBounds]> = [];
+    for (const [root, instanceId] of this.instanceByRoot) {
+      const rootTransform = this.transformByHandle.get(root);
+      if (rootTransform === undefined) continue;
+      const points: Array<readonly [number, number, number]> = [];
+      for (const [child, parent] of this.rootByChild) {
+        if (parent !== root) continue;
+        const childTransform = this.transformByHandle.get(child);
+        const bounds = this.meshBoundsByChild.get(child);
+        if (childTransform === undefined || bounds === undefined) continue;
+        for (const x of [bounds.min.x, bounds.max.x]) {
+          for (const y of [bounds.min.y, bounds.max.y]) {
+            for (const z of [bounds.min.z, bounds.max.z]) {
+              points.push(transformProjectionPoint(
+                rootTransform,
+                transformProjectionPoint(childTransform, [x, y, z]),
+              ));
+            }
+          }
+        }
+      }
+      if (points.length === 0) continue;
+      result.push([instanceId, {
+        min: {
+          x: Math.min(...points.map(point => point[0])),
+          y: Math.min(...points.map(point => point[1])),
+          z: Math.min(...points.map(point => point[2])),
+        },
+        max: {
+          x: Math.max(...points.map(point => point[0])),
+          y: Math.max(...points.map(point => point[1])),
+          z: Math.max(...points.map(point => point[2])),
+        },
+      }]);
+    }
+    return result;
+  }
+}
+
+function transformProjectionPoint(
+  transform: Transform,
+  point: readonly [number, number, number],
+): readonly [number, number, number] {
+  const scaled = [
+    point[0] * transform.scale[0],
+    point[1] * transform.scale[1],
+    point[2] * transform.scale[2],
+  ] as const;
+  const [x, y, z, w] = transform.rotation;
+  const length = Math.hypot(x, y, z, w);
+  const qx = x / length;
+  const qy = y / length;
+  const qz = z / length;
+  const qw = w / length;
+  const tx = 2 * (qy * scaled[2] - qz * scaled[1]);
+  const ty = 2 * (qz * scaled[0] - qx * scaled[2]);
+  const tz = 2 * (qx * scaled[1] - qy * scaled[0]);
+  const rotated: readonly [number, number, number] = [
+    scaled[0] + qw * tx + (qy * tz - qz * ty),
+    scaled[1] + qw * ty + (qz * tx - qx * tz),
+    scaled[2] + qw * tz + (qx * ty - qy * tx),
+  ];
+  return [
+    rotated[0] + transform.translation[0],
+    rotated[1] + transform.translation[1],
+    rotated[2] + transform.translation[2],
+  ];
+}
+
 function center(bounds: StudioBounds): StudioVec3 {
   return {
     x: (bounds.min.x + bounds.max.x) / 2,
@@ -757,6 +897,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private renderedRuntimeKey: string | null = null;
   private renderedAuthoringProjectionKey: string | null = null;
   private authoredBaseHandles: readonly RenderHandle[] = [];
+  private readonly authoredVoxelPickIndex = new AuthoredVoxelProjectionPickIndex();
   private debugPick: AshaRendererEditorViewportPickHint | null = null;
   private debugPickTimer: ReturnType<typeof setTimeout> | null = null;
   private dragState: {
@@ -844,6 +985,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.viewport = null;
     this.viewportReadout.set(null);
     this.authoredBaseHandles = [];
+    this.authoredVoxelPickIndex.clear();
   }
 
   probeMissingPreviewResource(): void {
@@ -954,6 +1096,8 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       && projectionChanged
       && authoringProjection.delivery === 'replace'
     ) {
+      this.authoredVoxelPickIndex.replace(authoringProjection.frame);
+      this.publishVoxelInstanceBounds();
       viewport.channels.authored.replace({
         ops: [...baseFrame.ops, ...authoringProjection.frame.ops],
       });
@@ -962,6 +1106,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.renderedAuthoringProjectionKey = projectionKey;
     } else {
       if (authoringProjection === null && this.renderedAuthoringProjectionKey !== null) {
+        this.authoredVoxelPickIndex.clear();
         viewport.channels.authored.replace(baseFrame);
         this.authoredBaseHandles = createdRenderHandles(baseFrame);
         this.renderedAuthoringProjectionKey = null;
@@ -979,6 +1124,8 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         this.renderedSceneKey = sceneKey;
       }
       if (authoringProjection !== null && projectionChanged) {
+        this.authoredVoxelPickIndex.apply(authoringProjection.frame);
+        this.publishVoxelInstanceBounds();
         viewport.channels.authored.apply(authoringProjection.frame);
         this.renderedAuthoringProjectionKey = projectionKey;
       }
@@ -996,6 +1143,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     }
     viewport.renderOnce();
     this.viewportReadout.set(viewport.readout());
+  }
+
+  private publishVoxelInstanceBounds(): void {
+    for (const [instanceId, bounds] of this.authoredVoxelPickIndex.instanceBounds()) {
+      this.store.setVoxelInstanceProjectionBounds(instanceId, bounds);
+    }
   }
 
   private resizeViewport(): void {
@@ -1070,6 +1223,19 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const route = resolveStudioViewportPickRoute(hint, runtimeScene);
     if (hint !== null) {
       this.showPickDebugHint(hint);
+    }
+    if (hint?.channel === 'authored') {
+      const instanceId = this.authoredVoxelPickIndex.instanceForHandle(hint.handle);
+      if (instanceId !== null) {
+        this.store.selectAuthoredVoxelInstanceAtViewport({
+          cameraOrigin: viewport.camera().pose.position,
+          instanceId,
+          worldNormal: hint.normal,
+          worldPosition: hint.position,
+        });
+        this.viewportReadout.set(viewport.readout());
+        return;
+      }
     }
     if (route.kind === 'runtime') {
       this.store.selectRuntimeVoxelAtViewport({

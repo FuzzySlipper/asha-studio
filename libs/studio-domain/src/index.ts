@@ -7751,6 +7751,38 @@ export function applyCanonicalSceneDocumentReadModel(
   };
 }
 
+/** Applies renderer-observed bounds to one disposable scene projection only. */
+export function applyProjectedRenderableBoundsReadModel(
+  readModel: StudioWorkspaceReadModel,
+  renderableId: string,
+  bounds: StudioBounds,
+): StudioWorkspaceReadModel {
+  const previous = readModel.scene.renderables.find(
+    renderable => renderable.renderableId === renderableId,
+  );
+  if (previous === undefined || JSON.stringify(previous.bounds) === JSON.stringify(bounds)) {
+    return readModel;
+  }
+  const renderables = readModel.scene.renderables.map(renderable => (
+    renderable.renderableId === renderableId ? { ...renderable, bounds } : renderable
+  ));
+  const scene = {
+    ...readModel.scene,
+    renderables,
+    sceneHash: buildSceneHash(renderables),
+  };
+  return {
+    ...readModel,
+    scene,
+    entities: projectEntitiesFromScene(
+      readModel.session,
+      scene,
+      readModel.sceneObjectSnapshot,
+      readModel.entities,
+    ),
+  };
+}
+
 export function findUnresolvedSceneAssetIds(
   document: FlatSceneDocument,
   availableAssetIds: readonly string[],

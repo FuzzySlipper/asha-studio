@@ -1361,6 +1361,26 @@ type ViewportToolbarTool = {
           </button>
         }
       </div>
+      <div class="mode-buttons" aria-label="Voxel authoring mode">
+        <button
+          type="button"
+          data-voxel-authoring-mode="object"
+          [class.active]="store.voxelAuthoringMode().mode === 'object'"
+          (click)="store.setVoxelAuthoringMode('object')"
+        >Object</button>
+        <button
+          type="button"
+          data-voxel-authoring-mode="edit"
+          [class.active]="store.voxelAuthoringMode().mode === 'edit'"
+          (click)="store.setVoxelAuthoringMode('edit')"
+        >Voxel Edit</button>
+        <button
+          type="button"
+          data-voxel-instance-action="duplicate"
+          title="Duplicate the selected voxel scene instance"
+          (click)="store.duplicateSelectedVoxelInstance()"
+        >Duplicate</button>
+      </div>
       <span class="active-pill" data-toolbar-readout="active-tool">
         {{ activeToolLabel() }}
       </span>
@@ -1368,6 +1388,9 @@ type ViewportToolbarTool = {
         Viewport - {{ store.viewportAdapter().selectedRenderableId ?? store.viewportAdapter().sceneId }}
       </strong>
       <div class="toolbar-state" aria-label="Viewport state">
+        <span data-toolbar-readout="voxel-context" [title]="store.voxelAuthoringMode().message">
+          {{ store.voxelAuthoringMode().activeInstanceId ?? 'no voxel context' }}
+        </span>
         <span data-toolbar-readout="camera-mode">persp</span>
         <span data-toolbar-readout="lens">{{ store.viewportAdapter().camera.fovDegrees }}deg</span>
         <span data-toolbar-readout="grid">grid {{ store.viewportAdapter().renderSettings.showGrid ? 'on' : 'off' }}</span>
@@ -1387,7 +1410,7 @@ type ViewportToolbarTool = {
         box-sizing: border-box;
         display: grid;
         gap: 0.55rem;
-        grid-template-columns: auto auto minmax(9rem, 1fr) auto;
+        grid-template-columns: auto auto auto minmax(9rem, 1fr) auto;
         height: 100%;
         min-width: 0;
         overflow: hidden;
@@ -1406,6 +1429,26 @@ type ViewportToolbarTool = {
         display: flex;
         flex: 0 0 auto;
         gap: 0.18rem;
+      }
+
+      .mode-buttons {
+        display: flex;
+        gap: 0.18rem;
+      }
+
+      .mode-buttons button {
+        background: transparent;
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-muted);
+        font: 700 0.66rem var(--asha-font-ui);
+        height: 1.45rem;
+        padding: 0 0.42rem;
+      }
+
+      .mode-buttons button.active {
+        background: var(--asha-color-accent);
+        border-color: var(--asha-color-accent);
+        color: #071219;
       }
 
       .tool-buttons button {
@@ -2019,6 +2062,50 @@ export class StudioHierarchyPanelComponent {
               <dt>source</dt>
               <dd>{{ renderable.sourceState }}</dd>
             </dl>
+            @if (selectedSceneTransform(); as transform) {
+              <div class="transform-editor" data-inspector-transform-editor>
+                <strong>Position</strong>
+                @for (axis of [0, 1, 2]; track axis) {
+                  <label>
+                    {{ ['X', 'Y', 'Z'][axis] }}
+                    <input
+                      type="number"
+                      step="0.25"
+                      [value]="transform.translation[axis]"
+                      [attr.data-transform-position-axis]="axis"
+                      (change)="setTransformAxis('translation', axis, $any($event.target).valueAsNumber)"
+                    />
+                  </label>
+                }
+                <strong>Rotation Quaternion</strong>
+                @for (axis of [0, 1, 2, 3]; track axis) {
+                  <label>
+                    {{ ['X', 'Y', 'Z', 'W'][axis] }}
+                    <input
+                      type="number"
+                      step="0.05"
+                      [value]="transform.rotation[axis]"
+                      [attr.data-transform-rotation-axis]="axis"
+                      (change)="setTransformAxis('rotation', axis, $any($event.target).valueAsNumber)"
+                    />
+                  </label>
+                }
+                <strong>Scale</strong>
+                @for (axis of [0, 1, 2]; track axis) {
+                  <label>
+                    {{ ['X', 'Y', 'Z'][axis] }}
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="0.1"
+                      [value]="transform.scale[axis]"
+                      [attr.data-transform-scale-axis]="axis"
+                      (change)="setTransformAxis('scale', axis, $any($event.target).valueAsNumber)"
+                    />
+                  </label>
+                }
+              </div>
+            }
           </section>
 
           <section class="field-section">
@@ -2096,6 +2183,30 @@ export class StudioHierarchyPanelComponent {
         height: 2rem;
         justify-content: center;
         width: 2rem;
+      }
+
+      .transform-editor {
+        display: grid;
+        gap: 0.3rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 0.55rem;
+      }
+
+      .transform-editor > strong,
+      .transform-editor > small {
+        grid-column: 1 / -1;
+      }
+
+      .transform-editor label {
+        color: var(--asha-color-muted);
+        display: grid;
+        font-size: 0.68rem;
+        gap: 0.18rem;
+      }
+
+      .transform-editor input {
+        min-width: 0;
+        width: 100%;
       }
 
       .object-summary div {
@@ -2214,6 +2325,15 @@ export class StudioHierarchyPanelComponent {
 export class StudioInspectorPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
 
+  readonly selectedSceneTransform = computed(() => {
+    const objectId = this.store.selectedEntity()?.sceneObjectId ?? null;
+    if (objectId === null || !objectId.startsWith('scene-node:')) return null;
+    const nodeId = Number.parseInt(objectId.slice('scene-node:'.length), 10);
+    return this.store.workspace().flatSceneDocument.nodes.find(
+      node => (node.id as number) === nodeId,
+    )?.transform ?? null;
+  });
+
   readonly selectedBoundsLabel = computed(() => {
     const renderable = this.store.selectedRenderable();
     if (renderable === null) {
@@ -2261,6 +2381,27 @@ export class StudioInspectorPanelComponent {
       return;
     }
     this.store.renameSceneObject(objectId, label);
+  }
+
+  setTransformAxis(
+    field: 'translation' | 'rotation' | 'scale',
+    axis: number,
+    value: number,
+  ): void {
+    const transform = this.selectedSceneTransform();
+    const maximumAxis = field === 'rotation' ? 3 : 2;
+    if (transform === null || axis < 0 || axis > maximumAxis) return;
+    const next = transform[field].map(
+      (entry, index) => index === axis ? value : entry,
+    );
+    if (field === 'rotation') {
+      this.store.setSelectedSceneObjectTransform({
+        rotation: next as unknown as readonly [number, number, number, number],
+      });
+      return;
+    }
+    const vector = next as unknown as readonly [number, number, number];
+    this.store.setSelectedSceneObjectTransform({ [field]: vector });
   }
 
   private formatBounds(bounds: StudioBounds): string {

@@ -37,6 +37,7 @@ import {
   findUnresolvedSceneAssetIds,
   filterAssetBrowserRenderables,
   applyCanonicalSceneDocumentReadModel,
+  applyProjectedRenderableBoundsReadModel,
   applyStudioCatalogAuthoringOperation,
   loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
@@ -50,6 +51,7 @@ import {
   type StudioAssetBrowserCategory,
   type StudioApplicationMenu,
   type StudioBottomPanelTab,
+  type StudioBounds,
   type StudioGameWorkspaceLoadResult,
   type StudioGameWorkspaceAttachReadModel,
   type StudioGameWorkspaceLiveReadModel,
@@ -131,6 +133,8 @@ import {
   type VoxelAssetProvenanceKind,
   type VoxelAssetSparseRun,
   type VoxelCoord,
+  type VoxelInstancePickResult,
+  type VoxelProjectionBindingReceipt,
   type VoxelVolumeAsset,
   type VoxelVolumeAssetExportReceipt,
   type VoxelVolumeAssetExportRequest,
@@ -160,6 +164,12 @@ import {
   type VoxelModelWindowRequest,
   type VoxelSelectionSnapshot,
 } from '@asha/contracts';
+import {
+  buildStudioVoxelProjectionBindingPlan,
+  buildStudioVoxelRendererPickEvidence,
+  voxelInstanceId,
+} from './voxel-instance-authoring.js';
+
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import type {
   NativeBrowserHostProviderScope,
@@ -216,6 +226,13 @@ import {
   type StudioVoxelConversionReadoutModel,
   type StudioVoxelConversionWorkspaceReadModel,
 } from '@asha-studio/voxel-conversion';
+
+export {
+  buildStudioVoxelProjectionBindingPlan,
+  buildStudioVoxelRendererPickEvidence,
+  voxelInstanceId,
+  worldTransformForSceneNode,
+} from './voxel-instance-authoring.js';
 
 // The compatibility marker is browser-visible metadata installed by
 // @asha/browser-host. Provider identity comes from the browser-safe public
@@ -4953,6 +4970,30 @@ export class StudioPreferencesStore {
   }
 }
 
+export interface StudioVoxelAuthoringModeReadModel {
+  readonly mode: 'object' | 'edit';
+  readonly activeAssetId: string | null;
+  readonly activeInstanceId: string | null;
+  readonly activeSceneNodeId: number | null;
+  readonly bindingHash: string | null;
+  readonly workingRevision: number | null;
+  readonly selectedCell: VoxelCoord | null;
+  readonly editAnchor: VoxelCoord | null;
+  readonly message: string;
+}
+
+const INITIAL_VOXEL_AUTHORING_MODE: StudioVoxelAuthoringModeReadModel = {
+  mode: 'object',
+  activeAssetId: null,
+  activeInstanceId: null,
+  activeSceneNodeId: null,
+  bindingHash: null,
+  workingRevision: null,
+  selectedCell: null,
+  editAnchor: null,
+  message: 'Object mode edits SceneDocument placement. Select a voxel instance to enter Voxel Edit mode.',
+};
+
 @Injectable({ providedIn: 'root' })
 export class StudioWorkspaceStore {
   private readonly preferencesStore = inject(StudioPreferencesStore);
@@ -5008,6 +5049,10 @@ export class StudioWorkspaceStore {
   private readonly workspaceAuthoringFacadeState = signal<WorkspaceAuthoringFacade | null>(null);
   private readonly workspaceAuthoringStateSummaryState = signal<WorkspaceAuthoringStateSummary | null>(null);
   private readonly workspaceAuthoringProjectionState = signal<WorkspaceAuthoringProjectionSummary | null>(null);
+  private readonly voxelProjectionBindingReceiptState = signal<VoxelProjectionBindingReceipt | null>(null);
+  private readonly voxelAuthoringModeState = signal<StudioVoxelAuthoringModeReadModel>(
+    INITIAL_VOXEL_AUTHORING_MODE,
+  );
   private readonly workspaceAuthoringMessageState = signal('Starting workspace authoring authority.');
   private readonly runtimeViewportEvidenceState = signal<StudioRuntimeViewportEvidence>(
     MISSING_RUNTIME_VIEWPORT_EVIDENCE,
@@ -5211,6 +5256,7 @@ export class StudioWorkspaceStore {
   readonly runtimeConnectionMessage = this.runtimeConnectionMessageState.asReadonly();
   readonly workspaceAuthoringState = this.workspaceAuthoringStateSummaryState.asReadonly();
   readonly workspaceAuthoringProjection = this.workspaceAuthoringProjectionState.asReadonly();
+  readonly voxelAuthoringMode = this.voxelAuthoringModeState.asReadonly();
   readonly workspaceAuthoringMessage = this.workspaceAuthoringMessageState.asReadonly();
   readonly catalogWorkflowMessage = this.catalogWorkflowMessageState.asReadonly();
   readonly assetInventory = this.assetInventoryState.asReadonly();
@@ -6257,8 +6303,150 @@ export class StudioWorkspaceStore {
       return;
     }
 
-    this.workspaceState.set(
-      applySelectedEntityReadModel(workspace, dispatchResult.proposal.entityId),
+    const selectedWorkspace = applySelectedEntityReadModel(workspace, dispatchResult.proposal.entityId);
+    this.workspaceState.set(selectedWorkspace);
+    const editContext = this.voxelAuthoringModeState();
+    const selectedSceneObjectId = selectedWorkspace.entities.find(
+      entity => entity.id === selectedWorkspace.selectedEntityId,
+    )?.sceneObjectId ?? null;
+    if (
+      editContext.mode === 'edit'
+      && selectedSceneObjectId !== editContext.activeInstanceId
+    ) {
+      this.setVoxelAuthoringMode('object');
+      this.menuMessageState.set('Returned to Object mode because hierarchy selection changed.');
+    }
+  }
+
+  setVoxelAuthoringMode(mode: 'object' | 'edit'): void {
+    if (mode === 'object') {
+      this.voxelAuthoringModeState.set({
+        ...INITIAL_VOXEL_AUTHORING_MODE,
+        activeAssetId: this.activeVoxelAssetIdState(),
+      });
+      return;
+    }
+    const workspace = this.workspaceState();
+    const selectedEntity = workspace.entities.find(entity => entity.id === workspace.selectedEntityId);
+    const sceneObjectId = selectedEntity?.sceneObjectId ?? null;
+    const sceneNodeIdValue = sceneObjectId?.startsWith('scene-node:') === true
+      ? Number.parseInt(sceneObjectId.slice('scene-node:'.length), 10)
+      : Number.NaN;
+    const node = Number.isSafeInteger(sceneNodeIdValue)
+      ? workspace.flatSceneDocument.nodes.find(candidate => (candidate.id as number) === sceneNodeIdValue)
+      : undefined;
+    if (node?.kind.kind !== 'voxelVolume') {
+      this.menuMessageState.set('Select a voxelVolume scene instance before entering Voxel Edit mode.');
+      return;
+    }
+    const activeAssetId = this.activeVoxelAssetIdState();
+    if (activeAssetId === null || node.kind.asset.id !== activeAssetId) {
+      this.menuMessageState.set(
+        `Cannot edit ${node.kind.asset.id}; open that voxel asset in the authoring workspace first.`,
+      );
+      return;
+    }
+    const receipt = this.voxelProjectionBindingReceiptState();
+    const state = this.workspaceAuthoringStateSummaryState();
+    const instanceId = voxelInstanceId(node.id);
+    if (
+      receipt === null
+      || state === null
+      || receipt.workingRevision !== state.workingRevision
+      || !buildStudioVoxelProjectionBindingPlan(workspace.flatSceneDocument, activeAssetId)
+        .instances.some(instance => instance.instanceId === instanceId)
+    ) {
+      this.menuMessageState.set('Voxel Edit mode needs a current Rust projection binding for the selected instance.');
+      return;
+    }
+    this.voxelAuthoringModeState.set({
+      mode: 'edit',
+      activeAssetId,
+      activeInstanceId: instanceId,
+      activeSceneNodeId: node.id as number,
+      bindingHash: receipt.bindingHash,
+      workingRevision: receipt.workingRevision,
+      selectedCell: null,
+      editAnchor: null,
+      message: `Editing ${activeAssetId} through instance ${instanceId}. Voxel coordinates are asset-local.`,
+    });
+    this.viewportToolState.set(buildStudioViewportToolReadModel('select'));
+    this.menuMessageState.set(`Voxel Edit mode · ${node.label ?? instanceId} · ${activeAssetId}.`);
+  }
+
+  selectAuthoredVoxelInstanceAtViewport(input: {
+    readonly cameraOrigin: readonly [number, number, number];
+    readonly instanceId: string;
+    readonly worldNormal: readonly [number, number, number];
+    readonly worldPosition: readonly [number, number, number];
+  }): VoxelInstancePickResult | null {
+    const workspace = this.workspaceState();
+    const instance = buildStudioVoxelProjectionBindingPlan(
+      workspace.flatSceneDocument,
+      this.activeVoxelAssetIdState(),
+    ).instances.find(candidate => candidate.instanceId === input.instanceId);
+    if (instance === undefined) {
+      this.menuMessageState.set(`Projection pick rejected: unknown or nonresident instance ${input.instanceId}.`);
+      return null;
+    }
+    if (this.voxelAuthoringModeState().mode === 'object') {
+      this.selectEntity(instance.instanceId);
+      this.menuMessageState.set(`Selected voxel instance ${instance.instanceId} in Object mode.`);
+      return null;
+    }
+    const context = this.voxelAuthoringModeState();
+    if (context.activeInstanceId !== instance.instanceId || context.activeAssetId !== instance.assetId) {
+      this.menuMessageState.set('Voxel pick rejected: the hit is not the active Edit-mode instance and asset.');
+      return null;
+    }
+    const facade = this.workspaceAuthoringFacadeState();
+    const evidence = buildStudioVoxelRendererPickEvidence({
+      cameraOrigin: input.cameraOrigin,
+      instanceTransform: instance.transform,
+      worldNormal: input.worldNormal,
+      worldPosition: input.worldPosition,
+    });
+    if (facade === null || evidence === null) {
+      this.menuMessageState.set('Voxel pick rejected: authoring authority or renderer evidence is unavailable.');
+      return null;
+    }
+    try {
+      const result = facade.pickVoxelInstance({
+        instanceId: instance.instanceId,
+        origin: input.cameraOrigin,
+        direction: evidence.direction,
+        maxDistance: evidence.maxDistance,
+        rendererHint: evidence.rendererHint,
+      });
+      if (result.outcome.outcome === 'rejected') {
+        this.menuMessageState.set(`Voxel pick rejected by Rust: ${result.outcome.rejection}.`);
+        return result;
+      }
+      const hit = result.outcome.voxelInstancePickHit;
+      this.voxelAuthoringModeState.set({
+        ...context,
+        bindingHash: result.bindingHash,
+        workingRevision: result.workingRevision,
+        selectedCell: hit.localVoxel,
+        editAnchor: hit.localPlaceAnchor,
+        message: `Selected local cell ${hit.localVoxel.x},${hit.localVoxel.y},${hit.localVoxel.z}; place anchor ${hit.localPlaceAnchor.x},${hit.localPlaceAnchor.y},${hit.localPlaceAnchor.z}.`,
+      });
+      this.menuMessageState.set(this.voxelAuthoringModeState().message);
+      return result;
+    } catch (error) {
+      this.menuMessageState.set(`Voxel pick rejected before invocation: ${errorMessage(error)}`);
+      return null;
+    }
+  }
+
+  setVoxelInstanceProjectionBounds(
+    instanceId: string,
+    bounds: StudioBounds,
+  ): void {
+    if (!instanceId.startsWith('scene-node:')) return;
+    const renderableId = `scene-node-renderable:${instanceId.slice('scene-node:'.length)}`;
+    this.workspaceState.update(workspace =>
+      applyProjectedRenderableBoundsReadModel(workspace, renderableId, bounds),
     );
   }
 
@@ -6281,6 +6469,10 @@ export class StudioWorkspaceStore {
   }
 
   reparentSceneObject(objectId: SceneObjectId, parentObjectId: SceneObjectId | null, childOrder = 0): void {
+    if (this.voxelAuthoringModeState().mode === 'edit') {
+      this.menuMessageState.set('Exit Voxel Edit mode before changing scene hierarchy.');
+      return;
+    }
     const workspace = this.workspaceState();
     const request = createReparentSceneObjectRequest(workspace, objectId, parentObjectId, childOrder);
     const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
@@ -6293,12 +6485,17 @@ export class StudioWorkspaceStore {
     }
     const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
     this.workspaceState.set(applyResult.workspace);
+    if (applyResult.ok) this.refreshSceneVoxelProjection();
     this.menuMessageState.set(
       applyResult.ok ? `Reparented ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Reparent rejected.',
     );
   }
 
   translateSelectedSceneObject(delta: readonly [number, number, number]): void {
+    if (this.voxelAuthoringModeState().mode === 'edit') {
+      this.menuMessageState.set('Exit Voxel Edit mode before moving a scene instance.');
+      return;
+    }
     const workspace = this.workspaceState();
     const objectId = workspace.selectedEntityId;
     if (objectId === null || !objectId.startsWith('scene-node:')) {
@@ -6316,12 +6513,17 @@ export class StudioWorkspaceStore {
     }
     const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
     this.workspaceState.set(applyResult.workspace);
+    if (applyResult.ok) this.refreshSceneVoxelProjection();
     this.menuMessageState.set(
       applyResult.ok ? `Moved ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Move rejected.',
     );
   }
 
   rotateSelectedSceneObject(rotation: readonly [number, number, number, number]): void {
+    if (this.voxelAuthoringModeState().mode === 'edit') {
+      this.menuMessageState.set('Exit Voxel Edit mode before rotating a scene instance.');
+      return;
+    }
     const workspace = this.workspaceState();
     const objectId = workspace.selectedEntityId;
     if (objectId === null || !objectId.startsWith('scene-node:')) {
@@ -6339,9 +6541,116 @@ export class StudioWorkspaceStore {
     }
     const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
     this.workspaceState.set(applyResult.workspace);
+    if (applyResult.ok) this.refreshSceneVoxelProjection();
     this.menuMessageState.set(
       applyResult.ok ? `Rotated ${objectId}.` : applyResult.diagnostics.at(0)?.message ?? 'Rotate rejected.',
     );
+  }
+
+  setSelectedSceneObjectTransform(patch: {
+    readonly translation?: readonly [number, number, number];
+    readonly rotation?: readonly [number, number, number, number];
+    readonly scale?: readonly [number, number, number];
+  }): void {
+    if (this.voxelAuthoringModeState().mode === 'edit') {
+      this.menuMessageState.set('Exit Voxel Edit mode before changing instance transforms.');
+      return;
+    }
+    const workspace = this.workspaceState();
+    const selectedEntity = workspace.entities.find(entity => entity.id === workspace.selectedEntityId);
+    const objectId = selectedEntity?.sceneObjectId ?? null;
+    const nodeId = objectId?.startsWith('scene-node:') === true
+      ? Number.parseInt(objectId.slice('scene-node:'.length), 10)
+      : Number.NaN;
+    const node = workspace.flatSceneDocument.nodes.find(candidate => (candidate.id as number) === nodeId);
+    if (node === undefined || !Number.isSafeInteger(nodeId)) {
+      this.menuMessageState.set('Select a scene object before editing its transform.');
+      return;
+    }
+    const nextTransform = {
+      translation: patch.translation ?? node.transform.translation,
+      rotation: patch.rotation ?? node.transform.rotation,
+      scale: patch.scale ?? node.transform.scale,
+    };
+    const values = [...nextTransform.translation, ...nextTransform.rotation, ...nextTransform.scale];
+    if (
+      values.some(value => !Number.isFinite(value))
+      || nextTransform.scale.some(value => value <= 0)
+      || Math.hypot(...nextTransform.rotation) <= 0.000001
+    ) {
+      this.menuMessageState.set('Transform rejected: values must be finite, scale positive, and rotation nonzero.');
+      return;
+    }
+    const nextDocument: FlatSceneDocument = {
+      ...workspace.flatSceneDocument,
+      nodes: workspace.flatSceneDocument.nodes.map(candidate => (
+        candidate.id === node.id ? { ...candidate, transform: nextTransform } : candidate
+      )),
+    };
+    const projected = applyCanonicalSceneDocumentReadModel(
+      workspace,
+      nextDocument,
+      this.activeSceneFilePathState(),
+    );
+    this.workspaceState.set(
+      objectId === null ? projected : applySelectedEntityReadModel(projected, objectId),
+    );
+    this.refreshSceneVoxelProjection();
+    this.menuMessageState.set(`Updated transform for ${objectId ?? `scene-node:${nodeId}`}.`);
+  }
+
+  duplicateSelectedVoxelInstance(): void {
+    if (this.voxelAuthoringModeState().mode === 'edit') {
+      this.menuMessageState.set('Exit Voxel Edit mode before duplicating an instance.');
+      return;
+    }
+    const workspace = this.workspaceState();
+    const selectedObjectId = workspace.entities.find(
+      entity => entity.id === workspace.selectedEntityId,
+    )?.sceneObjectId ?? null;
+    const selectedNodeId = selectedObjectId?.startsWith('scene-node:') === true
+      ? Number.parseInt(selectedObjectId.slice('scene-node:'.length), 10)
+      : Number.NaN;
+    const source = workspace.flatSceneDocument.nodes.find(
+      node => (node.id as number) === selectedNodeId,
+    );
+    if (source?.kind.kind !== 'voxelVolume') {
+      this.menuMessageState.set('Select a voxelVolume scene instance before duplicating it.');
+      return;
+    }
+    const nextId = sceneNodeId(
+      workspace.flatSceneDocument.nodes.reduce(
+        (maximum, node) => Math.max(maximum, node.id as number),
+        0,
+      ) + 1,
+    );
+    const duplicate = {
+      ...source,
+      id: nextId,
+      childOrder: workspace.flatSceneDocument.nodes.filter(node => node.parent === source.parent).length,
+      label: `${source.label ?? 'Voxel instance'} copy`,
+      transform: {
+        ...source.transform,
+        translation: [
+          source.transform.translation[0] + 2,
+          source.transform.translation[1],
+          source.transform.translation[2],
+        ] as const,
+      },
+    };
+    const document = {
+      ...workspace.flatSceneDocument,
+      nodes: [...workspace.flatSceneDocument.nodes, duplicate],
+    };
+    const projected = applyCanonicalSceneDocumentReadModel(
+      workspace,
+      document,
+      this.activeSceneFilePathState(),
+    );
+    const objectId = voxelInstanceId(nextId);
+    this.workspaceState.set(applySelectedEntityReadModel(projected, objectId));
+    this.refreshSceneVoxelProjection();
+    this.menuMessageState.set(`Duplicated ${source.label ?? selectedObjectId} as ${duplicate.label}.`);
   }
 
   selectViewportHit(hit: StudioViewportHitReadModel): void {
@@ -7413,6 +7722,7 @@ export class StudioWorkspaceStore {
   }
 
   private attachVoxelAssetToScene(target: StudioVoxelAssetWorkflowTarget): void {
+    this.activeVoxelAssetIdState.set(target.targetAssetId);
     const workspace = this.workspaceState();
     const document = workspace.flatSceneDocument;
     const selectedSceneObjectId = workspace.entities.find(
@@ -7444,9 +7754,9 @@ export class StudioWorkspaceStore {
         pathTag,
       ],
       transform: existingNode?.transform ?? {
-        translation: [5, 4, 6] as const,
+        translation: [0, 0, 0] as const,
         rotation: [0, 0, 0, 1] as const,
-        scale: [11, 9, 13] as const,
+        scale: [1, 1, 1] as const,
       },
       kind: { kind: 'voxelVolume' as const, asset: assetReference },
     };
@@ -7479,6 +7789,7 @@ export class StudioWorkspaceStore {
       this.activeSceneFilePathState(),
     );
     this.workspaceState.set(nextWorkspace);
+    this.refreshSceneVoxelProjection();
     this.viewportCameraState.set(buildStudioViewportCameraReadModel({
       position: { x: 22, y: -18, z: 20 },
       target: { x: 5, y: 4, z: 5.5 },
@@ -8734,7 +9045,7 @@ export class StudioWorkspaceStore {
       this.workspaceAuthoringBridgeState.set(attach.bridge);
       this.workspaceAuthoringFacadeState.set(attach.facade);
       this.workspaceAuthoringStateSummaryState.set(state);
-      this.workspaceAuthoringProjectionState.set(attach.facade.readProjection());
+      this.refreshWorkspaceVoxelProjection(attach.facade, state);
       this.workspaceAuthoringMessageState.set(
         `Workspace authoring ready · generation ${state.identity.generation} · ${state.lifecycleHash}.`,
       );
@@ -8768,6 +9079,8 @@ export class StudioWorkspaceStore {
     this.workspaceAuthoringBridgeState.set(null);
     this.workspaceAuthoringStateSummaryState.set(null);
     this.workspaceAuthoringProjectionState.set(null);
+    this.voxelProjectionBindingReceiptState.set(null);
+    this.voxelAuthoringModeState.set(INITIAL_VOXEL_AUTHORING_MODE);
     if (bridge !== null) {
       disconnectStudioBrowserHostRuntimeBridge(bridge);
     }
@@ -8777,9 +9090,69 @@ export class StudioWorkspaceStore {
     const state = facade.readState();
     if (this.workspaceAuthoringFacadeState() === facade) {
       this.workspaceAuthoringStateSummaryState.set(state);
-      this.workspaceAuthoringProjectionState.set(facade.readProjection());
+      this.refreshWorkspaceVoxelProjection(facade, state);
     }
     return state;
+  }
+
+  private refreshWorkspaceVoxelProjection(
+    facade: WorkspaceAuthoringFacade,
+    state: WorkspaceAuthoringStateSummary,
+  ): void {
+    const plan = buildStudioVoxelProjectionBindingPlan(
+      this.workspaceState().flatSceneDocument,
+      this.activeVoxelAssetIdState(),
+    );
+    try {
+      const receipt = facade.configureVoxelProjectionInstances({
+        registryDigest: plan.registryDigest,
+        instances: plan.instances,
+      });
+      this.voxelProjectionBindingReceiptState.set(receipt);
+      this.workspaceAuthoringProjectionState.set(facade.readProjection());
+      this.voxelAuthoringModeState.update(context => {
+        const stillBound = context.activeInstanceId === null
+          || plan.instances.some(instance => instance.instanceId === context.activeInstanceId);
+        if (!stillBound) {
+          return {
+            ...INITIAL_VOXEL_AUTHORING_MODE,
+            activeAssetId: plan.activeAssetId,
+            message: 'Returned to Object mode because the edited voxel instance is no longer projected.',
+          };
+        }
+        const revisionChanged = context.workingRevision !== null
+          && context.workingRevision !== state.workingRevision;
+        return {
+          ...context,
+          activeAssetId: plan.activeAssetId,
+          bindingHash: receipt.bindingHash,
+          workingRevision: receipt.workingRevision,
+          selectedCell: revisionChanged ? null : context.selectedCell,
+          editAnchor: revisionChanged ? null : context.editAnchor,
+          message: revisionChanged
+            ? 'Voxel authority changed; select a visible cell again before editing.'
+            : context.message,
+        };
+      });
+      if (plan.availableAssetIds.length > 1) {
+        this.workspaceAuthoringMessageState.set(
+          `Projected ${plan.instances.length} instance(s) of active asset ${plan.activeAssetId ?? 'none'}; `
+          + `other scene voxel assets remain unloaded: ${plan.availableAssetIds.filter(id => id !== plan.activeAssetId).join(', ')}.`,
+        );
+      }
+    } catch (error) {
+      this.voxelProjectionBindingReceiptState.set(null);
+      this.workspaceAuthoringProjectionState.set(null);
+      this.workspaceAuthoringMessageState.set(`Voxel instance projection rejected: ${errorMessage(error)}`);
+    }
+  }
+
+  private refreshSceneVoxelProjection(): void {
+    const facade = this.workspaceAuthoringFacadeState();
+    const state = this.workspaceAuthoringStateSummaryState();
+    if (facade !== null && state !== null) {
+      this.refreshWorkspaceVoxelProjection(facade, state);
+    }
   }
 
   detachRuntimeSessionInspection(): void {
@@ -9265,6 +9638,9 @@ export class StudioWorkspaceStore {
       this.viewportHitState.set(null);
       this.viewportCameraState.set(buildStudioViewportCameraReadModel());
       this.viewportToolState.set(buildStudioViewportToolReadModel());
+      this.activeVoxelAssetIdState.set(null);
+      this.activeVoxelAssetFilePathState.set(null);
+      this.activeVoxelAssetFileHashState.set(null);
       await this.openWorkspaceAuthoring();
       this.menuMessageState.set('New untitled scene created.');
     } catch (error) {
@@ -9605,6 +9981,9 @@ export class StudioWorkspaceStore {
       this.viewportHitState.set(null);
       this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
       this.viewportToolState.set(buildStudioViewportToolReadModel());
+      this.activeVoxelAssetIdState.set(null);
+      this.activeVoxelAssetFilePathState.set(null);
+      this.activeVoxelAssetFileHashState.set(null);
       await this.openWorkspaceAuthoring();
       const reconnectedVoxelAssetIds = await this.reconnectSceneVoxelAssets(result.document);
       const reconnected = new Set(reconnectedVoxelAssetIds);
@@ -9634,10 +10013,23 @@ export class StudioWorkspaceStore {
       return [];
     }
     const reconnected: string[] = [];
+    const uniqueVoxelNodes: FlatSceneDocument['nodes'][number][] = [];
+    const seenVoxelAssetIds = new Set<string>();
     for (const node of document.nodes) {
-      if (node.kind.kind !== 'voxelVolume') {
-        continue;
+      if (node.kind.kind === 'voxelVolume' && !seenVoxelAssetIds.has(node.kind.asset.id)) {
+        seenVoxelAssetIds.add(node.kind.asset.id);
+        uniqueVoxelNodes.push(node);
       }
+    }
+    const nodesToReconnect = uniqueVoxelNodes.slice(0, 1);
+    if (uniqueVoxelNodes.length > 1) {
+      this.workspaceAuthoringMessageState.set(
+        `Scene references ${uniqueVoxelNodes.length} distinct voxel assets; `
+        + 'the current workspace authoring cell loads one asset at a time. Open the desired asset before entering Edit mode.',
+      );
+    }
+    for (const node of nodesToReconnect) {
+      if (node.kind.kind !== 'voxelVolume') continue;
       const assetId = node.kind.asset.id;
       const taggedPath = node.tags
         .find(tag => tag.startsWith('asha-studio:voxel-asset-path:'))
