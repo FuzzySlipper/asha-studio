@@ -87,6 +87,7 @@ import {
   renderHandle,
   type CameraSnapshot,
   type CommandBatch,
+  type CommandResult,
   type ModelMaterialPreviewRequest,
   type ModelMaterialPreviewSnapshot,
   type PickResult,
@@ -168,6 +169,7 @@ import {
   NATIVE_RUST_RUNTIME_BRIDGE_PROVIDER_KIND,
   RuntimeBridgeError,
   createRuntimeSessionFacade,
+  createWorkspaceAuthoringFacade,
   resolveNativeRustRuntimeBridgeProvider,
   type CameraCreateRequest,
   type ProjectBundleLoadRequest,
@@ -186,10 +188,11 @@ import type {
   RuntimeSessionGeneratedTunnelOperationReceipt,
   RuntimeSessionLifecycleRestartReceipt,
   RuntimeSessionLifecycleStatusReadout,
-  RuntimeSessionCommandReceipt,
   RuntimeSessionProjectionSummary,
   RuntimeSessionStateSummary,
   RuntimeSessionTelemetrySummary,
+  WorkspaceAuthoringFacade,
+  WorkspaceAuthoringStateSummary,
 } from '@asha/runtime-session';
 
 import type {
@@ -237,7 +240,7 @@ const DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL: StudioVoxelAssetWorkflowControlReadM
   status: 'idle',
   message: 'No voxel asset workflow action has run.',
   targetAssetId: 'voxel-volume/generated',
-  targetProjectBundle: 'asha-demo',
+  targetProjectBundle: 'asha-project',
   targetAssetPath: 'assets/voxels/generated.avxl.json',
   residentModelId: null,
   volumeAssetId: null,
@@ -583,7 +586,7 @@ export interface StudioVoxelConversionWorkspaceShellReadModel {
   readonly states: readonly StudioVoxelConversionWorkspaceShellState[];
   readonly regions: readonly StudioVoxelConversionWorkspaceShellRegion[];
   readonly actions: readonly StudioVoxelConversionWorkspaceShellAction[];
-  readonly runtimeAttached: boolean;
+  readonly authoringAvailable: boolean;
   readonly shellHash: string;
 }
 
@@ -1058,6 +1061,14 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly acceptedCommandCount: number | null;
     readonly rejectedCommandCount: number | null;
   };
+  readonly authoring: {
+    readonly available: boolean;
+    readonly generation: number | null;
+    readonly workingRevision: number | null;
+    readonly storedRevision: number | null;
+    readonly dirty: boolean;
+    readonly lifecycleHash: string | null;
+  };
   readonly conversion: {
     readonly shellHash: string;
     readonly readoutHash: string;
@@ -1079,7 +1090,7 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly compactAffordances: readonly StudioAgentCompactVoxelEdit['kind'][];
     readonly maxCommands: number;
     readonly coordinateAbsLimit: number;
-    readonly runtimeAttached: boolean;
+    readonly authoringAvailable: boolean;
   };
   readonly viewCapture: {
     readonly supportedAngles: readonly StudioAgentVoxelViewAngle[];
@@ -1106,7 +1117,7 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly operation: StudioAgentVoxelWorkflowResultOperation;
   readonly diagnostic: string | null;
   readonly surface: StudioAgentVoxelWorkflowSurfaceReadModel;
-  readonly voxelEditReceipt?: RuntimeSessionCommandReceipt | null;
+  readonly voxelEditReceipt?: StudioWorkspaceAuthoringCommandReceipt | null;
   readonly compiledVoxelEditBatch?: CommandBatch | null;
   readonly sourceRegistration?: VoxelConversionSourceRegistration | null;
   readonly meshSourceImport?: StudioAgentVoxelMeshSourceImportReadModel | null;
@@ -1121,6 +1132,13 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
   readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
   readonly voxelAssetReopen?: StudioAgentVoxelAssetReopenReadModel | null;
+}
+
+export interface StudioWorkspaceAuthoringCommandReceipt {
+  readonly kind: 'studio_workspace_authoring.command_receipt.v0';
+  readonly batch: CommandBatch;
+  readonly result: CommandResult;
+  readonly authoringState: WorkspaceAuthoringStateSummary;
 }
 
 export interface StudioAgentVoxelOperationTranscriptEntry {
@@ -1202,8 +1220,26 @@ export type StudioVoxelAssetWorkflowControlAction =
   | 'model_info'
   | 'export_volume'
   | 'save_volume'
+  | 'reopen_volume'
   | 'unload_volume'
   | 'load_volume';
+
+export const STUDIO_VOXEL_OPERATION_AUTHORITY = {
+  meshImport: 'workspace_authoring',
+  conversion: 'workspace_authoring',
+  initializeVolume: 'workspace_authoring',
+  edit: 'workspace_authoring',
+  inspect: 'workspace_authoring',
+  palette: 'workspace_authoring',
+  annotations: 'workspace_authoring',
+  history: 'workspace_authoring',
+  preview: 'projection',
+  save: 'stored_asset_io',
+  reopen: 'stored_asset_io',
+  loadIntoRunningGame: 'live_runtime',
+  inspectRunningGame: 'live_runtime',
+  unloadFromRunningGame: 'live_runtime',
+} as const;
 
 export interface StudioVoxelTranscriptControlReadModel {
   readonly controlVersion: 'studio-voxel-transcript-control.v0';
@@ -1381,7 +1417,7 @@ export interface StudioVoxelHistoryDiffReadModel {
 
 export interface StudioVoxelHistoryPanelReadModel {
   readonly panelVersion: 'studio-voxel-history-panel.v0';
-  readonly runtimeAttached: boolean;
+  readonly authoringAvailable: boolean;
   readonly control: StudioVoxelHistoryControlState;
   readonly cursor: VoxelEditHistoryCursor | null;
   readonly historyHash: string | null;
@@ -1549,11 +1585,28 @@ const DEMO_GAME_WORKSPACE_PATHS = new Set([
   'catalogs/weapons',
 ]);
 
-const DEMO_RUNTIME_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
+const LIVE_RUNTIME_FIXTURE_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
   sceneId: 4103,
 };
+
+function workspaceAuthoringProjectBundle(
+  workspace: StudioGameWorkspaceReadModel,
+  document: FlatSceneDocument,
+): ProjectBundleLoadRequest {
+  const identity = `${workspace.workspaceHash}|${String(document.id)}|${document.schemaVersion}`;
+  let sceneId = 2_166_136_261;
+  for (const character of identity) {
+    sceneId ^= character.codePointAt(0) ?? 0;
+    sceneId = Math.imul(sceneId, 16_777_619) >>> 0;
+  }
+  return {
+    bundleSchemaVersion: 1,
+    protocolVersion: 1,
+    sceneId,
+  };
+}
 
 const STUDIO_RUNTIME_MODEL_PREVIEW_REQUEST: ModelMaterialPreviewRequest = {
   catalogEntry: {
@@ -3983,7 +4036,7 @@ function voxelHistoryEntryRow(entry: VoxelEditHistoryEntry): StudioVoxelHistoryE
 
 function buildStudioVoxelHistoryPanelReadModel(
   control: StudioVoxelHistoryControlState,
-  runtimeAttached: boolean,
+  authoringAvailable: boolean,
 ): StudioVoxelHistoryPanelReadModel {
   const summary = control.summary;
   const receipt = control.receipt;
@@ -3998,7 +4051,7 @@ function buildStudioVoxelHistoryPanelReadModel(
     ...(receiptDiff?.diagnostics ?? []),
   ];
   const body = {
-    runtimeAttached,
+    authoringAvailable,
     historyId: control.historyId,
     cursorId: control.cursorId,
     targetTransactionId: control.targetTransactionId,
@@ -4018,18 +4071,18 @@ function buildStudioVoxelHistoryPanelReadModel(
 
   return {
     panelVersion: 'studio-voxel-history-panel.v0',
-    runtimeAttached,
+    authoringAvailable,
     control,
     cursor,
     historyHash: summary?.historyHash ?? null,
     cursorHash: cursor?.historyHash ?? null,
     entryCount: summary?.entries.length ?? 0,
     retainedRedoCount: summary?.retainedRedoTransactionIds.length ?? 0,
-    canRead: runtimeAttached && control.historyId.trim().length > 0,
-    canPreviewRevert: runtimeAttached && summary !== null && targetSet,
-    canApplyRevert: runtimeAttached && summary !== null && targetSet,
-    canUndo: runtimeAttached && summary !== null && (cursor?.undoDepth ?? 0) > 0,
-    canRedo: runtimeAttached && summary !== null && (cursor?.redoDepth ?? 0) > 0,
+    canRead: authoringAvailable && control.historyId.trim().length > 0,
+    canPreviewRevert: authoringAvailable && summary !== null && targetSet,
+    canApplyRevert: authoringAvailable && summary !== null && targetSet,
+    canUndo: authoringAvailable && summary !== null && (cursor?.undoDepth ?? 0) > 0,
+    canRedo: authoringAvailable && summary !== null && (cursor?.redoDepth ?? 0) > 0,
     targetLabel: targetSet
       ? [
           targetTransactionId === null ? null : `tx ${targetTransactionId}`,
@@ -4353,7 +4406,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
   readonly importedSource: StudioImportedVoxelConversionSource | null;
   readonly sessionId: string;
   readonly expectedTimelineSequence: number;
-  readonly runtimeSession: Partial<Pick<RuntimeSessionFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
+  readonly runtimeSession: Partial<Pick<WorkspaceAuthoringFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
   readonly authorityState: StudioVoxelConversionAuthorityState;
 }): StudioVoxelConversionWorkspaceShellReadModel {
   const workspace = buildStudioVoxelConversionWorkspaceReadModel({
@@ -4457,7 +4510,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
       status: readout.status,
       message: firstDiagnosticMessage(
         readout.readiness.diagnostics,
-        'Asha runtime conversion operations are not available.',
+        'Workspace authoring conversion authority is not available.',
       ),
     },
     {
@@ -4527,7 +4580,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
       disabled: !proposalForAction('voxel_conversion.plan').accepted,
       accepted: proposalForAction('voxel_conversion.plan').accepted,
       reason: proposalForAction('voxel_conversion.plan').accepted
-        ? 'Submit plan proposal to the attached Asha runtime facade.'
+        ? 'Submit plan proposal to workspace authoring authority.'
         : readinessReason('voxel_conversion.plan'),
     },
     {
@@ -4536,7 +4589,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
       disabled: !proposalForAction('voxel_conversion.preview').accepted,
       accepted: proposalForAction('voxel_conversion.preview').accepted,
       reason: proposalForAction('voxel_conversion.preview').accepted
-        ? 'Submit preview proposal to the attached Asha runtime facade.'
+        ? 'Submit preview proposal to workspace authoring authority.'
         : readinessReason('voxel_conversion.preview'),
     },
     {
@@ -4545,7 +4598,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
       disabled: !proposalForAction('voxel_conversion.apply').accepted,
       accepted: proposalForAction('voxel_conversion.apply').accepted,
       reason: proposalForAction('voxel_conversion.apply').accepted
-        ? 'Submit guarded apply proposal to the attached Asha runtime facade.'
+        ? 'Submit guarded apply proposal to workspace authoring authority.'
         : readinessReason('voxel_conversion.apply'),
     },
     {
@@ -4554,7 +4607,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
       disabled: !proposalForAction('voxel_conversion.export_evidence').accepted,
       accepted: proposalForAction('voxel_conversion.export_evidence').accepted,
       reason: proposalForAction('voxel_conversion.export_evidence').accepted
-        ? 'Submit evidence export proposal to the attached Asha runtime facade.'
+        ? 'Submit evidence export proposal to workspace authoring authority.'
         : readinessReason('voxel_conversion.export_evidence'),
     },
   ];
@@ -4576,7 +4629,7 @@ function buildVoxelConversionWorkspaceShellReadModel(options: {
     states,
     regions,
     actions,
-    runtimeAttached: options.runtimeSession !== null,
+    authoringAvailable: options.runtimeSession !== null,
     shellHash: `${workspace.readoutHash}:${readout.readoutHash}:${planProposal.accepted}:${previewProposal.accepted}:${applyProposal.accepted}:${exportProposal.accepted}:${previewProjection.status}:${sourceMetadata.readoutHash}:${commandTimeline.length}:${evidenceRows.length}`,
   };
 }
@@ -4588,7 +4641,7 @@ export function buildStudioVoxelConversionWorkspaceShellForInputs(options: {
   readonly importedSource?: StudioImportedVoxelConversionSource | null;
   readonly sessionId: string;
   readonly expectedTimelineSequence: number;
-  readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
+  readonly runtimeSession?: Partial<Pick<WorkspaceAuthoringFacade, 'planVoxelConversion' | 'previewVoxelConversion' | 'applyVoxelConversion' | 'exportVoxelConversionEvidence'>> | null;
   readonly authorityState?: StudioVoxelConversionAuthorityState;
 }): StudioVoxelConversionWorkspaceShellReadModel {
   return buildVoxelConversionWorkspaceShellReadModel({
@@ -4808,6 +4861,10 @@ export class StudioWorkspaceStore {
   private readonly runtimeSessionStateSummaryState = signal<RuntimeSessionStateSummary | null>(null);
   private readonly runtimeSessionProjectionState = signal<RuntimeSessionProjectionSummary | null>(null);
   private readonly runtimeSessionTelemetryState = signal<RuntimeSessionTelemetrySummary | null>(null);
+  private readonly workspaceAuthoringBridgeState = signal<NativeBrowserHostRuntimeBridge | null>(null);
+  private readonly workspaceAuthoringFacadeState = signal<WorkspaceAuthoringFacade | null>(null);
+  private readonly workspaceAuthoringStateSummaryState = signal<WorkspaceAuthoringStateSummary | null>(null);
+  private readonly workspaceAuthoringMessageState = signal('Starting workspace authoring authority.');
   private readonly runtimeViewportEvidenceState = signal<StudioRuntimeViewportEvidence>(
     MISSING_RUNTIME_VIEWPORT_EVIDENCE,
   );
@@ -4916,13 +4973,13 @@ export class StudioWorkspaceStore {
   readonly voxelHistoryPanel = computed<StudioVoxelHistoryPanelReadModel>(() =>
     buildStudioVoxelHistoryPanelReadModel(
       this.voxelHistoryControlState(),
-      this.runtimeSessionFacadeState() !== null,
+      this.workspaceAuthoringFacadeState() !== null,
     ),
   );
   readonly voxelAnnotationControl = computed<StudioVoxelAnnotationControlReadModel>(() => {
     const control = this.voxelAnnotationControlState();
     const asset = this.voxelAssetWorkflowControl().lastAsset;
-    const canSubmit = this.runtimeSessionFacadeState() !== null && asset !== null;
+    const canSubmit = this.workspaceAuthoringFacadeState() !== null && asset !== null;
     return {
       ...control,
       canSubmit,
@@ -4954,6 +5011,7 @@ export class StudioWorkspaceStore {
     stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument))
       !== this.cleanSceneDocumentHashState(),
   );
+  readonly workspaceAuthoringDirty = computed(() => this.workspaceAuthoringStateSummaryState()?.dirty ?? false);
   readonly saveAsPath = this.saveAsPathState.asReadonly();
   readonly unsavedScenePrompt = this.unsavedScenePromptState.asReadonly();
   readonly sceneFileConflict = this.sceneFileConflictState.asReadonly();
@@ -4991,6 +5049,8 @@ export class StudioWorkspaceStore {
   readonly menuMessage = this.menuMessageState.asReadonly();
   readonly gameWorkspaceOverview = this.gameWorkspaceState.asReadonly();
   readonly runtimeConnectionMessage = this.runtimeConnectionMessageState.asReadonly();
+  readonly workspaceAuthoringState = this.workspaceAuthoringStateSummaryState.asReadonly();
+  readonly workspaceAuthoringMessage = this.workspaceAuthoringMessageState.asReadonly();
   readonly catalogWorkflowMessage = this.catalogWorkflowMessageState.asReadonly();
   readonly assetInventory = this.assetInventoryState.asReadonly();
   readonly gameWorkspace = computed(() => {
@@ -5013,6 +5073,8 @@ export class StudioWorkspaceStore {
           live: this.runtimeLiveState(),
         });
   });
+  readonly workspaceAuthoringAvailable = computed(() => this.workspaceAuthoringFacadeState() !== null);
+  readonly liveRuntimeAvailable = computed(() => this.runtimeSessionFacadeState() !== null);
   readonly runtimeViewportProjection = computed(() => this.runtimeSessionProjectionState());
   readonly runtimeViewportEvidence = computed(() => this.runtimeViewportEvidenceState());
   readonly runtimeSessionInspection = computed<StudioRuntimeSessionInspectionReadModel>(() =>
@@ -5085,13 +5147,14 @@ export class StudioWorkspaceStore {
       importedSource,
       sessionId: this.workspaceState().session.sessionId,
       expectedTimelineSequence: this.workspaceState().timelineSequence + 1,
-      runtimeSession: this.runtimeSessionFacadeState(),
+      runtimeSession: this.workspaceAuthoringFacadeState(),
       authorityState: this.voxelConversionAuthorityState(),
     });
   });
 
   agentVoxelWorkflowSurface(): StudioAgentVoxelWorkflowSurfaceReadModel {
     const inspection = this.runtimeSessionInspection();
+    const authoring = this.workspaceAuthoringStateSummaryState();
     const shell = this.voxelConversionWorkspaceShell();
     const viewport = this.viewportAdapter();
     const body = {
@@ -5100,6 +5163,14 @@ export class StudioWorkspaceStore {
         sessionHash: inspection.sessionHash,
         acceptedCommandCount: inspection.commandSummary.acceptedCommandCount,
         rejectedCommandCount: inspection.commandSummary.rejectedCommandCount,
+      },
+      authoring: {
+        available: authoring !== null && authoring.status === 'open',
+        generation: authoring?.identity.generation ?? null,
+        workingRevision: authoring?.workingRevision ?? null,
+        storedRevision: authoring?.storedRevision ?? null,
+        dirty: authoring?.dirty ?? false,
+        lifecycleHash: authoring?.lifecycleHash ?? null,
       },
       conversion: {
         shellHash: shell.shellHash,
@@ -5122,7 +5193,7 @@ export class StudioWorkspaceStore {
         compactAffordances: AGENT_COMPACT_VOXEL_AFFORDANCES,
         maxCommands: AGENT_VOXEL_EDIT_MAX_COMMANDS,
         coordinateAbsLimit: AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT,
-        runtimeAttached: this.runtimeSessionFacadeState() !== null,
+        authoringAvailable: this.workspaceAuthoringFacadeState() !== null,
       },
       viewCapture: {
         supportedAngles: AGENT_VOXEL_VIEW_ANGLES,
@@ -5140,7 +5211,7 @@ export class StudioWorkspaceStore {
         authority: 'svc-voxel-asset' as const,
       },
       diagnostics: [
-        ...(this.runtimeSessionFacadeState() === null ? ['runtime_session_not_attached'] : []),
+        ...(this.workspaceAuthoringFacadeState() === null ? ['workspace_authoring_unavailable'] : []),
         ...shell.readout.diagnostics.map(diagnostic => diagnostic.code),
       ],
       nonClaims: [
@@ -5169,12 +5240,12 @@ export class StudioWorkspaceStore {
           surface: this.agentVoxelWorkflowSurface(),
         };
       case 'register_conversion_source': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before registering voxel conversion sources.',
+            diagnostic: 'Workspace authoring authority is not ready for voxel conversion sources.',
             surface: this.agentVoxelWorkflowSurface(),
             sourceRegistration: null,
           };
@@ -5201,12 +5272,12 @@ export class StudioWorkspaceStore {
         }
       }
       case 'register_conversion_mesh_asset': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before registering project mesh assets for voxel conversion.',
+            diagnostic: 'Workspace authoring authority is not ready for project mesh conversion.',
             surface: this.agentVoxelWorkflowSurface(),
             sourceRegistration: null,
           };
@@ -5233,12 +5304,12 @@ export class StudioWorkspaceStore {
         }
       }
       case 'import_conversion_mesh_source': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before importing a bounded mesh source for voxel conversion.',
+            diagnostic: 'Workspace authoring authority is not ready for mesh import.',
             surface: this.agentVoxelWorkflowSurface(),
             meshSourceImport: null,
           };
@@ -5310,12 +5381,12 @@ export class StudioWorkspaceStore {
         };
       }
       case 'get_model_info': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before reading voxel model info.',
+            diagnostic: 'Workspace authoring authority is not ready for voxel model inspection.',
             surface: this.agentVoxelWorkflowSurface(),
             modelInfo: null,
           };
@@ -5342,12 +5413,12 @@ export class StudioWorkspaceStore {
         }
       }
       case 'get_model_window': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before reading a bounded voxel model window.',
+            diagnostic: 'Workspace authoring authority is not ready for voxel window inspection.',
             surface: this.agentVoxelWorkflowSurface(),
             modelWindow: null,
           };
@@ -5374,12 +5445,12 @@ export class StudioWorkspaceStore {
         }
       }
       case 'export_voxel_volume_asset': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before exporting a resident voxel volume asset.',
+            diagnostic: 'Workspace authoring authority is not ready for voxel export.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeExport: null,
           };
@@ -5417,12 +5488,12 @@ export class StudioWorkspaceStore {
         }
       }
       case 'save_voxel_volume_asset': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before requesting a voxel asset diff/save transaction.',
+            diagnostic: 'Workspace authoring authority is not ready for voxel save.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeSave: null,
           };
@@ -5460,18 +5531,19 @@ export class StudioWorkspaceStore {
         }
       }
       case 'load_voxel_volume_asset': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before loading a voxel asset into runtime.',
+            diagnostic: 'Workspace authoring authority is not ready to reopen a voxel asset.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeLoad: null,
           };
         }
         try {
           const receipt = facade.loadVoxelVolumeAsset(operation.loadRequest);
+          this.refreshWorkspaceAuthoringState(facade);
           const loadReadout = buildStudioAgentVoxelVolumeLoadReadModel(receipt);
           const accepted = receipt.loaded
             && receipt.canonicalJsonHash === operation.loadRequest.asset.contentHashes.canonicalJson
@@ -5548,18 +5620,19 @@ export class StudioWorkspaceStore {
         }
       }
       case 'initialize_voxel_volume_authoring': {
-        const facade = this.runtimeSessionFacadeState();
+        const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           return {
             accepted: false,
             operation: operation.kind,
-            diagnostic: 'Attach RuntimeSession before initializing a blank voxel authoring volume.',
+            diagnostic: 'Workspace authoring authority is not ready to initialize a blank volume.',
             surface: this.agentVoxelWorkflowSurface(),
             voxelVolumeAuthoringInitialize: null,
           };
         }
         try {
           const receipt = facade.initializeVoxelVolumeAuthoring(operation.initializeRequest);
+          this.refreshWorkspaceAuthoringState(facade);
           const accepted = receipt.initialized;
           const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
             commandId: 'voxel_asset.initialize_authoring_volume',
@@ -5880,6 +5953,7 @@ export class StudioWorkspaceStore {
   constructor() {
     installStudioVoxelWorkflowProductApi(this);
     void this.refreshProjectFiles('');
+    void this.openWorkspaceAuthoring();
   }
 
   readonly selectedEntity = computed(() => {
@@ -6766,13 +6840,13 @@ export class StudioWorkspaceStore {
   }
 
   runVoxelAnnotationControl(action: 'load' | 'upsert_region' | 'add_runs' | 'remove_runs' | 'replace_selection' | 'set_parent' | 'set_tags' | 'set_label' | 'set_kind' | 'query_cell' | 'query_bounds' | 'export'): void {
-    const facade = this.runtimeSessionFacadeState();
+    const facade = this.workspaceAuthoringFacadeState();
     const assetWorkflow = this.voxelAssetWorkflowControl();
     const asset = assetWorkflow.lastAsset;
     const assetWorkflowTarget = this.voxelAssetWorkflowTargetForCurrentDraft();
     const control = this.voxelAnnotationControlState();
     if (facade === null || asset === null) {
-      this.recordVoxelAnnotationResult(control, false, 'Attach RuntimeSession and export a voxel asset before annotation authoring.', [], null, null, null);
+      this.recordVoxelAnnotationResult(control, false, 'Start workspace authoring and export a voxel asset before annotation authoring.', [], null, null, null);
       return;
     }
     const bounds = { min: { x: control.x1, y: control.y1, z: control.z1 }, max: { x: control.x2, y: control.y2, z: control.z2 } };
@@ -6801,6 +6875,7 @@ export class StudioWorkspaceStore {
           replaceExisting: true,
           includeMaterialCounts: false,
         });
+        this.refreshWorkspaceAuthoringState(facade);
         if (!targetLoad.loaded) {
           this.recordVoxelAnnotationResult(control, false, 'Voxel annotation target load rejected.', targetLoad.diagnostics.map(diagnostic => diagnostic.message), null, null, null);
           return;
@@ -6811,6 +6886,7 @@ export class StudioWorkspaceStore {
           return;
         }
         const receipt = facade.loadVoxelAnnotationLayer({ layer: validation.normalizedLayer, targetGrid: targetLoad.grid, replaceExisting: true, expectedSessionHash: null });
+        this.refreshWorkspaceAuthoringState(facade);
         this.recordVoxelAnnotationResult(control, receipt.loaded, receipt.loaded ? `Loaded annotation layer ${receipt.requestLayerId}.` : 'Annotation layer load rejected.', receipt.diagnostics.map(item => item.message), receipt, null, null);
         return;
       }
@@ -6846,14 +6922,16 @@ export class StudioWorkspaceStore {
           return;
         }
         const receipt = facade.applyVoxelAnnotationEdit({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash: exported.canonicalJsonHash ?? expectedLayerHash, operation: 'replace_selection', regionId: control.regionId.trim() || null, region: null, sparseRuns: replacementRuns, tags: [], label: null, kind: null, parentRegionId: null });
+        this.refreshWorkspaceAuthoringState(facade);
         this.recordVoxelAnnotationResult(control, receipt.edited, receipt.edited ? `Bounded removal accepted for ${control.regionId}.` : `Bounded removal rejected for ${control.regionId}.`, receipt.diagnostics.map(item => item.message), null, null, receipt);
         return;
       }
       const operation: VoxelAnnotationEditOperation = action;
       const receipt = facade.applyVoxelAnnotationEdit({ runtimeLayerId: control.runtimeLayerId, layerId: control.layerId, expectedLayerHash, operation, regionId: control.regionId.trim() || null, region: action === 'upsert_region' ? region : null, sparseRuns: ['add_runs', 'remove_runs', 'replace_selection'].includes(action) ? sparseRuns : [], tags: action === 'set_tags' ? tags : [], label: action === 'set_label' ? control.label.trim() : null, kind: action === 'set_kind' ? control.kind : null, parentRegionId: action === 'set_parent' ? (control.parentRegionId.trim() || null) : null });
+      this.refreshWorkspaceAuthoringState(facade);
       this.recordVoxelAnnotationResult(control, receipt.edited, receipt.edited ? `${operation} accepted for ${control.regionId}.` : `${operation} rejected for ${control.regionId}.`, receipt.diagnostics.map(item => item.message), null, null, receipt);
     } catch (error) {
-      this.recordVoxelAnnotationResult(control, false, error instanceof Error ? error.message : 'Voxel annotation RuntimeSession operation failed.', [], null, null, null);
+      this.recordVoxelAnnotationResult(control, false, error instanceof Error ? error.message : 'Voxel annotation authoring operation failed.', [], null, null, null);
     }
   }
 
@@ -6917,9 +6995,9 @@ export class StudioWorkspaceStore {
   }
 
   runVoxelHistoryControl(action: StudioVoxelHistoryAction): void {
-    const facade = this.runtimeSessionFacadeState();
+    const facade = this.workspaceAuthoringFacadeState();
     if (facade === null) {
-      this.recordVoxelHistoryRejected(action, 'Attach RuntimeSession before reading voxel edit history.');
+      this.recordVoxelHistoryRejected(action, 'Workspace authoring authority is not ready to read voxel edit history.');
       return;
     }
     if (this.voxelHistoryControlState().historyId.trim().length === 0) {
@@ -6949,6 +7027,7 @@ export class StudioWorkspaceStore {
       if (action === 'undo') {
         const request = this.voxelHistoryUndoRequest();
         const undoReceipt = facade.undoVoxelEdit(request);
+        this.refreshWorkspaceAuthoringState(facade);
         this.recordVoxelHistoryReceipt(action, undoReceipt.receipt);
         return;
       }
@@ -6956,6 +7035,7 @@ export class StudioWorkspaceStore {
       if (action === 'redo') {
         const request = this.voxelHistoryRedoRequest();
         const redoReceipt = facade.redoVoxelEdit(request);
+        this.refreshWorkspaceAuthoringState(facade);
         this.recordVoxelHistoryReceipt(action, redoReceipt.receipt);
         return;
       }
@@ -6964,9 +7044,10 @@ export class StudioWorkspaceStore {
       const receipt = action === 'preview_revert'
         ? facade.previewVoxelEditRevert(request)
         : facade.applyVoxelEditRevert(request);
+      if (action !== 'preview_revert') this.refreshWorkspaceAuthoringState(facade);
       this.recordVoxelHistoryReceipt(action, receipt);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voxel history RuntimeSession operation failed.';
+      const message = error instanceof Error ? error.message : 'Voxel history authoring operation failed.';
       this.recordVoxelHistoryRejected(action, message);
     }
   }
@@ -7029,13 +7110,13 @@ export class StudioWorkspaceStore {
 
   runVoxelMaterialPaletteUpdate(): void {
     const asset = this.voxelAssetWorkflowControl().lastAsset;
-    const facade = this.runtimeSessionFacadeState();
+    const facade = this.workspaceAuthoringFacadeState();
     const editor = this.voxelMaterialPaletteEditorState();
     if (asset === null || facade === null) {
       this.recordVoxelMaterialPaletteUpdate(
         editor,
         false,
-        'Attach RuntimeSession and export or save a voxel asset before editing its stored palette.',
+        'Open workspace authoring and export or save a voxel asset before editing its stored palette.',
         [],
         null,
       );
@@ -7069,6 +7150,7 @@ export class StudioWorkspaceStore {
     };
     try {
       const receipt = facade.updateVoxelVolumeAssetPalette(request);
+      this.refreshWorkspaceAuthoringState(facade);
       const updatedAsset = receipt.updated ? receipt.asset : null;
       const accepted = updatedAsset !== null;
       this.recordVoxelMaterialPaletteUpdate(
@@ -7106,7 +7188,7 @@ export class StudioWorkspaceStore {
     }
   }
 
-  runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): void {
+  async runVoxelAssetWorkflowControl(action: StudioVoxelAssetWorkflowControlAction): Promise<void> {
     const target = this.voxelAssetWorkflowTargetForCurrentDraft();
     if (action === 'initialize_volume') {
       const draft = this.voxelConversionDraftState();
@@ -7156,6 +7238,24 @@ export class StudioWorkspaceStore {
 
     if (action === 'load_volume') {
       const lastAsset = this.voxelAssetWorkflowControlState().lastAsset;
+      const facade = this.runtimeSessionFacadeState();
+      if (facade === null) {
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: false,
+          target,
+          message: 'Attach a running game before loading the saved asset into live runtime state.',
+          residentModelId: null,
+          volumeAssetId: target.volumeAssetId,
+          voxelCount: null,
+          materialSummary: 'no live runtime readback',
+          canonicalJsonHash: lastAsset?.contentHashes.canonicalJson ?? null,
+          voxelDataHash: lastAsset?.contentHashes.voxelData ?? null,
+          validationDiagnosticCodes: [],
+          lastAsset,
+        });
+        return;
+      }
       if (lastAsset === null) {
         this.recordVoxelAssetWorkflowControl({
           action,
@@ -7190,17 +7290,139 @@ export class StudioWorkspaceStore {
         });
         return;
       }
-      const loadResult = this.runAgentVoxelWorkflowOperation({
-        kind: 'load_voxel_volume_asset',
-        loadRequest: {
+      try {
+        const receipt = facade.loadVoxelVolumeAsset({
           asset: lastAsset,
           targetGrid: target.grid,
           targetVolumeAssetId: target.volumeAssetId,
           replaceExisting: true,
           includeMaterialCounts: true,
-        },
-      });
-      this.recordVoxelAssetWorkflowControlFromLoad(target, loadResult);
+        });
+        const readout = buildStudioAgentVoxelVolumeLoadReadModel(receipt);
+        const loadResult: StudioAgentVoxelWorkflowResult = {
+          accepted: receipt.loaded,
+          operation: 'load_voxel_volume_asset',
+          diagnostic: receipt.loaded ? null : receipt.diagnostics.at(0)?.message ?? 'Live runtime load rejected.',
+          surface: this.agentVoxelWorkflowSurface(),
+          voxelVolumeLoad: readout,
+        };
+        this.recordVoxelAssetWorkflowControlFromLoad(target, loadResult);
+      } catch (error) {
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: false,
+          target,
+          message: errorMessage(error),
+          residentModelId: null,
+          volumeAssetId: target.volumeAssetId,
+          voxelCount: null,
+          materialSummary: 'no live runtime readback',
+          canonicalJsonHash: lastAsset.contentHashes.canonicalJson,
+          voxelDataHash: lastAsset.contentHashes.voxelData,
+          validationDiagnosticCodes: [],
+          lastAsset,
+        });
+      }
+      return;
+    }
+
+    if (action === 'unload_volume') {
+      const facade = this.runtimeSessionFacadeState();
+      const lastAsset = this.voxelAssetWorkflowControlState().lastAsset;
+      if (facade === null) {
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: false,
+          target,
+          message: 'Attach a running game before unloading live runtime state.',
+          residentModelId: null,
+          volumeAssetId: target.volumeAssetId,
+          voxelCount: null,
+          materialSummary: 'no live runtime readback',
+          canonicalJsonHash: lastAsset?.contentHashes.canonicalJson ?? null,
+          voxelDataHash: lastAsset?.contentHashes.voxelData ?? null,
+          validationDiagnosticCodes: [],
+          lastAsset,
+        });
+        return;
+      }
+      try {
+        const modelInfo = facade.readVoxelModelInfo({
+          grid: target.grid,
+          volumeAssetId: target.volumeAssetId,
+          includeMaterialCounts: true,
+        });
+        const receipt = facade.unloadVoxelVolumeAsset({
+          grid: target.grid,
+          volumeAssetId: target.volumeAssetId,
+          expectedSessionHash: modelInfo.sessionHash,
+        });
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: receipt.unloaded,
+          target,
+          message: receipt.unloaded
+            ? `Unloaded ${receipt.removedVoxelCount} voxels from the running game.`
+            : receipt.diagnostics.at(0)?.message ?? 'Live runtime unload rejected.',
+          residentModelId: receipt.unloaded ? null : modelInfo.modelId,
+          volumeAssetId: receipt.volumeAssetId ?? target.volumeAssetId,
+          voxelCount: receipt.unloaded ? 0 : modelInfo.voxelCount,
+          materialSummary: receipt.unloaded ? 'no live resident model' : materialCountsSummary(modelInfo.materialCounts),
+          canonicalJsonHash: lastAsset?.contentHashes.canonicalJson ?? null,
+          voxelDataHash: lastAsset?.contentHashes.voxelData ?? null,
+          validationDiagnosticCodes: receipt.diagnostics.map(diagnostic => diagnostic.code),
+          lastAsset,
+        });
+      } catch (error) {
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: false,
+          target,
+          message: errorMessage(error),
+          residentModelId: null,
+          volumeAssetId: target.volumeAssetId,
+          voxelCount: null,
+          materialSummary: 'no live runtime readback',
+          canonicalJsonHash: lastAsset?.contentHashes.canonicalJson ?? null,
+          voxelDataHash: lastAsset?.contentHashes.voxelData ?? null,
+          validationDiagnosticCodes: [],
+          lastAsset,
+        });
+      }
+      return;
+    }
+
+    if (action === 'reopen_volume') {
+      try {
+        const stored = await this.readHostVoxelAsset(target.assetPath);
+        const asset = JSON.parse(stored.text) as VoxelVolumeAsset;
+        const loadResult = this.runAgentVoxelWorkflowOperation({
+          kind: 'load_voxel_volume_asset',
+          loadRequest: {
+            asset,
+            targetGrid: target.grid,
+            targetVolumeAssetId: target.volumeAssetId,
+            replaceExisting: true,
+            includeMaterialCounts: true,
+          },
+        });
+        this.recordVoxelAssetWorkflowControlFromLoad(target, loadResult, 'reopen_volume');
+      } catch (error) {
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: false,
+          target,
+          message: `Reopen failed without replacing authoring state: ${errorMessage(error)}`,
+          residentModelId: null,
+          volumeAssetId: target.volumeAssetId,
+          voxelCount: null,
+          materialSummary: 'no authoring readback',
+          canonicalJsonHash: null,
+          voxelDataHash: null,
+          validationDiagnosticCodes: [],
+          lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
+        });
+      }
       return;
     }
 
@@ -7273,36 +7495,50 @@ export class StudioWorkspaceStore {
           expectedVoxelDataHash: exportResult.voxelVolumeExport.voxelDataHash,
         },
       });
+      const saveReadout = saveResult.voxelVolumeSave ?? null;
+      if (
+        !saveResult.accepted
+        || saveReadout === null
+        || saveReadout.serializedAsset === null
+        || saveReadout.nextCanonicalJsonHash === null
+      ) {
+        this.recordVoxelAssetWorkflowControlFromSave(target, modelInfoResult.modelInfo, saveResult);
+        return;
+      }
+      try {
+        const stored = await this.writeHostVoxelAsset(target.assetPath, saveReadout.serializedAsset);
+        const facade = this.workspaceAuthoringFacadeState();
+        const state = facade?.readState() ?? null;
+        if (facade === null || state === null) {
+          throw new Error('Workspace authoring authority closed before storage confirmation.');
+        }
+        facade.confirmStored({
+          expectedWorkspaceId: state.identity.project.workspaceId,
+          expectedGeneration: state.identity.generation,
+          hostPath: stored.path,
+          canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
+        });
+        this.workspaceAuthoringStateSummaryState.set(facade.readState());
+      } catch (error) {
+        this.recordVoxelAssetWorkflowControl({
+          action,
+          accepted: false,
+          target,
+          message: `Rust produced a save candidate, but the Studio host did not store it: ${errorMessage(error)}`,
+          residentModelId: modelInfoResult.modelInfo.modelId,
+          volumeAssetId: modelInfoResult.modelInfo.volumeAssetId,
+          voxelCount: saveReadout.voxelCount,
+          materialSummary: materialCountsSummary(modelInfoResult.modelInfo.materialCounts),
+          canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
+          voxelDataHash: saveReadout.nextVoxelDataHash,
+          validationDiagnosticCodes: saveReadout.validationDiagnosticCodes,
+          lastAsset: saveReadout.asset,
+        });
+        return;
+      }
       this.recordVoxelAssetWorkflowControlFromSave(target, modelInfoResult.modelInfo, saveResult);
       return;
     }
-    const unloadResult = this.runAgentVoxelWorkflowOperation({
-      kind: 'unload_voxel_volume_asset',
-      unloadRequest: {
-        grid: target.grid,
-        volumeAssetId: target.volumeAssetId,
-        expectedSessionHash: modelInfoResult.modelInfo.sessionHash,
-      },
-    });
-    const unloadReadout = unloadResult.voxelVolumeUnload ?? null;
-    this.recordVoxelAssetWorkflowControl({
-      action: 'unload_volume',
-      accepted: unloadResult.accepted,
-      target,
-      message: unloadResult.accepted && unloadReadout !== null
-        ? `Unloaded ${unloadReadout.removedVoxelCount} voxels from ${unloadReadout.modelId}.`
-        : unloadResult.diagnostic ?? 'Voxel volume unload failed.',
-      residentModelId: unloadResult.accepted ? null : modelInfoResult.modelInfo.modelId,
-      volumeAssetId: unloadReadout?.volumeAssetId ?? target.volumeAssetId,
-      voxelCount: unloadResult.accepted ? 0 : modelInfoResult.modelInfo.voxelCount,
-      materialSummary: unloadResult.accepted
-        ? 'no resident model'
-        : materialCountsSummary(modelInfoResult.modelInfo.materialCounts),
-      canonicalJsonHash: this.voxelAssetWorkflowControlState().canonicalJsonHash,
-      voxelDataHash: this.voxelAssetWorkflowControlState().voxelDataHash,
-      validationDiagnosticCodes: unloadReadout?.diagnosticCodes ?? [],
-      lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
-    });
   }
 
   private voxelAssetWorkflowTargetForCurrentDraft(): StudioVoxelAssetWorkflowTarget {
@@ -7424,14 +7660,17 @@ export class StudioWorkspaceStore {
   private recordVoxelAssetWorkflowControlFromLoad(
     target: StudioVoxelAssetWorkflowTarget,
     result: StudioAgentVoxelWorkflowResult,
+    action: Extract<StudioVoxelAssetWorkflowControlAction, 'load_volume' | 'reopen_volume'> = 'load_volume',
   ): void {
     const loadReadout = result.voxelVolumeLoad ?? null;
     this.recordVoxelAssetWorkflowControl({
-      action: 'load_volume',
+      action,
       accepted: result.accepted,
       target,
       message: result.accepted && loadReadout !== null
-        ? `Loaded ${loadReadout.requestAssetId} as ${loadReadout.modelId}.`
+        ? action === 'reopen_volume'
+          ? `Reopened ${loadReadout.requestAssetId} from ${target.assetPath} into workspace authoring.`
+          : `Loaded ${loadReadout.requestAssetId} into the running game as ${loadReadout.modelId}.`
         : result.diagnostic ?? 'Voxel volume load failed.',
       residentModelId: loadReadout?.modelId ?? null,
       volumeAssetId: loadReadout?.volumeAssetId ?? target.volumeAssetId,
@@ -7442,6 +7681,54 @@ export class StudioWorkspaceStore {
       validationDiagnosticCodes: loadReadout?.validationDiagnosticCodes ?? [],
       lastAsset: this.voxelAssetWorkflowControlState().lastAsset,
     });
+  }
+
+  private async writeHostVoxelAsset(
+    path: string,
+    canonicalJson: string,
+  ): Promise<{ readonly path: string; readonly sha256: string }> {
+    const normalizedPath = normalizeProjectFilePath(path);
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: normalizedPath, text: canonicalJson }),
+    });
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly path?: string;
+      readonly sha256?: string;
+      readonly diagnostic?: string;
+      readonly message?: string;
+    };
+    if (!response.ok || payload.ok === false || typeof payload.path !== 'string' || typeof payload.sha256 !== 'string') {
+      throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
+    }
+    return { path: normalizeProjectFilePath(payload.path), sha256: payload.sha256 };
+  }
+
+  private async readHostVoxelAsset(
+    path: string,
+  ): Promise<{ readonly path: string; readonly text: string; readonly sha256: string }> {
+    const normalizedPath = normalizeProjectFilePath(path);
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/file?path=${encodeURIComponent(normalizedPath)}`);
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly path?: string;
+      readonly text?: string;
+      readonly sha256?: string;
+      readonly diagnostic?: string;
+      readonly message?: string;
+    };
+    if (
+      !response.ok
+      || payload.ok === false
+      || typeof payload.path !== 'string'
+      || typeof payload.text !== 'string'
+      || typeof payload.sha256 !== 'string'
+    ) {
+      throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
+    }
+    return { path: normalizeProjectFilePath(payload.path), text: payload.text, sha256: payload.sha256 };
   }
 
   private recordVoxelMaterialPaletteUpdate(
@@ -7679,12 +7966,12 @@ export class StudioWorkspaceStore {
       };
     }
 
-    const facade = this.runtimeSessionFacadeState();
+    const facade = this.workspaceAuthoringFacadeState();
     if (facade === null) {
       return {
         accepted: false,
         operation,
-        diagnostic: 'Attach RuntimeSession before submitting voxel edits.',
+        diagnostic: 'Workspace authoring authority is not ready for voxel edits.',
         surface: this.agentVoxelWorkflowSurface(),
         voxelEditReceipt: null,
         compiledVoxelEditBatch: operation === 'submit_compact_voxel_edit' ? batch : null,
@@ -7692,29 +7979,36 @@ export class StudioWorkspaceStore {
     }
 
     try {
-      const receipt = facade.submitCommands(batch);
-      this.refreshRuntimeSessionInspectionReadout(facade);
-      const status = receipt.result.rejected > 0 ? 'rejected' : 'ok';
-      const summary = `Voxel edit accepted ${receipt.result.accepted}, rejected ${receipt.result.rejected}.`;
+      const result = facade.submitCommands(batch);
+      const authoringState = facade.readState();
+      this.workspaceAuthoringStateSummaryState.set(authoringState);
+      const receipt: StudioWorkspaceAuthoringCommandReceipt = {
+        kind: 'studio_workspace_authoring.command_receipt.v0',
+        batch,
+        result,
+        authoringState,
+      };
+      const status = result.rejected > 0 ? 'rejected' : 'ok';
+      const summary = `Voxel edit accepted ${result.accepted}, rejected ${result.rejected}.`;
       const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
         commandId: 'voxel_edit.submit',
         label: 'Agent Voxel Edit',
-        inputSummary: `commands=${batch.commands.length};sequence=${receipt.sequenceId}`,
+        inputSummary: `commands=${batch.commands.length};generation=${authoringState.identity.generation};revision=${authoringState.workingRevision}`,
         outputSummary: summary,
         status,
       });
       this.workspaceState.set(recorded.workspace);
       this.menuMessageState.set(summary);
       return {
-        accepted: receipt.result.rejected === 0 && receipt.result.accepted > 0,
+        accepted: result.rejected === 0 && result.accepted > 0,
         operation,
-        diagnostic: receipt.result.rejected === 0 ? null : JSON.stringify(receipt.result.rejections),
+        diagnostic: result.rejected === 0 ? null : JSON.stringify(result.rejections),
         surface: this.agentVoxelWorkflowSurface(),
         voxelEditReceipt: receipt,
         compiledVoxelEditBatch: operation === 'submit_compact_voxel_edit' ? batch : null,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voxel edit runtime command failed.';
+      const message = error instanceof Error ? error.message : 'Voxel edit authoring command failed.';
       const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
         commandId: 'voxel_edit.submit',
         label: 'Agent Voxel Edit',
@@ -7737,7 +8031,7 @@ export class StudioWorkspaceStore {
 
   submitVoxelConversionCommand(commandId: StudioVoxelConversionCommandId): void {
     const shell = this.voxelConversionWorkspaceShell();
-    const facade = this.runtimeSessionFacadeState();
+    const facade = this.workspaceAuthoringFacadeState();
     const proposal = this.voxelConversionProposalForCommand(shell, commandId);
     const label = shell.actions.find(action => action.commandId === commandId)?.label ?? commandId;
     const proposalHash = proposal.proposal === null
@@ -7749,7 +8043,7 @@ export class StudioWorkspaceStore {
         commandId,
         label: `Voxel Conversion ${label}`,
         inputSummary: `proposal=${proposalHash};readout=${shell.workspace.readoutHash}`,
-        outputSummary: proposal.diagnostics.at(0)?.message ?? 'Voxel conversion proposal rejected before runtime submission.',
+        outputSummary: proposal.diagnostics.at(0)?.message ?? 'Voxel conversion proposal rejected before authoring submission.',
         status: 'rejected',
       });
       this.workspaceState.set(recorded.workspace);
@@ -7785,6 +8079,7 @@ export class StudioWorkspaceStore {
         case 'voxel_conversion.apply': {
           const input = proposal.proposal.input as VoxelConversionApplyCommandInput;
           const receipt = facade.applyVoxelConversion(input.request);
+          this.refreshWorkspaceAuthoringState(facade);
           this.voxelConversionAuthorityState.update(state => ({
             ...state,
             receipt,
@@ -7804,7 +8099,7 @@ export class StudioWorkspaceStore {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voxel conversion runtime command failed.';
+      const message = error instanceof Error ? error.message : 'Voxel conversion authoring command failed.';
       const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
         commandId,
         label: `Voxel Conversion ${label}`,
@@ -8057,7 +8352,7 @@ export class StudioWorkspaceStore {
           gameId: workspace.gameId,
           workspaceId: workspace.workspaceHash,
         },
-        projectBundle: DEMO_RUNTIME_PROJECT_BUNDLE,
+        projectBundle: LIVE_RUNTIME_FIXTURE_PROJECT_BUNDLE,
       });
       assertNativeRustRuntimeAuthority(facade, attach.bridge);
       this.runtimeSessionFacadeState.set(facade);
@@ -8083,6 +8378,76 @@ export class StudioWorkspaceStore {
       this.runtimeConnectionMessageState.set(
         `${error instanceof Error ? error.message : 'RuntimeSession attach failed.'}${cleanupMessage}`,
       );
+    }
+  }
+
+  async openWorkspaceAuthoring(): Promise<void> {
+    const workspace = this.gameWorkspace();
+    if (workspace === null) {
+      this.workspaceAuthoringMessageState.set('Open a game workspace before starting asset authoring.');
+      return;
+    }
+
+    let attach: StudioWorkspaceAuthoringAttach | null = null;
+    try {
+      this.clearWorkspaceAuthoring(true);
+      this.workspaceAuthoringMessageState.set('Starting Rust workspace authoring authority.');
+      attach = await createStudioRustWorkspaceAuthoringFacade();
+      const projectBundle = workspaceAuthoringProjectBundle(
+        workspace,
+        this.workspaceState().flatSceneDocument,
+      );
+      const state = attach.facade.open({
+        authoringId: `workspace-authoring:${workspace.gameId}:studio`,
+        seed: projectBundle.sceneId,
+        project: {
+          gameId: workspace.gameId,
+          workspaceId: workspace.workspaceHash,
+        },
+        projectBundle,
+      });
+      this.workspaceAuthoringBridgeState.set(attach.bridge);
+      this.workspaceAuthoringFacadeState.set(attach.facade);
+      this.workspaceAuthoringStateSummaryState.set(state);
+      this.workspaceAuthoringMessageState.set(
+        `Workspace authoring ready · generation ${state.identity.generation} · ${state.lifecycleHash}.`,
+      );
+      this.menuMessageState.set('Rust workspace authoring authority is ready.');
+    } catch (error) {
+      if (attach !== null) {
+        disconnectStudioBrowserHostRuntimeBridge(attach.bridge);
+      }
+      this.workspaceAuthoringBridgeState.set(null);
+      this.workspaceAuthoringFacadeState.set(null);
+      this.workspaceAuthoringStateSummaryState.set(null);
+      this.workspaceAuthoringMessageState.set(
+        error instanceof Error ? error.message : 'Workspace authoring authority failed to start.',
+      );
+    }
+  }
+
+  private clearWorkspaceAuthoring(discardUnsavedWorkingState: boolean): void {
+    const facade = this.workspaceAuthoringFacadeState();
+    const bridge = this.workspaceAuthoringBridgeState();
+    const state = this.workspaceAuthoringStateSummaryState();
+    if (facade !== null && state !== null && state.status === 'open') {
+      facade.close({
+        expectedWorkspaceId: state.identity.project.workspaceId,
+        expectedGeneration: state.identity.generation,
+        discardUnsavedWorkingState,
+      });
+    }
+    this.workspaceAuthoringFacadeState.set(null);
+    this.workspaceAuthoringBridgeState.set(null);
+    this.workspaceAuthoringStateSummaryState.set(null);
+    if (bridge !== null) {
+      disconnectStudioBrowserHostRuntimeBridge(bridge);
+    }
+  }
+
+  private refreshWorkspaceAuthoringState(facade: WorkspaceAuthoringFacade): void {
+    if (this.workspaceAuthoringFacadeState() === facade) {
+      this.workspaceAuthoringStateSummaryState.set(facade.readState());
     }
   }
 
@@ -8524,11 +8889,11 @@ export class StudioWorkspaceStore {
   }
 
   newWorkspace(): void {
-    if (this.sceneDirty()) {
+    if (this.sceneDirty() || this.workspaceAuthoringDirty()) {
       this.unsavedScenePromptState.set({
         action: 'new',
         path: null,
-        message: 'Discard unsaved scene changes and create a new scene?',
+        message: 'Discard unsaved scene or asset-authoring changes and create a new scene?',
       });
       return;
     }
@@ -8567,6 +8932,7 @@ export class StudioWorkspaceStore {
       this.viewportHitState.set(null);
       this.viewportCameraState.set(buildStudioViewportCameraReadModel());
       this.viewportToolState.set(buildStudioViewportToolReadModel());
+      await this.openWorkspaceAuthoring();
       this.menuMessageState.set('New untitled scene created.');
     } catch (error) {
       this.menuMessageState.set(`New Scene failed without replacing the current document: ${errorMessage(error)}`);
@@ -8709,11 +9075,11 @@ export class StudioWorkspaceStore {
   }
 
   private async openSceneFileFromProject(path: string): Promise<void> {
-    if (this.sceneDirty()) {
+    if (this.sceneDirty() || this.workspaceAuthoringDirty()) {
       this.unsavedScenePromptState.set({
         action: 'open',
         path,
-        message: `Discard unsaved scene changes and open ${path}?`,
+        message: `Discard unsaved scene or asset-authoring changes and open ${path}?`,
       });
       return;
     }
@@ -8721,8 +9087,8 @@ export class StudioWorkspaceStore {
   }
 
   private async openSceneFileFromHost(path: string, authorizedDiscard: boolean): Promise<void> {
-    if (!authorizedDiscard && this.sceneDirty()) {
-      this.unsavedScenePromptState.set({ action: 'open', path, message: `Discard unsaved scene changes and open ${path}?` });
+    if (!authorizedDiscard && (this.sceneDirty() || this.workspaceAuthoringDirty())) {
+      this.unsavedScenePromptState.set({ action: 'open', path, message: `Discard unsaved scene or asset-authoring changes and open ${path}?` });
       return;
     }
     const normalizedPath = normalizeProjectFilePath(path);
@@ -8769,6 +9135,7 @@ export class StudioWorkspaceStore {
       this.viewportHitState.set(null);
       this.viewportCameraState.set(frameStudioViewportCamera(workspace.scene));
       this.viewportToolState.set(buildStudioViewportToolReadModel());
+      await this.openWorkspaceAuthoring();
       const unresolvedAssetIds = this.unresolvedSceneAssetIds(result.document);
       this.menuMessageState.set(
         unresolvedAssetIds.length === 0
@@ -9090,6 +9457,12 @@ function createStudioVoxelWorkflowProductApi(store: StudioWorkspaceStore) {
     version: 'studio-voxel-workflow.v1' as const,
     attachRuntimeSessionInspection: (...args: Parameters<StudioWorkspaceStore['attachRuntimeSessionInspection']>) =>
       store.attachRuntimeSessionInspection(...args),
+    openWorkspaceAuthoring: (...args: Parameters<StudioWorkspaceStore['openWorkspaceAuthoring']>) =>
+      store.openWorkspaceAuthoring(...args),
+    workspaceAuthoringState: () => store.workspaceAuthoringState(),
+    workspaceAuthoringMessage: () => store.workspaceAuthoringMessage(),
+    workspaceAuthoringAvailable: () => store.workspaceAuthoringAvailable(),
+    liveRuntimeAvailable: () => store.liveRuntimeAvailable(),
     runtimeConnectionMessage: () => store.runtimeConnectionMessage(),
     runtimeSessionInspection: () => store.runtimeSessionInspection(),
     runtimeViewportEvidence: () => store.runtimeViewportEvidence(),
@@ -9100,6 +9473,8 @@ function createStudioVoxelWorkflowProductApi(store: StudioWorkspaceStore) {
     voxelAssetWorkflowControl: () => store.voxelAssetWorkflowControl(),
     voxelMaterialPaletteEditor: () => store.voxelMaterialPaletteEditor(),
     voxelAnnotationControl: () => store.voxelAnnotationControl(),
+    runVoxelAssetWorkflowControl: (...args: Parameters<StudioWorkspaceStore['runVoxelAssetWorkflowControl']>) =>
+      store.runVoxelAssetWorkflowControl(...args),
     runAgentVoxelWorkflowOperation: (...args: Parameters<StudioWorkspaceStore['runAgentVoxelWorkflowOperation']>) =>
       store.runAgentVoxelWorkflowOperation(...args),
     runAgentVoxelOperationTranscriptReplay: (...args: Parameters<StudioWorkspaceStore['runAgentVoxelOperationTranscriptReplay']>) =>
@@ -9144,10 +9519,25 @@ interface StudioRuntimeSessionAttach {
   readonly browserHost: StudioBrowserHostRuntimeEvidence;
 }
 
+interface StudioWorkspaceAuthoringAttach {
+  readonly facade: WorkspaceAuthoringFacade;
+  readonly bridge: NativeBrowserHostRuntimeBridge;
+  readonly browserHost: StudioBrowserHostRuntimeEvidence;
+}
+
 async function createStudioRustRuntimeSessionFacade(): Promise<StudioRuntimeSessionAttach> {
   const resolved = await resolveStudioBrowserHostRuntimeBridge();
   return {
     facade: createRuntimeSessionFacade({ bridge: resolved.bridge, mode: 'rust' }),
+    bridge: resolved.bridge,
+    browserHost: resolved.browserHost,
+  };
+}
+
+async function createStudioRustWorkspaceAuthoringFacade(): Promise<StudioWorkspaceAuthoringAttach> {
+  const resolved = await resolveStudioBrowserHostRuntimeBridge();
+  return {
+    facade: createWorkspaceAuthoringFacade({ bridge: resolved.bridge }),
     bridge: resolved.bridge,
     browserHost: resolved.browserHost,
   };

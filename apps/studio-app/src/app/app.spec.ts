@@ -88,6 +88,16 @@ describe('StudioShellComponent', () => {
     expect(menu?.querySelector('[data-voxel-action="voxel_conversion.export_evidence"]')).toBeNull();
     expect(menu?.textContent).not.toContain('failed_closed');
     expect(menu?.textContent).not.toContain('runtime_facade_unavailable');
+    expect(menu?.textContent).not.toContain('Needs runtime');
+
+    const assetSection = menu?.querySelector('[data-voxel-tools-section="asset"]') as HTMLButtonElement | null;
+    assetSection?.click();
+    fixture.detectChanges();
+    expect(menu?.textContent).toContain('Workspace asset');
+    expect(menu?.textContent).toContain('Running game');
+    expect(menu?.querySelector('[data-voxel-asset-action="reopen_volume"]')).not.toBeNull();
+    expect((menu?.querySelector('[data-voxel-asset-action="load_volume"]') as HTMLButtonElement | null)?.disabled).toBe(true);
+    expect((menu?.querySelector('[data-voxel-asset-action="unload_volume"]') as HTMLButtonElement | null)?.disabled).toBe(true);
   });
 
   it('renders the game workspace overview from the parsed manifest fixture', async () => {

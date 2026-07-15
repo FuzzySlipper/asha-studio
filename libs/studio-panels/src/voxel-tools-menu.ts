@@ -291,7 +291,7 @@ export type StudioVoxelToolsSection =
         <div class="voxel-tools__content" data-voxel-tools-content="edit">
           <header class="voxel-tools__heading">
             <div>
-              <strong>Edit the resident voxel volume</strong>
+              <strong>Edit the authored voxel volume</strong>
               <small>{{ store.voxelCompactEditControl().message }}</small>
             </div>
             <span>{{ store.voxelCompactEditControl().status }}</span>
@@ -448,11 +448,13 @@ export type StudioVoxelToolsSection =
       } @else if (activeSection() === 'asset') {
         <div class="voxel-tools__content" data-voxel-tools-content="asset">
           <header class="voxel-tools__heading">
-            <div>
-              <strong>Manage the voxel asset</strong>
-              <small>{{ store.voxelAssetWorkflowControl().message }}</small>
-            </div>
-            <span>{{ store.voxelAssetWorkflowControl().status }}</span>
+              <div>
+                <strong>Manage the voxel asset</strong>
+                <small>{{ store.voxelAssetWorkflowControl().message }}</small>
+              </div>
+              <span [class.is-warning]="!store.workspaceAuthoringAvailable()">
+                {{ store.workspaceAuthoringAvailable() ? 'Authoring ready' : 'Starting authoring' }}
+              </span>
           </header>
           <section class="voxel-tools__group">
             <h3>Destination</h3>
@@ -470,6 +472,7 @@ export type StudioVoxelToolsSection =
                 >Asset path
                 <input
                   type="text"
+                  data-voxel-asset-target="path"
                   [value]="store.voxelAssetWorkflowTarget().targetAssetPath"
                   (input)="store.setVoxelAssetWorkflowTargetAssetPath($any($event.target).value)"
               /></label>
@@ -482,7 +485,10 @@ export type StudioVoxelToolsSection =
               Use active workspace destination
             </button>
           </section>
-          <footer class="voxel-tools__actions">
+          <section class="voxel-tools__group">
+            <h3>Workspace asset</h3>
+            <small>Create, inspect, export, and store the asset without running the game.</small>
+            <footer class="voxel-tools__actions">
             <button
               type="button"
               data-voxel-asset-action="initialize_volume"
@@ -509,24 +515,39 @@ export type StudioVoxelToolsSection =
               data-voxel-asset-action="save_volume"
               (click)="store.runVoxelAssetWorkflowControl('save_volume')"
             >
-              Save asset
+              Save to Studio host
+            </button>
+            <button
+              type="button"
+              data-voxel-asset-action="reopen_volume"
+              (click)="store.runVoxelAssetWorkflowControl('reopen_volume')"
+            >
+              Reopen from Studio host
+            </button>
+            </footer>
+          </section>
+          <section class="voxel-tools__group">
+            <h3>Running game</h3>
+            <small>These controls are available only when a gameplay runtime is attached.</small>
+            <footer class="voxel-tools__actions">
+            <button
+              type="button"
+              data-voxel-asset-action="load_volume"
+              [disabled]="!store.liveRuntimeAvailable() || !store.voxelAssetWorkflowControl().canLoadLastAsset"
+              (click)="store.runVoxelAssetWorkflowControl('load_volume')"
+            >
+              Load saved asset into game
             </button>
             <button
               type="button"
               data-voxel-asset-action="unload_volume"
+              [disabled]="!store.liveRuntimeAvailable()"
               (click)="store.runVoxelAssetWorkflowControl('unload_volume')"
             >
-              Unload volume
+              Unload from game
             </button>
-            <button
-              type="button"
-              data-voxel-asset-action="load_volume"
-              [disabled]="!store.voxelAssetWorkflowControl().canLoadLastAsset"
-              (click)="store.runVoxelAssetWorkflowControl('load_volume')"
-            >
-              Load last asset
-            </button>
-          </footer>
+            </footer>
+          </section>
         </div>
       } @else if (activeSection() === 'metadata') {
         <div class="voxel-tools__content" data-voxel-tools-content="metadata">
@@ -801,18 +822,19 @@ export type StudioVoxelToolsSection =
                 surface.</small
               >
             </div>
-            <span>{{ store.voxelTranscriptControl().status }}</span>
+            <span data-voxel-transcript-receipt>{{ store.voxelTranscriptControl().status }}</span>
           </header>
           <label class="voxel-tools__transcript">
             Operation transcript JSON
             <textarea
+              data-voxel-transcript-control="draft"
               spellcheck="false"
               [value]="store.voxelTranscriptControl().draft"
               (input)="store.setVoxelTranscriptDraft($any($event.target).value)"
             ></textarea>
           </label>
           <footer class="voxel-tools__actions">
-            <button type="button" (click)="store.runVoxelTranscriptControl()">
+            <button type="button" data-voxel-transcript-action="run" (click)="store.runVoxelTranscriptControl()">
               Run typed transcript
             </button>
           </footer>
@@ -1033,16 +1055,19 @@ export class StudioVoxelToolsMenuComponent {
     status: string,
     actions: readonly { readonly disabled: boolean }[],
   ): string {
-    if (actions.every(action => action.disabled)) {
-      return 'Needs runtime';
+    if (status === 'empty_inputs' || status === 'missing_inputs') {
+      return 'Choose a source';
+    }
+    if (!this.store.workspaceAuthoringAvailable()) {
+      return 'Starting authoring';
     }
     if (status === 'ready') {
       return 'Ready';
     }
-    if (status === 'empty_inputs' || status === 'missing_inputs') {
-      return 'Choose a source';
+    if (actions.every(action => action.disabled)) {
+      return 'Needs attention';
     }
-    return 'Runtime unavailable';
+    return 'Ready';
   }
 
   compactCoordinate(field: (typeof this.coordinateFields)[number]['id']): number {

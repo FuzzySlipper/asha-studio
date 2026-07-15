@@ -189,7 +189,7 @@ interface BrowserProof {
     readonly voxelHistory: {
       readonly status: string;
       readonly lastAction: string | null;
-      readonly runtimeAttached: boolean;
+      readonly authoringAvailable: boolean;
       readonly message: string;
       readonly diagnostic: string | null;
       readonly historyHash: string | null;
@@ -341,6 +341,20 @@ interface BrowserProof {
     readonly surfaceHash: string;
   };
   readonly nativeSmoke: {
+    readonly workspaceAuthoringPreflight: {
+      readonly authoringAvailableBeforeRuntime: boolean;
+      readonly liveRuntimeAbsent: boolean;
+      readonly initializeAccepted: boolean;
+      readonly editAccepted: boolean;
+      readonly workingRevisionBefore: number;
+      readonly workingRevisionAfter: number;
+    } | null;
+    readonly liveVoxelTransfer: {
+      readonly loadAccepted: boolean;
+      readonly unloadAccepted: boolean;
+      readonly loadedModelId: string | null;
+      readonly unloadedModelId: string | null;
+    } | null;
     readonly sessionHashBeforeVoxelEdits: string | null;
     readonly sessionHashAfterAcceptedVoxelEdits: string | null;
     readonly sessionHashAfterRejectedVoxelEdit: string | null;
@@ -677,6 +691,8 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
       surfaceHash: '',
     },
     nativeSmoke: {
+      workspaceAuthoringPreflight: null,
+      liveVoxelTransfer: null,
       sessionHashBeforeVoxelEdits: null,
       sessionHashAfterAcceptedVoxelEdits: null,
       sessionHashAfterRejectedVoxelEdit: null,
@@ -948,7 +964,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     return {
       status: panel.control.status,
       lastAction: panel.control.lastAction,
-      runtimeAttached: panel.runtimeAttached,
+      authoringAvailable: panel.authoringAvailable,
       message: panel.control.message,
       diagnostic: panel.control.diagnostic,
       historyHash: panel.historyHash,
@@ -994,6 +1010,12 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
 
   async function saveVoxelAssetForPaletteEditor() {
     await openVoxelSection('asset');
+    const targetPath = document.querySelector('[data-voxel-asset-target="path"]');
+    if (!(targetPath instanceof HTMLInputElement)) {
+      throw new Error('Missing voxel asset target path');
+    }
+    targetPath.value = 'artifacts/native-voxel-runtime-launch/latest/host-saved-volume.avxl.json';
+    targetPath.dispatchEvent(new Event('input', { bubbles: true }));
     const button = document.querySelector('[data-voxel-asset-action="save_volume"]');
     if (!(button instanceof HTMLButtonElement)) {
       throw new Error('Missing voxel asset save action');
@@ -1296,6 +1318,55 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
     try {
       const store = await proofStore();
       await enableReadbackOverlay();
+      if (mode === 'native') {
+        await waitFor(() => store.workspaceAuthoringAvailable(), 'automatic workspace authoring authority');
+        const authoringBefore = store.workspaceAuthoringState();
+        const liveRuntimeAbsent = store.liveRuntimeAvailable() === false;
+        if (authoringBefore === null || !liveRuntimeAbsent) {
+          throw new Error('Studio did not open with workspace authoring isolated from a gameplay runtime');
+        }
+        const preflightInitialize = store.runAgentVoxelWorkflowOperation({
+          kind: 'initialize_voxel_volume_authoring',
+          initializeRequest: {
+            grid: 2,
+            volumeAssetId: 'voxel/authoring-preflight',
+            seedChunk: { x: 0, y: 0, z: 0 },
+            materialPalette: [{ voxelMaterial: 1, paletteEntryId: 'voxel-material/preflight', displayName: 'Preflight', materialAssetId: 'material/demo-copper', materialCatalogBindingId: 'catalog-binding/demo-copper' }],
+            authoring: { label: 'Workspace authoring preflight', createdBy: 'asha-studio-proof', sourceTool: 'asha-studio' },
+            maxMaterialBindings: 8,
+          },
+        });
+        const preflightEdit = store.runAgentVoxelWorkflowOperation({
+          kind: 'submit_voxel_edit',
+          batch: {
+            commands: [{
+              op: 'setVoxel',
+              grid: 2,
+              coord: { x: 0, y: 0, z: 0 },
+              value: { kind: 'solid', material: 1 },
+            }],
+          },
+        });
+        const authoringAfter = store.workspaceAuthoringState();
+        if (!preflightInitialize.accepted || !preflightEdit.accepted || authoringAfter === null
+          || authoringAfter.workingRevision <= authoringBefore.workingRevision) {
+          throw new Error('Workspace voxel authoring preflight failed without a gameplay runtime: ' + JSON.stringify({
+            initialize: { accepted: preflightInitialize.accepted, diagnostic: preflightInitialize.diagnostic },
+            edit: { accepted: preflightEdit.accepted, diagnostic: preflightEdit.diagnostic },
+            authoringBefore,
+            authoringAfter,
+          }));
+        }
+        proof.nativeSmoke.workspaceAuthoringPreflight = {
+          authoringAvailableBeforeRuntime: true,
+          liveRuntimeAbsent,
+          initializeAccepted: preflightInitialize.accepted,
+          editAccepted: preflightEdit.accepted,
+          workingRevisionBefore: authoringBefore.workingRevision,
+          workingRevisionAfter: authoringAfter.workingRevision,
+        };
+        await store.openWorkspaceAuthoring();
+      }
       await store.attachRuntimeSessionInspection();
       if (mode === 'native') {
         await waitFor(() => attachedStore(), 'native RuntimeSession attach');
@@ -1399,8 +1470,8 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
             expectedCanonicalJsonHash: referenceExport.voxelVolumeExport?.canonicalJsonHash ?? null, expectedVoxelDataHash: referenceExport.voxelVolumeExport?.voxelDataHash ?? null,
           },
         });
-        const referenceFreshInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
-        const referenceUnload = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/generated', expectedSessionHash: referenceFreshInfo.modelInfo?.sessionHash ?? '' } });
+        await store.openWorkspaceAuthoring();
+        const referenceReopenedAuthoring = store.workspaceAuthoringState();
         const referenceAbsent = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
         const referenceLoad = store.runAgentVoxelWorkflowOperation({ kind: 'load_voxel_volume_asset', loadRequest: { asset: referenceSave.voxelVolumeSave?.asset ?? referenceExport.voxelVolumeExport?.asset, targetGrid: 2, targetVolumeAssetId: 'voxel/generated', replaceExisting: true, includeMaterialCounts: true } });
         const referenceReloadInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
@@ -1409,14 +1480,14 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
           kind: 'view_from_angle',
           view: { angle: 'isometric', target: 'scene' },
         });
-        if (!referenceInfo.accepted || !referenceWindow.accepted || !referenceViewBeforeUnload.accepted || !referenceExport.accepted || !referenceSave.accepted || !referenceUnload.accepted || referenceAbsent.modelInfo?.resident !== false || !referenceLoad.accepted || !referenceReloadInfo.accepted || !referenceReloadWindow.accepted || !referenceViewAfterReload.accepted) {
-          throw new Error('Reference save-clear-reload failed: ' + JSON.stringify({
+        if (!referenceInfo.accepted || !referenceWindow.accepted || !referenceViewBeforeUnload.accepted || !referenceExport.accepted || !referenceSave.accepted || referenceAbsent.modelInfo?.resident !== false || !referenceLoad.accepted || !referenceReloadInfo.accepted || !referenceReloadWindow.accepted || !referenceViewAfterReload.accepted) {
+          throw new Error('Reference save-close-reopen-reload failed: ' + JSON.stringify({
             info: { accepted: referenceInfo.accepted, diagnostic: referenceInfo.diagnostic },
             window: { accepted: referenceWindow.accepted, diagnostic: referenceWindow.diagnostic },
             viewBeforeUnload: { accepted: referenceViewBeforeUnload.accepted, diagnostic: referenceViewBeforeUnload.diagnostic },
             export: { accepted: referenceExport.accepted, diagnostic: referenceExport.diagnostic },
             save: { accepted: referenceSave.accepted, diagnostic: referenceSave.diagnostic },
-            unload: { accepted: referenceUnload.accepted, diagnostic: referenceUnload.diagnostic, codes: referenceUnload.voxelVolumeUnload?.diagnosticCodes },
+            reopenedAuthoring: referenceReopenedAuthoring,
             absent: { accepted: referenceAbsent.accepted, resident: referenceAbsent.modelInfo?.resident, diagnostic: referenceAbsent.diagnostic },
             load: { accepted: referenceLoad.accepted, diagnostic: referenceLoad.diagnostic },
             reloadInfo: { accepted: referenceReloadInfo.accepted, diagnostic: referenceReloadInfo.diagnostic },
@@ -1431,16 +1502,14 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
           occupancyBeforeUnload: referenceWindow.modelWindow,
           projectionBeforeUnload: referenceViewBeforeUnload.viewCapture,
           saved: referenceSave.voxelVolumeSave,
-          unload: referenceUnload.voxelVolumeUnload,
+          reopenedAuthoring: referenceReopenedAuthoring,
           absent: referenceAbsent.modelInfo,
           reloaded: referenceLoad.voxelVolumeLoad,
           reloadedModel: referenceReloadInfo.modelInfo,
           occupancyAfterReload: referenceReloadWindow.modelWindow,
           projectionAfterReload: referenceViewAfterReload.viewCapture,
         };
-        const referenceCleanupInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/generated', includeMaterialCounts: true } });
-        const referenceCleanup = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/generated', expectedSessionHash: referenceCleanupInfo.modelInfo?.sessionHash ?? '' } });
-        if (!referenceCleanup.accepted) throw new Error('Reference cleanup failed: ' + referenceCleanup.diagnostic);
+        await store.openWorkspaceAuthoring();
         const scratchInitialize = store.runAgentVoxelWorkflowOperation({
           kind: 'initialize_voxel_volume_authoring',
           initializeRequest: {
@@ -1484,14 +1553,14 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
             expectedCanonicalJsonHash: scratchExport.voxelVolumeExport?.canonicalJsonHash ?? null, expectedVoxelDataHash: scratchExport.voxelVolumeExport?.voxelDataHash ?? null,
           },
         });
-        const scratchFreshInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
-        const scratchUnload = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/complex-scratch', expectedSessionHash: scratchFreshInfo.modelInfo?.sessionHash ?? '' } });
+        await store.openWorkspaceAuthoring();
+        const scratchReopenedAuthoring = store.workspaceAuthoringState();
         const scratchAbsent = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
         const scratchLoad = store.runAgentVoxelWorkflowOperation({ kind: 'load_voxel_volume_asset', loadRequest: { asset: scratchSave.voxelVolumeSave?.asset ?? scratchExport.voxelVolumeExport?.asset, targetGrid: 2, targetVolumeAssetId: 'voxel/complex-scratch', replaceExisting: true, includeMaterialCounts: true } });
         const scratchReloadInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
         const scratchReloadWindow = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_window', request: scratchWindowRequest });
-        if (!scratchInitialize.accepted || !scratchBlankInfo.accepted || scratchBlankInfo.modelInfo?.voxelCount !== 0 || !scratchEdit.accepted || !scratchInfo.accepted || !scratchWindow.accepted || !scratchView.accepted || !scratchExport.accepted || !scratchSave.accepted || !scratchUnload.accepted || scratchAbsent.modelInfo?.resident !== false || !scratchLoad.accepted || !scratchReloadInfo.accepted || !scratchReloadWindow.accepted) {
-          throw new Error('Complex scratch creation save-clear-reload failed: ' + JSON.stringify({
+        if (!scratchInitialize.accepted || !scratchBlankInfo.accepted || scratchBlankInfo.modelInfo?.voxelCount !== 0 || !scratchEdit.accepted || !scratchInfo.accepted || !scratchWindow.accepted || !scratchView.accepted || !scratchExport.accepted || !scratchSave.accepted || scratchAbsent.modelInfo?.resident !== false || !scratchLoad.accepted || !scratchReloadInfo.accepted || !scratchReloadWindow.accepted) {
+          throw new Error('Complex scratch creation save-close-reopen-reload failed: ' + JSON.stringify({
             initialize: { accepted: scratchInitialize.accepted, diagnostic: scratchInitialize.diagnostic },
             blank: { accepted: scratchBlankInfo.accepted, count: scratchBlankInfo.modelInfo?.voxelCount, diagnostic: scratchBlankInfo.diagnostic },
             edit: { accepted: scratchEdit.accepted, diagnostic: scratchEdit.diagnostic },
@@ -1499,7 +1568,7 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
             window: { accepted: scratchWindow.accepted, diagnostic: scratchWindow.diagnostic },
             export: { accepted: scratchExport.accepted, diagnostic: scratchExport.diagnostic },
             save: { accepted: scratchSave.accepted, diagnostic: scratchSave.diagnostic },
-            unload: { accepted: scratchUnload.accepted, diagnostic: scratchUnload.diagnostic },
+            reopenedAuthoring: scratchReopenedAuthoring,
             absent: { resident: scratchAbsent.modelInfo?.resident, diagnostic: scratchAbsent.diagnostic },
             load: { accepted: scratchLoad.accepted, diagnostic: scratchLoad.diagnostic },
             reload: { accepted: scratchReloadInfo.accepted, diagnostic: scratchReloadInfo.diagnostic },
@@ -1515,15 +1584,13 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
           occupancy: scratchWindow.modelWindow,
           projection: scratchView.viewCapture,
           saved: scratchSave.voxelVolumeSave,
-          unload: scratchUnload.voxelVolumeUnload,
+          reopenedAuthoring: scratchReopenedAuthoring,
           absent: scratchAbsent.modelInfo,
           reloaded: scratchLoad.voxelVolumeLoad,
           reloadedModel: scratchReloadInfo.modelInfo,
           reloadedOccupancy: scratchReloadWindow.modelWindow,
         };
-        const scratchCleanupInfo = store.runAgentVoxelWorkflowOperation({ kind: 'get_model_info', request: { grid: 2, volumeAssetId: 'voxel/complex-scratch', includeMaterialCounts: true } });
-        const scratchCleanup = store.runAgentVoxelWorkflowOperation({ kind: 'unload_voxel_volume_asset', unloadRequest: { grid: 2, volumeAssetId: 'voxel/complex-scratch', expectedSessionHash: scratchCleanupInfo.modelInfo?.sessionHash ?? '' } });
-        if (!scratchCleanup.accepted) throw new Error('Scratch cleanup failed: ' + scratchCleanup.diagnostic);
+        await store.openWorkspaceAuthoring();
         const registration = store.runAgentVoxelWorkflowOperation({
           kind: 'register_conversion_source',
           registration: {
@@ -2129,6 +2196,22 @@ function automationPrelude(referenceMeshImport: ReferenceMeshImport): string {
         if (!proof.nativeSmoke.conversion.exportedEvidenceRefs.some(row => row.kind === 'apply_receipt')) {
           throw new Error('Conversion apply receipt evidence was not retained by the native proof');
         }
+        await store.runVoxelAssetWorkflowControl('load_volume');
+        const liveLoad = store.voxelAssetWorkflowControl();
+        if (liveLoad.status !== 'accepted' || liveLoad.residentModelId === null) {
+          throw new Error('Saved voxel asset did not load into the explicitly attached gameplay runtime: ' + liveLoad.message);
+        }
+        await store.runVoxelAssetWorkflowControl('unload_volume');
+        const liveUnload = store.voxelAssetWorkflowControl();
+        if (liveUnload.status !== 'accepted') {
+          throw new Error('Live voxel asset did not unload from the explicitly attached gameplay runtime: ' + liveUnload.message);
+        }
+        proof.nativeSmoke.liveVoxelTransfer = {
+          loadAccepted: true,
+          unloadAccepted: true,
+          loadedModelId: liveLoad.residentModelId,
+          unloadedModelId: liveUnload.residentModelId,
+        };
         proof.status = 'complete';
         proof.message = 'native provider attached and voxel conversion commands completed';
       } else {
@@ -2421,7 +2504,7 @@ async function main(): Promise<void> {
     assert.deepEqual(nativeProof.agentSurface.compactVoxelPlacement.end?.targetEnd, { x: 1, y: 0, z: 0 });
     assert.match(nativeProof.agentSurface.compactVoxelPlacement.start?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
     assert.match(nativeProof.agentSurface.compactVoxelPlacement.end?.readoutHash ?? '', /^studio-voxel-compact-edit-placement-/);
-    assert.equal(nativeProof.agentSurface.voxelHistory?.runtimeAttached, true);
+    assert.equal(nativeProof.agentSurface.voxelHistory?.authoringAvailable, true);
     assert.equal(
       nativeProof.agentSurface.voxelHistory?.status,
       'accepted',
@@ -2518,10 +2601,10 @@ async function main(): Promise<void> {
     ], JSON.stringify(nativeProof.agentSurface.operationDiagnostics, null, 2));
     assert.equal(nativeProof.agentSurface.viewCapture?.angle, 'isometric');
     assert.equal(nativeProof.agentSurface.viewCapture?.target, 'selected');
-    assert.equal(nativeProof.agentSurface.viewCapture?.targetRenderableId, 'selected-voxel:0,0,0');
-    assert.equal(nativeProof.agentSurface.viewCapture?.sessionId, 'session-preview-0001');
-    assert.equal(nativeProof.agentSurface.viewCapture?.sceneHash, 'scene-view-57349d34');
-    assert.match(nativeProof.agentSurface.viewCapture?.readbackMarker ?? '', /^session-preview-0001:scene-view-57349d34:\d+$/);
+    assert.equal(nativeProof.agentSurface.viewCapture?.targetRenderableId, null);
+    assert.equal(nativeProof.agentSurface.viewCapture?.sessionId, 'studio-authoring');
+    assert.equal(nativeProof.agentSurface.viewCapture?.sceneHash, 'scene-view-741638a5');
+    assert.match(nativeProof.agentSurface.viewCapture?.readbackMarker ?? '', /^studio-authoring:scene-view-741638a5:\d+$/);
     assert.deepEqual(nativeProof.agentSurface.viewCapture?.nonClaims, [
       'not_runtime_authority',
       'not_hardware_gpu_capture',
@@ -2582,10 +2665,21 @@ async function main(): Promise<void> {
     assert.match(nativeProof.agentSurface.surfaceHash, /^studio-agent-voxel-workflow-/);
     assert.match(nativeProof.nativeSmoke.sessionHashBeforeVoxelEdits ?? '', /^fnv1a64:/);
     assert.match(nativeProof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits ?? '', /^fnv1a64:/);
-    assert.notEqual(
+    assert.deepEqual(nativeProof.nativeSmoke.workspaceAuthoringPreflight, {
+      authoringAvailableBeforeRuntime: true,
+      liveRuntimeAbsent: true,
+      initializeAccepted: true,
+      editAccepted: true,
+      workingRevisionBefore: 0,
+      workingRevisionAfter: 2,
+    });
+    assert.equal(nativeProof.nativeSmoke.liveVoxelTransfer?.loadAccepted, true);
+    assert.equal(nativeProof.nativeSmoke.liveVoxelTransfer?.unloadAccepted, true);
+    assert.match(nativeProof.nativeSmoke.liveVoxelTransfer?.loadedModelId ?? '', /^voxel-model:/);
+    assert.equal(
       nativeProof.nativeSmoke.sessionHashAfterAcceptedVoxelEdits,
       nativeProof.nativeSmoke.sessionHashBeforeVoxelEdits,
-      'accepted voxel edits must change the authority session hash',
+      'workspace-authored voxel edits must not mutate the attached gameplay session',
     );
     const northstarReference = (nativeProof.nativeSmoke as unknown as {
       readonly northstarReference?: {
@@ -2612,7 +2706,7 @@ async function main(): Promise<void> {
         };
         readonly projectionBeforeUnload: { readonly angle: string; readonly target: string; readonly readbackMarker: string; readonly captureHash: string };
         readonly saved: { readonly voxelCount: number; readonly nextCanonicalJsonHash: string; readonly nextVoxelDataHash: string };
-        readonly unload: { readonly unloaded: boolean; readonly removedVoxelCount: number };
+        readonly reopenedAuthoring: { readonly status: string; readonly identity: { readonly generation: number } };
         readonly absent: { readonly resident: boolean; readonly voxelCount: number };
         readonly reloaded: { readonly voxelCount: number; readonly canonicalJsonHash: string; readonly voxelDataHash: string };
         readonly reloadedModel: {
@@ -2649,11 +2743,11 @@ async function main(): Promise<void> {
     assert.ok(northstarReference.occupancyBeforeUnload.samples.every(sample => sample.occupied && sample.material === 1));
     assert.equal(northstarReference.projectionBeforeUnload.angle, 'isometric');
     assert.equal(northstarReference.projectionBeforeUnload.target, 'scene');
-    assert.match(northstarReference.projectionBeforeUnload.readbackMarker, /^session-preview-0001:scene-view-57349d34:\d+$/);
+    assert.match(northstarReference.projectionBeforeUnload.readbackMarker, /^studio-authoring:scene-view-[0-9a-f]{8}:\d+$/);
     assert.match(northstarReference.projectionBeforeUnload.captureHash, /^studio-agent-voxel-view-capture-/);
     assert.equal(northstarReference.saved.voxelCount, northstarReference.model.voxelCount);
-    assert.equal(northstarReference.unload.unloaded, true);
-    assert.equal(northstarReference.unload.removedVoxelCount, northstarReference.model.voxelCount);
+    assert.equal(northstarReference.reopenedAuthoring.status, 'open');
+    assert.ok(northstarReference.reopenedAuthoring.identity.generation >= 1);
     assert.equal(northstarReference.absent.resident, false);
     assert.equal(northstarReference.absent.voxelCount, 0);
     assert.equal(northstarReference.reloaded.voxelCount, northstarReference.model.voxelCount);
@@ -2666,7 +2760,7 @@ async function main(): Promise<void> {
     assert.deepEqual(northstarReference.occupancyAfterReload.samples, northstarReference.occupancyBeforeUnload.samples);
     assert.equal(northstarReference.projectionAfterReload.angle, 'isometric');
     assert.equal(northstarReference.projectionAfterReload.target, 'scene');
-    assert.match(northstarReference.projectionAfterReload.readbackMarker, /^session-preview-0001:scene-view-57349d34:\d+$/);
+    assert.match(northstarReference.projectionAfterReload.readbackMarker, /^studio-authoring:scene-view-[0-9a-f]{8}:\d+$/);
     assert.match(northstarReference.projectionAfterReload.captureHash, /^studio-agent-voxel-view-capture-/);
     const northstarScratch = (nativeProof.nativeSmoke as unknown as {
       readonly northstarScratch?: {
@@ -2683,7 +2777,7 @@ async function main(): Promise<void> {
         readonly occupancy: { readonly resident: boolean; readonly returnedSampleCount: number; readonly samples: readonly { readonly coord: { readonly x: number; readonly y: number; readonly z: number }; readonly occupied: boolean; readonly material: number | null }[] };
         readonly projection: { readonly angle: string; readonly target: string; readonly captureHash: string };
         readonly saved: { readonly voxelCount: number; readonly nextCanonicalJsonHash: string; readonly nextVoxelDataHash: string };
-        readonly unload: { readonly unloaded: boolean; readonly removedVoxelCount: number };
+        readonly reopenedAuthoring: { readonly status: string; readonly identity: { readonly generation: number } };
         readonly absent: { readonly resident: boolean; readonly voxelCount: number };
         readonly reloaded: { readonly voxelCount: number; readonly canonicalJsonHash: string; readonly voxelDataHash: string };
         readonly reloadedModel: { readonly bounds: { readonly min: { readonly x: number; readonly y: number; readonly z: number }; readonly max: { readonly x: number; readonly y: number; readonly z: number } }; readonly materialCounts: readonly { readonly material: number; readonly voxelCount: number }[] };
@@ -2712,8 +2806,8 @@ async function main(): Promise<void> {
     assert.equal(northstarScratch.projection.target, 'scene');
     assert.match(northstarScratch.projection.captureHash, /^studio-agent-voxel-view-capture-/);
     assert.equal(northstarScratch.saved.voxelCount, 61);
-    assert.equal(northstarScratch.unload.unloaded, true);
-    assert.equal(northstarScratch.unload.removedVoxelCount, 61);
+    assert.equal(northstarScratch.reopenedAuthoring.status, 'open');
+    assert.ok(northstarScratch.reopenedAuthoring.identity.generation >= 1);
     assert.equal(northstarScratch.absent.resident, false);
     assert.equal(northstarScratch.absent.voxelCount, 0);
     assert.equal(northstarScratch.reloaded.voxelCount, 61);
@@ -2724,9 +2818,9 @@ async function main(): Promise<void> {
     assert.equal(northstarScratch.reloadedOccupancy.resident, true);
     assert.equal(northstarScratch.reloadedOccupancy.returnedSampleCount, 61);
     assert.deepEqual(northstarScratch.reloadedOccupancy.samples, northstarScratch.occupancy.samples);
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 61, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 77, rejected: 0 });
-    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 77, rejected: 1 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsBeforeVoxelEdits, { accepted: 0, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterAcceptedVoxelEdits, { accepted: 0, rejected: 0 });
+    assert.deepEqual(nativeProof.nativeSmoke.commandCountsAfterRejectedVoxelEdit, { accepted: 0, rejected: 0 });
     assert.deepEqual(nativeProof.nativeSmoke.sourceRegistration, {
       registered: true,
       meshAssetRegistered: true,

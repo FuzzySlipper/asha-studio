@@ -3158,7 +3158,7 @@ export class StudioInspectorPanelComponent {
           class="voxel-history-panel"
           aria-label="Voxel edit history"
           [attr.data-voxel-history-status]="store.voxelHistoryPanel().control.status"
-          [attr.data-voxel-history-runtime-attached]="store.voxelHistoryPanel().runtimeAttached"
+          [attr.data-voxel-history-authoring-available]="store.voxelHistoryPanel().authoringAvailable"
         >
           <article>
             <span>Voxel History</span>

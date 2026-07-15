@@ -20,7 +20,7 @@ import type {
   VoxelConversionSourceRef,
   VoxelConversionTargetRef,
 } from '@asha/contracts';
-import type { RuntimeSessionFacade } from '@asha/runtime-session';
+import type { WorkspaceAuthoringFacade } from '@asha/runtime-session';
 
 export type StudioVoxelConversionCommandId =
   | 'voxel_conversion.plan'
@@ -211,12 +211,12 @@ export interface StudioVoxelConversionProposalOptions {
   readonly sessionId: string;
   readonly workspace: StudioVoxelConversionWorkspaceReadModel;
   readonly expectedTimelineSequence: number;
-  readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, StudioVoxelConversionRuntimeMethod>> | null;
+  readonly runtimeSession?: Partial<Pick<WorkspaceAuthoringFacade, StudioVoxelConversionRuntimeMethod>> | null;
 }
 
 export interface StudioVoxelConversionReadoutOptions {
   readonly workspace: StudioVoxelConversionWorkspaceReadModel;
-  readonly runtimeSession?: Partial<Pick<RuntimeSessionFacade, StudioVoxelConversionRuntimeMethod>> | null;
+  readonly runtimeSession?: Partial<Pick<WorkspaceAuthoringFacade, StudioVoxelConversionRuntimeMethod>> | null;
   readonly authorityPosture?: Exclude<StudioVoxelConversionAuthorityPosture, 'failed_closed' | 'unavailable'>;
 }
 
@@ -1336,7 +1336,7 @@ export function buildStudioVoxelConversionReadoutModel(
 }
 
 export function buildStudioVoxelConversionBoundaryReadout(
-  runtimeSession: Partial<Pick<RuntimeSessionFacade, StudioVoxelConversionRuntimeMethod>> | null = null,
+  runtimeSession: Partial<Pick<WorkspaceAuthoringFacade, StudioVoxelConversionRuntimeMethod>> | null = null,
 ): StudioVoxelConversionBoundaryReadout {
   const diagnostics: StudioVoxelConversionBoundaryDiagnostic[] = [];
 
@@ -1364,7 +1364,7 @@ export function buildStudioVoxelConversionBoundaryReadout(
         severity: 'error',
         code: 'missing_runtime_requirement',
         commandId: operation.commandId,
-        message: `${operation.commandId} is missing runtime facade method ${operation.runtimeMethod}.`,
+        message: `${operation.commandId} is missing workspace authoring method ${operation.runtimeMethod}.`,
       });
     }
 
@@ -1389,7 +1389,7 @@ export function buildStudioVoxelConversionBoundaryReadout(
         severity: 'error',
         code: 'runtime_facade_unavailable',
         commandId: operation.commandId,
-        message: `${operation.runtimeMethod} is unavailable on the runtime facade.`,
+        message: `${operation.runtimeMethod} is unavailable on workspace authoring authority.`,
       });
     }
   }

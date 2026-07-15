@@ -548,7 +548,7 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.match(proofSource, /kenney-retro-urban-tree-small\.glb/);
   assert.match(proofSource, /northstarReference/);
   assert.match(proofSource, /northstarScratch/);
-  assert.match(proofSource, /Reference save-clear-reload failed/);
+  assert.match(proofSource, /Reference save-close-reopen-reload failed/);
   assert.match(proofSource, /ASHA Studio native voxel server is running\./);
   assert.match(storeSource, /agentVoxelPreviewArtifactPathDiagnostic/);
   assert.match(storeSource, /agentVoxelAssetArtifactPathDiagnostic/);
@@ -560,9 +560,11 @@ test('studio agent voxel workflow surface stays typed and bounded', () => {
   assert.doesNotMatch(storeSource, /debug\.rawJson/);
   assert.doesNotMatch(storeSource, /method\.apply\(facade/);
 
-  for (const operation of ['inspect', 'register_conversion_source', 'register_conversion_mesh_asset', 'configure_conversion', 'run_conversion', 'get_model_info', 'get_model_window', 'initialize_voxel_volume_authoring', 'export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'unload_voxel_volume_asset', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
+  for (const operation of ['inspect', 'register_conversion_source', 'register_conversion_mesh_asset', 'configure_conversion', 'run_conversion', 'get_model_info', 'get_model_window', 'initialize_voxel_volume_authoring', 'export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'view_from_angle', 'publish_preview', 'persist_voxel_asset', 'reopen_voxel_asset', 'submit_voxel_edit', 'submit_compact_voxel_edit']) {
     assert.match(proofSource, new RegExp(`kind: '${operation}'`));
   }
+  assert.match(proofSource, /runVoxelAssetWorkflowControl\('load_volume'\)/);
+  assert.match(proofSource, /runVoxelAssetWorkflowControl\('unload_volume'\)/);
   assert.match(proofSource, /register_conversion_source\.facade:true/);
   assert.match(proofSource, /register_conversion_mesh_asset\.facade:true/);
   assert.match(proofSource, /get_model_info:true/);
@@ -963,7 +965,7 @@ test('studio voxel conversion workspace wires source and settings controls to re
 
 test('studio voxel conversion workspace exposes voxel asset save/load controls', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
-  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
+  const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/voxel-tools-menu.ts'), 'utf8');
 
   assert.match(storeSource, /voxelAssetWorkflowControlState/);
   assert.match(storeSource, /voxelAssetWorkflowControl =/);
@@ -986,13 +988,13 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
     assert.match(storeSource, new RegExp(operation));
   }
 
-  assert.match(panelSource, /data-voxel-asset-workflow-status/);
-  assert.match(panelSource, /data-voxel-asset-diagnostics/);
-  assert.match(panelSource, /data-voxel-asset-target-control="project_bundle"/);
-  assert.match(panelSource, /data-voxel-asset-target-control="asset_path"/);
-  assert.match(panelSource, /data-voxel-asset-target-action="reset"/);
+  assert.match(panelSource, /Workspace asset/);
+  assert.match(panelSource, /Running game/);
+  assert.match(panelSource, /setVoxelAssetWorkflowTargetProjectBundle/);
+  assert.match(panelSource, /setVoxelAssetWorkflowTargetAssetPath/);
+  assert.match(panelSource, /resetVoxelAssetWorkflowTarget/);
 
-  for (const action of ['initialize_volume', 'model_info', 'export_volume', 'save_volume', 'unload_volume', 'load_volume']) {
+  for (const action of ['initialize_volume', 'model_info', 'export_volume', 'save_volume', 'reopen_volume', 'unload_volume', 'load_volume']) {
     assert.match(panelSource, new RegExp(`data-voxel-asset-action="${action}"`));
     assert.match(panelSource, new RegExp(`runVoxelAssetWorkflowControl\\('${action}'\\)`));
   }
@@ -1000,12 +1002,19 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(panelSource, /canLoadLastAsset/);
   assert.match(panelSource, /targetProjectBundle/);
   assert.match(panelSource, /targetAssetPath/);
-  assert.match(panelSource, /derivedProjectBundle/);
-  assert.match(panelSource, /derivedAssetPath/);
-  assert.match(panelSource, /lastAssetId/);
-  assert.match(panelSource, /canonicalJsonHash/);
-  assert.match(panelSource, /voxelDataHash/);
+  assert.match(storeSource, /derivedProjectBundle/);
+  assert.match(storeSource, /derivedAssetPath/);
+  assert.match(storeSource, /lastAssetId/);
+  assert.match(storeSource, /canonicalJsonHash/);
+  assert.match(storeSource, /voxelDataHash/);
   assert.match(storeSource, /does not match target/);
+  assert.match(storeSource, /STUDIO_VOXEL_OPERATION_AUTHORITY/);
+  assert.match(storeSource, /writeHostVoxelAsset/);
+  assert.match(storeSource, /readHostVoxelAsset/);
+  assert.match(storeSource, /confirmStored/);
+  assert.match(panelSource, /Workspace asset/);
+  assert.match(panelSource, /Running game/);
+  assert.match(panelSource, /liveRuntimeAvailable/);
   assert.match(storeSource, /importVoxelConversionMeshFile/);
   assert.match(storeSource, /VOXEL_CONVERSION_MESH_IMPORT_MAX_SOURCE_BYTES/);
   assert.match(panelSource, /data-voxel-control="mesh-file-import"/);
@@ -1047,7 +1056,7 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   assert.match(storeSource, /generatedCommandCount/);
   assert.match(storeSource, /acceptedCommandCount/);
   assert.match(storeSource, /rejectedCommandCount/);
-  assert.match(storeSource, /Attach RuntimeSession before submitting voxel edits/);
+  assert.match(storeSource, /Workspace authoring authority is not ready for voxel edits/);
 
   assert.match(panelSource, /data-voxel-edit-status/);
   assert.match(panelSource, /data-voxel-edit-diagnostic/);
@@ -1094,7 +1103,7 @@ test('studio voxel conversion workspace exposes compact voxel creation controls'
   }
 });
 
-test('studio voxel history panel uses RuntimeSession history projections without a local undo stack', () => {
+test('studio voxel history panel uses workspace-authoring history projections without a local undo stack', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
   const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
@@ -1137,7 +1146,7 @@ test('studio voxel history panel uses RuntimeSession history projections without
   assert.doesNotMatch(storeSource, /Studio.*undo.*push/i);
 
   assert.match(panelSource, /data-voxel-history-status/);
-  assert.match(panelSource, /data-voxel-history-runtime-attached/);
+  assert.match(panelSource, /data-voxel-history-authoring-available/);
   assert.match(panelSource, /data-voxel-history-target/);
   assert.match(panelSource, /data-voxel-history-diff-status/);
   assert.match(panelSource, /data-voxel-history-entry-actionability/);
@@ -1174,7 +1183,7 @@ test('studio voxel history panel uses RuntimeSession history projections without
   assert.match(proofSource, /launchNativeBrowserHost/);
 });
 
-test('studio voxel annotation authoring uses public RuntimeSession annotation operations', () => {
+test('studio voxel annotation authoring uses public workspace-authoring operations', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
 
@@ -1217,7 +1226,7 @@ test('studio voxel annotation authoring uses public RuntimeSession annotation op
   assert.match(proofSource, /launchNativeBrowserHost/);
 });
 
-test('studio imports RuntimeSession semantics from their public package root', () => {
+test('studio imports runtime and authoring semantics from their public package root', () => {
   const semanticConsumerPaths = [
     'libs/studio-domain/src/index.ts',
     'libs/studio-store/src/index.ts',
@@ -1239,7 +1248,7 @@ test('studio imports RuntimeSession semantics from their public package root', (
   assert.match(storeSource, /createRuntimeSessionFacade,[\s\S]*from '@asha\/runtime-bridge';/);
 });
 
-test('studio voxel palette editor uses the public stored-only RuntimeSession mutation', () => {
+test('studio voxel palette editor uses the public workspace-authoring mutation', () => {
   const storeSource = readFileSync(join(repoRoot, 'libs/studio-store/src/index.ts'), 'utf8');
   const panelSource = readFileSync(join(repoRoot, 'libs/studio-panels/src/index.ts'), 'utf8');
   const proofSource = readFileSync(join(repoRoot, 'scripts/proof-native-voxel-runtime-launch.ts'), 'utf8');
@@ -2481,12 +2490,12 @@ test('voxel conversion workspace Phase 3 production shell reaches staged authori
     stages.map(stage => stage.shell.commandTimeline.find(row => row.commandId === stage.commandId)?.proposalAccepted),
     [true, true, true, true],
   );
-  assert.equal(finalShell?.runtimeAttached, true);
+  assert.equal(finalShell?.authoringAvailable, true);
   assert.equal(finalShell?.readout.status, 'ready');
   assert.equal(finalShell?.readout.authorityPosture, 'authority_backed');
   assert.equal(finalShell?.previewProjection.previewHash, 'sha256:preview-output');
   assert.ok(finalShell?.evidenceRows.some(evidence => evidence.kind === 'apply_receipt'));
-  assert.ok(stages[2]?.shell.actions.find(action => action.commandId === 'voxel_conversion.apply')?.reason.includes('Asha runtime facade'));
+  assert.ok(stages[2]?.shell.actions.find(action => action.commandId === 'voxel_conversion.apply')?.reason.includes('workspace authoring authority'));
 });
 
 test('voxel conversion Phase 2 golden consumer proof is inspectable without successor wrappers', () => {
