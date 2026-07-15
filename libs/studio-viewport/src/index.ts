@@ -12,6 +12,7 @@ import type {
   Material,
   RenderDiff,
   RenderFrameDiff,
+  RenderHandle,
   RenderNode,
   Transform,
 } from '@asha/contracts';
@@ -26,6 +27,7 @@ import {
   mountAshaRendererEditorViewport,
   resolveAshaStoredEditorCamera,
 } from '@asha/renderer-host';
+import type { WorkspaceAuthoringProjectionSummary } from '@asha/runtime-session';
 import type {
   StudioBounds,
   StudioEntitySourceState,
@@ -175,9 +177,14 @@ function buildViewportProjectionFrame(
   materialPreviewFrame: RenderFrameDiff | null,
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
-  let handle = 1;
+  let handle = 1_000_001;
   for (const renderable of adapter.renderables) {
     if (!renderable.visible) {
+      continue;
+    }
+    // VoxelVolume scene nodes are durable references. Their geometry arrives
+    // through WorkspaceAuthoringFacade.readProjection(), never a Studio cube.
+    if (renderable.kind === 'voxel_grid') {
       continue;
     }
     if (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost') {
@@ -192,9 +199,56 @@ function buildViewportProjectionFrame(
     handle += 1;
   }
   if (materialPreviewFrame !== null) {
-    ops.push(...materialPreviewFrame.ops);
+    ops.push(...remapRenderFrameHandles(materialPreviewFrame, 2_000_000).ops);
   }
   return { ops };
+}
+
+function remapRenderFrameHandles(frame: RenderFrameDiff, offset: number): RenderFrameDiff {
+  const remap = (handle: RenderHandle): RenderHandle => renderHandle((handle as number) + offset);
+  return {
+    ops: frame.ops.map((op): RenderDiff => {
+      switch (op.op) {
+        case 'create':
+        case 'createStaticMeshInstance':
+        case 'createAnimatedMeshInstance':
+        case 'createSprite':
+          return { ...op, handle: remap(op.handle), parent: op.parent === null ? null : remap(op.parent) };
+        case 'update':
+        case 'destroy':
+        case 'replaceMeshPayload':
+        case 'setMaterialInstanceParameters':
+        case 'setAnimatedMeshPlayback':
+        case 'updateSprite':
+          return { ...op, handle: remap(op.handle) };
+        default:
+          return op;
+      }
+    }),
+  };
+}
+
+function createdRenderHandles(frame: RenderFrameDiff): readonly RenderHandle[] {
+  return frame.ops.flatMap(op => (
+    op.op === 'create'
+      || op.op === 'createStaticMeshInstance'
+      || op.op === 'createAnimatedMeshInstance'
+      || op.op === 'createSprite'
+      ? [op.handle]
+      : []
+  ));
+}
+
+function replaceAuthoredBaseFrame(
+  previousHandles: readonly RenderHandle[],
+  nextFrame: RenderFrameDiff,
+): RenderFrameDiff {
+  return {
+    ops: [
+      ...previousHandles.map((handle): RenderDiff => ({ op: 'destroy', handle })),
+      ...nextFrame.ops,
+    ],
+  };
 }
 
 function buildEditorViewportCamera(
@@ -701,6 +755,8 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private destroyed = false;
   private renderedSceneKey: string | null = null;
   private renderedRuntimeKey: string | null = null;
+  private renderedAuthoringProjectionKey: string | null = null;
+  private authoredBaseHandles: readonly RenderHandle[] = [];
   private debugPick: AshaRendererEditorViewportPickHint | null = null;
   private debugPickTimer: ReturnType<typeof setTimeout> | null = null;
   private dragState: {
@@ -715,6 +771,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private readonly adapterEffect = effect(() => {
     const adapter = this.store.viewportAdapter();
     const runtimeProjection = this.store.runtimeViewportProjection();
+    const authoringProjection = this.store.workspaceAuthoringProjection();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
       adapter,
@@ -722,6 +779,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeProjection?.projectionHash ?? null,
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
+      authoringProjection,
     );
   });
 
@@ -757,6 +815,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.resizeObserver.observe(hostElement);
     this.resizeViewport();
     const runtimeProjection = this.store.runtimeViewportProjection();
+    const authoringProjection = this.store.workspaceAuthoringProjection();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
       this.store.viewportAdapter(),
@@ -764,6 +823,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeProjection?.projectionHash ?? null,
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
+      authoringProjection,
     );
   }
 
@@ -783,6 +843,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.viewport?.dispose();
     this.viewport = null;
     this.viewportReadout.set(null);
+    this.authoredBaseHandles = [];
   }
 
   probeMissingPreviewResource(): void {
@@ -855,6 +916,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     runtimeKey: string | null,
     materialPreviewFrame: RenderFrameDiff | null,
     runtimeCamera: CameraSnapshot | null,
+    authoringProjection: WorkspaceAuthoringProjectionSummary | null,
   ): void {
     const viewport = this.viewport;
     const canvas = this.canvasElement;
@@ -873,10 +935,56 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       adapter.renderSettings.renderSettingsHash,
       materialPreviewFrame === null ? 'no-material-preview' : JSON.stringify(materialPreviewFrame),
     ].join(':');
-    if (sceneKey !== this.renderedSceneKey) {
-      viewport.channels.authored.replace(buildViewportProjectionFrame(adapter, materialPreviewFrame));
-      viewport.channels.overlay.replace(buildViewportOverlayFrame(adapter, this.debugPick));
+    const baseFrame = buildViewportProjectionFrame(adapter, materialPreviewFrame);
+    const projectionKey = authoringProjection === null
+      ? null
+      : [
+          authoringProjection.workspaceId,
+          authoringProjection.generation,
+          authoringProjection.workingRevision,
+          JSON.stringify(authoringProjection.cursor),
+          authoringProjection.projectionHash,
+          authoringProjection.delivery,
+        ].join(':');
+    const sceneChanged = sceneKey !== this.renderedSceneKey;
+    const projectionChanged = projectionKey !== this.renderedAuthoringProjectionKey;
+
+    if (
+      authoringProjection !== null
+      && projectionChanged
+      && authoringProjection.delivery === 'replace'
+    ) {
+      viewport.channels.authored.replace({
+        ops: [...baseFrame.ops, ...authoringProjection.frame.ops],
+      });
+      this.authoredBaseHandles = createdRenderHandles(baseFrame);
       this.renderedSceneKey = sceneKey;
+      this.renderedAuthoringProjectionKey = projectionKey;
+    } else {
+      if (authoringProjection === null && this.renderedAuthoringProjectionKey !== null) {
+        viewport.channels.authored.replace(baseFrame);
+        this.authoredBaseHandles = createdRenderHandles(baseFrame);
+        this.renderedAuthoringProjectionKey = null;
+        this.renderedSceneKey = sceneKey;
+      } else if (sceneChanged) {
+        const nextBaseHandles = createdRenderHandles(baseFrame);
+        if (this.renderedSceneKey === null) {
+          viewport.channels.authored.replace(baseFrame);
+        } else {
+          viewport.channels.authored.apply(
+            replaceAuthoredBaseFrame(this.authoredBaseHandles, baseFrame),
+          );
+        }
+        this.authoredBaseHandles = nextBaseHandles;
+        this.renderedSceneKey = sceneKey;
+      }
+      if (authoringProjection !== null && projectionChanged) {
+        viewport.channels.authored.apply(authoringProjection.frame);
+        this.renderedAuthoringProjectionKey = projectionKey;
+      }
+    }
+    if (sceneChanged) {
+      viewport.channels.overlay.replace(buildViewportOverlayFrame(adapter, this.debugPick));
     }
     if (runtimeKey !== this.renderedRuntimeKey) {
       if (runtimeFrame === null) {

@@ -44,6 +44,10 @@ import and local-link policy.
 - Studio owns interaction policy and renderer-neutral authored/overlay
   `RenderFrameDiff` content. It never receives backend scene objects, camera
   matrices, GPU resources, or disposal handles.
+- Authoritative voxel mesh construction is upstream. Studio consumes
+  `WorkspaceAuthoringFacade.readProjection()` and only composes its handles with
+  the stored-scene and overlay channels; it does not build private voxel
+  geometry or a placeholder voxel cube.
 - Stored preview, current runtime projection, and editor/debug overlay are
   isolated host channels. Picks are disposable projection hints; runtime edits
   require Rust revalidation.
@@ -58,9 +62,14 @@ import and local-link policy.
 
 - Voxel workflows are product-operable in the normal Studio workspace: bounded
   GLB import, conversion, scratch initialization/editing, model/window readback,
-  explicit save/unload/load, and strict external-agent transcript replay all use
-  public RuntimeSession operations. `globalThis.ashaStudioVoxelWorkflow` exposes
-  a bounded product API without exposing the Store or RuntimeBridge.
+  explicit save/reopen, and strict external-agent transcript replay use the
+  public workspace-authoring facade without a gameplay runtime. Explicit load
+  into and unload from a running game remain separate RuntimeSession operations.
+  `globalThis.ashaStudioVoxelWorkflow` exposes a bounded product API without
+  exposing the Store or RuntimeBridge.
+- The Asset section includes ordinary empty-volume and house-template creation.
+  Saved `voxelVolume` scene references reconnect their Rust-validated host asset
+  on scene open and re-enter the same upstream projection path.
 - Human voxel workflows live under the top-bar **Voxel** menu and are grouped by
   use: Convert, Edit, Asset, Metadata, History, and Automation. The archived
   conversion proof shell, state cards, evidence rows, and raw diagnostic hashes

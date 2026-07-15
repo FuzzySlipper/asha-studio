@@ -163,13 +163,20 @@ Task `asha#2918` turns the viewport from a placeholder into a narrow agent-obser
 
 The exported agent readout includes the same `viewport_editor_panel` object so human UI and agent/reviewer artifacts observe the same viewport state. A deterministic fixture lives at `fixtures/studio-viewport-editor-panel.sample.json`.
 
+That description is historical. The current main viewport is the engine-owned
+renderer host described below. Studio no longer fabricates a voxel cube for a
+`voxelVolume` scene node: live workspace-authoring geometry is read from
+`WorkspaceAuthoringFacade.readProjection()` and applied as typed retained
+render diffs.
+
 ## Engine-owned browser viewport host
 
 Task `asha#5738` replaces the old downstream concrete renderer with the public
 `@asha/renderer-host` editor viewport. The three isolated retained channels are:
 
 - `runtime` for current RuntimeSession render frames;
-- `authored` for stored scene projection and model/material preview diffs;
+- `authored` for stored scene projection, workspace-authoring voxel geometry,
+  and model/material preview diffs;
 - `overlay` for Studio-owned grid, selection, gizmo, and disposable pick/debug
   semantics.
 
@@ -187,6 +194,12 @@ one-cell browser-host provider. Stored authoring remains visibly distinct and
 is not mutated until an explicit stored edit or runtime apply action. Disconnect
 unloads the ProjectBundle, clears runtime-only channels/readouts, and preserves
 stored sources.
+
+Voxel asset creation and editing do not require a gameplay RuntimeSession. The
+public workspace-authoring facade emits real inline mesh payloads for the main
+viewport. A saved `voxelVolume` scene node retains its typed asset reference and
+Studio host path; opening the scene validates and reloads the `.avxl.json` asset
+through Rust authority before projecting it again.
 
 `pnpm run evidence -- native-voxel-runtime-launch` proves healthy stored and
 runtime channels, isolated missing-resource rejection, stale scene-command

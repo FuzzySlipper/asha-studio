@@ -498,6 +498,13 @@ export type StudioVoxelToolsSection =
             </button>
             <button
               type="button"
+              data-voxel-asset-action="create_house"
+              (click)="store.createVoxelHouseTemplate()"
+            >
+              New house template
+            </button>
+            <button
+              type="button"
               data-voxel-asset-action="model_info"
               (click)="store.runVoxelAssetWorkflowControl('model_info')"
             >

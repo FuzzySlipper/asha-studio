@@ -25,6 +25,12 @@ without creating placeholder renderables. Missing catalog assets are reported
 in visible status diagnostics; their references remain unchanged in the scene
 document so resolving resources never silently rewrites authored content.
 
+A `voxelVolume` node may carry Studio's host-path tag alongside its typed asset
+reference. Opening such a scene reads the referenced `.avxl.json` file on the
+Studio host, validates and loads it through `WorkspaceAuthoringFacade`, and
+renders only the resulting public mesh projection. Missing or rejected voxel
+assets remain unresolved; Studio does not substitute local geometry.
+
 ## Optional workspace pointer
 
 `studio-project-workspace.v1` is an optional project convenience artifact, not
