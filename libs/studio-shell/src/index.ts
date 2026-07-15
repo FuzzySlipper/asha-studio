@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject } from '@angular/core';
 import {
   StudioAssetsBottomPanelComponent,
   StudioHierarchyPanelComponent,
@@ -9,6 +9,13 @@ import {
 } from '@asha-studio/panels';
 import { StudioWorkspaceStore } from '@asha-studio/store';
 import { StudioViewportComponent } from '@asha-studio/viewport';
+import {
+  containHostFileDialogTabFocus,
+  focusInitialHostFileDialogControl,
+  restoreHostFileDialogFocus,
+} from './host-file-dialog-focus';
+
+export * from './host-file-dialog-focus';
 
 @Component({
   selector: 'asha-studio-shell',
@@ -26,7 +33,12 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
     <main class="studio-layout" data-visual-id="studio-shell">
       <nav class="studio-menu" aria-label="Application menu">
         <div class="studio-menu__group">
-          <button type="button" [class.is-active]="store.activeMenu() === 'file'" (click)="toggleMenu('file')">
+          <button
+            type="button"
+            data-file-menu-trigger
+            [class.is-active]="store.activeMenu() === 'file'"
+            (click)="toggleMenu('file')"
+          >
             File
           </button>
           <button type="button" [class.is-active]="store.activeMenu() === 'edit'" (click)="toggleMenu('edit')">
@@ -285,6 +297,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
             class="host-file-dialog"
             role="dialog"
             aria-modal="true"
+            tabindex="-1"
             [attr.aria-label]="fileDialogMode === 'open' ? 'Open Scene' : 'Save Scene As'"
             (mousedown)="$event.stopPropagation()"
           >
@@ -304,6 +317,7 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
                 <input
                   type="text"
                   aria-label="Host directory"
+                  data-file-dialog-initial-focus
                   [value]="store.projectFileDialog().directoryPath"
                   [title]="store.projectFileDialog().directoryPath"
                   (input)="setProjectFileDirectoryPath($any($event.target).value)"
@@ -946,6 +960,8 @@ import { StudioViewportComponent } from '@asha-studio/viewport';
 })
 export class StudioShellComponent {
   readonly store = inject(StudioWorkspaceStore);
+  private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
+  private fileDialogReturnTarget: HTMLElement | null = null;
 
   toggleMenu(menu: 'file' | 'edit' | 'view' | 'project' | 'runtime' | 'voxel' | 'preferences'): void {
     this.store.toggleActiveMenu(menu);
@@ -956,15 +972,20 @@ export class StudioShellComponent {
   }
 
   saveScene(): void {
+    this.rememberFileDialogReturnTarget();
     this.store.saveSceneFile();
+    this.focusFileDialogAfterOpen();
   }
 
   openSceneFileDialog(mode: 'open' | 'save-as'): void {
+    this.rememberFileDialogReturnTarget();
     this.store.openSceneFileDialog(mode);
+    this.focusFileDialogAfterOpen();
   }
 
   closeSceneFileDialog(): void {
     this.store.closeSceneFileDialog();
+    this.restoreFocusAfterFileDialogClose();
   }
 
   setProjectFileDirectoryPath(path: string): void {
@@ -993,10 +1014,12 @@ export class StudioShellComponent {
 
   activateProjectFile(path: string): void {
     this.store.activateProjectFile(path);
+    this.restoreFocusIfFileDialogClosed();
   }
 
   confirmSceneFileDialog(): void {
     this.store.confirmSceneFileDialog();
+    this.restoreFocusIfFileDialogClosed();
   }
 
   formatFileSize(size: number | null): string {
@@ -1014,6 +1037,7 @@ export class StudioShellComponent {
 
   confirmDiscardUnsavedScene(): void {
     this.store.confirmDiscardUnsavedScene();
+    this.restoreFocusIfFileDialogClosed();
   }
 
   cancelDiscardUnsavedScene(): void {
@@ -1022,10 +1046,12 @@ export class StudioShellComponent {
 
   reloadSceneFileAfterConflict(): void {
     this.store.reloadSceneFileAfterConflict();
+    this.restoreFocusIfFileDialogClosed();
   }
 
   overwriteSceneFileAfterConflict(): void {
     this.store.overwriteSceneFileAfterConflict();
+    this.restoreFocusIfFileDialogClosed();
   }
 
   cancelSceneFileConflict(): void {
@@ -1039,11 +1065,56 @@ export class StudioShellComponent {
     }
   }
 
-  @HostListener('document:keydown.escape')
-  closeFileDialogFromKeyboard(): void {
-    if (this.store.projectFileDialog().mode !== null) {
-      this.store.closeSceneFileDialog();
+  @HostListener('document:keydown', ['$event'])
+  handleFileDialogKeyboard(event: KeyboardEvent): void {
+    if (this.store.projectFileDialog().mode === null) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeSceneFileDialog();
+      return;
     }
+    if (event.key !== 'Tab') return;
+
+    const dialog = this.fileDialogElement();
+    if (dialog === null) return;
+    if (containHostFileDialogTabFocus(dialog, event.shiftKey)) {
+      event.preventDefault();
+    }
+  }
+
+  private rememberFileDialogReturnTarget(): void {
+    const active = document.activeElement;
+    const fileMenuTrigger = this.elementRef.nativeElement.querySelector<HTMLElement>('[data-file-menu-trigger]');
+    this.fileDialogReturnTarget = active instanceof HTMLElement && active !== document.body
+      ? active
+      : fileMenuTrigger;
+  }
+
+  private focusFileDialogAfterOpen(): void {
+    if (this.store.projectFileDialog().mode === null) return;
+    setTimeout(() => {
+      const dialog = this.fileDialogElement();
+      if (dialog !== null) focusInitialHostFileDialogControl(dialog);
+    }, 0);
+  }
+
+  private restoreFocusIfFileDialogClosed(): void {
+    if (this.store.projectFileDialog().mode === null) {
+      this.restoreFocusAfterFileDialogClose();
+    }
+  }
+
+  private restoreFocusAfterFileDialogClose(): void {
+    const returnTarget = this.fileDialogReturnTarget;
+    this.fileDialogReturnTarget = null;
+    setTimeout(() => {
+      const fallback = this.elementRef.nativeElement.querySelector<HTMLElement>('[data-file-menu-trigger]');
+      restoreHostFileDialogFocus(returnTarget, fallback);
+    }, 0);
+  }
+
+  private fileDialogElement(): HTMLElement | null {
+    return this.elementRef.nativeElement.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
   }
 
   refreshRunningProjectSessions(): void {
