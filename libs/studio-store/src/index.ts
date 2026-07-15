@@ -4995,6 +4995,113 @@ export interface StudioVoxelAuthoringModeReadModel {
   readonly message: string;
 }
 
+export type StudioVoxelBrushTool = 'select' | 'add' | 'paint' | 'erase';
+export type StudioVoxelBrushSize = 1 | 3;
+
+export interface StudioVoxelBrushReadModel {
+  readonly tool: StudioVoxelBrushTool;
+  readonly material: number;
+  readonly materials: readonly number[];
+  readonly size: StudioVoxelBrushSize;
+  readonly shape: 'cube';
+  readonly enabled: boolean;
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  readonly status: 'idle' | 'accepted' | 'rejected';
+  readonly changedVoxelCount: number | null;
+  readonly message: string;
+}
+
+interface StudioVoxelBrushState {
+  readonly tool: StudioVoxelBrushTool;
+  readonly material: number;
+  readonly materials: readonly number[];
+  readonly size: StudioVoxelBrushSize;
+  readonly shape: 'cube';
+  readonly status: 'idle' | 'accepted' | 'rejected';
+  readonly changedVoxelCount: number | null;
+  readonly message: string;
+}
+
+const INITIAL_VOXEL_BRUSH_STATE: StudioVoxelBrushState = {
+  tool: 'select',
+  material: 1,
+  materials: [1],
+  size: 1,
+  shape: 'cube',
+  status: 'idle',
+  changedVoxelCount: null,
+  message: 'Select a voxel face, then choose Add, Paint, or Erase.',
+};
+
+export function compileStudioVoxelBrushStroke(input: {
+  readonly tool: Exclude<StudioVoxelBrushTool, 'select'>;
+  readonly centers: readonly VoxelCoord[];
+  readonly grid: number;
+  readonly material: number;
+  readonly size: StudioVoxelBrushSize;
+}): CommandBatch {
+  if (!Number.isSafeInteger(input.grid)) {
+    throw new Error('Voxel brush grid must be a safe integer.');
+  }
+  if (!Number.isSafeInteger(input.material) || input.material < 1 || input.material > 255) {
+    throw new Error('Voxel brush material must be an integer in 1..255.');
+  }
+  const radius = (input.size - 1) / 2;
+  const commands = new Map<string, VoxelCommand>();
+  for (const center of input.centers) {
+    for (let x = center.x - radius; x <= center.x + radius; x += 1) {
+      for (let y = center.y - radius; y <= center.y + radius; y += 1) {
+        for (let z = center.z - radius; z <= center.z + radius; z += 1) {
+          const key = `${input.grid}:${x}:${y}:${z}`;
+          commands.set(key, {
+            op: 'setVoxel',
+            grid: input.grid,
+            coord: { x, y, z },
+            value: input.tool === 'erase'
+              ? { kind: 'empty' }
+              : { kind: 'solid', material: input.material },
+          });
+        }
+      }
+    }
+  }
+  return {
+    commands: [...commands.values()].sort((left, right) => {
+      if (left.op !== 'setVoxel' || right.op !== 'setVoxel') return 0;
+      return left.coord.x - right.coord.x
+        || left.coord.y - right.coord.y
+        || left.coord.z - right.coord.z;
+    }),
+  };
+}
+
+export function retainStudioWorkspaceProjection(
+  previous: WorkspaceAuthoringProjectionSummary | null,
+  projection: WorkspaceAuthoringProjectionSummary,
+): WorkspaceAuthoringProjectionSummary {
+  const canAppend = projection.delivery === 'apply'
+    && previous !== null
+    && previous.workspaceId === projection.workspaceId
+    && previous.generation === projection.generation;
+  const frame = canAppend
+    ? { ops: [...previous.frame.ops, ...projection.frame.ops] }
+    : projection.frame;
+  return {
+    ...projection,
+    delivery: 'replace',
+    frame,
+    renderDiffCount: frame.ops.length,
+    projectionHash: stableBrowserHash(JSON.stringify({
+      workspaceId: projection.workspaceId,
+      generation: projection.generation,
+      workingRevision: projection.workingRevision,
+      cursor: projection.cursor,
+      frame,
+    })),
+  };
+}
+
 const INITIAL_VOXEL_AUTHORING_MODE: StudioVoxelAuthoringModeReadModel = {
   mode: 'object',
   activeAssetId: null,
@@ -5077,6 +5184,7 @@ export class StudioWorkspaceStore {
   private readonly voxelAuthoringModeState = signal<StudioVoxelAuthoringModeReadModel>(
     INITIAL_VOXEL_AUTHORING_MODE,
   );
+  private readonly voxelBrushState = signal<StudioVoxelBrushState>(INITIAL_VOXEL_BRUSH_STATE);
   private readonly sceneLightHistoryState = signal<StudioSceneLightHistory>({ entries: [], cursor: 0 });
   private readonly workspaceAuthoringMessageState = signal('Starting workspace authoring authority.');
   private readonly runtimeViewportEvidenceState = signal<StudioRuntimeViewportEvidence>(
@@ -5282,6 +5390,16 @@ export class StudioWorkspaceStore {
   readonly workspaceAuthoringState = this.workspaceAuthoringStateSummaryState.asReadonly();
   readonly workspaceAuthoringProjection = this.workspaceAuthoringProjectionState.asReadonly();
   readonly voxelAuthoringMode = this.voxelAuthoringModeState.asReadonly();
+  readonly voxelBrush = computed<StudioVoxelBrushReadModel>(() => {
+    const state = this.voxelBrushState();
+    const history = this.voxelHistoryControlState().summary?.cursor;
+    return {
+      ...state,
+      enabled: this.voxelAuthoringModeState().mode === 'edit',
+      canUndo: (history?.undoDepth ?? 0) > 0,
+      canRedo: (history?.redoDepth ?? 0) > 0,
+    };
+  });
   readonly lightingProjection = computed<StudioLightingProjectionReadModel>(() =>
     buildStudioLightingProjection(
       this.workspaceState().flatSceneDocument,
@@ -6378,6 +6496,13 @@ export class StudioWorkspaceStore {
         ...INITIAL_VOXEL_AUTHORING_MODE,
         activeAssetId: this.activeVoxelAssetIdState(),
       });
+      this.voxelBrushState.update(state => ({
+        ...state,
+        tool: 'select',
+        status: 'idle',
+        changedVoxelCount: null,
+        message: 'Voxel pointer tools are available in Voxel Edit mode.',
+      }));
       return;
     }
     const workspace = this.workspaceState();
@@ -6425,7 +6550,138 @@ export class StudioWorkspaceStore {
       message: `Editing ${activeAssetId} through instance ${instanceId}. Voxel coordinates are asset-local.`,
     });
     this.viewportToolState.set(buildStudioViewportToolReadModel('select'));
+    this.voxelBrushState.update(state => ({
+      ...state,
+      tool: 'select',
+      status: 'idle',
+      changedVoxelCount: null,
+      message: 'Select a visible voxel face, then choose Add, Paint, or Erase.',
+    }));
     this.menuMessageState.set(`Voxel Edit mode · ${node.label ?? instanceId} · ${activeAssetId}.`);
+  }
+
+  setVoxelBrushTool(tool: StudioVoxelBrushTool): void {
+    if (this.voxelAuthoringModeState().mode !== 'edit') {
+      this.menuMessageState.set('Enter Voxel Edit mode before choosing a voxel pointer tool.');
+      return;
+    }
+    this.viewportToolState.set(buildStudioViewportToolReadModel('select'));
+    this.voxelBrushState.update(state => ({
+      ...state,
+      tool,
+      status: 'idle',
+      changedVoxelCount: null,
+      message: tool === 'select'
+        ? 'Select inspects an authority-resolved local voxel without mutation.'
+        : `${tool[0]?.toUpperCase() ?? ''}${tool.slice(1)} is active. Drag across visible faces for one undoable stroke.`,
+    }));
+  }
+
+  setVoxelBrushMaterial(material: number): void {
+    if (
+      !Number.isSafeInteger(material)
+      || material < 1
+      || material > 255
+      || !this.voxelBrushState().materials.includes(material)
+    ) return;
+    this.voxelBrushState.update(state => ({
+      ...state,
+      material,
+      status: 'idle',
+      changedVoxelCount: null,
+      message: `Active voxel material ${material}.`,
+    }));
+  }
+
+  private setVoxelBrushPaletteFromAsset(asset: VoxelVolumeAsset): void {
+    const materials = [...new Set(asset.materialPalette.map(binding => binding.voxelMaterial))]
+      .filter(material => Number.isSafeInteger(material) && material >= 1 && material <= 255)
+      .sort((left, right) => left - right);
+    this.voxelBrushState.update(state => ({
+      ...state,
+      material: materials.includes(state.material) ? state.material : materials[0] ?? 1,
+      materials: materials.length === 0 ? [1] : materials,
+    }));
+  }
+
+  setVoxelBrushSize(size: number): void {
+    if (size !== 1 && size !== 3) return;
+    this.voxelBrushState.update(state => ({
+      ...state,
+      size,
+      status: 'idle',
+      changedVoxelCount: null,
+      message: `${size} x ${size} x ${size} cube brush selected.`,
+    }));
+  }
+
+  commitVoxelBrushStroke(centers: readonly VoxelCoord[]): boolean {
+    const brush = this.voxelBrushState();
+    const context = this.voxelAuthoringModeState();
+    const authoringState = this.workspaceAuthoringStateSummaryState();
+    const binding = this.voxelProjectionBindingReceiptState();
+    if (brush.tool === 'select') return false;
+    if (
+      context.mode !== 'edit'
+      || context.activeInstanceId === null
+      || context.workingRevision === null
+      || authoringState === null
+      || binding === null
+      || context.workingRevision !== authoringState.workingRevision
+      || binding.workingRevision !== authoringState.workingRevision
+    ) {
+      const message = 'Voxel stroke rejected because its pick/binding revision is stale. Select the surface again.';
+      this.voxelBrushState.update(state => ({
+        ...state,
+        status: 'rejected',
+        changedVoxelCount: null,
+        message,
+      }));
+      this.menuMessageState.set(message);
+      return false;
+    }
+    try {
+      const batch = compileStudioVoxelBrushStroke({
+        tool: brush.tool,
+        centers,
+        grid: this.voxelConversionDraftState().targetGrid,
+        material: brush.material,
+        size: brush.size,
+      });
+      const result = this.submitAgentVoxelEdit(batch);
+      const changedVoxelCount = result.voxelEditReceipt?.result.accepted ?? 0;
+      const message = result.accepted
+        ? `${brush.tool[0]?.toUpperCase() ?? ''}${brush.tool.slice(1)} stroke changed ${changedVoxelCount} voxel${changedVoxelCount === 1 ? '' : 's'}.`
+        : result.diagnostic ?? 'Voxel stroke rejected by Rust authority.';
+      this.voxelBrushState.update(state => ({
+        ...state,
+        status: result.accepted ? 'accepted' : 'rejected',
+        changedVoxelCount: result.accepted ? changedVoxelCount : null,
+        message,
+      }));
+      this.menuMessageState.set(message);
+      return result.accepted;
+    } catch (error) {
+      const message = errorMessage(error);
+      this.voxelBrushState.update(state => ({
+        ...state,
+        status: 'rejected',
+        changedVoxelCount: null,
+        message,
+      }));
+      this.menuMessageState.set(message);
+      return false;
+    }
+  }
+
+  undoVoxelBrushStroke(): void {
+    this.runVoxelHistoryControl('undo');
+    this.syncVoxelBrushFromHistory('Undo');
+  }
+
+  redoVoxelBrushStroke(): void {
+    this.runVoxelHistoryControl('redo');
+    this.syncVoxelBrushFromHistory('Redo');
   }
 
   selectAuthoredVoxelInstanceAtViewport(input: {
@@ -7553,6 +7809,7 @@ export class StudioWorkspaceStore {
         const undoReceipt = facade.undoVoxelEdit(request);
         this.refreshWorkspaceAuthoringState(facade);
         this.recordVoxelHistoryReceipt(action, undoReceipt.receipt);
+        this.refreshVoxelHistoryAfterEdit(facade);
         return;
       }
 
@@ -7561,6 +7818,7 @@ export class StudioWorkspaceStore {
         const redoReceipt = facade.redoVoxelEdit(request);
         this.refreshWorkspaceAuthoringState(facade);
         this.recordVoxelHistoryReceipt(action, redoReceipt.receipt);
+        this.refreshVoxelHistoryAfterEdit(facade);
         return;
       }
 
@@ -7570,6 +7828,7 @@ export class StudioWorkspaceStore {
         : facade.applyVoxelEditRevert(request);
       if (action !== 'preview_revert') this.refreshWorkspaceAuthoringState(facade);
       this.recordVoxelHistoryReceipt(action, receipt);
+      if (action !== 'preview_revert') this.refreshVoxelHistoryAfterEdit(facade);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Voxel history authoring operation failed.';
       this.recordVoxelHistoryRejected(action, message);
@@ -7862,19 +8121,20 @@ export class StudioWorkspaceStore {
       const voxelMaterial = draft.materialMap.entries[0]?.voxelMaterial
         ?? draft.materialMap.defaultVoxelMaterial
         ?? 1;
+      const paletteMaterials = [...new Set([voxelMaterial, 1, 2, 3])].sort((left, right) => left - right);
       const result = this.runAgentVoxelWorkflowOperation({
         kind: 'initialize_voxel_volume_authoring',
         initializeRequest: {
           grid: target.grid,
           volumeAssetId: target.volumeAssetId,
           seedChunk: { x: 0, y: 0, z: 0 },
-          materialPalette: [{
-            voxelMaterial,
-            paletteEntryId: `voxel-material/studio-${voxelMaterial}`,
-            displayName: `Studio material ${voxelMaterial}`,
-            materialAssetId: `material/studio-${voxelMaterial}`,
+          materialPalette: paletteMaterials.map(material => ({
+            voxelMaterial: material,
+            paletteEntryId: `voxel-material/studio-${material}`,
+            displayName: `Studio material ${material}`,
+            materialAssetId: `material/studio-${material}`,
             materialCatalogBindingId: null,
-          }],
+          })),
           authoring: {
             label: 'Studio scratch-authored voxel volume',
             createdBy: 'asha-studio',
@@ -7884,6 +8144,13 @@ export class StudioWorkspaceStore {
         },
       });
       const receipt = result.voxelVolumeAuthoringInitialize ?? null;
+      if (result.accepted) {
+        this.voxelBrushState.update(state => ({
+          ...state,
+          material: paletteMaterials.includes(state.material) ? state.material : paletteMaterials[0] ?? 1,
+          materials: paletteMaterials,
+        }));
+      }
       this.recordVoxelAssetWorkflowControl({
         action,
         accepted: result.accepted,
@@ -7894,7 +8161,9 @@ export class StudioWorkspaceStore {
         residentModelId: receipt?.modelId ?? null,
         volumeAssetId: receipt?.volumeAssetId ?? target.volumeAssetId,
         voxelCount: result.accepted ? 0 : null,
-        materialSummary: result.accepted ? `materials:1 (${voxelMaterial}:0)` : 'no material readback',
+        materialSummary: result.accepted
+          ? `materials:${paletteMaterials.length} (${paletteMaterials.map(material => `${material}:0`).join(', ')})`
+          : 'no material readback',
         canonicalJsonHash: null,
         voxelDataHash: null,
         validationDiagnosticCodes: (receipt?.diagnostics ?? []).map(diagnostic => diagnostic.code),
@@ -8612,6 +8881,45 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(message);
   }
 
+  private refreshVoxelHistoryAfterEdit(facade: WorkspaceAuthoringFacade): void {
+    try {
+      const current = this.voxelHistoryControlState();
+      const summary = facade.readVoxelEditHistory({
+        historyId: current.historyId,
+        cursorId: null,
+        maxEntries: current.maxEntries,
+        includeRedoTail: true,
+        expectedHistoryHash: null,
+      });
+      this.voxelHistoryControlState.set({
+        ...current,
+        cursorId: summary.cursor.cursorId,
+        summary,
+        receipt: current.receipt,
+        diagnostic: summary.diagnostics.at(0)?.message ?? null,
+      });
+    } catch {
+      // History is auxiliary to an already-authorized edit. A later explicit
+      // read can recover the controls without inventing local undo state.
+    }
+  }
+
+  private syncVoxelBrushFromHistory(label: 'Undo' | 'Redo'): void {
+    const control = this.voxelHistoryControlState();
+    const accepted = control.status === 'accepted';
+    const changed = control.receipt?.diffSummary?.changedVoxelCount ?? null;
+    const message = accepted
+      ? `${label} changed ${changed ?? 0} voxel${changed === 1 ? '' : 's'}.`
+      : control.diagnostic ?? `${label} was not accepted by voxel history authority.`;
+    this.voxelBrushState.update(state => ({
+      ...state,
+      status: accepted ? 'accepted' : 'rejected',
+      changedVoxelCount: accepted ? changed : null,
+      message,
+    }));
+    this.menuMessageState.set(message);
+  }
+
   private recordVoxelAnnotationResult(
     control: StudioVoxelAnnotationControlReadModel,
     accepted: boolean,
@@ -8672,6 +8980,7 @@ export class StudioWorkspaceStore {
     try {
       const result = facade.submitCommands(batch);
       const authoringState = this.refreshWorkspaceAuthoringState(facade);
+      if (result.accepted > 0) this.refreshVoxelHistoryAfterEdit(facade);
       const receipt: StudioWorkspaceAuthoringCommandReceipt = {
         kind: 'studio_workspace_authoring.command_receipt.v0',
         batch,
@@ -9163,7 +9472,11 @@ export class StudioWorkspaceStore {
         instances: plan.instances,
       });
       this.voxelProjectionBindingReceiptState.set(receipt);
-      this.workspaceAuthoringProjectionState.set(facade.readProjection());
+      const projection = facade.readProjection();
+      this.workspaceAuthoringProjectionState.set(retainStudioWorkspaceProjection(
+        this.workspaceAuthoringProjectionState(),
+        projection,
+      ));
       this.voxelAuthoringModeState.update(context => {
         const stillBound = context.activeInstanceId === null
           || plan.instances.some(instance => instance.instanceId === context.activeInstanceId);
@@ -9943,6 +10256,7 @@ export class StudioWorkspaceStore {
       this.activeVoxelAssetFilePathState.set(stored.path);
       this.activeVoxelAssetFileHashState.set(stored.sha256);
       this.activeVoxelAssetIdState.set(loadReadout.requestAssetId);
+      this.setVoxelBrushPaletteFromAsset(candidate);
       this.attachVoxelAssetToScene(acceptedTarget);
       this.recordVoxelAssetWorkflowControl({
         action: 'reopen_volume',
@@ -10114,6 +10428,7 @@ export class StudioWorkspaceStore {
         this.activeVoxelAssetFilePathState.set(stored.path);
         this.activeVoxelAssetFileHashState.set(stored.sha256);
         this.activeVoxelAssetIdState.set(receipt.requestAssetId);
+        this.setVoxelBrushPaletteFromAsset(asset);
         this.refreshWorkspaceAuthoringState(facade);
         this.voxelAssetWorkflowControlState.update(current => ({
           ...current,

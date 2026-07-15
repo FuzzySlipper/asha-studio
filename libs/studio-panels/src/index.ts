@@ -1417,6 +1417,61 @@ type ViewportToolbarTool = {
           · {{ store.lightingProjection().activeLightCount }} active
         </span>
       </div>
+      @if (store.voxelBrush().enabled) {
+        <div class="voxel-brush-strip" aria-label="Voxel pointer tools" data-voxel-brush-strip>
+          <strong>Voxel</strong>
+          @for (tool of voxelBrushTools; track tool.id) {
+            <button
+              type="button"
+              [attr.data-voxel-brush-tool]="tool.id"
+              [class.active]="store.voxelBrush().tool === tool.id"
+              [title]="tool.title"
+              (click)="store.setVoxelBrushTool(tool.id)"
+            >{{ tool.label }}</button>
+          }
+          <span class="voxel-brush-strip__divider"></span>
+          <span>Material</span>
+          @for (material of store.voxelBrush().materials; track material) {
+            <button
+              type="button"
+              class="voxel-material"
+              [class.active]="store.voxelBrush().material === material"
+              [style.--voxel-material-color]="voxelMaterialColor(material)"
+              [attr.data-voxel-brush-material]="material"
+              [title]="'Voxel material ' + material"
+              (click)="store.setVoxelBrushMaterial(material)"
+            >{{ material }}</button>
+          }
+          <label>
+            Brush
+            <select
+              data-voxel-brush-size
+              [value]="store.voxelBrush().size"
+              (change)="store.setVoxelBrushSize($any($event.target).valueAsNumber)"
+            >
+              <option [value]="1">1 cell</option>
+              <option [value]="3">3 cube</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            data-voxel-brush-history="undo"
+            [disabled]="!store.voxelBrush().canUndo"
+            (click)="store.undoVoxelBrushStroke()"
+          >Undo</button>
+          <button
+            type="button"
+            data-voxel-brush-history="redo"
+            [disabled]="!store.voxelBrush().canRedo"
+            (click)="store.redoVoxelBrushStroke()"
+          >Redo</button>
+          <span
+            class="voxel-brush-strip__result"
+            [class.is-rejected]="store.voxelBrush().status === 'rejected'"
+            data-voxel-brush-result
+          >{{ store.voxelBrush().message }}</span>
+        </div>
+      }
     </section>
   `,
   styles: [
@@ -1429,6 +1484,7 @@ type ViewportToolbarTool = {
         display: grid;
         gap: 0.55rem;
         grid-template-columns: auto auto auto auto minmax(9rem, 1fr) auto;
+        grid-template-rows: 2.45rem minmax(2.2rem, auto);
         height: 100%;
         min-width: 0;
         overflow: hidden;
@@ -1519,6 +1575,66 @@ type ViewportToolbarTool = {
         flex: 0 1 auto;
       }
 
+      .voxel-brush-strip {
+        align-items: center;
+        border-top: 1px solid var(--asha-color-border);
+        display: flex;
+        font: 700 0.67rem var(--asha-font-ui);
+        gap: 0.25rem;
+        grid-column: 1 / -1;
+        min-width: 0;
+        padding-top: 0.25rem;
+      }
+
+      .voxel-brush-strip button,
+      .voxel-brush-strip select {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        font: inherit;
+        height: 1.45rem;
+        padding: 0 0.42rem;
+      }
+
+      .voxel-brush-strip button.active {
+        border-color: var(--asha-color-accent);
+        box-shadow: inset 0 0 0 1px var(--asha-color-accent);
+      }
+
+      .voxel-brush-strip button:disabled {
+        color: #5b666c;
+      }
+
+      .voxel-brush-strip label {
+        align-items: center;
+        display: flex;
+        gap: 0.25rem;
+      }
+
+      .voxel-brush-strip__divider {
+        background: var(--asha-color-border);
+        height: 1.2rem;
+        width: 1px;
+      }
+
+      .voxel-material {
+        border-left: 0.35rem solid var(--voxel-material-color) !important;
+        min-width: 1.65rem;
+      }
+
+      .voxel-brush-strip__result {
+        color: var(--asha-color-muted);
+        flex: 1 1 auto;
+        min-width: 6rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voxel-brush-strip__result.is-rejected {
+        color: #df9b75;
+      }
+
       @media (max-width: 900px) {
         .toolbar-state {
           display: none;
@@ -1530,6 +1646,16 @@ type ViewportToolbarTool = {
 })
 export class StudioViewportToolbarPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly voxelBrushTools = [
+    { id: 'select', label: 'Select', title: 'Inspect a Rust-resolved local cell without changing it' },
+    { id: 'add', label: 'Add', title: 'Place the active material at the authority-provided face anchor' },
+    { id: 'paint', label: 'Paint', title: 'Replace the selected occupied cell material' },
+    { id: 'erase', label: 'Erase', title: 'Write the canonical empty voxel value' },
+  ] as const;
+
+  voxelMaterialColor(material: number): string {
+    return ['#a89b84', '#b7604f', '#9a713d', '#4f9cb7', '#8065b8'][material % 5] ?? '#a89b84';
+  }
   readonly tools: readonly ViewportToolbarTool[] = [
     {
       id: 'select',

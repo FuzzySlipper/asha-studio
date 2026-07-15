@@ -56,6 +56,17 @@ interface StudioViewportResourceProbe {
   readonly diagnostic: string | null;
 }
 
+interface StudioVoxelBrushOverlay {
+  readonly transform: Transform;
+  readonly tool: 'select' | 'add' | 'paint' | 'erase';
+}
+
+interface StudioVoxelPointerTarget {
+  readonly coord: { readonly x: number; readonly y: number; readonly z: number };
+  readonly instanceId: string;
+  readonly overlay: StudioVoxelBrushOverlay;
+}
+
 class AuthoredVoxelProjectionPickIndex {
   private readonly instanceByRoot = new Map<number, string>();
   private readonly rootByChild = new Map<number, number>();
@@ -117,6 +128,34 @@ class AuthoredVoxelProjectionPickIndex {
     return this.instanceByRoot.get(raw)
       ?? this.instanceByRoot.get(this.rootByChild.get(raw) ?? -1)
       ?? null;
+  }
+
+  brushOverlay(
+    instanceId: string,
+    coord: { readonly x: number; readonly y: number; readonly z: number },
+    size: 1 | 3,
+    tool: StudioVoxelBrushOverlay['tool'],
+  ): StudioVoxelBrushOverlay | null {
+    const root = [...this.instanceByRoot.entries()].find(([, candidate]) => candidate === instanceId)?.[0];
+    if (root === undefined) return null;
+    const transform = this.transformByHandle.get(root);
+    if (transform === undefined) return null;
+    return {
+      tool,
+      transform: {
+        translation: transformProjectionPoint(transform, [
+          coord.x + 0.5,
+          coord.y + 0.5,
+          coord.z + 0.5,
+        ]),
+        rotation: transform.rotation,
+        scale: [
+          transform.scale[0] * size * 1.01,
+          transform.scale[1] * size * 1.01,
+          transform.scale[2] * size * 1.01,
+        ],
+      },
+    };
   }
 
   voxelChunkHandles(): readonly RenderHandle[] {
@@ -489,6 +528,7 @@ function createDebugNode(
 function buildViewportOverlayFrame(
   adapter: StudioViewportAdapterReadModel,
   debugPick: AshaRendererEditorViewportPickHint | null,
+  voxelBrushOverlay: StudioVoxelBrushOverlay | null,
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
   let handle = 1;
@@ -550,6 +590,28 @@ function buildViewportOverlayFrame(
       handle += 1;
     }
   }
+  if (voxelBrushOverlay !== null) {
+    const color = voxelBrushOverlay.tool === 'erase'
+      ? [1, 0.18, 0.12, 0.28] as const
+      : voxelBrushOverlay.tool === 'add'
+        ? [0.15, 0.85, 0.48, 0.32] as const
+        : voxelBrushOverlay.tool === 'paint'
+          ? [0.24, 0.62, 1, 0.32] as const
+          : [1, 0.78, 0.18, 0.22] as const;
+    ops.push({
+      op: 'create',
+      handle: renderHandle(handle),
+      parent: null,
+      node: {
+        geometry: { shape: 'cube' },
+        material: { color, wireframe: true },
+        transform: voxelBrushOverlay.transform,
+        visible: true,
+        layer: 'debug',
+        metadata: { source: null, tags: [], label: `voxel-brush:${voxelBrushOverlay.tool}` },
+      },
+    });
+  }
   return { ops };
 }
 
@@ -567,6 +629,10 @@ function cursorForTool(tool: StudioViewportToolMode, dragging: boolean): string 
     return 'crosshair';
   }
   return 'default';
+}
+
+function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly z: number }): string {
+  return `${coord.x}:${coord.y}:${coord.z}`;
 }
 
 @Component({
@@ -945,6 +1011,14 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private readonly authoredVoxelPickIndex = new AuthoredVoxelProjectionPickIndex();
   private debugPick: AshaRendererEditorViewportPickHint | null = null;
   private debugPickTimer: ReturnType<typeof setTimeout> | null = null;
+  private voxelBrushOverlay: StudioVoxelBrushOverlay | null = null;
+  private lastVoxelHoverAt = 0;
+  private voxelStrokeState: {
+    readonly pointerId: number;
+    readonly coords: Map<string, StudioVoxelPointerTarget['coord']>;
+    readonly lastX: number;
+    readonly lastY: number;
+  } | null = null;
   private dragState: {
     readonly pointerId: number;
     readonly tool: Extract<StudioViewportToolMode, 'orbit' | 'pan' | 'move_object' | 'rotate_object'>;
@@ -956,6 +1030,8 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
   private readonly adapterEffect = effect(() => {
     const adapter = this.store.viewportAdapter();
+    const voxelBrush = this.store.voxelBrush();
+    if (!voxelBrush.enabled) this.voxelBrushOverlay = null;
     const runtimeProjection = this.store.runtimeViewportProjection();
     const authoringProjection = this.store.workspaceAuthoringProjection();
     const lightingProjection = this.store.lightingProjection();
@@ -1083,7 +1159,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     canvas.addEventListener('pointerdown', this.handlePointerDown);
     canvas.addEventListener('pointermove', this.handlePointerMove);
     canvas.addEventListener('pointerup', this.handlePointerUp);
-    canvas.addEventListener('pointercancel', this.handlePointerUp);
+    canvas.addEventListener('pointercancel', this.handlePointerCancel);
     canvas.addEventListener('contextmenu', this.handleContextMenu);
     canvas.addEventListener('wheel', this.handleWheel, { passive: false });
   }
@@ -1096,7 +1172,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     canvas.removeEventListener('pointerdown', this.handlePointerDown);
     canvas.removeEventListener('pointermove', this.handlePointerMove);
     canvas.removeEventListener('pointerup', this.handlePointerUp);
-    canvas.removeEventListener('pointercancel', this.handlePointerUp);
+    canvas.removeEventListener('pointercancel', this.handlePointerCancel);
     canvas.removeEventListener('contextmenu', this.handleContextMenu);
     canvas.removeEventListener('wheel', this.handleWheel);
   }
@@ -1195,7 +1271,11 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       }
     }
     if (sceneChanged) {
-      viewport.channels.overlay.replace(buildViewportOverlayFrame(adapter, this.debugPick));
+      viewport.channels.overlay.replace(buildViewportOverlayFrame(
+        adapter,
+        this.debugPick,
+        this.voxelBrushOverlay,
+      ));
     }
     if (runtimeKey !== this.renderedRuntimeKey) {
       if (runtimeFrame === null) {
@@ -1266,14 +1346,31 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    const brush = this.store.voxelBrush();
+    if (brush.enabled && brush.tool !== 'select') {
+      event.preventDefault();
+      const target = this.selectAtPointer(event);
+      if (target === null) return;
+      const coords = new Map<string, StudioVoxelPointerTarget['coord']>();
+      coords.set(voxelCoordKey(target.coord), target.coord);
+      this.voxelStrokeState = {
+        pointerId: event.pointerId,
+        coords,
+        lastX: event.clientX,
+        lastY: event.clientY,
+      };
+      canvas.setPointerCapture(event.pointerId);
+      return;
+    }
+
     this.selectAtPointer(event);
   };
 
-  private selectAtPointer(event: PointerEvent): void {
+  private selectAtPointer(event: PointerEvent): StudioVoxelPointerTarget | null {
     const viewport = this.viewport;
     const canvas = this.canvasElement;
     if (viewport === null || canvas === null) {
-      return;
+      return null;
     }
     const rect = canvas.getBoundingClientRect();
     const receipt = viewport.pick({
@@ -1291,15 +1388,35 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (hint?.channel === 'authored') {
       const instanceId = this.authoredVoxelPickIndex.instanceForHandle(hint.handle);
       if (instanceId !== null) {
-        this.store.selectAuthoredVoxelInstanceAtViewport({
+        const result = this.store.selectAuthoredVoxelInstanceAtViewport({
           cameraOrigin: viewport.camera().pose.position,
           instanceId,
           worldNormal: hint.normal,
           worldPosition: hint.position,
         });
         this.viewportReadout.set(viewport.readout());
-        return;
+        if (result === null || result.outcome.outcome === 'rejected') return null;
+        const brush = this.store.voxelBrush();
+        const context = this.store.voxelAuthoringMode();
+        const coord = brush.tool === 'add' ? context.editAnchor : context.selectedCell;
+        if (!brush.enabled || coord === null) return null;
+        const overlay = this.authoredVoxelPickIndex.brushOverlay(
+          instanceId,
+          coord,
+          brush.size,
+          brush.tool,
+        );
+        if (overlay === null) return null;
+        this.voxelBrushOverlay = overlay;
+        this.renderOverlay();
+        return { coord, instanceId, overlay };
       }
+    }
+    if (this.store.voxelAuthoringMode().mode === 'edit') {
+      // Edit mode is locked to one Rust-bound voxel instance. Hits on other
+      // authored objects are ignored so a painting gesture cannot silently
+      // become an object-selection/manipulation gesture.
+      return null;
     }
     if (route.kind === 'runtime') {
       this.store.selectRuntimeVoxelAtViewport({
@@ -1316,7 +1433,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         });
       }
       this.viewportReadout.set(viewport.readout());
-      return;
+      return null;
     }
     if (route.kind === 'authored' && route.renderableId !== null) {
       const renderableId = route.renderableId;
@@ -1338,6 +1455,19 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       }
     }
     this.viewportReadout.set(viewport.readout());
+    return null;
+  }
+
+  private renderOverlay(): void {
+    const viewport = this.viewport;
+    if (viewport === null) return;
+    viewport.channels.overlay.replace(buildViewportOverlayFrame(
+      this.store.viewportAdapter(),
+      this.debugPick,
+      this.voxelBrushOverlay,
+    ));
+    viewport.renderOnce();
+    this.viewportReadout.set(viewport.readout());
   }
 
   private showPickDebugHint(hint: AshaRendererEditorViewportPickHint): void {
@@ -1346,14 +1476,22 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.debugPick = hint;
-    viewport.channels.overlay.replace(buildViewportOverlayFrame(this.store.viewportAdapter(), hint));
+    viewport.channels.overlay.replace(buildViewportOverlayFrame(
+      this.store.viewportAdapter(),
+      hint,
+      this.voxelBrushOverlay,
+    ));
     viewport.renderOnce();
     if (this.debugPickTimer !== null) {
       clearTimeout(this.debugPickTimer);
     }
     this.debugPickTimer = setTimeout(() => {
       this.debugPick = null;
-      this.viewport?.channels.overlay.replace(buildViewportOverlayFrame(this.store.viewportAdapter(), null));
+      this.viewport?.channels.overlay.replace(buildViewportOverlayFrame(
+        this.store.viewportAdapter(),
+        null,
+        this.voxelBrushOverlay,
+      ));
       this.viewport?.renderOnce();
       this.viewportReadout.set(this.viewport?.readout() ?? null);
       this.debugPickTimer = null;
@@ -1361,8 +1499,30 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    const voxelStroke = this.voxelStrokeState;
+    if (voxelStroke !== null && voxelStroke.pointerId === event.pointerId) {
+      event.preventDefault();
+      if (Math.hypot(event.clientX - voxelStroke.lastX, event.clientY - voxelStroke.lastY) < 5) return;
+      const target = this.selectAtPointer(event);
+      if (target !== null) voxelStroke.coords.set(voxelCoordKey(target.coord), target.coord);
+      this.voxelStrokeState = {
+        ...voxelStroke,
+        lastX: event.clientX,
+        lastY: event.clientY,
+      };
+      return;
+    }
     const dragState = this.dragState;
     if (dragState === null || dragState.pointerId !== event.pointerId) {
+      if (
+        dragState === null
+        && event.buttons === 0
+        && this.store.voxelBrush().enabled
+        && event.timeStamp - this.lastVoxelHoverAt >= 80
+      ) {
+        this.lastVoxelHoverAt = event.timeStamp;
+        this.selectAtPointer(event);
+      }
       return;
     }
     event.preventDefault();
@@ -1392,8 +1552,17 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
-    const dragState = this.dragState;
     const canvas = this.canvasElement;
+    const voxelStroke = this.voxelStrokeState;
+    if (voxelStroke?.pointerId === event.pointerId && canvas !== null) {
+      const target = this.selectAtPointer(event);
+      if (target !== null) voxelStroke.coords.set(voxelCoordKey(target.coord), target.coord);
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      this.voxelStrokeState = null;
+      this.store.commitVoxelBrushStroke([...voxelStroke.coords.values()]);
+      return;
+    }
+    const dragState = this.dragState;
     if (dragState?.pointerId !== event.pointerId || canvas === null) {
       return;
     }
@@ -1424,6 +1593,13 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       this.store.viewportTool().activeTool,
       false,
     );
+  };
+
+  private readonly handlePointerCancel = (event: PointerEvent): void => {
+    const canvas = this.canvasElement;
+    if (canvas?.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (this.voxelStrokeState?.pointerId === event.pointerId) this.voxelStrokeState = null;
+    if (this.dragState?.pointerId === event.pointerId) this.dragState = null;
   };
 
   private readonly handleWheel = (event: WheelEvent): void => {

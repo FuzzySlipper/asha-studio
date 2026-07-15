@@ -699,7 +699,7 @@ export * from './host-file-dialog-focus';
       .viewport-column {
         display: grid;
         grid-area: viewport;
-        grid-template-rows: 3rem minmax(0, 1fr);
+        grid-template-rows: 5.1rem minmax(0, 1fr);
         min-width: 0;
       }
 
