@@ -18,7 +18,7 @@ function document(): FlatSceneDocument {
     schemaVersion: 1,
     id: sceneId(42),
     metadata: { name: 'Two houses', authoringFormatVersion: 1 },
-    dependencies: [{ id: 'voxel/house', version: { req: 'any' }, hash: null }],
+    dependencies: [{ id: 'voxel-volume/house', version: { req: 'any' }, hash: null }],
     nodes: [
       {
         id: sceneNodeId(1),
@@ -35,8 +35,11 @@ function document(): FlatSceneDocument {
         childOrder: 0,
         label: 'House A',
         tags: [],
-        transform: identity,
-        kind: { kind: 'voxelVolume', asset: { id: 'voxel/house', version: { req: 'any' }, hash: null } },
+        transform: {
+          ...identity,
+          rotation: [0, 0.7071067811865475, 0, 0.7071067811865476],
+        },
+        kind: { kind: 'voxelVolume', asset: { id: 'voxel-volume/house', version: { req: 'any' }, hash: null } },
       },
       {
         id: sceneNodeId(3),
@@ -45,14 +48,14 @@ function document(): FlatSceneDocument {
         label: 'House B',
         tags: [],
         transform: { ...identity, translation: [8, 0, 0], scale: [2, 1, 1] },
-        kind: { kind: 'voxelVolume', asset: { id: 'voxel/house', version: { req: 'any' }, hash: null } },
+        kind: { kind: 'voxelVolume', asset: { id: 'voxel-volume/house', version: { req: 'any' }, hash: null } },
       },
     ],
   };
 }
 
 test('scene voxel nodes become distinct public bindings over one active asset', () => {
-  const plan = buildStudioVoxelProjectionBindingPlan(document(), 'voxel/house');
+  const plan = buildStudioVoxelProjectionBindingPlan(document(), 'voxel-volume/house');
   assert.equal(plan.instances.length, 2);
   assert.deepEqual(plan.instances.map(instance => instance.instanceId), ['scene-node:2', 'scene-node:3']);
   assert.deepEqual(plan.instances[0]?.transform.translation, [3, 0, 0]);
@@ -87,4 +90,13 @@ test('renderer observation becomes a local hint while Rust remains the pick auth
   });
   assert.deepEqual(evidence.direction, [-1, 0, 0]);
   assert.equal(evidence.maxDistance, 7);
+});
+
+test('serialized scene reopen retains two transformed voxel instance bindings', () => {
+  const reopened = JSON.parse(JSON.stringify(document())) as FlatSceneDocument;
+  const plan = buildStudioVoxelProjectionBindingPlan(reopened, 'voxel-volume/house');
+  assert.equal(plan.instances.length, 2);
+  assert.deepEqual(plan.instances.map(instance => instance.transform.translation), [[3, 0, 0], [11, 0, 0]]);
+  assert.deepEqual(plan.instances[0]?.transform.rotation, [0, 0.7071067811865475, 0, 0.7071067811865476]);
+  assert.deepEqual(plan.instances[1]?.transform.scale, [2, 1, 1]);
 });
