@@ -2,6 +2,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import '@angular/compiler';
+import {
+  createEnvironmentInjector,
+  inject,
+  runInInjectionContext,
+} from '@angular/core';
+import type { NativeBrowserHostRuntimeBridge } from '@asha/browser-host';
+import {
+  sceneId,
+  sceneNodeId,
+  type FlatSceneDocument,
+  type RenderFrameDiff,
+} from '@asha/contracts';
 import {
   DEFAULT_TRANSFORM_MANIPULATOR_SNAPPING,
   beginTransformManipulatorDrag,
@@ -10,6 +23,16 @@ import {
   transformManipulatorHandleFromId,
   updateTransformManipulatorDrag,
 } from '@asha/editor-tools';
+import {
+  applyCanonicalSceneDocumentReadModel,
+  applySelectedEntityReadModel,
+  buildInitialWorkspaceReadModel,
+  type StudioWorkspaceReadModel,
+} from '@asha-studio/domain';
+import {
+  StudioPreferencesStore,
+  StudioWorkspaceStore,
+} from '@asha-studio/store';
 
 const repoRoot = process.cwd();
 const sourceTransform = {
@@ -90,4 +113,176 @@ test('Studio gizmo path previews per frame and settles through one revision-boun
   assert.equal(panelSource.includes("id: 'scale_object'"), true);
   assert.equal(panelSource.includes('data-transform-orientation="local"'), true);
   assert.equal(panelSource.includes('data-transform-snapping'), true);
+});
+
+interface MutableSignalForTest<T> {
+  (): T;
+  set(value: T): void;
+}
+
+interface TransformStoreInternals {
+  readonly workspaceState: MutableSignalForTest<StudioWorkspaceReadModel>;
+  readonly sceneDocumentCodecBridgeState: MutableSignalForTest<NativeBrowserHostRuntimeBridge | null>;
+  readonly sceneDocumentContentHashState: MutableSignalForTest<string | null>;
+  readonly authoredLightFrameState: MutableSignalForTest<RenderFrameDiff>;
+  readonly sceneTransformHistoryState: MutableSignalForTest<{
+    readonly entries: readonly unknown[];
+    readonly cursor: number;
+  }>;
+}
+
+function transformScene(): FlatSceneDocument {
+  return {
+    schemaVersion: 1,
+    id: sceneId(5845),
+    metadata: { name: 'Transform authority test', authoringFormatVersion: 1 },
+    dependencies: [{ id: 'mesh.transform-target', version: { req: 'any' }, hash: null }],
+    nodes: [
+      {
+        id: sceneNodeId(1),
+        parent: null,
+        childOrder: 0,
+        label: 'Root',
+        tags: [],
+        transform: sourceTransform,
+        kind: { kind: 'emptyGroup' },
+      },
+      {
+        id: sceneNodeId(2),
+        parent: sceneNodeId(1),
+        childOrder: 0,
+        label: 'Transform target',
+        tags: ['authored'],
+        transform: sourceTransform,
+        kind: {
+          kind: 'staticMesh',
+          asset: { id: 'mesh.transform-target', version: { req: 'any' }, hash: null },
+        },
+      },
+    ],
+  };
+}
+
+test('drag previews never call Rust and only an accepted release mutates authority and history', () => {
+  const injector = createEnvironmentInjector([
+    StudioPreferencesStore,
+    StudioWorkspaceStore,
+  ]);
+  try {
+    const store = runInInjectionContext(injector, () => inject(StudioWorkspaceStore));
+    const internals = store as unknown as TransformStoreInternals;
+    const document = transformScene();
+    const projected = applySelectedEntityReadModel(
+      applyCanonicalSceneDocumentReadModel(
+        buildInitialWorkspaceReadModel(),
+        document,
+        '/tmp/transform-authority.scene.json',
+      ),
+      'scene-node:2',
+    );
+
+    let rejectAuthority = false;
+    const requests: Parameters<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']>[0][] = [];
+    const bridge = {
+      applySceneDocumentAuthoring: (
+        request: Parameters<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']>[0],
+      ): ReturnType<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']> => {
+        requests.push(request);
+        if (rejectAuthority) {
+          return {
+            accepted: false,
+            document: null,
+            contentHash: null,
+            authoredLightFrame: null,
+            rejection: {
+              code: 'contentHashMismatch',
+              message: 'The drag started from stale Rust authority.',
+              expectedHash: request.expectedContentHash,
+              actualHash: 'rust-content-newer',
+            },
+          };
+        }
+        assert.equal(request.command.kind, 'setTransform');
+        if (request.command.kind !== 'setTransform') {
+          throw new Error('Expected one bounded transform command.');
+        }
+        const nextDocument: FlatSceneDocument = {
+          ...request.currentDocument,
+          nodes: request.currentDocument.nodes.map(node => (
+            node.id === request.command.id
+              ? { ...node, transform: request.command.transform }
+              : node
+          )),
+        };
+        return {
+          accepted: true,
+          document: nextDocument,
+          contentHash: `rust-content-${requests.length + 1}`,
+          authoredLightFrame: { ops: [] },
+          rejection: null,
+        };
+      },
+    } as unknown as NativeBrowserHostRuntimeBridge;
+
+    internals.workspaceState.set(projected);
+    internals.sceneDocumentCodecBridgeState.set(bridge);
+    internals.sceneDocumentContentHashState.set('rust-content-1');
+    internals.authoredLightFrameState.set({ ops: [] });
+    internals.sceneTransformHistoryState.set({ entries: [], cursor: 0 });
+
+    const start = store.selectedSceneTransformTarget();
+    assert.notEqual(start, null);
+    if (start === null) return;
+    const candidate = {
+      ...start.transform,
+      translation: [3, 4, 5] as const,
+    };
+
+    for (let frame = 0; frame < 5; frame += 1) {
+      const preview = store.previewSelectedSceneObjectTransform(start.revision, {
+        ...candidate,
+        translation: [candidate.translation[0] + frame, 4, 5],
+      });
+      assert.notEqual(preview, null);
+    }
+    assert.equal(requests.length, 0);
+    assert.equal(internals.workspaceState().flatSceneDocument, document);
+    assert.deepEqual(internals.sceneTransformHistoryState(), { entries: [], cursor: 0 });
+
+    const accepted = store.commitSelectedSceneObjectTransform(start.revision, candidate);
+    assert.equal(accepted.accepted, true);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0]?.expectedContentHash, 'rust-content-1');
+    assert.equal(requests[0]?.command.kind, 'setTransform');
+    assert.deepEqual(
+      internals.workspaceState().flatSceneDocument.nodes.find(node => node.id === sceneNodeId(2))?.transform,
+      candidate,
+    );
+    assert.equal(internals.sceneTransformHistoryState().entries.length, 1);
+    assert.equal(internals.sceneTransformHistoryState().cursor, 1);
+
+    const afterAcceptedDocument = internals.workspaceState().flatSceneDocument;
+    const afterAcceptedHistory = internals.sceneTransformHistoryState();
+    const nextTarget = store.selectedSceneTransformTarget();
+    assert.notEqual(nextTarget, null);
+    if (nextTarget === null) return;
+    rejectAuthority = true;
+    const rejected = store.commitSelectedSceneObjectTransform(nextTarget.revision, {
+      ...nextTarget.transform,
+      translation: [9, 9, 9],
+    });
+    assert.equal(rejected.accepted, false);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[1]?.expectedContentHash, 'rust-content-2');
+    assert.equal(internals.workspaceState().flatSceneDocument, afterAcceptedDocument);
+    assert.equal(internals.sceneTransformHistoryState(), afterAcceptedHistory);
+
+    const locallyStale = store.commitSelectedSceneObjectTransform('stale-local-revision', candidate);
+    assert.equal(locallyStale.accepted, false);
+    assert.equal(requests.length, 2);
+    assert.equal(internals.workspaceState().flatSceneDocument, afterAcceptedDocument);
+    assert.equal(internals.sceneTransformHistoryState(), afterAcceptedHistory);
+  } finally {
+    injector.destroy();
+  }
 });

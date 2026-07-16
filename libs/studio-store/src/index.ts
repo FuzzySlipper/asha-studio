@@ -6972,30 +6972,9 @@ export class StudioWorkspaceStore {
       },
     });
     if (!operation.ok) return null;
-    const nodeId = this.sceneNodeIdFromObjectId(target.objectId);
-    if (nodeId === null) return null;
-    const authored = this.requestStoredSceneDocumentAuthoring(
-      this.workspaceState().flatSceneDocument,
-      {
-        kind: 'setTransform',
-        target: this.storedSceneAuthoringTarget(this.workspaceState().flatSceneDocument),
-        id: nodeId,
-        transform,
-      },
-    );
-    if (
-      !authored.accepted
-      || authored.document === null
-      || authored.authoredLightFrame === null
-    ) return null;
     return {
       ...target,
       transform,
-      lightFrame: buildStudioLightingProjection(
-        authored.document,
-        this.renderSettings().lightingMode,
-        authored.authoredLightFrame,
-      ).frame,
     };
   }
 
