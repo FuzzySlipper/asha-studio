@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sceneId, sceneNodeId, type FlatSceneDocument } from '@asha/contracts';
+import { renderHandle, sceneId, sceneNodeId, type FlatSceneDocument, type RenderFrameDiff } from '@asha/contracts';
 import {
   buildStudioLightingProjection,
   proposeStudioLightAddition,
@@ -32,27 +32,40 @@ function scene(): FlatSceneDocument {
 test('work-light projection is visible editor state and does not mutate stored scene data', () => {
   const document = scene();
   const before = JSON.stringify(document);
-  const projection = buildStudioLightingProjection(document, 'work_light');
+  const projection = buildStudioLightingProjection(document, 'work_light', { ops: [] });
   assert.equal(projection.workLightActive, true);
   assert.equal(projection.activeLightCount, 2);
   assert.deepEqual(projection.frame.ops.map(op => op.op), ['createLight', 'createLight']);
   assert.equal(JSON.stringify(document), before);
 });
 
-test('typed additions upgrade storage explicitly and authored projection follows hierarchy orientation', () => {
+test('typed additions upgrade storage explicitly and authored preview consumes the engine frame verbatim', () => {
   const added = proposeStudioLightAddition(scene(), 'directional');
   assert.equal(added.document.schemaVersion, 2);
   assert.equal(added.document.metadata.authoringFormatVersion, 2);
   const light = added.document.nodes.find(node => node.id === added.nodeId);
   assert.equal(light?.kind.kind, 'light');
 
-  const projection = buildStudioLightingProjection(added.document, 'authored_lights');
+  const engineFrame: RenderFrameDiff = { ops: [{
+    op: 'createLight',
+    handle: renderHandle(41),
+    parent: null,
+    light: {
+      kind: 'directional',
+      color: [1, 1, 1],
+      intensity: 1.2,
+      enabled: true,
+      direction: [-0.25, -0.5, -0.75],
+      shadowIntent: 'disabled',
+    },
+  }] };
+  const projection = buildStudioLightingProjection(added.document, 'authored_lights', engineFrame);
   assert.equal(projection.authoredLightCount, 1);
+  assert.equal(projection.frame, engineFrame);
   const operation = projection.frame.ops[0];
   assert.equal(operation?.op, 'createLight');
   if (operation?.op !== 'createLight' || operation.light.kind !== 'directional') return;
-  assert.ok(Math.abs(operation.light.direction[0] + 1) < 0.000001);
-  assert.ok(Math.abs(operation.light.direction[2]) < 0.000001);
+  assert.deepEqual(operation.light.direction, [-0.25, -0.5, -0.75]);
 });
 
 test('typed light updates retain node pose and identity', () => {

@@ -2,8 +2,6 @@ import {
   renderHandle,
   sceneNodeId,
   type FlatSceneDocument,
-  type LightDescriptor,
-  type RenderDiff,
   type RenderFrameDiff,
   type SceneLight,
   type SceneNodeId,
@@ -29,7 +27,6 @@ export interface StudioLightingProjectionReadModel {
 
 const WORK_LIGHT_AMBIENT_HANDLE = renderHandle(7_900_001);
 const WORK_LIGHT_DIRECTIONAL_HANDLE = renderHandle(7_900_002);
-const AUTHORED_LIGHT_HANDLE_BASE = 7_000_000;
 
 const IDENTITY: SceneTransform = {
   translation: [0, 0, 0],
@@ -104,6 +101,7 @@ export function proposeStudioLightUpdate(
 export function buildStudioLightingProjection(
   document: FlatSceneDocument,
   mode: StudioLightingMode,
+  authoredLightFrame: RenderFrameDiff,
 ): StudioLightingProjectionReadModel {
   const authoredLights = document.nodes
     .filter(node => node.kind.kind === 'light')
@@ -147,106 +145,14 @@ export function buildStudioLightingProjection(
     };
   }
 
-  const ops: RenderDiff[] = authoredLights.flatMap((node, index) => {
-    if (node.kind.kind !== 'light') return [];
-    const transform = worldTransform(document, node.id);
-    if (transform === null) return [];
-    return [{
-      op: 'createLight' as const,
-      handle: renderHandle(AUTHORED_LIGHT_HANDLE_BASE + index + 1),
-      parent: null,
-      light: projectLight(node.kind.sceneLight, transform),
-    }];
-  });
   return {
     mode,
-    frame: { ops },
+    frame: authoredLightFrame,
     authoredLightCount: authoredLights.length,
-    activeLightCount: authoredLights.filter(
-      node => node.kind.kind === 'light' && node.kind.sceneLight.enabled,
+    activeLightCount: authoredLightFrame.ops.filter(
+      operation => operation.op === 'createLight' && operation.light.enabled,
     ).length,
     workLightActive: false,
     shadowCapability: 'supported_with_degradation_readout',
   };
-}
-
-function projectLight(light: SceneLight, transform: SceneTransform): LightDescriptor {
-  const direction = rotateVector(transform.rotation, [0, 0, -1]);
-  switch (light.kind) {
-    case 'ambient':
-    case 'directional':
-      return light.kind === 'ambient' ? { ...light } : { ...light, direction };
-    case 'point':
-      return { ...light, position: transform.translation };
-    case 'spot':
-      return { ...light, position: transform.translation, direction };
-  }
-}
-
-function worldTransform(document: FlatSceneDocument, nodeId: SceneNodeId): SceneTransform | null {
-  const byId = new Map(document.nodes.map(node => [node.id as number, node]));
-  const chain: SceneTransform[] = [];
-  const seen = new Set<number>();
-  let current = byId.get(nodeId as number);
-  while (current !== undefined) {
-    if (seen.has(current.id as number)) return null;
-    seen.add(current.id as number);
-    chain.push(current.transform);
-    if (current.parent === null) break;
-    current = byId.get(current.parent as number);
-  }
-  if (current === undefined) return null;
-  return chain.reverse().reduce(composeTransform, IDENTITY);
-}
-
-function composeTransform(parent: SceneTransform, local: SceneTransform): SceneTransform {
-  const scaled: readonly [number, number, number] = [
-    local.translation[0] * parent.scale[0],
-    local.translation[1] * parent.scale[1],
-    local.translation[2] * parent.scale[2],
-  ];
-  const rotated = rotateVector(parent.rotation, scaled);
-  return {
-    translation: [
-      parent.translation[0] + rotated[0],
-      parent.translation[1] + rotated[1],
-      parent.translation[2] + rotated[2],
-    ],
-    rotation: multiplyQuaternion(parent.rotation, local.rotation),
-    scale: [
-      parent.scale[0] * local.scale[0],
-      parent.scale[1] * local.scale[1],
-      parent.scale[2] * local.scale[2],
-    ],
-  };
-}
-
-function multiplyQuaternion(
-  left: readonly [number, number, number, number],
-  right: readonly [number, number, number, number],
-): readonly [number, number, number, number] {
-  const [ax, ay, az, aw] = left;
-  const [bx, by, bz, bw] = right;
-  return [
-    aw * bx + ax * bw + ay * bz - az * by,
-    aw * by - ax * bz + ay * bw + az * bx,
-    aw * bz + ax * by - ay * bx + az * bw,
-    aw * bw - ax * bx - ay * by - az * bz,
-  ];
-}
-
-function rotateVector(
-  rotation: readonly [number, number, number, number],
-  vector: readonly [number, number, number],
-): readonly [number, number, number] {
-  const length = Math.hypot(...rotation);
-  const [x, y, z, w] = rotation.map(value => value / length) as [number, number, number, number];
-  const tx = 2 * (y * vector[2] - z * vector[1]);
-  const ty = 2 * (z * vector[0] - x * vector[2]);
-  const tz = 2 * (x * vector[1] - y * vector[0]);
-  return [
-    vector[0] + w * tx + (y * tz - z * ty),
-    vector[1] + w * ty + (z * tx - x * tz),
-    vector[2] + w * tz + (x * ty - y * tx),
-  ];
 }
