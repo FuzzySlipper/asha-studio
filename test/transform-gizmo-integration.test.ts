@@ -83,6 +83,10 @@ test('Studio gizmo path previews per frame and settles through one revision-boun
   assert.equal(viewportSource.includes('totalDeltaX / 160'), false);
   assert.equal(storeSource.includes('buildStudioSceneAuthoringOperation'), true);
   assert.equal(storeSource.includes('expectedBaseHash: expectedRevision'), true);
+  assert.equal(storeSource.includes('candidateDocument'), false);
+  assert.equal(storeSource.includes("kind: 'setTransform'"), true);
+  assert.equal(storeSource.includes("kind: 'retargetVoxelAsset'"), true);
+  assert.equal(storeSource.includes('currentProjectId: STUDIO_STORED_SCENE_PROJECT_ID'), true);
   assert.equal(panelSource.includes("id: 'scale_object'"), true);
   assert.equal(panelSource.includes('data-transform-orientation="local"'), true);
   assert.equal(panelSource.includes('data-transform-snapping'), true);

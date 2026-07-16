@@ -3,7 +3,6 @@ import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   attachStudioGameWorkspaceDevtools,
   buildStudioUiStateReadModel,
-  applySceneObjectCommandReadModel,
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
@@ -29,9 +28,6 @@ import {
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
-  createRotateSceneObjectRequest,
-  createSceneObjectCommandIntent,
-  createTranslateSceneObjectRequest,
   createStudioCompactAgentReadout,
   exportStudioWorkspaceCockpitEvidence,
   frameStudioViewportCamera,
@@ -52,7 +48,6 @@ import {
   updateStudioRenderSetting,
   updateStudioLightingMode,
   proposeStudioLightAddition,
-  proposeStudioLightUpdate,
   zoomStudioViewportCamera,
   type StudioAssetBrowserCategory,
   type StudioApplicationMenu,
@@ -95,6 +90,7 @@ import {
   VOXEL_ASSET_MEDIA_TYPE,
   VOXEL_ASSET_SCHEMA_VERSION,
   VOXEL_CONVERSION_MESH_IMPORT_MAX_SOURCE_BYTES,
+  projectId,
   renderHandle,
   sceneNodeId,
   type CameraSnapshot,
@@ -107,6 +103,8 @@ import {
   type FlatSceneDocument,
   type RenderHandle,
   type RenderFrameDiff,
+  type SceneDocumentAuthoringCommand,
+  type SceneDocumentAuthoringTarget,
   type SceneObjectCommandResult,
   type SceneObjectSnapshot,
   type SceneLight,
@@ -5119,6 +5117,8 @@ export function compileStudioVoxelBrushStroke(input: {
   };
 }
 
+const STUDIO_STORED_SCENE_PROJECT_ID = projectId(1);
+
 const INITIAL_VOXEL_AUTHORING_MODE: StudioVoxelAuthoringModeReadModel = {
   mode: 'object',
   activeAssetId: null,
@@ -5134,6 +5134,7 @@ const INITIAL_VOXEL_AUTHORING_MODE: StudioVoxelAuthoringModeReadModel = {
 interface StudioSceneLightHistoryEntry {
   readonly before: FlatSceneDocument;
   readonly after: FlatSceneDocument;
+  readonly command: SceneDocumentAuthoringCommand;
   readonly label: string;
 }
 
@@ -6848,20 +6849,11 @@ export class StudioWorkspaceStore {
   renameSceneObject(objectId: SceneObjectId, label: string): void {
     const workspace = this.workspaceState();
     const request = createRenameSceneObjectRequest(workspace, objectId, label);
-    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
-      || dispatchResult.proposal.request === undefined
-    ) {
-      return;
-    }
-    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
-    if (!applyResult.ok) {
-      this.menuMessageState.set(applyResult.diagnostics.at(0)?.message ?? 'Rename rejected.');
-      return;
-    }
-    const accepted = this.adoptRustAcceptedSceneCandidate(workspace, applyResult.workspace);
+    if (request.command.kind !== 'rename') return;
+    const accepted = this.adoptRustAcceptedSceneCommand(workspace, {
+      ...request.command,
+      target: this.storedSceneAuthoringTarget(workspace.flatSceneDocument),
+    });
     if (accepted) this.menuMessageState.set(`Renamed ${objectId}.`);
   }
 
@@ -6872,20 +6864,11 @@ export class StudioWorkspaceStore {
     }
     const workspace = this.workspaceState();
     const request = createReparentSceneObjectRequest(workspace, objectId, parentObjectId, childOrder);
-    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
-      || dispatchResult.proposal.request === undefined
-    ) {
-      return;
-    }
-    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
-    if (!applyResult.ok) {
-      this.menuMessageState.set(applyResult.diagnostics.at(0)?.message ?? 'Reparent rejected.');
-      return;
-    }
-    const accepted = this.adoptRustAcceptedSceneCandidate(workspace, applyResult.workspace);
+    if (request.command.kind !== 'reparent') return;
+    const accepted = this.adoptRustAcceptedSceneCommand(workspace, {
+      ...request.command,
+      target: this.storedSceneAuthoringTarget(workspace.flatSceneDocument),
+    });
     if (accepted) this.menuMessageState.set(`Reparented ${objectId}.`);
   }
 
@@ -6900,22 +6883,16 @@ export class StudioWorkspaceStore {
       this.menuMessageState.set('Select a scene object before moving it.');
       return;
     }
-    const request = createTranslateSceneObjectRequest(workspace, objectId as SceneObjectId, delta);
-    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
-      || dispatchResult.proposal.request === undefined
-    ) {
-      return;
-    }
-    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
-    if (!applyResult.ok) {
-      this.menuMessageState.set(applyResult.diagnostics.at(0)?.message ?? 'Move rejected.');
-      return;
-    }
-    const accepted = this.adoptRustAcceptedSceneCandidate(workspace, applyResult.workspace);
-    if (accepted) this.menuMessageState.set(`Moved ${objectId}.`);
+    const target = this.selectedSceneTransformTarget();
+    if (target === null || target.objectId !== objectId) return;
+    this.commitSelectedSceneObjectTransform(target.revision, {
+      ...target.transform,
+      translation: [
+        target.transform.translation[0] + delta[0],
+        target.transform.translation[1] + delta[1],
+        target.transform.translation[2] + delta[2],
+      ],
+    });
   }
 
   rotateSelectedSceneObject(rotation: readonly [number, number, number, number]): void {
@@ -6929,31 +6906,21 @@ export class StudioWorkspaceStore {
       this.menuMessageState.set('Select a scene object before rotating it.');
       return;
     }
-    const request = createRotateSceneObjectRequest(workspace, objectId as SceneObjectId, rotation);
-    const dispatchResult = mapStudioIntentToCommand(createSceneObjectCommandIntent(workspace, request));
-    if (
-      !dispatchResult.accepted
-      || dispatchResult.proposal?.commandId !== 'scene.apply_object_command'
-      || dispatchResult.proposal.request === undefined
-    ) {
-      return;
-    }
-    const applyResult = applySceneObjectCommandReadModel(workspace, dispatchResult.proposal.request);
-    if (!applyResult.ok) {
-      this.menuMessageState.set(applyResult.diagnostics.at(0)?.message ?? 'Rotate rejected.');
-      return;
-    }
-    const accepted = this.adoptRustAcceptedSceneCandidate(workspace, applyResult.workspace);
-    if (accepted) this.menuMessageState.set(`Rotated ${objectId}.`);
+    const target = this.selectedSceneTransformTarget();
+    if (target === null || target.objectId !== objectId) return;
+    this.commitSelectedSceneObjectTransform(target.revision, {
+      ...target.transform,
+      rotation,
+    });
   }
 
-  private adoptRustAcceptedSceneCandidate(
+  private adoptRustAcceptedSceneCommand(
     current: StudioWorkspaceReadModel,
-    candidate: StudioWorkspaceReadModel,
+    command: SceneDocumentAuthoringCommand,
   ): boolean {
     const authored = this.requestStoredSceneDocumentAuthoring(
       current.flatSceneDocument,
-      candidate.flatSceneDocument,
+      command,
     );
     if (
       !authored.accepted
@@ -6965,7 +6932,7 @@ export class StudioWorkspaceStore {
       return false;
     }
     this.workspaceState.set(applyCanonicalSceneDocumentReadModel(
-      candidate,
+      current,
       authored.document,
       this.activeSceneFilePathState(),
     ));
@@ -7005,18 +6972,27 @@ export class StudioWorkspaceStore {
       },
     });
     if (!operation.ok) return null;
-    const document = this.sceneDocumentWithTransform(target.objectId, transform);
-    if (document === null) return null;
+    const nodeId = this.sceneNodeIdFromObjectId(target.objectId);
+    if (nodeId === null) return null;
     const authored = this.requestStoredSceneDocumentAuthoring(
       this.workspaceState().flatSceneDocument,
-      document,
+      {
+        kind: 'setTransform',
+        target: this.storedSceneAuthoringTarget(this.workspaceState().flatSceneDocument),
+        id: nodeId,
+        transform,
+      },
     );
-    if (!authored.accepted || authored.authoredLightFrame === null) return null;
+    if (
+      !authored.accepted
+      || authored.document === null
+      || authored.authoredLightFrame === null
+    ) return null;
     return {
       ...target,
       transform,
       lightFrame: buildStudioLightingProjection(
-        document,
+        authored.document,
         this.renderSettings().lightingMode,
         authored.authoredLightFrame,
       ).frame,
@@ -7048,11 +7024,16 @@ export class StudioWorkspaceStore {
       return this.rejectSceneTransformCommit(expectedRevision, diagnostic);
     }
     const workspace = this.workspaceState();
-    const nextDocument = this.sceneDocumentWithTransform(target.objectId, transform);
-    if (nextDocument === null) {
+    const nodeId = this.sceneNodeIdFromObjectId(target.objectId);
+    if (nodeId === null) {
       return this.rejectSceneTransformCommit(expectedRevision, 'Selected scene object no longer exists.');
     }
-    const authored = this.requestStoredSceneDocumentAuthoring(workspace.flatSceneDocument, nextDocument);
+    const authored = this.requestStoredSceneDocumentAuthoring(workspace.flatSceneDocument, {
+      kind: 'setTransform',
+      target: this.storedSceneAuthoringTarget(workspace.flatSceneDocument),
+      id: nodeId,
+      transform,
+    });
     if (
       !authored.accepted
       || authored.document === null
@@ -7085,9 +7066,19 @@ export class StudioWorkspaceStore {
     const history = this.sceneTransformHistoryState();
     const entry = history.cursor > 0 ? history.entries[history.cursor - 1] : undefined;
     if (entry === undefined) return;
+    const nodeId = this.sceneNodeIdFromObjectId(entry.objectId);
+    const transform = nodeId === null
+      ? undefined
+      : entry.before.nodes.find(node => node.id === nodeId)?.transform;
+    if (nodeId === null || transform === undefined) return;
     const authored = this.requestStoredSceneDocumentAuthoring(
       this.workspaceState().flatSceneDocument,
-      entry.before,
+      {
+        kind: 'setTransform',
+        target: this.storedSceneAuthoringTarget(this.workspaceState().flatSceneDocument),
+        id: nodeId,
+        transform,
+      },
     );
     if (
       !authored.accepted
@@ -7112,9 +7103,19 @@ export class StudioWorkspaceStore {
     const history = this.sceneTransformHistoryState();
     const entry = history.entries[history.cursor];
     if (entry === undefined) return;
+    const nodeId = this.sceneNodeIdFromObjectId(entry.objectId);
+    const transform = nodeId === null
+      ? undefined
+      : entry.after.nodes.find(node => node.id === nodeId)?.transform;
+    if (nodeId === null || transform === undefined) return;
     const authored = this.requestStoredSceneDocumentAuthoring(
       this.workspaceState().flatSceneDocument,
-      entry.after,
+      {
+        kind: 'setTransform',
+        target: this.storedSceneAuthoringTarget(this.workspaceState().flatSceneDocument),
+        id: nodeId,
+        transform,
+      },
     );
     if (
       !authored.accepted
@@ -7135,21 +7136,9 @@ export class StudioWorkspaceStore {
     this.menuMessageState.set(`Redid ${entry.label}.`);
   }
 
-  private sceneDocumentWithTransform(
-    objectId: SceneObjectId,
-    transform: Transform,
-  ): FlatSceneDocument | null {
+  private sceneNodeIdFromObjectId(objectId: SceneObjectId) {
     const nodeId = Number.parseInt(objectId.slice('scene-node:'.length), 10);
-    const document = this.workspaceState().flatSceneDocument;
-    if (!Number.isSafeInteger(nodeId) || !document.nodes.some(node => (node.id as number) === nodeId)) {
-      return null;
-    }
-    return {
-      ...document,
-      nodes: document.nodes.map(node => (
-        (node.id as number) === nodeId ? { ...node, transform } : node
-      )),
-    };
+    return Number.isSafeInteger(nodeId) ? sceneNodeId(nodeId) : null;
   }
 
   private applySceneTransformDocument(
@@ -7256,11 +7245,11 @@ export class StudioWorkspaceStore {
         ] as const,
       },
     };
-    const document = {
-      ...workspace.flatSceneDocument,
-      nodes: [...workspace.flatSceneDocument.nodes, duplicate],
-    };
-    const authored = this.requestStoredSceneDocumentAuthoring(workspace.flatSceneDocument, document);
+    const authored = this.requestStoredSceneDocumentAuthoring(workspace.flatSceneDocument, {
+      kind: 'create',
+      target: this.storedSceneAuthoringTarget(workspace.flatSceneDocument),
+      record: duplicate,
+    });
     if (
       !authored.accepted
       || authored.document === null
@@ -8408,30 +8397,21 @@ export class StudioWorkspaceStore {
       },
       kind: { kind: 'voxelVolume' as const, asset: assetReference },
     };
-    const nextNodes = existingNode === undefined
-      ? [...document.nodes, voxelNode]
-      : document.nodes.map(node => node.id === existingNode.id ? voxelNode : node);
-    const referencedAssetIds = new Set(
-      nextNodes.flatMap(node => node.kind.kind === 'voxelVolume' ? [node.kind.asset.id] : []),
-    );
-    const replacedAssetId = existingNode?.kind.kind === 'voxelVolume'
-      ? existingNode.kind.asset.id
-      : null;
-    const nextDocument: FlatSceneDocument = {
-      ...document,
-      dependencies: [
-        ...document.dependencies.filter(dependency =>
-          dependency.id === target.targetAssetId
-          || dependency.id !== replacedAssetId
-          || referencedAssetIds.has(dependency.id),
-        ),
-        ...(document.dependencies.some(dependency => dependency.id === target.targetAssetId)
-          ? []
-          : [assetReference]),
-      ],
-      nodes: nextNodes,
-    };
-    const authored = this.requestStoredSceneDocumentAuthoring(document, nextDocument);
+    const authoringTarget = this.storedSceneAuthoringTarget(document);
+    const command: SceneDocumentAuthoringCommand = existingNode === undefined
+      ? {
+          kind: 'create',
+          target: authoringTarget,
+          record: voxelNode,
+        }
+      : {
+          kind: 'retargetVoxelAsset',
+          target: authoringTarget,
+          id: existingNode.id,
+          asset: assetReference,
+          tags: voxelNode.tags,
+        };
+    const authored = this.requestStoredSceneDocumentAuthoring(document, command);
     if (
       !authored.accepted
       || authored.document === null
@@ -10451,7 +10431,10 @@ export class StudioWorkspaceStore {
       }
       const authored = this.requestStoredSceneDocumentAuthoring(
         result.document,
-        result.document,
+        {
+          kind: 'refreshProjection',
+          target: this.storedSceneAuthoringTarget(result.document),
+        },
         result.contentHash,
       );
       if (
@@ -10797,7 +10780,10 @@ export class StudioWorkspaceStore {
       }
       const authored = this.requestStoredSceneDocumentAuthoring(
         result.document,
-        result.document,
+        {
+          kind: 'refreshProjection',
+          target: this.storedSceneAuthoringTarget(result.document),
+        },
         result.contentHash,
       );
       if (
@@ -11145,7 +11131,10 @@ export class StudioWorkspaceStore {
     }
     const authored = this.requestStoredSceneDocumentAuthoring(
       encoded.document,
-      encoded.document,
+      {
+        kind: 'refreshProjection',
+        target: this.storedSceneAuthoringTarget(encoded.document),
+      },
       encoded.contentHash,
     );
     if (
@@ -11174,7 +11163,7 @@ export class StudioWorkspaceStore {
 
   private requestStoredSceneDocumentAuthoring(
     currentDocument: FlatSceneDocument,
-    candidateDocument: FlatSceneDocument,
+    command: SceneDocumentAuthoringCommand,
     expectedContentHash = this.sceneDocumentContentHashState(),
   ): {
     readonly accepted: boolean;
@@ -11204,9 +11193,10 @@ export class StudioWorkspaceStore {
     }
     try {
       const result = bridge.applySceneDocumentAuthoring({
+        currentProjectId: STUDIO_STORED_SCENE_PROJECT_ID,
         expectedContentHash,
         currentDocument,
-        candidateDocument,
+        command,
       });
       if (
         !result.accepted
@@ -11238,6 +11228,15 @@ export class StudioWorkspaceStore {
         diagnostic: errorMessage(error),
       };
     }
+  }
+
+  private storedSceneAuthoringTarget(
+    document: FlatSceneDocument,
+  ): SceneDocumentAuthoringTarget {
+    return {
+      projectId: STUDIO_STORED_SCENE_PROJECT_ID,
+      sceneId: document.id,
+    };
   }
 
   private sceneCodecDiagnostic(result: {
@@ -11284,9 +11283,15 @@ export class StudioWorkspaceStore {
   async addAuthoredLight(kind: StudioAuthoredLightKind): Promise<void> {
     const before = this.workspaceState().flatSceneDocument;
     const proposal = proposeStudioLightAddition(before, kind);
-    await this.commitValidatedLightDocument(
+    const record = proposal.document.nodes.find(node => node.id === proposal.nodeId);
+    if (record === undefined) return;
+    await this.commitValidatedLightCommand(
       before,
-      proposal.document,
+      {
+        kind: 'create',
+        target: this.storedSceneAuthoringTarget(before),
+        record,
+      },
       `Add ${kind} light`,
       proposal.nodeId as number,
       true,
@@ -11349,9 +11354,12 @@ export class StudioWorkspaceStore {
     const history = this.sceneLightHistoryState();
     const entry = history.cursor > 0 ? history.entries[history.cursor - 1] : undefined;
     if (entry === undefined) return;
-    void this.commitValidatedLightDocument(
-      this.workspaceState().flatSceneDocument,
-      entry.before,
+    const before = this.workspaceState().flatSceneDocument;
+    const command = this.sceneLightHistoryCommand(entry, 'undo', before);
+    if (command === null) return;
+    void this.commitValidatedLightCommand(
+      before,
+      command,
       `Undo ${entry.label}`,
       null,
       false,
@@ -11364,9 +11372,12 @@ export class StudioWorkspaceStore {
     const history = this.sceneLightHistoryState();
     const entry = history.cursor < history.entries.length ? history.entries[history.cursor] : undefined;
     if (entry === undefined) return;
-    void this.commitValidatedLightDocument(
-      this.workspaceState().flatSceneDocument,
-      entry.after,
+    const before = this.workspaceState().flatSceneDocument;
+    const command = this.sceneLightHistoryCommand(entry, 'redo', before);
+    if (command === null) return;
+    void this.commitValidatedLightCommand(
+      before,
+      command,
       `Redo ${entry.label}`,
       null,
       false,
@@ -11385,20 +11396,54 @@ export class StudioWorkspaceStore {
       return;
     }
     const before = this.workspaceState().flatSceneDocument;
-    const draft = proposeStudioLightUpdate(before, node.id, update(node.kind.sceneLight));
-    await this.commitValidatedLightDocument(before, draft, label, node.id as number, true);
+    await this.commitValidatedLightCommand(
+      before,
+      {
+        kind: 'updateLight',
+        target: this.storedSceneAuthoringTarget(before),
+        id: node.id,
+        sceneLight: update(node.kind.sceneLight),
+      },
+      label,
+      node.id as number,
+      true,
+    );
   }
 
-  private async commitValidatedLightDocument(
+  private sceneLightHistoryCommand(
+    entry: StudioSceneLightHistoryEntry,
+    direction: 'undo' | 'redo',
+    current: FlatSceneDocument,
+  ): SceneDocumentAuthoringCommand | null {
+    const target = this.storedSceneAuthoringTarget(current);
+    if (entry.command.kind === 'create') {
+      return direction === 'undo'
+        ? { kind: 'delete', target, id: entry.command.record.id }
+        : { ...entry.command, target };
+    }
+    if (entry.command.kind !== 'updateLight') return null;
+    const lightId = entry.command.id;
+    const document = direction === 'undo' ? entry.before : entry.after;
+    const node = document.nodes.find(candidate => candidate.id === lightId);
+    if (node?.kind.kind !== 'light') return null;
+    return {
+      kind: 'updateLight',
+      target,
+      id: node.id,
+      sceneLight: node.kind.sceneLight,
+    };
+  }
+
+  private async commitValidatedLightCommand(
     before: FlatSceneDocument,
-    draft: FlatSceneDocument,
+    command: SceneDocumentAuthoringCommand,
     label: string,
     selectNodeId: number | null,
     recordHistory: boolean,
   ): Promise<boolean> {
     try {
       await this.sceneDocumentCodecBridge();
-      const result = this.requestStoredSceneDocumentAuthoring(before, draft);
+      const result = this.requestStoredSceneDocumentAuthoring(before, command);
       if (
         !result.accepted
         || result.document === null
@@ -11430,7 +11475,7 @@ export class StudioWorkspaceStore {
         const history = this.sceneLightHistoryState();
         const entries = [
           ...history.entries.slice(0, history.cursor),
-          { before, after: result.document, label },
+          { before, after: result.document, command, label },
         ];
         this.sceneLightHistoryState.set({ entries, cursor: entries.length });
       }
