@@ -8749,6 +8749,7 @@ export class StudioWorkspaceStore {
         this.recordVoxelAssetWorkflowControlFromSave(target, modelInfoResult.modelInfo, saveResult);
         return;
       }
+      let storageCleanupDiagnostic: string | null = null;
       try {
         const hostAssetPath = this.voxelAssetHostSavePathOverrideState() ?? target.assetPath;
         const expectedHostHash = this.activeVoxelAssetFilePathState() === hostAssetPath
@@ -8769,10 +8770,12 @@ export class StudioWorkspaceStore {
             expectedHostHash,
           ),
           promote: token => this.promoteHostVoxelAsset(token),
+          finalize: token => this.finalizeHostVoxelAssetStage(token),
           discard: token => this.discardHostVoxelAssetStage(token),
         });
         this.activeVoxelAssetFilePathState.set(stored.path);
         this.activeVoxelAssetFileHashState.set(stored.sha256);
+        storageCleanupDiagnostic = stored.cleanupDiagnostic;
         this.workspaceAuthoringStateSummaryState.set(facade.readState());
         const attached = this.attachVoxelAssetToScene({
           ...target,
@@ -8787,7 +8790,7 @@ export class StudioWorkspaceStore {
           action,
           accepted: false,
           target,
-          message: `Voxel save was not committed; the previous host file was preserved: ${errorMessage(error)}`,
+          message: `Voxel save was not committed: ${errorMessage(error)}`,
           residentModelId: modelInfoResult.modelInfo.modelId,
           volumeAssetId: modelInfoResult.modelInfo.volumeAssetId,
           voxelCount: saveReadout.voxelCount,
@@ -8805,8 +8808,13 @@ export class StudioWorkspaceStore {
             ...target,
             assetPath: this.activeVoxelAssetFilePathState() ?? target.assetPath,
             customAssetPath: true,
-          };
+      };
       this.recordVoxelAssetWorkflowControlFromSave(storedTarget, modelInfoResult.modelInfo, saveResult);
+      if (storageCleanupDiagnostic !== null) {
+        this.menuMessageState.set(
+          `Voxel asset stored, but host rollback-backup cleanup needs attention: ${storageCleanupDiagnostic}`,
+        );
+      }
       return;
     }
   }
@@ -9007,14 +9015,35 @@ export class StudioWorkspaceStore {
     return { path: normalizeProjectFilePath(payload.path), sha256: payload.sha256 };
   }
 
+  private async finalizeHostVoxelAssetStage(token: string): Promise<void> {
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/finalize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly diagnostic?: string;
+      readonly message?: string;
+    };
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
+    }
+  }
+
   private async discardHostVoxelAssetStage(token: string): Promise<void> {
     const response = await fetch(`${projectFileApiBase()}/api/host-files/stage`, {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ token }),
     });
-    if (!response.ok) {
-      throw new Error(`Host file stage cleanup failed with HTTP ${response.status}.`);
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly diagnostic?: string;
+      readonly message?: string;
+    };
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.message ?? payload.diagnostic ?? `Host file stage cleanup failed with HTTP ${response.status}.`);
     }
   }
 

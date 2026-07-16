@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { resolve } from 'node:path';
 import {
   discardStudioHostFileStage,
+  finalizeStudioHostFileStage,
   listStudioHostDir,
   promoteStudioHostFileStage,
   readStudioHostFile,
@@ -63,6 +64,10 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'POST' && url.pathname === '/api/host-files/promote') {
       sendJson(response, 200, await promoteStudioHostFileStage(JSON.parse(await readBody(request))));
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/host-files/finalize') {
+      sendJson(response, 200, await finalizeStudioHostFileStage(JSON.parse(await readBody(request))));
       return;
     }
     if (request.method === 'DELETE' && url.pathname === '/api/host-files/stage') {

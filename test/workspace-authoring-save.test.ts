@@ -10,6 +10,7 @@ import type {
 import { persistStudioWorkspaceAuthoringCandidate } from '@asha-studio/store';
 import {
   discardStudioHostFileStage,
+  finalizeStudioHostFileStage,
   promoteStudioHostFileStage,
   readStudioHostFile,
   stageStudioHostFile,
@@ -106,6 +107,7 @@ test('an edit during a delayed stage rejects before confirmation and preserves t
       return staged;
     },
     promote: async token => promoteStudioHostFileStage({ token }) as Promise<never>,
+    finalize: async () => assert.fail('stale candidates must not be finalized'),
     discard: async token => {
       await discardStudioHostFileStage({ token });
     },
@@ -143,6 +145,7 @@ test('a workspace swap during a delayed stage discards the candidate without rep
       return staged;
     },
     promote: async token => promoteStudioHostFileStage({ token }) as Promise<never>,
+    finalize: async () => assert.fail('swapped candidates must not be finalized'),
     discard: async token => {
       await discardStudioHostFileStage({ token });
     },
@@ -177,6 +180,14 @@ test('a confirmed candidate is promoted with a compare-and-swap rename', async (
       assert.equal(receipt.ok, true);
       return receipt;
     },
+    finalize: async token => {
+      const receipt = await finalizeStudioHostFileStage({ token }) as {
+        readonly ok: boolean;
+        readonly finalized?: boolean;
+      };
+      assert.equal(receipt.ok, true);
+      assert.equal(receipt.finalized, true);
+    },
     discard: async token => {
       await discardStudioHostFileStage({ token });
     },
@@ -184,6 +195,164 @@ test('a confirmed candidate is promoted with a compare-and-swap rename', async (
   assert.equal(await readFile(target, 'utf8'), 'stored-after');
   assert.equal(result.sha256, studioHostFileSha256('stored-after'));
   assert.equal(result.storedRevision, 9);
+  assert.equal(result.cleanupDiagnostic, null);
+  assert.equal(confirmationCount, 1);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('a host promotion failure leaves the previous file and Rust dirty for retry', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-promotion-failure-'));
+  const target = join(root, 'house.avxl.json');
+  await writeFile(target, 'stored-before');
+  const state = authoringState(4);
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => state, () => { confirmationCount += 1; });
+  await assert.rejects(
+    persistStudioWorkspaceAuthoringCandidate({
+      authority,
+      currentAuthority: () => authority,
+      hostPath: target,
+      canonicalJsonHash: 'sha256:candidate',
+      stage: () => stagedReceipt(root, target, 'candidate-after-failure'),
+      promote: async () => {
+        throw new Error('disk promotion failed');
+      },
+      finalize: async () => assert.fail('failed promotions must not be finalized'),
+      discard: async token => {
+        const receipt = await discardStudioHostFileStage({ token }) as { readonly ok: boolean };
+        assert.equal(receipt.ok, true);
+      },
+    }),
+    /disk promotion failed/,
+  );
+  assert.equal(await readFile(target, 'utf8'), 'stored-before');
+  assert.equal(authority.readState().dirty, true);
+  assert.equal(authority.readState().storedRevision, 0);
+  assert.equal(confirmationCount, 0);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('a host compare-and-swap mismatch preserves the previous file and Rust candidate', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-cas-failure-'));
+  const target = join(root, 'house.avxl.json');
+  await writeFile(target, 'stored-before');
+  const state = authoringState(6);
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => state, () => { confirmationCount += 1; });
+  await assert.rejects(
+    persistStudioWorkspaceAuthoringCandidate({
+      authority,
+      currentAuthority: () => authority,
+      hostPath: target,
+      canonicalJsonHash: 'sha256:candidate',
+      stage: async () => {
+        const receipt = await stageStudioHostFile(root, {
+          path: target,
+          text: 'candidate-after-cas',
+          expectedHash: `sha256:${'0'.repeat(64)}`,
+        }) as { readonly ok: boolean; readonly message?: string };
+        assert.equal(receipt.ok, false);
+        throw new Error(receipt.message ?? 'Host compare-and-swap rejected.');
+      },
+      promote: async () => assert.fail('CAS-rejected stages must not be promoted'),
+      finalize: async () => assert.fail('CAS-rejected stages must not be finalized'),
+      discard: async () => assert.fail('CAS rejection did not allocate a stage token'),
+    }),
+    /changed since it was opened/,
+  );
+  assert.equal(await readFile(target, 'utf8'), 'stored-before');
+  assert.equal(authority.readState().dirty, true);
+  assert.equal(authority.readState().storedRevision, 0);
+  assert.equal(confirmationCount, 0);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('authority drift during tentative promotion rolls the host target back', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-promotion-drift-'));
+  const target = join(root, 'house.avxl.json');
+  await writeFile(target, 'stored-before');
+  let state = authoringState(7);
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => state, () => { confirmationCount += 1; });
+  await assert.rejects(
+    persistStudioWorkspaceAuthoringCandidate({
+      authority,
+      currentAuthority: () => authority,
+      hostPath: target,
+      canonicalJsonHash: 'sha256:candidate',
+      stage: () => stagedReceipt(root, target, 'candidate-after-drift'),
+      promote: async token => {
+        const receipt = await promoteStudioHostFileStage({ token }) as {
+          readonly ok: boolean;
+          readonly path: string;
+          readonly sha256: string;
+        };
+        assert.equal(receipt.ok, true);
+        state = authoringState(8);
+        return receipt;
+      },
+      finalize: async () => assert.fail('drifted promotions must not be finalized'),
+      discard: async token => {
+        const receipt = await discardStudioHostFileStage({ token }) as {
+          readonly ok: boolean;
+          readonly rolledBack?: boolean;
+        };
+        assert.equal(receipt.ok, true);
+        assert.equal(receipt.rolledBack, true);
+      },
+    }),
+    /state changed while the save was promoted/,
+  );
+  assert.equal(await readFile(target, 'utf8'), 'stored-before');
+  assert.equal(authority.readState().dirty, true);
+  assert.equal(confirmationCount, 0);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('Rust confirmation rejection after promotion rolls the host target back', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-confirmation-rejection-'));
+  const target = join(root, 'house.avxl.json');
+  await writeFile(target, 'stored-before');
+  const state = authoringState(10);
+  let confirmationCount = 0;
+  const authority = {
+    readState: () => state,
+    confirmStored: () => {
+      confirmationCount += 1;
+      throw new Error('Rust rejected the pending save candidate.');
+    },
+  } as unknown as WorkspaceAuthoringFacade;
+  await assert.rejects(
+    persistStudioWorkspaceAuthoringCandidate({
+      authority,
+      currentAuthority: () => authority,
+      hostPath: target,
+      canonicalJsonHash: 'sha256:candidate',
+      stage: () => stagedReceipt(root, target, 'candidate-before-confirmation-rejection'),
+      promote: async token => {
+        const receipt = await promoteStudioHostFileStage({ token }) as {
+          readonly ok: boolean;
+          readonly path: string;
+          readonly sha256: string;
+        };
+        assert.equal(receipt.ok, true);
+        return receipt;
+      },
+      finalize: async () => assert.fail('rejected confirmations must not be finalized'),
+      discard: async token => {
+        const receipt = await discardStudioHostFileStage({ token }) as {
+          readonly ok: boolean;
+          readonly rolledBack?: boolean;
+        };
+        assert.equal(receipt.ok, true);
+        assert.equal(receipt.rolledBack, true);
+      },
+    }),
+    /Rust rejected the pending save candidate/,
+  );
+  assert.equal(await readFile(target, 'utf8'), 'stored-before');
+  assert.equal(authority.readState().dirty, true);
+  assert.equal(authority.readState().storedRevision, 0);
   assert.equal(confirmationCount, 1);
   await rm(root, { recursive: true, force: true });
 });

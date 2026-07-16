@@ -21,11 +21,13 @@ export interface StudioWorkspaceAuthoringSaveRequest {
   readonly canonicalJsonHash: string;
   readonly stage: () => Promise<StudioHostFileStage>;
   readonly promote: (token: string) => Promise<StudioHostFilePromotion>;
+  readonly finalize: (token: string) => Promise<void>;
   readonly discard: (token: string) => Promise<void>;
 }
 
 export interface StudioWorkspaceAuthoringSaveResult extends StudioHostFilePromotion {
   readonly storedRevision: number;
+  readonly cleanupDiagnostic: string | null;
 }
 
 function sameAuthoritySnapshot(
@@ -44,15 +46,18 @@ function sameAuthoritySnapshot(
 /**
  * Keeps unconfirmed bytes outside the durable target. The host stage may take
  * arbitrarily long; after it returns, the exact Rust cell and authority
- * snapshot that produced the candidate must still be current. Only a Rust-
- * accepted candidate is promoted through the host's compare-and-swap rename.
+ * snapshot that produced the candidate must still be current. Host promotion
+ * is tentative and rollback-capable: only after that durable promotion succeeds
+ * does Rust confirm stored truth. Authority drift or confirmation rejection
+ * rolls the host target back to its previous bytes.
  */
 export async function persistStudioWorkspaceAuthoringCandidate(
   request: StudioWorkspaceAuthoringSaveRequest,
 ): Promise<StudioWorkspaceAuthoringSaveResult> {
   const candidateState = request.authority.readState();
   const staged = await request.stage();
-  let promoted = false;
+  let promoted: StudioHostFilePromotion | null = null;
+  let confirmed = false;
   try {
     if (request.currentAuthority() !== request.authority) {
       throw new Error('Workspace authoring authority changed while the save was staged.');
@@ -61,21 +66,46 @@ export async function persistStudioWorkspaceAuthoringCandidate(
     if (!sameAuthoritySnapshot(candidateState, currentState)) {
       throw new Error('Workspace authoring state changed while the save was staged.');
     }
+    promoted = await request.promote(staged.token);
+    if (promoted.path !== staged.path || promoted.sha256 !== staged.sha256) {
+      throw new Error('Host promotion did not preserve the exact staged candidate identity.');
+    }
+    if (request.currentAuthority() !== request.authority) {
+      throw new Error('Workspace authoring authority changed while the save was promoted.');
+    }
+    const promotedState = request.authority.readState();
+    if (!sameAuthoritySnapshot(candidateState, promotedState)) {
+      throw new Error('Workspace authoring state changed while the save was promoted.');
+    }
     const confirmation = request.authority.confirmStored({
       expectedWorkspaceId: candidateState.identity.project.workspaceId,
       expectedGeneration: candidateState.identity.generation,
       hostPath: staged.path,
       canonicalJsonHash: request.canonicalJsonHash,
     });
-    const stored = await request.promote(staged.token);
-    promoted = true;
-    return {
-      ...stored,
-      storedRevision: confirmation.storedRevision,
-    };
-  } finally {
-    if (!promoted) {
-      await request.discard(staged.token);
+    confirmed = true;
+    let cleanupDiagnostic: string | null = null;
+    try {
+      await request.finalize(staged.token);
+    } catch (error) {
+      cleanupDiagnostic = error instanceof Error ? error.message : String(error);
     }
+    return {
+      ...promoted,
+      storedRevision: confirmation.storedRevision,
+      cleanupDiagnostic,
+    };
+  } catch (error) {
+    if (!confirmed) {
+      try {
+        await request.discard(staged.token);
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          'Workspace save failed and the tentative host promotion could not be rolled back.',
+        );
+      }
+    }
+    throw error;
   }
 }

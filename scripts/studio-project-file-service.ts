@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 export type StudioHostFileDiagnosticCode =
@@ -38,6 +38,8 @@ interface StudioHostFileStageReservation {
   readonly temporaryPath: string;
   readonly previousHash: string | null;
   readonly sha256: string;
+  readonly phase: 'staged' | 'promoted';
+  readonly backupPath: string | null;
 }
 
 const hostFileWriteQueues = new Map<string, Promise<void>>();
@@ -320,6 +322,8 @@ export async function stageStudioHostFile(
         temporaryPath,
         previousHash,
         sha256,
+        phase: 'staged',
+        backupPath: null,
       });
       return {
         ok: true,
@@ -375,6 +379,13 @@ export async function promoteStudioHostFileStage(request: unknown): Promise<unkn
         message: 'The host file stage token is unknown or already consumed.',
       } satisfies StudioHostFileFailure;
     }
+    if (reservation.phase !== 'staged') {
+      return {
+        ok: false,
+        diagnostic: 'invalid_stage_token',
+        message: 'The host file stage token was already promoted.',
+      } satisfies StudioHostFileFailure;
+    }
     const currentHash = await currentHostFileHash(reservation.absolutePath);
     if (typeof currentHash === 'object') {
       return currentHash;
@@ -387,9 +398,19 @@ export async function promoteStudioHostFileStage(request: unknown): Promise<unkn
         previousHash: currentHash,
       } satisfies StudioHostFileFailure;
     }
+    const backupPath = reservation.previousHash === null
+      ? null
+      : `${reservation.temporaryPath}.previous`;
     try {
+      if (backupPath !== null) {
+        await copyFile(reservation.absolutePath, backupPath);
+      }
       await rename(reservation.temporaryPath, reservation.absolutePath);
-      hostFileStageReservations.delete(token);
+      hostFileStageReservations.set(token, {
+        ...reservation,
+        phase: 'promoted',
+        backupPath,
+      });
       return {
         ok: true,
         path: reservation.absolutePath,
@@ -397,8 +418,50 @@ export async function promoteStudioHostFileStage(request: unknown): Promise<unkn
         sha256: reservation.sha256,
       };
     } catch (error) {
+      if (backupPath !== null) {
+        await rm(backupPath, { force: true }).catch(() => undefined);
+      }
       return hostFileFailure(error, 'Promoting staged file', reservation.absolutePath);
     }
+  });
+}
+
+export async function finalizeStudioHostFileStage(request: unknown): Promise<unknown> {
+  const token = parseStageToken(request);
+  if (typeof token !== 'string') {
+    return token;
+  }
+  const reservation = hostFileStageReservations.get(token);
+  if (reservation === undefined || reservation.phase !== 'promoted') {
+    return {
+      ok: false,
+      diagnostic: 'invalid_stage_token',
+      message: 'The host file stage token is not awaiting finalization.',
+    } satisfies StudioHostFileFailure;
+  }
+  return withHostFileWriteLock(reservation.absolutePath, async () => {
+    const currentReservation = hostFileStageReservations.get(token);
+    if (currentReservation !== reservation) {
+      return {
+        ok: false,
+        diagnostic: 'invalid_stage_token',
+        message: 'The host file stage token is unknown or already consumed.',
+      } satisfies StudioHostFileFailure;
+    }
+    if (reservation.backupPath !== null) {
+      try {
+        await rm(reservation.backupPath, { force: true });
+      } catch (error) {
+        return hostFileFailure(error, 'Finalizing staged file', reservation.absolutePath);
+      }
+    }
+    hostFileStageReservations.delete(token);
+    return {
+      ok: true,
+      finalized: true,
+      path: reservation.absolutePath,
+      sha256: reservation.sha256,
+    };
   });
 }
 
@@ -414,16 +477,46 @@ export async function discardStudioHostFileStage(request: unknown): Promise<unkn
       discarded: false,
     };
   }
-  hostFileStageReservations.delete(token);
-  try {
-    await rm(reservation.temporaryPath, { force: true });
-    return {
-      ok: true,
-      discarded: true,
-    };
-  } catch (error) {
-    return hostFileFailure(error, 'Discarding staged file', reservation.absolutePath);
-  }
+  return withHostFileWriteLock(reservation.absolutePath, async () => {
+    const currentReservation = hostFileStageReservations.get(token);
+    if (currentReservation !== reservation) {
+      return {
+        ok: true,
+        discarded: false,
+      };
+    }
+    try {
+      if (reservation.phase === 'promoted') {
+        const currentHash = await currentHostFileHash(reservation.absolutePath);
+        if (typeof currentHash === 'object') {
+          return currentHash;
+        }
+        if (currentHash !== reservation.sha256) {
+          return {
+            ok: false,
+            diagnostic: 'stale_file_hash',
+            message: `The promoted host file changed before rollback: ${reservation.absolutePath}`,
+            previousHash: currentHash,
+          } satisfies StudioHostFileFailure;
+        }
+        if (reservation.backupPath === null) {
+          await rm(reservation.absolutePath, { force: true });
+        } else {
+          await rename(reservation.backupPath, reservation.absolutePath);
+        }
+      } else {
+        await rm(reservation.temporaryPath, { force: true });
+      }
+      hostFileStageReservations.delete(token);
+      return {
+        ok: true,
+        discarded: true,
+        rolledBack: reservation.phase === 'promoted',
+      };
+    } catch (error) {
+      return hostFileFailure(error, 'Discarding staged file', reservation.absolutePath);
+    }
+  });
 }
 
 // Transitional aliases while #5803 removes the old project-file naming from callers.
