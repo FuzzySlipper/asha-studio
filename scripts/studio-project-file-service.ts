@@ -280,6 +280,12 @@ async function currentHostFileHash(path: string): Promise<string | null | Studio
   }
 }
 
+function isStudioHostFileFailure(
+  value: string | null | StudioHostFileFailure,
+): value is StudioHostFileFailure {
+  return value !== null && typeof value === 'object' && value.ok === false;
+}
+
 export async function stageStudioHostFile(
   startDirectory: string,
   request: unknown,
@@ -294,7 +300,7 @@ export async function stageStudioHostFile(
   }
   return withHostFileWriteLock(resolved.absolutePath, async () => {
     const previousHash = await currentHostFileHash(resolved.absolutePath);
-    if (typeof previousHash === 'object') {
+    if (isStudioHostFileFailure(previousHash)) {
       return previousHash;
     }
     if (parsed.expectedHash !== undefined && previousHash !== parsed.expectedHash) {
@@ -387,7 +393,7 @@ export async function promoteStudioHostFileStage(request: unknown): Promise<unkn
       } satisfies StudioHostFileFailure;
     }
     const currentHash = await currentHostFileHash(reservation.absolutePath);
-    if (typeof currentHash === 'object') {
+    if (isStudioHostFileFailure(currentHash)) {
       return currentHash;
     }
     if (currentHash !== reservation.previousHash) {
@@ -488,7 +494,7 @@ export async function discardStudioHostFileStage(request: unknown): Promise<unkn
     try {
       if (reservation.phase === 'promoted') {
         const currentHash = await currentHostFileHash(reservation.absolutePath);
-        if (typeof currentHash === 'object') {
+        if (isStudioHostFileFailure(currentHash)) {
           return currentHash;
         }
         if (currentHash !== reservation.sha256) {

@@ -8979,15 +8979,16 @@ export class StudioWorkspaceStore {
       readonly sha256?: string;
       readonly diagnostic?: string;
       readonly message?: string;
-    };
+    } | null;
     if (
       !response.ok
+      || payload === null
       || payload.ok === false
       || typeof payload.token !== 'string'
       || typeof payload.path !== 'string'
       || typeof payload.sha256 !== 'string'
     ) {
-      throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
+      throw new Error(payload?.message ?? payload?.diagnostic ?? `HTTP ${response.status}`);
     }
     return {
       token: payload.token,

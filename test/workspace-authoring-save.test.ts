@@ -200,6 +200,58 @@ test('a confirmed candidate is promoted with a compare-and-swap rename', async (
   await rm(root, { recursive: true, force: true });
 });
 
+test('a first-time save creates a missing host target and confirms the exact candidate', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-new-target-'));
+  const target = join(root, 'new-house.avxl.json');
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => authoringState(3), () => { confirmationCount += 1; });
+  const result = await persistStudioWorkspaceAuthoringCandidate({
+    authority,
+    currentAuthority: () => authority,
+    hostPath: target,
+    canonicalJsonHash: 'sha256:candidate',
+    stage: async () => {
+      const receipt = await stageStudioHostFile(root, {
+        path: target,
+        text: 'first-stored-content',
+        expectedHash: null,
+      }) as {
+        readonly ok: boolean;
+        readonly token: string;
+        readonly path: string;
+        readonly sha256: string;
+      };
+      assert.equal(receipt.ok, true);
+      return receipt;
+    },
+    promote: async token => {
+      const receipt = await promoteStudioHostFileStage({ token }) as {
+        readonly ok: boolean;
+        readonly path: string;
+        readonly sha256: string;
+      };
+      assert.equal(receipt.ok, true);
+      return receipt;
+    },
+    finalize: async token => {
+      const receipt = await finalizeStudioHostFileStage({ token }) as {
+        readonly ok: boolean;
+        readonly finalized?: boolean;
+      };
+      assert.equal(receipt.ok, true);
+      assert.equal(receipt.finalized, true);
+    },
+    discard: async token => {
+      await discardStudioHostFileStage({ token });
+    },
+  });
+  assert.equal(await readFile(target, 'utf8'), 'first-stored-content');
+  assert.equal(result.sha256, studioHostFileSha256('first-stored-content'));
+  assert.equal(result.storedRevision, 3);
+  assert.equal(confirmationCount, 1);
+  await rm(root, { recursive: true, force: true });
+});
+
 test('a host promotion failure leaves the previous file and Rust dirty for retry', async () => {
   const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-promotion-failure-'));
   const target = join(root, 'house.avxl.json');
@@ -306,6 +358,83 @@ test('authority drift during tentative promotion rolls the host target back', as
   assert.equal(await readFile(target, 'utf8'), 'stored-before');
   assert.equal(authority.readState().dirty, true);
   assert.equal(confirmationCount, 0);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('authority drift after first-time promotion removes the new target and permits retry', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-save-new-target-drift-'));
+  const target = join(root, 'new-house.avxl.json');
+  let state = authoringState(7);
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => state, () => { confirmationCount += 1; });
+  const stageMissingTarget = async (text: string) => {
+    const receipt = await stageStudioHostFile(root, {
+      path: target,
+      text,
+      expectedHash: null,
+    }) as {
+      readonly ok: boolean;
+      readonly token: string;
+      readonly path: string;
+      readonly sha256: string;
+    };
+    assert.equal(receipt.ok, true);
+    return receipt;
+  };
+  await assert.rejects(
+    persistStudioWorkspaceAuthoringCandidate({
+      authority,
+      currentAuthority: () => authority,
+      hostPath: target,
+      canonicalJsonHash: 'sha256:candidate',
+      stage: () => stageMissingTarget('tentative-new-content'),
+      promote: async token => {
+        const receipt = await promoteStudioHostFileStage({ token }) as {
+          readonly ok: boolean;
+          readonly path: string;
+          readonly sha256: string;
+        };
+        assert.equal(receipt.ok, true);
+        state = authoringState(8);
+        return receipt;
+      },
+      finalize: async () => assert.fail('drifted promotions must not be finalized'),
+      discard: async token => {
+        const receipt = await discardStudioHostFileStage({ token }) as {
+          readonly ok: boolean;
+          readonly rolledBack?: boolean;
+        };
+        assert.equal(receipt.ok, true);
+        assert.equal(receipt.rolledBack, true);
+      },
+    }),
+    /state changed while the save was promoted/,
+  );
+  await assert.rejects(readFile(target, 'utf8'), { code: 'ENOENT' });
+  assert.equal(authority.readState().dirty, true);
+  assert.equal(confirmationCount, 0);
+
+  const retry = await persistStudioWorkspaceAuthoringCandidate({
+    authority,
+    currentAuthority: () => authority,
+    hostPath: target,
+    canonicalJsonHash: 'sha256:candidate',
+    stage: () => stageMissingTarget('retried-new-content'),
+    promote: async token => promoteStudioHostFileStage({ token }) as Promise<{
+      readonly path: string;
+      readonly sha256: string;
+    }>,
+    finalize: async token => {
+      const receipt = await finalizeStudioHostFileStage({ token }) as { readonly ok: boolean };
+      assert.equal(receipt.ok, true);
+    },
+    discard: async token => {
+      await discardStudioHostFileStage({ token });
+    },
+  });
+  assert.equal(await readFile(target, 'utf8'), 'retried-new-content');
+  assert.equal(retry.storedRevision, 8);
+  assert.equal(confirmationCount, 1);
   await rm(root, { recursive: true, force: true });
 });
 
