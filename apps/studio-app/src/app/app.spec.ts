@@ -40,7 +40,7 @@ function openPlayableLoopInspector(fixture: ComponentFixture<StudioShellComponen
 }
 
 describe('StudioShellComponent', () => {
-  it('renders the product shell without a permanent proof readback strip', async () => {
+  it('renders the product shell without a permanent delivery readback strip', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -53,9 +53,11 @@ describe('StudioShellComponent', () => {
     expect(element.querySelector('[data-visual-id="studio-runtime-tools-menu"]')).toBeNull();
     expect(element.textContent).not.toContain('2 · Top Panel');
     expect(element.textContent).not.toContain('asha-studio-substrate');
+    expect(Array.from(element.querySelectorAll('button')).some(button => button.textContent?.trim() === 'Evidence')).toBe(false);
+    expect(Array.from(element.querySelectorAll('button')).some(button => button.textContent?.trim() === 'Publish')).toBe(false);
   });
 
-  it('keeps voxel workflows in a task-oriented menu instead of a proof panel', async () => {
+  it('keeps voxel workflows in a task-oriented menu', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -150,7 +152,7 @@ describe('StudioShellComponent', () => {
     );
   });
 
-  it('keeps legacy proof-scene and temporary-scenario loaders out of product chrome', async () => {
+  it('keeps legacy scene and temporary-scenario loaders out of product chrome', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -159,7 +161,6 @@ describe('StudioShellComponent', () => {
     fixture.detectChanges();
 
     const element: HTMLElement = fixture.nativeElement;
-    expect(element.querySelector('[data-visual-id="studio-proof-scene-panel"]')).toBeNull();
     expect(element.querySelector('[data-visual-id="studio-runtime-session-panel"]')).toBeNull();
     selectRuntimeSection(fixture, 'session');
     fixture.detectChanges();
@@ -244,92 +245,6 @@ describe('StudioShellComponent', () => {
     expect(popout?.querySelector('[data-visual-id="studio-generated-level-inspection"]')).not.toBeNull();
     expect(popout?.querySelector('[data-visual-id="studio-encounter-tuning-inspection"]')).not.toBeNull();
     expect(popout?.querySelector('[data-visual-id="studio-playable-loop-inspection"]')).not.toBeNull();
-  });
-
-  it('renders the asha-demo product path from authored content through typed live controls', async () => {
-    await TestBed.configureTestingModule({
-      imports: [StudioShellComponent],
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(StudioShellComponent);
-    fixture.detectChanges();
-
-    const element: HTMLElement = fixture.nativeElement;
-    openPlayableLoopInspector(fixture);
-    fixture.detectChanges();
-
-    const productPath = element.querySelector('[data-visual-id="studio-asha-demo-product-path"]');
-    expect(productPath?.querySelector('[data-product-path="version"]')?.textContent).toContain(
-      'studio-asha-demo-product-path.v0',
-    );
-    expect(productPath?.querySelector('[data-product-path="project-root"]')?.textContent).toContain(
-      '../asha-demo',
-    );
-    expect(productPath?.querySelector('[data-product-path="project-root"]')?.textContent).toContain(
-      'project/project-bundle.json',
-    );
-    expect(productPath?.textContent).toContain('catalogs/actors/demo-player.entity.json');
-    expect(productPath?.textContent).toContain('catalogs/actors/generated-tunnel-enemy.entity.json');
-    expect(productPath?.textContent).toContain('levels/scenes/generated-tunnel-room.scene.json');
-    expect(productPath?.textContent).toContain('levels/presets/tiny-enclosed-tunnel.json');
-    expect(productPath?.textContent).toContain('catalogs/gameplay/default-fps.catalog.json');
-    expect(productPath?.querySelector('[data-product-path="mode"]')?.textContent).toContain(
-      'definition_authoring',
-    );
-    expect(productPath?.querySelector('[data-product-path="live-state"]')?.textContent).toContain(
-      'not_attached',
-    );
-    expect(productPath?.querySelector('[data-product-path="public-surfaces"]')?.textContent).toContain(
-      '@asha/game-workspace:parseAshaGameManifestToml',
-    );
-    expect(productPath?.querySelector('[data-product-path="public-surfaces"]')?.textContent).toContain(
-      '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart',
-    );
-
-    const runtimePanel = element.querySelector('[data-visual-id="studio-runtime-session-inspection"]');
-    const attachButton = Array.from(runtimePanel?.querySelectorAll('button') ?? []).find(
-      button => button.textContent?.trim() === 'Attach',
-    );
-    attachButton?.click();
-    fixture.detectChanges();
-
-    expect(productPath?.querySelector('[data-product-path="mode"]')?.textContent).toContain(
-      'live_runtime_inspection',
-    );
-    expect(productPath?.querySelector('[data-product-path="live-state"]')?.textContent).toContain(
-      'attached',
-    );
-    expect(productPath?.querySelector('[data-product-path="live-session"]')?.textContent).toContain(
-      'runtime-session:asha-demo:studio-reference',
-    );
-    expect(productPath?.querySelector('[data-product-path="lifecycle"]')?.textContent).toContain(
-      'In progress',
-    );
-
-    const loopPanel = element.querySelector('[data-visual-id="studio-playable-loop-inspection"]');
-    const runPolicyButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
-      button => button.textContent?.trim() === 'Run Policy',
-    );
-    runPolicyButton?.click();
-    fixture.detectChanges();
-
-    expect(productPath?.querySelector('[data-product-path="lifecycle"]')?.textContent).toContain(
-      'Enemy defeated',
-    );
-    expect(productPath?.querySelector('[data-product-path="controls"]')?.textContent).toContain(
-      'policy ready',
-    );
-
-    const restartButton = Array.from(loopPanel?.querySelectorAll('button') ?? []).find(
-      button => button.textContent?.trim() === 'Restart',
-    );
-    restartButton?.click();
-    fixture.detectChanges();
-
-    expect(productPath?.querySelector('[data-product-path="lifecycle"]')?.textContent).toContain(
-      'In progress',
-    );
-    expect(productPath?.textContent).toContain('runtime.restart_session_intent');
   });
 
   it('renders generated-level preset authoring and live metadata without crossing the mode boundary', async () => {
@@ -580,7 +495,7 @@ describe('StudioShellComponent', () => {
     );
   });
 
-  it('renders command proposal actions and accepted rejected evidence in the Commands tab', async () => {
+  it('renders command proposal actions and accepted/rejected results in the Commands tab', async () => {
     await TestBed.configureTestingModule({
       imports: [StudioShellComponent],
     }).compileComponents();
@@ -628,48 +543,4 @@ describe('StudioShellComponent', () => {
     expect(element.querySelector('[data-running-session-status="available"]')).not.toBeNull();
   });
 
-  it('renders publish evidence status from the demo publish manifest in the Publish tab', async () => {
-    await TestBed.configureTestingModule({
-      imports: [StudioShellComponent],
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(StudioShellComponent);
-    fixture.detectChanges();
-
-    const element: HTMLElement = fixture.nativeElement;
-    const publishButton = Array.from(element.querySelectorAll('button')).find(
-      button => button.textContent?.trim() === 'Publish',
-    );
-    publishButton?.click();
-    fixture.detectChanges();
-
-    const panel = element.querySelector('[data-visual-id="studio-publish-evidence-panel"]');
-    expect(panel?.textContent).toContain('publish-evidence.v1');
-    expect(panel?.textContent).toContain('asha-demo-static-reference.v1');
-    expect(panel?.textContent).toContain('no-studio-dev-only-fragments');
-    expect(panel?.textContent).toContain('reference-game-runtime-launcher');
-    expect(panel?.textContent).toContain('not_store_submission');
-    expect(element.querySelector('[data-publish-evidence-status="ready"]')).not.toBeNull();
-    expect(element.querySelector('[data-publish-resource-id="mesh.demo-cube"]')).not.toBeNull();
-  });
-
-  it('renders the aggregate workspace cockpit evidence marker in the Evidence tab', async () => {
-    await TestBed.configureTestingModule({
-      imports: [StudioShellComponent],
-    }).compileComponents();
-
-    const fixture = TestBed.createComponent(StudioShellComponent);
-    fixture.detectChanges();
-
-    const element: HTMLElement = fixture.nativeElement;
-    const evidenceButton = Array.from(element.querySelectorAll('button')).find(
-      button => button.textContent?.trim() === 'Evidence',
-    );
-    evidenceButton?.click();
-    fixture.detectChanges();
-
-    const panel = element.querySelector('[data-visual-id="studio-workspace-cockpit-evidence"]');
-    expect(panel?.textContent).toContain('studio-workspace-cockpit-evidence.v0');
-    expect(panel?.textContent).toContain('ready');
-  });
 });

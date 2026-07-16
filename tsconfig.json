@@ -31,10 +31,7 @@
       "@asha-studio/panels": ["libs/studio-panels/src/index.ts"],
       "@asha-studio/components": ["libs/studio-components/src/index.ts"],
       "@asha-studio/shell": ["libs/studio-shell/src/index.ts"],
-      "@asha-studio/theme": ["libs/studio-theme/src/index.ts"],
-      "@asha-studio/testing-fixtures": [
-        "libs/studio-testing-fixtures/src/index.ts"
-      ]
+      "@asha-studio/theme": ["libs/studio-theme/src/index.ts"]
     }
   },
   "include": ["apps", "libs", "test", "scripts/**/*.mjs", "scripts/**/*.ts"]

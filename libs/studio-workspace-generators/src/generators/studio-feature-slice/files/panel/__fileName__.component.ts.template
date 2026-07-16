@@ -2,8 +2,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 export interface <%= className %>PanelReadModel {
   readonly readModelVersion: '<%= fileName %>.read-model.v0';
-  readonly sceneHash: string;
+  readonly entityCount: number;
   readonly selectedEntityId: string | null;
+  readonly selectedEntityLabel: string | null;
   readonly timelineSequence: number;
 }
 
@@ -14,10 +15,10 @@ export interface <%= className %>PanelReadModel {
     <section class="asha-panel" data-visual-id="<%= visualId %>">
       <header><%= className %></header>
       <dl>
-        <dt>Scene</dt>
-        <dd>{{ readModel().sceneHash }}</dd>
+        <dt>Scene objects</dt>
+        <dd>{{ readModel().entityCount }}</dd>
         <dt>Selected</dt>
-        <dd>{{ readModel().selectedEntityId ?? 'none' }}</dd>
+        <dd>{{ readModel().selectedEntityLabel ?? 'none' }}</dd>
         <dt>Timeline</dt>
         <dd>{{ readModel().timelineSequence }}</dd>
       </dl>

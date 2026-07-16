@@ -9,7 +9,7 @@
     },
     "visualId": {
       "type": "string",
-      "description": "Stable data-visual-id marker for browser/proof readback."
+      "description": "Stable data-visual-id marker for browser interaction and accessibility checks."
     }
   },
   "required": ["name", "visualId"]

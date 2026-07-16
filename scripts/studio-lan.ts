@@ -27,7 +27,7 @@ function stopChildren(signal: NodeJS.Signals): void {
 }
 
 const fileService = start('pnpm', ['run', 'dev:files']);
-const studioHost = start('pnpm', ['run', 'studio:dev:native-voxel']);
+const studioHost = start('pnpm', ['run', 'studio:dev:native']);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => stopChildren(signal));

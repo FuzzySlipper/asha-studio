@@ -64,12 +64,6 @@ export {
 
 type StudioRenderColor = readonly [number, number, number];
 
-interface StudioViewportResourceProbe {
-  readonly status: 'idle' | 'rejected_as_expected' | 'unexpectedly_applied';
-  readonly isolated: boolean;
-  readonly diagnostic: string | null;
-}
-
 interface StudioVoxelBrushOverlay {
   readonly transform: Transform;
   readonly tool: 'select' | 'add' | 'paint' | 'erase';
@@ -818,19 +812,6 @@ function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly
             @for (diagnostic of store.runtimeViewportEvidence().diagnostics; track diagnostic) {
               <small class="viewport-classification__diagnostic">{{ diagnostic }}</small>
             }
-            <button
-              type="button"
-              data-renderer-resource-probe
-              (click)="probeMissingPreviewResource()"
-            >
-              Probe missing preview resource
-            </button>
-            <small
-              [attr.data-renderer-resource-probe-status]="resourceProbe().status"
-              [attr.data-renderer-resource-probe-isolated]="resourceProbe().isolated"
-            >
-              {{ resourceProbe().status }} · {{ resourceProbe().diagnostic ?? 'not run' }}
-            </small>
           </div>
           <div class="viewport-readback">
             <span>selected target</span>
@@ -1116,11 +1097,6 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   readonly store = inject(StudioWorkspaceStore);
   readonly viewportReadout = signal<AshaRendererEditorViewportReadout | null>(null);
   readonly viewportMountDiagnostic = signal<string | null>(null);
-  readonly resourceProbe = signal<StudioViewportResourceProbe>({
-    status: 'idle',
-    isolated: true,
-    diagnostic: null,
-  });
 
   @ViewChild('host', { static: true }) private hostRef?: ElementRef<HTMLDivElement>;
   @ViewChild('canvas', { static: true }) private canvasRef?: ElementRef<HTMLCanvasElement>;
@@ -1251,48 +1227,6 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.viewportReadout.set(null);
     this.authoredBaseHandles = [];
     this.authoredVoxelPickIndex.clear();
-  }
-
-  probeMissingPreviewResource(): void {
-    const viewport = this.viewport;
-    if (viewport === null) {
-      return;
-    }
-    const before = {
-      runtime: viewport.channels.runtime.snapshot().hash,
-      authored: viewport.channels.authored.snapshot().hash,
-      overlay: viewport.channels.overlay.snapshot().hash,
-    };
-    const receipt = viewport.channels.authored.replace({
-      ops: [{
-        op: 'createStaticMeshInstance',
-        handle: renderHandle(900_001),
-        parent: null,
-        instance: {
-          asset: 'mesh.missing-studio-preview-resource',
-          transform: {
-            translation: [0, 0, 0],
-            rotation: [0, 0, 0, 1],
-            scale: [1, 1, 1],
-          },
-          materialOverrides: [],
-          metadata: { source: null, tags: [], label: 'missing Studio preview resource' },
-        },
-      }],
-    });
-    const after = {
-      runtime: viewport.channels.runtime.snapshot().hash,
-      authored: viewport.channels.authored.snapshot().hash,
-      overlay: viewport.channels.overlay.snapshot().hash,
-    };
-    this.resourceProbe.set({
-      status: receipt.applied ? 'unexpectedly_applied' : 'rejected_as_expected',
-      isolated: before.runtime === after.runtime
-        && before.authored === after.authored
-        && before.overlay === after.overlay,
-      diagnostic: receipt.diagnostics[0]?.message ?? null,
-    });
-    this.viewportReadout.set(viewport.readout());
   }
 
   private installInputListeners(canvas: HTMLCanvasElement): void {

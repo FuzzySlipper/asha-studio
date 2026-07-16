@@ -113,9 +113,7 @@ export type StudioBottomPanelTab =
   | 'timeline'
   | 'assets'
   | 'catalog'
-  | 'commands'
-  | 'publish'
-  | 'evidence';
+  | 'commands';
 export type StudioCommandProposalActionId = 'set_voxel_reference';
 export type StudioApplicationMenu =
   | 'file'
@@ -146,16 +144,12 @@ export type StudioUiEventCommandId =
   | 'project.refresh_sessions'
   | 'project.connect_running'
   | 'project.disconnect_running'
-  | 'voxel_view.from_angle'
-  | 'voxel_preview.publish'
   | 'voxel_conversion.import_mesh_source'
   | 'voxel_asset.export_volume'
   | 'voxel_asset.save_volume'
   | 'voxel_asset.load_volume'
   | 'voxel_asset.unload_volume'
   | 'voxel_asset.initialize_authoring_volume'
-  | 'voxel_asset.persist'
-  | 'voxel_asset.reopen'
   | 'voxel_edit.submit'
   | 'voxel_history.read'
   | 'voxel_history.preview_revert'
@@ -201,9 +195,7 @@ export type StudioRuntimeSessionDiagnosticCode =
   | 'runtime_session_attach_mismatch'
   | 'runtime_session_live_mismatch'
   | 'runtime_session_inspection_unavailable'
-  | 'runtime_session_missing_backend_evidence'
-  | 'runtime_session_backend_incompatible'
-  | 'runtime_session_reserved';
+  | 'runtime_session_backend_incompatible';
 export type StudioRunningProjectDiscoveryDiagnosticCode =
   | 'running_project_missing_workspace'
   | 'running_project_missing_endpoint'
@@ -211,48 +203,12 @@ export type StudioRunningProjectDiscoveryDiagnosticCode =
   | 'running_project_incompatible'
   | 'running_project_stale_live_readback'
   | 'running_project_private_transport';
-export type StudioLiveDebugSessionDiagnosticCode =
-  | 'missing_live_session'
-  | 'stale_fixture_readback'
-  | 'backend_proof_mismatch'
-  | 'stale_child_artifact';
-export type StudioLiveSceneEntityDebugDiagnosticCode =
-  | 'missing_live_session'
-  | 'missing_selected_entity'
-  | 'inspector_readback_drift';
-export type StudioLiveAssetResourceDebugDiagnosticCode =
-  | 'missing_live_session'
-  | 'missing_asset_resource'
-  | 'asset_resource_readback_drift';
-export type StudioLiveRuntimeTelemetryDebugDiagnosticCode =
-  | 'missing_live_session'
-  | 'telemetry_readback_missing'
-  | 'runtime_readback_mismatch';
-export type StudioLiveDebugCommandProposalDiagnosticCode =
-  | 'missing_live_session'
-  | 'missing_command_proposal_panel'
-  | 'debug_command_scope_mismatch'
-  | 'unsupported_debug_command'
-  | 'missing_command_result_evidence';
-export type StudioAuthoredBrowserDebugDiagnosticCode =
-  | 'missing_authored_fixture'
-  | 'missing_browser_interaction'
-  | 'stale_browser_interaction'
-  | 'selected_authored_object_mismatch'
-  | 'selected_authored_asset_mismatch'
-  | 'missing_studio_debug_evidence';
 export type StudioAssetInventoryDiagnosticCode =
   | 'asset_inventory_artifact_mismatch'
   | 'asset_inventory_missing_entry'
   | 'asset_inventory_missing_resolution'
   | 'asset_inventory_dependency_mismatch'
   | 'asset_inventory_diagnostic';
-export type StudioPublishEvidenceDiagnosticCode =
-  | 'publish_evidence_missing'
-  | 'publish_evidence_version_mismatch'
-  | 'publish_evidence_stale'
-  | 'publish_evidence_dependency_guard_failed'
-  | 'publish_evidence_run_smoke_failed';
 export type StudioWorkspaceOpenReadDiagnosticCode =
   | 'missing_manifest'
   | 'workspace_source_path_escape'
@@ -285,14 +241,6 @@ export type StudioCatalogWorkflowDiagnosticCode =
   | 'catalog_workflow_source_missing'
   | 'catalog_workflow_source_hash_mismatch'
   | 'catalog_workflow_validation_diagnostic';
-export type StudioAuthoredStatePanelReflectionDiagnosticCode =
-  | 'authored_panel_marker_missing'
-  | 'authored_scene_object_missing_from_hierarchy'
-  | 'authored_scene_object_missing_from_inspector'
-  | 'authored_scene_object_missing_from_viewport'
-  | 'authored_catalog_entry_missing_from_assets'
-  | 'authored_catalog_entry_missing_from_inspector';
-
 export interface StudioGameWorkspaceReadModel {
   readonly workspaceVersion: 'studio-game-workspace.v0';
   readonly workspaceRoot: string;
@@ -358,7 +306,6 @@ export interface StudioGameWorkspaceReadout {
   readonly runtimeBackend: {
     readonly backendMode: AshaGameRuntimeBackendMode;
     readonly backendProfile: string;
-    readonly backendProofRefs: readonly string[];
   };
   readonly publishCommand: string;
   readonly publishVerifyCommand: string;
@@ -621,60 +568,6 @@ export interface StudioCatalogWorkflowReadModel {
   readonly workflowHash: string;
 }
 
-export interface StudioAuthoredStatePanelReflectionReadModel {
-  readonly reflectionVersion: 'studio-authored-state-panel-reflection.v0';
-  readonly visiblePanelMarkers: readonly string[];
-  readonly expected: {
-    readonly sceneObjectId: SceneObjectId;
-    readonly sceneObjectLabel: string;
-    readonly catalogAssetId: string;
-  };
-  readonly hierarchyPanel: {
-    readonly objectId: SceneObjectId | null;
-    readonly displayName: string | null;
-    readonly selected: boolean;
-    readonly sceneObjectSnapshotHash: string;
-  };
-  readonly viewportPanel: {
-    readonly selectedEntityId: string | null;
-    readonly selectedRenderableId: string | null;
-    readonly renderableIds: readonly string[];
-    readonly sceneHash: string;
-  };
-  readonly inspectorPanel: {
-    readonly selectedObjectId: SceneObjectId | null;
-    readonly selectedObjectName: string | null;
-    readonly selectedCatalogAssetId: string | null;
-    readonly selectedCatalogAssetKind: string | null;
-  };
-  readonly assetsPanel: {
-    readonly assetId: string | null;
-    readonly kind: string | null;
-    readonly sourcePath: string | null;
-    readonly dependencyStatus: 'none' | 'resolved' | 'missing' | null;
-    readonly inventoryHash: string;
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_ui_mutation',
-    'not_dom_screenshot',
-  ];
-  readonly reflectionHash: string;
-}
-
-export type StudioAuthoredStatePanelReflectionResult =
-  | {
-      readonly ok: true;
-      readonly reflection: StudioAuthoredStatePanelReflectionReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly reflection: StudioAuthoredStatePanelReflectionReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
 export interface StudioDevtoolsAttachTransport {
   readonly exchange: (
     message: DevtoolsAttachClientMessage,
@@ -788,45 +681,17 @@ export type StudioGameWorkspaceCommandProposalResult =
       readonly diagnostics: readonly StudioDiagnostic[];
     };
 
-export interface StudioGameWorkspaceAttachEvidenceArtifact {
-  readonly artifactKind: 'studio_game_workspace_attach_evidence';
-  readonly artifactVersion: 'studio-game-workspace-attach-evidence.v0';
-  readonly artifactId: string;
-  readonly generatedFrom: {
-    readonly workspaceHash: string;
-    readonly attachHash: string;
-    readonly liveHash: string | null;
-    readonly commandProposalHashes: readonly string[];
-  };
-  readonly workspace: StudioGameWorkspaceReadout;
-  readonly attach: StudioGameWorkspaceAttachReadModel;
-  readonly live: StudioGameWorkspaceLiveReadModel | null;
-  readonly commandProposals: readonly StudioGameWorkspaceCommandProposalReadModel[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_native_runtime_authority',
-    'not_hardware_gpu_evidence',
-    'not_performance_evidence',
-    'not_publish_artifact',
-  ];
-  readonly artifactHash: string;
-}
-
-export type StudioRuntimeSessionType = 'preview' | 'attached' | 'fixture_reserved' | 'replay_reserved';
-export type StudioRuntimeSessionStatus = 'available' | 'attached' | 'reserved' | 'degraded';
+export type StudioRuntimeSessionType = 'preview' | 'attached';
+export type StudioRuntimeSessionStatus = 'available' | 'attached' | 'degraded';
 export type StudioRuntimeBackendCompatibilityState =
   | 'compatible'
   | 'pending_attach'
-  | 'missing_evidence'
-  | 'incompatible'
-  | 'reserved';
+  | 'incompatible';
 
 export interface StudioRuntimeBackendEvidence {
   readonly source: 'devtools.handshake.runtime';
   readonly backendMode: AshaGameRuntimeBackendMode | null;
   readonly backendProfile: string | null;
-  readonly backendProofRefs: readonly string[];
-  readonly nativeProofRef: string | null;
   readonly launcherName: string | null;
   readonly runtimeProfileId: string | null;
   readonly nonClaims: readonly string[];
@@ -842,9 +707,8 @@ export interface StudioRuntimeSessionReadModel {
   readonly runtimeMode: 'reference' | 'native' | 'wasm' | 'mock' | 'degraded';
   readonly backendMode: AshaGameRuntimeBackendMode;
   readonly backendProfile: string;
-  readonly backendProofRefs: readonly string[];
   readonly backendCompatibilityState: StudioRuntimeBackendCompatibilityState;
-  readonly attachStatus: 'not_attached' | 'attached' | 'reserved';
+  readonly attachStatus: 'not_attached' | 'attached';
   readonly workspaceHash: string;
   readonly attachHash: string | null;
   readonly liveHash: string | null;
@@ -1208,86 +1072,6 @@ export interface StudioRuntimeSessionInspectionReadModel {
   readonly inspectionHash: string;
 }
 
-export type StudioAshaDemoProductPathMode = 'definition_authoring' | 'live_runtime_inspection';
-
-export interface StudioAshaDemoProductPathContentReadModel {
-  readonly kind:
-    | 'manifest'
-    | 'project_bundle'
-    | 'entity_definition'
-    | 'scene_document'
-    | 'level_preset'
-    | 'catalog'
-    | 'runtime_entry';
-  readonly label: string;
-  readonly path: string;
-  readonly validationStatus: 'valid' | 'invalid' | 'pending_live_attach' | 'unavailable';
-  readonly evidenceHash: string | null;
-}
-
-export interface StudioAshaDemoProductPathReadModel {
-  readonly productPathVersion: 'studio-asha-demo-product-path.v0';
-  readonly project: {
-    readonly gameId: string | null;
-    readonly workspaceRoot: string | null;
-    readonly manifestPath: string;
-    readonly projectBundlePath: 'project/project-bundle.json';
-  };
-  readonly mode: StudioAshaDemoProductPathMode;
-  readonly authoredContent: readonly StudioAshaDemoProductPathContentReadModel[];
-  readonly definitionAuthoring: {
-    readonly generatedLevelPresetStatus: StudioGeneratedLevelInspectionReadModel['definitionAuthoring']['validationStatus'];
-    readonly gameplayPresetStatus: StudioPlayableLoopDefinitionAuthoringReadModel['validation']['status'];
-    readonly generatedLevelPresetPath: StudioGeneratedLevelInspectionReadModel['definitionAuthoring']['presetPath'];
-    readonly gameplayPresetPath: StudioPlayableLoopDefinitionAuthoringReadModel['source']['presetPath'];
-  };
-  readonly liveRuntime: {
-    readonly attachState: StudioRuntimeSessionInspectionReadModel['attachState'];
-    readonly sessionStatus: StudioRuntimeSessionInspectionReadModel['sessionStatus'];
-    readonly sessionId: string | null;
-    readonly tick: number | null;
-    readonly sessionHash: string | null;
-    readonly replayRecordCount: number;
-    readonly lifecycleLabel: string | null;
-    readonly playerHealth: string | null;
-    readonly enemyHealth: string | null;
-  };
-  readonly controls: {
-    readonly attach: {
-      readonly commandId: 'runtime_session.attach_public_facade';
-      readonly available: boolean;
-      readonly publicSurface: '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)';
-    };
-    readonly runPolicy: {
-      readonly commandId: 'runtime_session.run_autonomous_policy_tick';
-      readonly available: boolean;
-      readonly disabledReason: string | null;
-      readonly publicSurface: '@asha/runtime-session:RuntimeSessionFacade.runAutonomousPolicyTick';
-    };
-    readonly restart: {
-      readonly commandId: 'runtime.restart_session_intent';
-      readonly available: boolean;
-      readonly disabledReason: string | null;
-      readonly publicSurface: '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart';
-    };
-  };
-  readonly publicSurfacesUsed: readonly string[];
-  readonly boundaries: {
-    readonly definitionAuthoringOwnsStoredFiles: true;
-    readonly liveRuntimeInspectionUsesPublicFacade: true;
-    readonly studioOwnsGameplayAuthority: false;
-    readonly runtimeToDefinitionExport: false;
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_transport',
-    'not_demo_local_shadow_state',
-    'not_runtime_to_definition_export',
-  ];
-  readonly productPathHash: string;
-}
-
 export interface StudioGeneratedLevelPresetDraft {
   readonly presetId: string;
   readonly seed: number;
@@ -1415,449 +1199,6 @@ export interface StudioRunningProjectDiscoveryReadModel {
   readonly discoveryHash: string;
 }
 
-export interface StudioLiveDebugSessionChildArtifactRef {
-  readonly kind: string;
-  readonly path: string;
-  readonly artifactHash: string;
-  readonly fileHash: string;
-  readonly expectedArtifactHash?: string;
-  readonly expectedFileHash?: string;
-}
-
-export interface StudioLiveDebugSessionIdentityReadModel {
-  readonly identityVersion: 'studio-live-debug-session-identity.v0';
-  readonly sessionId: string;
-  readonly sessionHash: string;
-  readonly sessionType: StudioRuntimeSessionType;
-  readonly attachStatus: 'not_attached' | 'attached' | 'reserved';
-  readonly runtimeMode: StudioRuntimeSessionReadModel['runtimeMode'];
-  readonly backendMode: AshaGameRuntimeBackendMode;
-  readonly backendProfile: string;
-  readonly backendProofRefs: readonly string[];
-  readonly backendCompatibilityState: StudioRuntimeBackendCompatibilityState;
-  readonly endpoint: string | null;
-  readonly workspaceHash: string;
-  readonly attachHash: string;
-  readonly liveHash: string;
-  readonly liveFreshness: {
-    readonly freshnessVersion: 'studio-live-debug-freshness.v0';
-    readonly attachSequenceId: string;
-    readonly readSequenceId: string;
-    readonly readAfterAttach: boolean;
-    readonly projectionTick: number | null;
-    readonly runtimeSessionSummaryHash: string | null;
-    readonly renderDiffHash: string | null;
-    readonly telemetrySampleCount: number;
-  };
-  readonly childArtifacts: readonly StudioLiveDebugSessionChildArtifactRef[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_studio_runtime_authority',
-    'not_private_transport',
-    'not_hardware_gpu_evidence',
-    'not_performance_evidence',
-  ];
-  readonly identityHash: string;
-}
-
-export type StudioLiveDebugSessionIdentityResult =
-  | {
-      readonly ok: true;
-      readonly identity: StudioLiveDebugSessionIdentityReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly identity: StudioLiveDebugSessionIdentityReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export interface StudioLiveSceneEntityDebugInspectorReadModel {
-  readonly inspectorVersion: 'studio-live-scene-entity-debug-inspector.v0';
-  readonly sessionId: string;
-  readonly scene: {
-    readonly sceneId: string;
-    readonly sceneHash: string;
-    readonly renderableCount: number;
-    readonly selectedRenderableId: string | null;
-    readonly selectedEntityId: string | null;
-    readonly sceneObjectSnapshotHash: string;
-  };
-  readonly entity: {
-    readonly entityId: string | null;
-    readonly sceneObjectId: SceneObjectId | null;
-    readonly label: string | null;
-    readonly sourceState: StudioEntitySourceState | null;
-    readonly renderableId: string | null;
-    readonly provenance: {
-      readonly renderableId: string | null;
-      readonly materialRef: string | null;
-      readonly meshRef: string | null;
-    } | null;
-    readonly transform: SceneTransform | null;
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_ecs_read',
-    'not_source_authoring_write',
-  ];
-  readonly inspectorHash: string;
-}
-
-export type StudioLiveSceneEntityDebugInspectorResult =
-  | {
-      readonly ok: true;
-      readonly inspector: StudioLiveSceneEntityDebugInspectorReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly inspector: StudioLiveSceneEntityDebugInspectorReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export interface StudioLiveAssetResourceDebugInspectorReadModel {
-  readonly inspectorVersion: 'studio-live-asset-resource-debug-inspector.v0';
-  readonly sessionId: string;
-  readonly inventoryHash: string;
-  readonly selectedAssetId: string;
-  readonly asset: {
-    readonly assetId: string | null;
-    readonly kind: string | null;
-    readonly sourcePath: string | null;
-    readonly sourceHash: string | null;
-    readonly importStatus: string | null;
-    readonly dependencyStatus: 'none' | 'resolved' | 'missing' | null;
-    readonly referencedRenderableIds: readonly string[];
-    readonly publishOutputKey: string | null;
-    readonly packedHash: string | null;
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_asset_database',
-    'not_publish_builder',
-  ];
-  readonly inspectorHash: string;
-}
-
-export type StudioLiveAssetResourceDebugInspectorResult =
-  | {
-      readonly ok: true;
-      readonly inspector: StudioLiveAssetResourceDebugInspectorReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly inspector: StudioLiveAssetResourceDebugInspectorReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export interface StudioLiveRuntimeTelemetryDebugInspectorReadModel {
-  readonly inspectorVersion: 'studio-live-runtime-telemetry-debug-inspector.v0';
-  readonly sessionId: string;
-  readonly runtime: {
-    readonly runtimeMode: StudioRuntimeSessionReadModel['runtimeMode'];
-    readonly backendMode: AshaGameRuntimeBackendMode;
-    readonly backendProfile: string;
-    readonly backendProofRefs: readonly string[];
-    readonly endpoint: string | null;
-    readonly attachHash: string;
-    readonly liveHash: string;
-  };
-  readonly projection: {
-    readonly runtimeSessionSummaryHash: string;
-    readonly renderDiffHash: string;
-    readonly entityCount: number;
-    readonly tick: number;
-  } | null;
-  readonly telemetry: {
-    readonly sampleCount: number;
-    readonly sampleMetrics: readonly string[];
-    readonly commandQueueDepth: number | null;
-    readonly acceptedCommandCount: number | null;
-    readonly rejectedCommandCount: number | null;
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_transport',
-    'not_hardware_gpu_evidence',
-    'not_performance_evidence',
-  ];
-  readonly inspectorHash: string;
-}
-
-export type StudioLiveRuntimeTelemetryDebugInspectorResult =
-  | {
-      readonly ok: true;
-      readonly inspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly inspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export interface StudioLiveDebugCommandProposalSurfaceReadModel {
-  readonly surfaceVersion: 'studio-live-debug-command-proposals.v0';
-  readonly sessionId: string;
-  readonly workspaceHash: string;
-  readonly attachHash: string;
-  readonly liveHash: string;
-  readonly sceneEntityInspectorHash: string;
-  readonly runtimeTelemetryInspectorHash: string;
-  readonly allowedActionIds: readonly StudioCommandProposalActionId[];
-  readonly actions: readonly StudioCommandProposalActionReadModel[];
-  readonly proposals: readonly StudioGameWorkspaceCommandProposalReadModel[];
-  readonly proposalStatuses: readonly ('accepted' | 'rejected')[];
-  readonly acceptedProposalHash: string | null;
-  readonly rejectedProposalHash: string | null;
-  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'does_not_mutate_without_devtools_acceptance',
-    'not_runtime_authority',
-    'not_private_runtime_mutation',
-    'not_freeform_json_method_call',
-  ];
-  readonly surfaceHash: string;
-}
-
-export type StudioLiveDebugCommandProposalSurfaceResult =
-  | {
-      readonly ok: true;
-      readonly surface: StudioLiveDebugCommandProposalSurfaceReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly surface: StudioLiveDebugCommandProposalSurfaceReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export interface StudioAuthoredBrowserDebugInputFixture {
-  readonly fixtureKind: 'studio_authored_roundtrip_fixture';
-  readonly fixtureHash: string;
-  readonly authoredScene: {
-    readonly objectId: string;
-    readonly record: {
-      readonly label: string;
-      readonly transform: SceneTransform;
-    };
-  };
-  readonly authoredCatalog: {
-    readonly authoredAssetId: string;
-    readonly authoredCatalogHash: string;
-    readonly entry: {
-      readonly source: string;
-    };
-  };
-}
-
-export interface StudioAuthoredBrowserDebugInputInteraction {
-  readonly artifactKind: 'studio_authored_browser_interaction_proof';
-  readonly artifactHash: string;
-  readonly authoredInteraction: {
-    readonly objectId: string;
-    readonly assetId: string;
-    readonly inputEventCount: number;
-    readonly typedRequestCount: number;
-    readonly readbackCount: number;
-    readonly finalSelectedObjectId: string;
-    readonly finalSelectedAssetId: string;
-    readonly interactionHash: string;
-    readonly runtimeWorldHash: string;
-  };
-}
-
-export interface StudioAuthoredBrowserDebugReadModel {
-  readonly debugVersion: 'studio-authored-browser-debug.v0';
-  readonly authoredFixtureHash: string;
-  readonly browserInteractionHash: string;
-  readonly studioDebugEvidenceHash: string | null;
-  readonly selected: {
-    readonly objectId: string | null;
-    readonly assetId: string | null;
-    readonly label: string | null;
-    readonly transform: SceneTransform | null;
-    readonly finalSelectedObjectId: string | null;
-    readonly finalSelectedAssetId: string | null;
-  };
-  readonly browserReadback: {
-    readonly inputEventCount: number;
-    readonly typedRequestCount: number;
-    readonly readbackCount: number;
-    readonly interactionHash: string | null;
-    readonly runtimeWorldHash: string | null;
-  };
-  readonly studioCorrelation: {
-    readonly authoredObjectMatchesBrowserSelection: boolean;
-    readonly authoredAssetMatchesBrowserSelection: boolean;
-    readonly typedRequestsMatchInputs: boolean;
-    readonly readbacksMatchTypedRequests: boolean;
-    readonly studioDebugEvidencePresent: boolean;
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_private_runtime_transport',
-    'not_source_write',
-    'not_hardware_gpu_evidence',
-    'not_performance_evidence',
-  ];
-  readonly debugHash: string;
-}
-
-export type StudioAuthoredBrowserDebugResult =
-  | {
-      readonly ok: true;
-      readonly debug: StudioAuthoredBrowserDebugReadModel;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly debug: StudioAuthoredBrowserDebugReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export type StudioPublishEvidenceStatus = 'ready' | 'missing' | 'stale' | 'degraded';
-
-export interface StudioPublishEvidenceResourceReadModel {
-  readonly assetId: string;
-  readonly outputKey: string;
-  readonly sourceHash: string | null;
-  readonly packedHash: string | null;
-  readonly runnableHash: string | null;
-}
-
-export interface StudioPublishEvidenceReadModel {
-  readonly publishEvidenceVersion: 'studio-publish-evidence.v0';
-  readonly status: StudioPublishEvidenceStatus;
-  readonly evidenceKind: string;
-  readonly evidenceVersion: string;
-  readonly evidenceId: string | null;
-  readonly evidenceHash: string | null;
-  readonly artifactPath: string | null;
-  readonly artifactHash: string | null;
-  readonly artifactVersion: string | null;
-  readonly artifactFileHash: string | null;
-  readonly runnableTarget: string | null;
-  readonly runnableEntrypointPath: string | null;
-  readonly runnableEntrypointHash: string | null;
-  readonly resourcePackManifestPath: string | null;
-  readonly resourcePackManifestHash: string | null;
-  readonly compiledAssetCount: number;
-  readonly publishAssetCount: number;
-  readonly packedResources: readonly StudioPublishEvidenceResourceReadModel[];
-  readonly dependencyGuard: {
-    readonly status: string;
-    readonly inspectedFileCount: number;
-    readonly forbiddenFragments: readonly string[];
-  };
-  readonly runSmoke: {
-    readonly path: string | null;
-    readonly fileHash: string | null;
-    readonly runtimeMode: string | null;
-    readonly launcherName: string | null;
-    readonly worldHash: string | null;
-    readonly acceptedCommandStatus: string | null;
-    readonly rejectedCommandStatus: string | null;
-    readonly resolvedResourceCount: number;
-  };
-  readonly checks: readonly string[];
-  readonly validations: readonly string[];
-  readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly string[];
-  readonly publishEvidenceHash: string;
-}
-
-export type StudioPublishEvidenceLoadResult =
-  | {
-      readonly ok: true;
-      readonly publishEvidence: StudioPublishEvidenceReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    }
-  | {
-      readonly ok: false;
-      readonly publishEvidence: StudioPublishEvidenceReadModel;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
-export type StudioWorkspaceCockpitEvidenceDiagnosticCode =
-  | 'cockpit_missing_game_workspace'
-  | 'cockpit_missing_asset_inventory'
-  | 'cockpit_missing_runtime_sessions'
-  | 'cockpit_missing_command_proposals'
-  | 'cockpit_missing_publish_evidence'
-  | 'cockpit_missing_panel_marker';
-
-export interface StudioWorkspaceCockpitEvidenceArtifact {
-  readonly artifactKind: 'studio_workspace_cockpit_evidence';
-  readonly artifactVersion: 'studio-workspace-cockpit-evidence.v0';
-  readonly generatedFrom: {
-    readonly studioWorkspaceHash: string;
-    readonly gameWorkspaceHash: string;
-    readonly assetInventoryHash: string;
-    readonly runtimeSessionListHash: string;
-    readonly commandProposalPanelHash: string;
-    readonly publishEvidenceHash: string;
-  };
-  readonly workspace: {
-    readonly gameId: string;
-    readonly manifestPath: string;
-    readonly manifestHash: string;
-    readonly attachEndpoint: string;
-    readonly publishCommand: string;
-  };
-  readonly panels: {
-    readonly visibleMarkers: readonly string[];
-    readonly assetInventory: {
-      readonly status: string;
-      readonly entryCount: number;
-      readonly evidenceRefs: readonly StudioAssetInventoryEvidenceRef[];
-    };
-    readonly runtimeSessions: {
-      readonly activeSessionId: string;
-      readonly statuses: readonly string[];
-    };
-    readonly commandProposals: {
-      readonly actionIds: readonly StudioCommandProposalActionId[];
-      readonly proposalHashes: readonly string[];
-      readonly statuses: readonly string[];
-    };
-    readonly publishEvidence: {
-      readonly status: StudioPublishEvidenceStatus | 'missing';
-      readonly evidenceHash: string | null;
-      readonly artifactHash: string | null;
-      readonly dependencyGuard: string;
-    };
-  };
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_publish_builder',
-    'not_hardware_gpu_evidence',
-    'not_performance_evidence',
-  ];
-  readonly artifactHash: string;
-}
-
-export type StudioWorkspaceCockpitEvidenceResult =
-  | {
-      readonly ok: true;
-      readonly artifact: StudioWorkspaceCockpitEvidenceArtifact;
-      readonly diagnostics: readonly [];
-    }
-  | {
-      readonly ok: false;
-      readonly artifact: StudioWorkspaceCockpitEvidenceArtifact;
-      readonly diagnostics: readonly StudioDiagnostic[];
-    };
-
 export interface StudioAssetInventoryEvidenceRef {
   readonly kind: string;
   readonly path: string;
@@ -1914,41 +1255,6 @@ export type StudioAssetInventoryLoadResult =
       readonly inventory: StudioAssetInventoryReadModel | null;
       readonly diagnostics: readonly StudioDiagnostic[];
     };
-
-export interface StudioCompatibilityRequirement {
-  readonly packageName: string;
-  readonly compatibilityVersion: string;
-  readonly packageVersion: string;
-  readonly packageLink: string;
-  readonly requiredForStartup: boolean;
-  readonly presentInStudio: boolean;
-  readonly source: string;
-}
-
-export interface StudioAshaPackageVersion {
-  readonly packageName: string;
-  readonly version: string;
-  readonly commit: string | null;
-}
-
-export interface StudioPackageSurfaceReadback {
-  readonly presentPackageVersions: readonly StudioAshaPackageVersion[];
-  readonly missingRequiredPackages: readonly StudioCompatibilityRequirement[];
-  readonly mismatchedRequiredPackages: readonly {
-    readonly requirement: StudioCompatibilityRequirement;
-    readonly actualLink: string;
-  }[];
-}
-
-export interface StudioCompatibilityEvidence {
-  readonly contractsVersion: string;
-  readonly commandRegistryVersion: string;
-  readonly editorToolsVersion: string;
-  readonly runtimeBridgeVersion: string | null;
-  readonly studioEvidenceVersion: 'studio-evidence.deferred-v0';
-  readonly ashaPackageVersions: readonly StudioAshaPackageVersion[];
-  readonly diagnostics: readonly StudioDiagnostic[];
-}
 
 export interface StudioSessionReadModel {
   readonly sessionId: string;
@@ -2106,8 +1412,6 @@ export interface StudioCommandResultReadModel {
 
 export interface StudioWorkspaceReadModel {
   readonly workspaceId: string;
-  readonly compatibilityMarker: string;
-  readonly compatibility: StudioCompatibilityEvidence;
   readonly session: StudioSessionReadModel;
   readonly scene: StudioSceneReadModel;
   readonly flatSceneDocument: FlatSceneDocument;
@@ -2117,65 +1421,6 @@ export interface StudioWorkspaceReadModel {
   readonly timeline: readonly StudioCommandTimelineEntry[];
   readonly commandResults: readonly StudioCommandResultReadModel[];
   readonly timelineSequence: number;
-}
-
-export interface StudioAgentReadoutArtifact {
-  readonly schemaVersion: 1;
-  readonly artifactKind: 'agent_readout';
-  readonly artifactId: string;
-  readonly generatedAtIso: string;
-  readonly workspaceId: string;
-  readonly compatibilityMarker: string;
-  readonly session: StudioSessionReadModel;
-  readonly compatibility: StudioCompatibilityEvidence;
-  readonly scene: StudioSceneReadModel;
-  readonly entities: readonly StudioEntityReadModel[];
-  readonly selectedEntityId: string | null;
-  readonly entityListHash: string;
-  readonly viewport: StudioViewportReadout | undefined;
-  readonly renderSettings: StudioRenderSettingsReadModel | undefined;
-  readonly uiState: StudioUiStateReadModel | undefined;
-  readonly commandTimeline: readonly StudioCommandTimelineEntry[];
-  readonly commandResults: readonly StudioCommandResultReadModel[];
-  readonly readbackMarker: string;
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly knownLimitations: readonly string[];
-}
-
-export interface StudioCompactAgentReadout {
-  readonly schemaVersion: 1;
-  readonly artifactKind: 'compact_agent_readout';
-  readonly readoutVersion: 'studio-compact-readout.v0';
-  readonly workspaceId: string;
-  readonly compatibilityMarker: string;
-  readonly session: {
-    readonly sessionId: string;
-    readonly scenarioId: string;
-    readonly scenarioLabel: string;
-    readonly status: StudioWorkspaceStatus;
-  };
-  readonly scene: {
-    readonly sceneId: string;
-    readonly sceneHash: string;
-    readonly renderableCount: number;
-    readonly selectedRenderableId: string | null;
-  };
-  readonly selectedEntity: {
-    readonly entityId: string;
-    readonly label: string;
-    readonly kind: StudioEntityKind;
-    readonly sourceState: StudioEntitySourceState;
-  } | null;
-  readonly viewport: StudioViewportReadout;
-  readonly latestViewportHit: StudioViewportHitReadModel | null;
-  readonly renderSettings: StudioRenderSettingsReadModel;
-  readonly uiState: StudioUiStateReadModel | undefined;
-  readonly latestCommand: StudioCommandTimelineEntry | null;
-  readonly latestCommandResult: StudioCommandResultReadModel | null;
-  readonly timelineSequence: number;
-  readonly readbackMarker: string;
-  readonly diagnostics: readonly StudioDiagnostic[];
-  readonly nonClaims: readonly string[];
 }
 
 export interface StudioViewportReadout {
@@ -2270,13 +1515,6 @@ export interface StudioAssetBrowserCategoryReadModel {
   readonly count: number;
 }
 
-export interface StudioPackageJsonLike {
-  readonly dependencies?: Readonly<Record<string, string>>;
-  readonly devDependencies?: Readonly<Record<string, string>>;
-  readonly peerDependencies?: Readonly<Record<string, string>>;
-  readonly optionalDependencies?: Readonly<Record<string, string>>;
-}
-
 export interface StudioEntityProjectionDiagnostic {
   readonly code: StudioEntityProjectionDiagnosticCode;
   readonly severity: 'error';
@@ -2312,49 +1550,6 @@ export interface StudioSceneObjectCommandApplyResult {
   readonly diagnostics: readonly StudioDiagnostic[];
 }
 
-const ASHA_PACKAGE_LINK_ROOT = ['link:..', 'asha-engine', 'ts', 'packages'].join('/');
-
-export const STUDIO_EVIDENCE_DEFERRED_VERSION = 'studio-evidence.deferred-v0';
-
-export const ASHA_COMPATIBILITY_REQUIREMENTS: readonly StudioCompatibilityRequirement[] = [
-  {
-    packageName: '@asha/contracts',
-    compatibilityVersion: 'contracts.v0',
-    packageVersion: '0.1.0',
-    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/contracts`,
-    requiredForStartup: true,
-    presentInStudio: true,
-    source: 'public @asha/contracts package root',
-  },
-  {
-    packageName: '@asha/command-registry',
-    compatibilityVersion: 'command-registry.v0',
-    packageVersion: '0.1.0',
-    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/command-registry`,
-    requiredForStartup: true,
-    presentInStudio: true,
-    source: 'public @asha/command-registry package root',
-  },
-  {
-    packageName: '@asha/editor-tools',
-    compatibilityVersion: 'editor-tools.v0',
-    packageVersion: '0.1.0',
-    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/editor-tools`,
-    requiredForStartup: true,
-    presentInStudio: true,
-    source: 'public @asha/editor-tools package root',
-  },
-  {
-    packageName: '@asha/runtime-bridge',
-    compatibilityVersion: 'runtime-bridge.v0',
-    packageVersion: '0.1.0',
-    packageLink: `${ASHA_PACKAGE_LINK_ROOT}/runtime-bridge`,
-    requiredForStartup: false,
-    presentInStudio: true,
-    source: 'public @asha/runtime-bridge package root',
-  },
-];
-
 function diagnostic(
   severity: StudioDiagnosticSeverity,
   code: string,
@@ -2363,127 +1558,6 @@ function diagnostic(
   remediation: string | null,
 ): StudioDiagnostic {
   return { severity, code, message, source, remediation };
-}
-
-function packageSections(packageJson: StudioPackageJsonLike): readonly Readonly<Record<string, string>>[] {
-  return [
-    packageJson.dependencies ?? {},
-    packageJson.devDependencies ?? {},
-    packageJson.peerDependencies ?? {},
-    packageJson.optionalDependencies ?? {},
-  ];
-}
-
-function findDeclaredPackageLink(
-  packageJson: StudioPackageJsonLike,
-  packageName: string,
-): string | undefined {
-  for (const section of packageSections(packageJson)) {
-    const value = section[packageName];
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function defaultStudioPackageJsonLike(): StudioPackageJsonLike {
-  const dependencies = Object.fromEntries(
-    ASHA_COMPATIBILITY_REQUIREMENTS.map(requirement => [
-      requirement.packageName,
-      requirement.packageLink,
-    ]),
-  );
-  return { dependencies };
-}
-
-export function readStudioPackageSurfaces(
-  packageJson: StudioPackageJsonLike = defaultStudioPackageJsonLike(),
-  requirements: readonly StudioCompatibilityRequirement[] = ASHA_COMPATIBILITY_REQUIREMENTS,
-): StudioPackageSurfaceReadback {
-  const presentPackageVersions: StudioAshaPackageVersion[] = [];
-  const missingRequiredPackages: StudioCompatibilityRequirement[] = [];
-  const mismatchedRequiredPackages: {
-    readonly requirement: StudioCompatibilityRequirement;
-    readonly actualLink: string;
-  }[] = [];
-
-  for (const requirement of requirements) {
-    if (!requirement.presentInStudio) {
-      continue;
-    }
-    const actualLink = findDeclaredPackageLink(packageJson, requirement.packageName);
-    if (actualLink === undefined) {
-      if (requirement.requiredForStartup) {
-        missingRequiredPackages.push(requirement);
-      }
-      continue;
-    }
-    if (actualLink !== requirement.packageLink) {
-      if (requirement.requiredForStartup) {
-        mismatchedRequiredPackages.push({ requirement, actualLink });
-      }
-      continue;
-    }
-    presentPackageVersions.push({
-      packageName: requirement.packageName,
-      version: requirement.packageVersion,
-      commit: null,
-    });
-  }
-
-  return { presentPackageVersions, missingRequiredPackages, mismatchedRequiredPackages };
-}
-
-function compatibilityVersionForPackage(
-  packageName: string,
-  readback: StudioPackageSurfaceReadback,
-  requirements: readonly StudioCompatibilityRequirement[],
-): string {
-  const requirement = requirements.find(item => item.packageName === packageName);
-  if (requirement === undefined) {
-    return 'missing';
-  }
-  const present = readback.presentPackageVersions.some(item => item.packageName === packageName);
-  return present ? requirement.compatibilityVersion : 'missing';
-}
-
-export function buildStudioCompatibilityEvidence(options: {
-  readonly packageJson?: StudioPackageJsonLike;
-  readonly requirements?: readonly StudioCompatibilityRequirement[];
-} = {}): StudioCompatibilityEvidence {
-  const requirements = options.requirements ?? ASHA_COMPATIBILITY_REQUIREMENTS;
-  const readback = readStudioPackageSurfaces(options.packageJson, requirements);
-  const diagnostics = [
-    ...readback.missingRequiredPackages.map(requirement =>
-      diagnostic(
-        'error',
-        'asha.compatibility.required_package_missing',
-        `${requirement.packageName} is required through the public package root but is not declared.`,
-        requirement.source,
-        'Restore the approved package-root dependency before committing the Studio UI base.',
-      ),
-    ),
-    ...readback.mismatchedRequiredPackages.map(mismatch =>
-      diagnostic(
-        'error',
-        'asha.compatibility.required_package_link_mismatch',
-        `${mismatch.requirement.packageName} must use ${mismatch.requirement.packageLink} but saw ${mismatch.actualLink}.`,
-        mismatch.requirement.source,
-        'Use the approved local package link from boundary-policy.json.',
-      ),
-    ),
-  ];
-
-  return {
-    contractsVersion: compatibilityVersionForPackage('@asha/contracts', readback, requirements),
-    commandRegistryVersion: compatibilityVersionForPackage('@asha/command-registry', readback, requirements),
-    editorToolsVersion: compatibilityVersionForPackage('@asha/editor-tools', readback, requirements),
-    runtimeBridgeVersion: compatibilityVersionForPackage('@asha/runtime-bridge', readback, requirements),
-    studioEvidenceVersion: STUDIO_EVIDENCE_DEFERRED_VERSION,
-    ashaPackageVersions: readback.presentPackageVersions,
-    diagnostics,
-  };
 }
 
 function stableJson(value: unknown): string {
@@ -2656,7 +1730,6 @@ export function buildStudioGameWorkspaceReadout(
     runtimeBackend: {
       backendMode: workspace.manifest.runtime.backendMode,
       backendProfile: workspace.manifest.runtime.backendProfile,
-      backendProofRefs: workspace.manifest.runtime.backendProofRefs,
     },
     publishCommand: workspace.publishCommand,
     publishVerifyCommand: workspace.publishVerifyCommand,
@@ -2812,12 +1885,6 @@ function readRuntimeBackendEvidence(runtime: unknown): StudioRuntimeBackendEvide
   const backendProfile = typeof record.backendProfile === 'string' && record.backendProfile.length > 0
     ? record.backendProfile
     : null;
-  const backendProofRefs = Array.isArray(record.backendProofRefs)
-    ? record.backendProofRefs.filter((ref): ref is string => typeof ref === 'string' && ref.length > 0)
-    : [];
-  const nativeProofRef = typeof record.nativeProofRef === 'string' && record.nativeProofRef.length > 0
-    ? record.nativeProofRef
-    : null;
   const launcherName = typeof record.launcherName === 'string' && record.launcherName.length > 0
     ? record.launcherName
     : null;
@@ -2832,8 +1899,6 @@ function readRuntimeBackendEvidence(runtime: unknown): StudioRuntimeBackendEvide
     source: 'devtools.handshake.runtime',
     backendMode,
     backendProfile,
-    backendProofRefs,
-    nativeProofRef,
     launcherName,
     runtimeProfileId,
     nonClaims,
@@ -3199,7 +2264,7 @@ export function buildStudioCommandProposalPanel(input: {
       },
     ],
   };
-  const actionDiagnostics = activeSession === undefined || activeSession.status === 'reserved'
+  const actionDiagnostics = activeSession === undefined
     ? [
         studioGameWorkspaceCommandDiagnostic(
           'command_runtime_rejected',
@@ -3273,13 +2338,9 @@ export function buildStudioRuntimeSessionList(input: {
   const live = input.live ?? null;
   const backendMode = input.workspace.manifest.runtime.backendMode;
   const backendProfile = input.workspace.manifest.runtime.backendProfile;
-  const backendProofRefs = input.workspace.manifest.runtime.backendProofRefs;
   const attachedBackendEvidence = attach?.runtimeBackendEvidence ?? null;
   const sessionBackendMode = attachedBackendEvidence?.backendMode ?? backendMode;
   const sessionBackendProfile = attachedBackendEvidence?.backendProfile ?? backendProfile;
-  const sessionBackendProofRefs = attachedBackendEvidence === null
-    ? backendProofRefs
-    : attachedBackendEvidence.backendProofRefs;
   const runtimeMode = attach?.runtime.runtimeMode ?? backendMode;
   if (attach !== null && attach.workspaceHash !== input.workspace.workspaceHash) {
     diagnostics.push(studioRuntimeSessionDiagnostic(
@@ -3297,14 +2358,6 @@ export function buildStudioRuntimeSessionList(input: {
       live.liveHash,
     ));
   }
-  if ((backendMode === 'native' || backendMode === 'wasm') && sessionBackendProofRefs.length === 0) {
-    diagnostics.push(studioRuntimeSessionDiagnostic(
-      'runtime_session_missing_backend_evidence',
-      `Runtime backend mode ${backendMode} requires public backend proof refs before Studio can treat it as compatible.`,
-      'runtime.backend_proof_refs',
-      backendMode,
-    ));
-  }
   if (attach !== null && (
     runtimeMode === 'mock'
     || runtimeMode === 'degraded'
@@ -3319,14 +2372,12 @@ export function buildStudioRuntimeSessionList(input: {
     ));
   }
   const backendCompatibilityState: StudioRuntimeBackendCompatibilityState = diagnostics.some(
-    diagnostic => diagnostic.code === 'runtime_session_missing_backend_evidence',
+    diagnostic => diagnostic.code === 'runtime_session_backend_incompatible',
   )
-    ? 'missing_evidence'
-    : diagnostics.some(diagnostic => diagnostic.code === 'runtime_session_backend_incompatible')
-      ? 'incompatible'
-      : attach === null
-        ? 'pending_attach'
-        : 'compatible';
+    ? 'incompatible'
+    : attach === null
+      ? 'pending_attach'
+      : 'compatible';
 
   const activeSessionId = attach === null
     ? `runtime-preview:${input.workspace.gameId}`
@@ -3341,7 +2392,6 @@ export function buildStudioRuntimeSessionList(input: {
     runtimeMode,
     backendMode: sessionBackendMode,
     backendProfile: sessionBackendProfile,
-    backendProofRefs: sessionBackendProofRefs,
     backendCompatibilityState,
     attachStatus: attach === null ? 'not_attached' : 'attached',
     workspaceHash: input.workspace.workspaceHash,
@@ -3367,11 +2417,6 @@ export function buildStudioRuntimeSessionList(input: {
         path: input.workspace.attachEndpoint,
         sha256: attach?.attachHash ?? null,
       },
-      ...sessionBackendProofRefs.map(ref => ({
-        kind: 'runtime-backend-proof',
-        path: ref,
-        sha256: null,
-      })),
       ...(live === null
         ? []
         : [{
@@ -3394,36 +2439,11 @@ export function buildStudioRuntimeSessionList(input: {
       liveHash: live?.liveHash ?? null,
       backendMode: sessionBackendMode,
       backendProfile: sessionBackendProfile,
-      backendProofRefs: sessionBackendProofRefs,
       backendCompatibilityState,
       diagnostics,
     }),
   };
-  const fixtureReservedDiagnostic = studioRuntimeSessionDiagnostic(
-    'runtime_session_reserved',
-    'Fixture runtime session is represented but not launched in Studio V1.',
-    input.workspace.runtimeEntry,
-    null,
-  );
-  const replayReservedDiagnostic = studioRuntimeSessionDiagnostic(
-    'runtime_session_reserved',
-    'Replay runtime session is reserved for a later public replay workflow.',
-    input.workspace.manifest.workspace.replayRoots.join(', '),
-    null,
-  );
-  const fixtureSession = buildReservedRuntimeSession(input.workspace, {
-    sessionId: `runtime-fixture:${input.workspace.gameId}`,
-    sessionType: 'fixture_reserved',
-    profileId: input.workspace.runtimeEntry,
-    diagnostic: fixtureReservedDiagnostic,
-  });
-  const replaySession = buildReservedRuntimeSession(input.workspace, {
-    sessionId: `runtime-replay:${input.workspace.gameId}`,
-    sessionType: 'replay_reserved',
-    profileId: input.workspace.manifest.workspace.replayRoots.join(', ') || 'replays',
-    diagnostic: replayReservedDiagnostic,
-  });
-  const sessions = [activeSession, fixtureSession, replaySession];
+  const sessions = [activeSession];
 
   return {
     runtimeSessionListVersion: 'studio-runtime-session-list.v0',
@@ -3607,171 +2627,6 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
       'not_raw_state_store',
     ],
     inspectionHash: fnv1aHash('studio-runtime-session-inspection', body),
-  };
-}
-
-export function buildStudioAshaDemoProductPathReadModel(input: {
-  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
-  readonly runtimeInspection: StudioRuntimeSessionInspectionReadModel;
-}): StudioAshaDemoProductPathReadModel {
-  const workspace = input.gameWorkspace;
-  const runtimeInspection = input.runtimeInspection;
-  const attached = runtimeInspection.attachState === 'attached';
-  const diagnostics: StudioDiagnostic[] = [];
-
-  if (workspace === null) {
-    diagnostics.push({
-      severity: 'error',
-      code: 'asha_demo_product_path_missing_workspace',
-      message: 'ASHA Demo product path requires an opened asha-demo game workspace.',
-      source: 'asha.game.toml',
-      remediation: 'Open the asha-demo manifest through the public game-workspace loader.',
-    });
-  }
-
-  const generatedLevel = runtimeInspection.generatedLevel;
-  const playableLoopTuning = runtimeInspection.playableLoopTuning;
-  const liveLifecycle = runtimeInspection.playableLoopTuning.liveInspection.lifecycle;
-  const authoredContent: StudioAshaDemoProductPathContentReadModel[] = [
-    {
-      kind: 'manifest',
-      label: 'Game manifest',
-      path: workspace?.manifestPath ?? 'asha.game.toml',
-      validationStatus: workspace === null ? 'unavailable' : 'valid',
-      evidenceHash: workspace?.workspaceHash ?? null,
-    },
-    {
-      kind: 'project_bundle',
-      label: 'ProjectBundle',
-      path: 'project/project-bundle.json',
-      validationStatus: 'valid',
-      evidenceHash: runtimeInspection.workspaceHash,
-    },
-    {
-      kind: 'entity_definition',
-      label: 'Player entity',
-      path: 'catalogs/actors/demo-player.entity.json',
-      validationStatus: playableLoopTuning.definitionAuthoring.validation.status,
-      evidenceHash: playableLoopTuning.definitionAuthoring.hashes.presetHash,
-    },
-    {
-      kind: 'entity_definition',
-      label: 'Enemy entity',
-      path: 'catalogs/actors/generated-tunnel-enemy.entity.json',
-      validationStatus: attached ? 'valid' : 'pending_live_attach',
-      evidenceHash: liveLifecycle.lifecycleHash,
-    },
-    {
-      kind: 'scene_document',
-      label: 'Generated tunnel room',
-      path: 'levels/scenes/generated-tunnel-room.scene.json',
-      validationStatus: generatedLevel.definitionAuthoring.validationStatus,
-      evidenceHash: generatedLevel.liveInspection.generator.outputHash,
-    },
-    {
-      kind: 'level_preset',
-      label: 'Tiny enclosed tunnel',
-      path: 'levels/presets/tiny-enclosed-tunnel.json',
-      validationStatus: generatedLevel.definitionAuthoring.validationStatus,
-      evidenceHash: generatedLevel.liveInspection.generator.configHash,
-    },
-    {
-      kind: 'catalog',
-      label: 'Gameplay catalog',
-      path: 'catalogs/gameplay/default-fps.catalog.json',
-      validationStatus: playableLoopTuning.definitionAuthoring.validation.status,
-      evidenceHash: playableLoopTuning.definitionAuthoring.hashes.catalogHash,
-    },
-    {
-      kind: 'catalog',
-      label: 'Primary weapon',
-      path: 'catalogs/weapons/primary-fire.weapon.json',
-      validationStatus: playableLoopTuning.definitionAuthoring.validation.status,
-      evidenceHash: playableLoopTuning.definitionAuthoring.hashes.tuningHash,
-    },
-    {
-      kind: 'runtime_entry',
-      label: 'Reference runtime entry',
-      path: workspace?.runtimeEntry ?? 'dist/runtime/index.js',
-      validationStatus: workspace === null ? 'unavailable' : 'valid',
-      evidenceHash: runtimeInspection.sessionHash,
-    },
-  ];
-  const runPolicyAvailable = runtimeInspection.playableLoop.controls.policyTick.available;
-  const restartAvailable = runtimeInspection.playableLoop.controls.restart.available;
-  const body = {
-    project: {
-      gameId: workspace?.gameId ?? null,
-      workspaceRoot: workspace?.workspaceRoot ?? null,
-      manifestPath: workspace?.manifestPath ?? 'asha.game.toml',
-      projectBundlePath: 'project/project-bundle.json' as const,
-    },
-    mode: attached ? 'live_runtime_inspection' as const : 'definition_authoring' as const,
-    authoredContent,
-    definitionAuthoring: {
-      generatedLevelPresetStatus: generatedLevel.definitionAuthoring.validationStatus,
-      gameplayPresetStatus: playableLoopTuning.definitionAuthoring.validation.status,
-      generatedLevelPresetPath: generatedLevel.definitionAuthoring.presetPath,
-      gameplayPresetPath: playableLoopTuning.definitionAuthoring.source.presetPath,
-    },
-    liveRuntime: {
-      attachState: runtimeInspection.attachState,
-      sessionStatus: runtimeInspection.sessionStatus,
-      sessionId: runtimeInspection.sessionId,
-      tick: runtimeInspection.tick,
-      sessionHash: runtimeInspection.sessionHash,
-      replayRecordCount: runtimeInspection.replay.recordCount,
-      lifecycleLabel: liveLifecycle.label,
-      playerHealth: liveLifecycle.playerHealth,
-      enemyHealth: liveLifecycle.enemyHealth,
-    },
-    controls: {
-      attach: {
-        commandId: 'runtime_session.attach_public_facade' as const,
-        available: workspace !== null,
-        publicSurface: '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)' as const,
-      },
-      runPolicy: {
-        commandId: 'runtime_session.run_autonomous_policy_tick' as const,
-        available: runPolicyAvailable,
-        disabledReason: runtimeInspection.playableLoop.controls.policyTick.disabledReason,
-        publicSurface: '@asha/runtime-session:RuntimeSessionFacade.runAutonomousPolicyTick' as const,
-      },
-      restart: {
-        commandId: 'runtime.restart_session_intent' as const,
-        available: restartAvailable,
-        disabledReason: runtimeInspection.playableLoop.controls.restart.disabledReason,
-        publicSurface: '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart' as const,
-      },
-    },
-    publicSurfacesUsed: [
-      '@asha/game-workspace:parseAshaGameManifestToml',
-      '@asha/runtime-bridge:createRuntimeSessionFacade(mode=rust)',
-      '@asha/runtime-session:RuntimeSessionFacade.initialize',
-      '@asha/runtime-session:RuntimeSessionFacade.readGeneratedTunnelReadout',
-      '@asha/runtime-session:RuntimeSessionFacade.readLifecycleStatus',
-      '@asha/runtime-session:RuntimeSessionFacade.runAutonomousPolicyTick',
-      '@asha/runtime-session:RuntimeSessionFacade.requestSessionRestart',
-    ],
-    boundaries: {
-      definitionAuthoringOwnsStoredFiles: true as const,
-      liveRuntimeInspectionUsesPublicFacade: true as const,
-      studioOwnsGameplayAuthority: false as const,
-      runtimeToDefinitionExport: false as const,
-    },
-    diagnostics,
-  };
-
-  return {
-    productPathVersion: 'studio-asha-demo-product-path.v0',
-    ...body,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_transport',
-      'not_demo_local_shadow_state',
-      'not_runtime_to_definition_export',
-    ],
-    productPathHash: fnv1aHash('studio-asha-demo-product-path', body),
   };
 }
 
@@ -4663,1079 +3518,6 @@ export function buildStudioRunningProjectDiscovery(input: {
     }),
   };
 }
-	
-export function buildStudioLiveDebugSessionIdentity(input: {
-  readonly runtimeSessions: StudioRuntimeSessionListReadModel;
-  readonly childArtifacts?: readonly StudioLiveDebugSessionChildArtifactRef[];
-}): StudioLiveDebugSessionIdentityResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  const session = input.runtimeSessions.sessions.find(
-    candidate => candidate.sessionId === input.runtimeSessions.activeSessionId,
-  ) ?? null;
-  const childArtifacts = input.childArtifacts ?? [];
-
-  if (session === null || session.sessionType !== 'attached' || session.attachStatus !== 'attached') {
-    diagnostics.push(studioLiveDebugSessionDiagnostic(
-      'missing_live_session',
-      'Studio live debug session identity requires an attached runtime session.',
-      input.runtimeSessions.activeSessionId,
-      null,
-    ));
-  }
-  if (session !== null && (session.liveHash === null || session.projection === null)) {
-    diagnostics.push(studioLiveDebugSessionDiagnostic(
-      'stale_fixture_readback',
-      'Studio live debug session identity requires live projection/readback, not fixture-only session data.',
-      session.sessionId,
-      session.attachHash,
-    ));
-  }
-  if (
-    session !== null
-    && (session.backendMode === 'native' || session.backendMode === 'wasm')
-    && session.backendProofRefs.length === 0
-  ) {
-    diagnostics.push(studioLiveDebugSessionDiagnostic(
-      'backend_proof_mismatch',
-      `Studio live debug session ${session.sessionId} claims ${session.backendMode} without backend proof refs.`,
-      session.sessionId,
-      session.backendMode,
-    ));
-  }
-  for (const artifact of childArtifacts) {
-    if (
-      (artifact.expectedArtifactHash !== undefined && artifact.expectedArtifactHash !== artifact.artifactHash)
-      || (artifact.expectedFileHash !== undefined && artifact.expectedFileHash !== artifact.fileHash)
-    ) {
-      diagnostics.push(studioLiveDebugSessionDiagnostic(
-        'stale_child_artifact',
-        `Studio live debug child artifact is stale: ${artifact.path}.`,
-        artifact.path,
-        artifact.kind,
-      ));
-    }
-  }
-
-  const projection = session?.projection ?? null;
-  const attachHash = session?.attachHash ?? null;
-  const liveHash = session?.liveHash ?? null;
-  const readAfterAttach = attachHash !== null && liveHash !== null && attachHash !== liveHash;
-  const identityBody = {
-    sessionId: session?.sessionId ?? input.runtimeSessions.activeSessionId,
-    sessionHash: session?.sessionHash ?? 'missing',
-    sessionType: session?.sessionType ?? 'preview',
-    attachStatus: session?.attachStatus ?? 'not_attached',
-    runtimeMode: session?.runtimeMode ?? 'degraded',
-    backendMode: session?.backendMode ?? 'reference',
-    backendProfile: session?.backendProfile ?? 'missing',
-    backendProofRefs: session?.backendProofRefs ?? [],
-    backendCompatibilityState: session?.backendCompatibilityState ?? 'missing_evidence',
-    endpoint: session?.endpoint ?? null,
-    workspaceHash: session?.workspaceHash ?? 'missing',
-    attachHash: attachHash ?? 'missing',
-    liveHash: liveHash ?? 'missing',
-    liveFreshness: {
-      freshnessVersion: 'studio-live-debug-freshness.v0' as const,
-      attachSequenceId: attachHash ?? 'missing',
-      readSequenceId: liveHash ?? 'missing',
-      readAfterAttach,
-      projectionTick: projection?.tick ?? null,
-      runtimeSessionSummaryHash: projection?.runtimeSessionSummaryHash ?? null,
-      renderDiffHash: projection?.renderDiffHash ?? null,
-      telemetrySampleCount: session?.evidenceRefs.some(ref => ref.kind === 'runtime-live') === true ? 1 : 0,
-    },
-    childArtifacts,
-    diagnostics,
-  };
-  const identity: StudioLiveDebugSessionIdentityReadModel = {
-    identityVersion: 'studio-live-debug-session-identity.v0',
-    ...identityBody,
-    nonClaims: [
-      'not_studio_runtime_authority',
-      'not_private_transport',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-    ],
-    identityHash: fnv1aHash('studio-live-debug-session-identity', identityBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, identity, diagnostics: [] }
-    : { ok: false, identity, diagnostics };
-}
-
-export function buildStudioLiveSceneEntityDebugInspector(input: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
-}): StudioLiveSceneEntityDebugInspectorResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
-    diagnostics.push(studioLiveSceneEntityDebugDiagnostic(
-      'missing_live_session',
-      'Live scene/entity debug inspector requires a fresh attached live debug session.',
-      input.liveSessionIdentity.sessionId,
-      input.liveSessionIdentity.liveHash,
-    ));
-  }
-
-  const selectedEntity = input.workspace.selectedEntityId === null
-    ? null
-    : input.workspace.entities.find(entity => entity.id === input.workspace.selectedEntityId) ?? null;
-  const selectedRenderable = input.workspace.scene.selectedRenderableId === null
-    ? null
-    : input.workspace.scene.renderables.find(
-      renderable => renderable.renderableId === input.workspace.scene.selectedRenderableId,
-    ) ?? null;
-  const selectedObject = selectedEntity?.sceneObjectId === null || selectedEntity?.sceneObjectId === undefined
-    ? null
-    : input.workspace.sceneObjectSnapshot.objects.find(object => object.objectId === selectedEntity.sceneObjectId) ?? null;
-  const selectedNode = selectedEntity?.sceneObjectId === null || selectedEntity?.sceneObjectId === undefined
-    ? null
-    : input.workspace.flatSceneDocument.nodes.find(
-      node => `scene-node:${node.id as number}` === selectedEntity.sceneObjectId,
-    ) ?? null;
-
-  if (selectedEntity === null) {
-    diagnostics.push(studioLiveSceneEntityDebugDiagnostic(
-      'missing_selected_entity',
-      'Live scene/entity debug inspector requires a selected entity readback.',
-      input.workspace.selectedEntityId,
-      null,
-    ));
-  }
-  if (
-    selectedEntity !== null
-    && (
-      selectedEntity.renderableId !== input.workspace.scene.selectedRenderableId
-      || selectedObject === null
-      || selectedEntity.label !== selectedObject.displayName
-    )
-  ) {
-    diagnostics.push(studioLiveSceneEntityDebugDiagnostic(
-      'inspector_readback_drift',
-      'Live scene/entity debug inspector selection diverges from scene, hierarchy, or selected object readback.',
-      selectedEntity.id,
-      input.workspace.scene.selectedRenderableId,
-    ));
-  }
-
-  const sceneObjectSnapshotHash = fnv1aHash('studio-scene-object-snapshot', input.workspace.sceneObjectSnapshot);
-  const inspectorBody = {
-    sessionId: input.liveSessionIdentity.sessionId,
-    scene: {
-      sceneId: input.workspace.scene.sceneId,
-      sceneHash: input.workspace.scene.sceneHash,
-      renderableCount: input.workspace.scene.renderables.length,
-      selectedRenderableId: input.workspace.scene.selectedRenderableId,
-      selectedEntityId: input.workspace.selectedEntityId,
-      sceneObjectSnapshotHash,
-    },
-    entity: {
-      entityId: selectedEntity?.id ?? null,
-      sceneObjectId: selectedEntity?.sceneObjectId ?? null,
-      label: selectedEntity?.label ?? null,
-      sourceState: selectedEntity?.sourceState ?? null,
-      renderableId: selectedEntity?.renderableId ?? null,
-      provenance: selectedEntity === null
-        ? null
-        : {
-            renderableId: selectedObject?.provenance.renderableId ?? selectedEntity.renderableId,
-            materialRef: selectedRenderable?.materialRef ?? null,
-            meshRef: selectedRenderable?.meshRef ?? null,
-          },
-      transform: selectedNode?.transform ?? null,
-    },
-    diagnostics,
-  };
-  const inspector: StudioLiveSceneEntityDebugInspectorReadModel = {
-    inspectorVersion: 'studio-live-scene-entity-debug-inspector.v0',
-    ...inspectorBody,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_ecs_read',
-      'not_source_authoring_write',
-    ],
-    inspectorHash: fnv1aHash('studio-live-scene-entity-debug-inspector', inspectorBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, inspector, diagnostics: [] }
-    : { ok: false, inspector, diagnostics };
-}
-
-export function buildStudioLiveAssetResourceDebugInspector(input: {
-  readonly assetInventory: StudioAssetInventoryReadModel;
-  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
-  readonly selectedAssetId: string;
-}): StudioLiveAssetResourceDebugInspectorResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
-    diagnostics.push(studioLiveAssetResourceDebugDiagnostic(
-      'missing_live_session',
-      'Live asset/resource debug inspector requires a fresh attached live debug session.',
-      input.liveSessionIdentity.sessionId,
-      input.liveSessionIdentity.liveHash,
-    ));
-  }
-  const asset = input.assetInventory.entries.find(entry => entry.assetId === input.selectedAssetId) ?? null;
-  if (asset === null) {
-    diagnostics.push(studioLiveAssetResourceDebugDiagnostic(
-      'missing_asset_resource',
-      `Live asset/resource debug inspector could not find asset ${input.selectedAssetId}.`,
-      input.selectedAssetId,
-      input.assetInventory.inventoryHash,
-    ));
-  } else if (
-    asset.diagnostics.length > 0
-    || asset.dependencyStatus === 'missing'
-    || asset.devResolution?.importStatus === 'stale'
-  ) {
-    diagnostics.push(studioLiveAssetResourceDebugDiagnostic(
-      'asset_resource_readback_drift',
-      `Live asset/resource debug inspector found stale or diagnostic asset readback for ${input.selectedAssetId}.`,
-      input.selectedAssetId,
-      asset.dependencyStatus,
-    ));
-  }
-
-  const inspectorBody = {
-    sessionId: input.liveSessionIdentity.sessionId,
-    inventoryHash: input.assetInventory.inventoryHash,
-    selectedAssetId: input.selectedAssetId,
-    asset: {
-      assetId: asset?.assetId ?? null,
-      kind: asset?.kind ?? null,
-      sourcePath: asset?.sourcePath ?? null,
-      sourceHash: asset?.devResolution?.sourceHash ?? null,
-      importStatus: asset?.devResolution?.importStatus ?? null,
-      dependencyStatus: asset?.dependencyStatus ?? null,
-      referencedRenderableIds: asset?.referencedRenderableIds ?? [],
-      publishOutputKey: asset?.devResolution?.publishOutputKey ?? asset?.publishResolution?.outputKey ?? null,
-      packedHash: asset?.publishResolution?.packedHash ?? null,
-    },
-    diagnostics,
-  };
-  const inspector: StudioLiveAssetResourceDebugInspectorReadModel = {
-    inspectorVersion: 'studio-live-asset-resource-debug-inspector.v0',
-    ...inspectorBody,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_asset_database',
-      'not_publish_builder',
-    ],
-    inspectorHash: fnv1aHash('studio-live-asset-resource-debug-inspector', inspectorBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, inspector, diagnostics: [] }
-    : { ok: false, inspector, diagnostics };
-}
-
-export function buildStudioLiveRuntimeTelemetryDebugInspector(input: {
-  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
-  readonly live: StudioGameWorkspaceLiveReadModel | null;
-}): StudioLiveRuntimeTelemetryDebugInspectorResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
-    diagnostics.push(studioLiveRuntimeTelemetryDebugDiagnostic(
-      'missing_live_session',
-      'Live runtime/telemetry debug inspector requires a fresh attached live debug session.',
-      input.liveSessionIdentity.sessionId,
-      input.liveSessionIdentity.liveHash,
-    ));
-  }
-  if (input.live === null || input.live.telemetry.length === 0) {
-    diagnostics.push(studioLiveRuntimeTelemetryDebugDiagnostic(
-      'telemetry_readback_missing',
-      'Live runtime/telemetry debug inspector requires telemetry samples.',
-      input.liveSessionIdentity.sessionId,
-      null,
-    ));
-  }
-  if (input.live !== null && input.live.liveHash !== input.liveSessionIdentity.liveHash) {
-    diagnostics.push(studioLiveRuntimeTelemetryDebugDiagnostic(
-      'runtime_readback_mismatch',
-      'Live runtime/telemetry debug inspector live hash does not match the live session identity.',
-      input.live.liveHash,
-      input.liveSessionIdentity.liveHash,
-    ));
-  }
-
-  const sampleValue = (metric: string): number | null =>
-    input.live?.telemetry.find(sample => sample.metric === metric)?.value ?? null;
-  const projection = input.liveSessionIdentity.liveFreshness.runtimeSessionSummaryHash === null
-    ? null
-    : {
-        runtimeSessionSummaryHash: input.liveSessionIdentity.liveFreshness.runtimeSessionSummaryHash,
-        renderDiffHash: input.liveSessionIdentity.liveFreshness.renderDiffHash ?? 'missing',
-        entityCount: input.live?.projection.entityCount ?? 0,
-        tick: input.liveSessionIdentity.liveFreshness.projectionTick ?? 0,
-      };
-  const inspectorBody = {
-    sessionId: input.liveSessionIdentity.sessionId,
-    runtime: {
-      runtimeMode: input.liveSessionIdentity.runtimeMode,
-      backendMode: input.liveSessionIdentity.backendMode,
-      backendProfile: input.liveSessionIdentity.backendProfile,
-      backendProofRefs: input.liveSessionIdentity.backendProofRefs,
-      endpoint: input.liveSessionIdentity.endpoint,
-      attachHash: input.liveSessionIdentity.attachHash,
-      liveHash: input.liveSessionIdentity.liveHash,
-    },
-    projection,
-    telemetry: {
-      sampleCount: input.live?.telemetry.length ?? 0,
-      sampleMetrics: input.live?.telemetry.map(sample => sample.metric) ?? [],
-      commandQueueDepth: sampleValue('command_queue_depth'),
-      acceptedCommandCount: sampleValue('accepted_command_count'),
-      rejectedCommandCount: sampleValue('rejected_command_count'),
-    },
-    diagnostics,
-  };
-  const inspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel = {
-    inspectorVersion: 'studio-live-runtime-telemetry-debug-inspector.v0',
-    ...inspectorBody,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_transport',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-    ],
-    inspectorHash: fnv1aHash('studio-live-runtime-telemetry-debug-inspector', inspectorBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, inspector, diagnostics: [] }
-    : { ok: false, inspector, diagnostics };
-}
-
-export function buildStudioLiveDebugCommandProposalSurface(input: {
-  readonly liveSessionIdentity: StudioLiveDebugSessionIdentityReadModel;
-  readonly sceneEntityInspector: StudioLiveSceneEntityDebugInspectorReadModel;
-  readonly runtimeTelemetryInspector: StudioLiveRuntimeTelemetryDebugInspectorReadModel;
-  readonly commandProposalPanel: StudioCommandProposalPanelReadModel | null;
-  readonly evidenceRefs?: readonly StudioAssetInventoryEvidenceRef[];
-}): StudioLiveDebugCommandProposalSurfaceResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  const allowedActionIds: readonly StudioCommandProposalActionId[] = ['set_voxel_reference'];
-  const panel = input.commandProposalPanel;
-  const actions = panel?.actions ?? [];
-  const proposals = panel?.proposals ?? [];
-
-  if (input.liveSessionIdentity.attachStatus !== 'attached' || !input.liveSessionIdentity.liveFreshness.readAfterAttach) {
-    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
-      'missing_live_session',
-      'Live debug command proposals require a fresh attached live debug session.',
-      input.liveSessionIdentity.sessionId,
-      input.liveSessionIdentity.liveHash,
-    ));
-  }
-  if (panel === null) {
-    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
-      'missing_command_proposal_panel',
-      'Live debug command proposals require the shared command proposal panel read model.',
-      input.liveSessionIdentity.sessionId,
-      null,
-    ));
-  }
-  if (
-    panel !== null && (
-      panel.runtimeSessionId !== input.liveSessionIdentity.sessionId
-      || panel.workspaceHash !== input.liveSessionIdentity.workspaceHash
-      || input.sceneEntityInspector.sessionId !== input.liveSessionIdentity.sessionId
-      || input.runtimeTelemetryInspector.sessionId !== input.liveSessionIdentity.sessionId
-      || input.runtimeTelemetryInspector.runtime.attachHash !== input.liveSessionIdentity.attachHash
-      || input.runtimeTelemetryInspector.runtime.liveHash !== input.liveSessionIdentity.liveHash
-    )
-  ) {
-    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
-      'debug_command_scope_mismatch',
-      'Live debug command proposal read models do not describe the same live session scope.',
-      panel.runtimeSessionId,
-      input.liveSessionIdentity.sessionId,
-    ));
-  }
-
-  const unsupportedAction = actions.find(action =>
-    !allowedActionIds.includes(action.actionId)
-    || action.commandMessageType !== 'command.propose'
-    || action.commandOperation !== 'setVoxel'
-    || action.batch.commands.some(command => command.op !== 'setVoxel')
-  );
-  if (unsupportedAction !== undefined) {
-    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
-      'unsupported_debug_command',
-      'Live debug command proposals are bounded to known command.propose actions only.',
-      unsupportedAction.actionId,
-      unsupportedAction.commandOperation,
-    ));
-  }
-
-  const scopedProposalMismatch = proposals.find(proposal =>
-    proposal.workspaceHash !== input.liveSessionIdentity.workspaceHash
-    || proposal.attachHash !== input.liveSessionIdentity.attachHash
-    || proposal.batch.commands.some(command => command.op !== 'setVoxel')
-  );
-  if (scopedProposalMismatch !== undefined) {
-    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
-      'debug_command_scope_mismatch',
-      'Live debug command proposal result evidence does not match the attached live session.',
-      scopedProposalMismatch.proposalHash,
-      input.liveSessionIdentity.attachHash,
-    ));
-  }
-
-  const accepted = proposals.find(proposal => proposal.status === 'accepted') ?? null;
-  const rejected = proposals.find(proposal => proposal.status === 'rejected') ?? null;
-  if (accepted === null || rejected === null) {
-    diagnostics.push(studioLiveDebugCommandProposalDiagnostic(
-      'missing_command_result_evidence',
-      'Live debug command proposals require both accepted and rejected command result evidence rows.',
-      panel?.runtimeSessionId ?? input.liveSessionIdentity.sessionId,
-      `accepted:${accepted !== null};rejected:${rejected !== null}`,
-    ));
-  }
-
-  const surfaceBody = {
-    sessionId: input.liveSessionIdentity.sessionId,
-    workspaceHash: input.liveSessionIdentity.workspaceHash,
-    attachHash: input.liveSessionIdentity.attachHash,
-    liveHash: input.liveSessionIdentity.liveHash,
-    sceneEntityInspectorHash: input.sceneEntityInspector.inspectorHash,
-    runtimeTelemetryInspectorHash: input.runtimeTelemetryInspector.inspectorHash,
-    allowedActionIds,
-    actions,
-    proposals,
-    proposalStatuses: proposals.map(proposal => proposal.status),
-    acceptedProposalHash: accepted?.proposalHash ?? null,
-    rejectedProposalHash: rejected?.proposalHash ?? null,
-    evidenceRefs: input.evidenceRefs ?? [],
-    diagnostics,
-  };
-  const surface: StudioLiveDebugCommandProposalSurfaceReadModel = {
-    surfaceVersion: 'studio-live-debug-command-proposals.v0',
-    ...surfaceBody,
-    nonClaims: [
-      'does_not_mutate_without_devtools_acceptance',
-      'not_runtime_authority',
-      'not_private_runtime_mutation',
-      'not_freeform_json_method_call',
-    ],
-    surfaceHash: fnv1aHash('studio-live-debug-command-proposals', surfaceBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, surface, diagnostics: [] }
-    : { ok: false, surface, diagnostics };
-}
-
-export function buildStudioAuthoredBrowserDebugReadModel(input: {
-  readonly fixture: StudioAuthoredBrowserDebugInputFixture | null;
-  readonly browserInteraction: StudioAuthoredBrowserDebugInputInteraction | null;
-  readonly studioDebugEvidenceHash?: string | null;
-}): StudioAuthoredBrowserDebugResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  const fixture = input.fixture;
-  const interaction = input.browserInteraction;
-  const authoredObjectId = fixture?.authoredScene.objectId ?? null;
-  const authoredAssetId = fixture?.authoredCatalog.authoredAssetId ?? null;
-  const interactionReadback = interaction?.authoredInteraction ?? null;
-
-  if (fixture === null) {
-    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
-      'missing_authored_fixture',
-      'Studio authored browser debug readback requires the authored round-trip fixture.',
-      null,
-      'pnpm run proof:authored-roundtrip-fixture',
-    ));
-  }
-  if (interaction === null) {
-    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
-      'missing_browser_interaction',
-      'Studio authored browser debug readback requires the authored browser interaction proof.',
-      null,
-      'pnpm run proof:authored-browser-interaction',
-    ));
-  }
-  if (
-    interaction !== null
-    && (
-      interaction.authoredInteraction.inputEventCount <= 0
-      || interaction.authoredInteraction.typedRequestCount !== interaction.authoredInteraction.inputEventCount
-      || interaction.authoredInteraction.readbackCount !== interaction.authoredInteraction.typedRequestCount
-      || interaction.authoredInteraction.interactionHash.length === 0
-    )
-  ) {
-    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
-      'stale_browser_interaction',
-      'Authored browser interaction proof has stale or incomplete input/readback evidence.',
-      interaction.artifactHash,
-      interaction.authoredInteraction.interactionHash,
-    ));
-  }
-  if (
-    fixture !== null
-    && interaction !== null
-    && interaction.authoredInteraction.finalSelectedObjectId !== fixture.authoredScene.objectId
-  ) {
-    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
-      'selected_authored_object_mismatch',
-      'Browser-selected authored object does not match the Studio-authored fixture object.',
-      interaction.authoredInteraction.finalSelectedObjectId,
-      fixture.authoredScene.objectId,
-    ));
-  }
-  if (
-    fixture !== null
-    && interaction !== null
-    && interaction.authoredInteraction.finalSelectedAssetId !== fixture.authoredCatalog.authoredAssetId
-  ) {
-    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
-      'selected_authored_asset_mismatch',
-      'Browser-selected authored asset does not match the Studio-authored fixture asset.',
-      interaction.authoredInteraction.finalSelectedAssetId,
-      fixture.authoredCatalog.authoredAssetId,
-    ));
-  }
-  if ((input.studioDebugEvidenceHash ?? null) === null) {
-    diagnostics.push(studioAuthoredBrowserDebugDiagnostic(
-      'missing_studio_debug_evidence',
-      'Authored browser debug readback requires Studio live debug evidence as a capability gate.',
-      null,
-      'pnpm run proof:live-gameplay-debug-m4',
-    ));
-  }
-
-  const debugBody = {
-    authoredFixtureHash: fixture?.fixtureHash ?? 'missing',
-    browserInteractionHash: interaction?.artifactHash ?? 'missing',
-    studioDebugEvidenceHash: input.studioDebugEvidenceHash ?? null,
-    selected: {
-      objectId: authoredObjectId,
-      assetId: authoredAssetId,
-      label: fixture?.authoredScene.record.label ?? null,
-      transform: fixture?.authoredScene.record.transform ?? null,
-      finalSelectedObjectId: interactionReadback?.finalSelectedObjectId ?? null,
-      finalSelectedAssetId: interactionReadback?.finalSelectedAssetId ?? null,
-    },
-    browserReadback: {
-      inputEventCount: interactionReadback?.inputEventCount ?? 0,
-      typedRequestCount: interactionReadback?.typedRequestCount ?? 0,
-      readbackCount: interactionReadback?.readbackCount ?? 0,
-      interactionHash: interactionReadback?.interactionHash ?? null,
-      runtimeWorldHash: interactionReadback?.runtimeWorldHash ?? null,
-    },
-    studioCorrelation: {
-      authoredObjectMatchesBrowserSelection: authoredObjectId !== null
-        && interactionReadback?.finalSelectedObjectId === authoredObjectId,
-      authoredAssetMatchesBrowserSelection: authoredAssetId !== null
-        && interactionReadback?.finalSelectedAssetId === authoredAssetId,
-      typedRequestsMatchInputs: interactionReadback !== null
-        && interactionReadback.typedRequestCount === interactionReadback.inputEventCount,
-      readbacksMatchTypedRequests: interactionReadback !== null
-        && interactionReadback.readbackCount === interactionReadback.typedRequestCount,
-      studioDebugEvidencePresent: (input.studioDebugEvidenceHash ?? null) !== null,
-    },
-    diagnostics,
-  };
-  const debug: StudioAuthoredBrowserDebugReadModel = {
-    debugVersion: 'studio-authored-browser-debug.v0',
-    ...debugBody,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_runtime_transport',
-      'not_source_write',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-    ],
-    debugHash: fnv1aHash('studio-authored-browser-debug', debugBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, debug, diagnostics: [] }
-    : { ok: false, debug, diagnostics };
-}
-
-export function exportStudioGameWorkspaceAttachEvidence(
-  input: {
-    readonly workspace: StudioGameWorkspaceReadModel;
-    readonly attach: StudioGameWorkspaceAttachReadModel;
-    readonly live?: StudioGameWorkspaceLiveReadModel | null;
-    readonly commandProposals?: readonly StudioGameWorkspaceCommandProposalReadModel[];
-    readonly diagnostics?: readonly StudioDiagnostic[];
-  },
-): StudioGameWorkspaceAttachEvidenceArtifact {
-  const live = input.live ?? null;
-  const commandProposals = input.commandProposals ?? [];
-  const generatedFrom = {
-    workspaceHash: input.workspace.workspaceHash,
-    attachHash: input.attach.attachHash,
-    liveHash: live?.liveHash ?? null,
-    commandProposalHashes: commandProposals.map(proposal => proposal.proposalHash),
-  };
-  const artifactHash = fnv1aHash('studio-game-workspace-attach-evidence', {
-    generatedFrom,
-    workspaceReadout: buildStudioGameWorkspaceReadout(input.workspace),
-    attach: input.attach,
-    live,
-    commandProposals,
-    diagnostics: input.diagnostics ?? [],
-  });
-
-  return {
-    artifactKind: 'studio_game_workspace_attach_evidence',
-    artifactVersion: 'studio-game-workspace-attach-evidence.v0',
-    artifactId: `studio-game-workspace-attach:${artifactHash}`,
-    generatedFrom,
-    workspace: buildStudioGameWorkspaceReadout(input.workspace),
-    attach: input.attach,
-    live,
-    commandProposals,
-    diagnostics: input.diagnostics ?? [],
-    nonClaims: [
-      'not_native_runtime_authority',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-      'not_publish_artifact',
-    ],
-    artifactHash,
-  };
-}
-
-function buildReservedRuntimeSession(
-  workspace: StudioGameWorkspaceReadModel,
-  input: {
-    readonly sessionId: string;
-    readonly sessionType: Extract<StudioRuntimeSessionType, 'fixture_reserved' | 'replay_reserved'>;
-    readonly profileId: string;
-    readonly diagnostic: StudioDiagnostic;
-  },
-): StudioRuntimeSessionReadModel {
-  return {
-    runtimeSessionVersion: 'studio-runtime-session.v0',
-    sessionId: input.sessionId,
-    sessionType: input.sessionType,
-    status: 'reserved',
-    endpoint: null,
-    profileId: input.profileId,
-    runtimeMode: 'reference',
-    backendMode: workspace.manifest.runtime.backendMode,
-    backendProfile: workspace.manifest.runtime.backendProfile,
-    backendProofRefs: workspace.manifest.runtime.backendProofRefs,
-    backendCompatibilityState: 'reserved',
-    attachStatus: 'reserved',
-    workspaceHash: workspace.workspaceHash,
-    attachHash: null,
-    liveHash: null,
-    compatibility: {
-      contractsVersion: workspace.manifest.asha.contractsVersion,
-      runtimeBridgeVersion: workspace.manifest.asha.runtimeBridgeVersion,
-      devtoolsProtocolVersion: workspace.manifest.asha.devtoolsProtocolVersion,
-      publishArtifactVersion: workspace.manifest.asha.publishArtifactFormatVersion,
-    },
-    projection: null,
-    evidenceRefs: [],
-    nonClaims: [
-      ...(workspace.manifest.runtime.backendMode === 'native' ? [] : ['not_native_runtime_authority']),
-      'not_wasm_authority',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-      'not_publish_artifact',
-    ],
-    diagnostics: [input.diagnostic],
-    sessionHash: fnv1aHash('studio-runtime-session-reserved', {
-      workspaceHash: workspace.workspaceHash,
-      sessionId: input.sessionId,
-      sessionType: input.sessionType,
-      profileId: input.profileId,
-      backendMode: workspace.manifest.runtime.backendMode,
-      backendProfile: workspace.manifest.runtime.backendProfile,
-      backendProofRefs: workspace.manifest.runtime.backendProofRefs,
-      diagnostic: input.diagnostic,
-    }),
-  };
-}
-
-export function loadStudioPublishEvidence(
-  artifact: unknown,
-  options: {
-    readonly workspace?: StudioGameWorkspaceReadModel | null;
-    readonly evidencePath?: string;
-  } = {},
-): StudioPublishEvidenceLoadResult {
-  const evidencePath = options.evidencePath ?? 'harness/out/publish-evidence/latest/index.json';
-  if (!isRecord(artifact)) {
-    const diagnostics = [
-      studioPublishEvidenceDiagnostic(
-        'publish_evidence_missing',
-        'Publish evidence manifest is missing or unreadable.',
-        evidencePath,
-        null,
-      ),
-    ];
-    const readModel = buildMissingStudioPublishEvidence(evidencePath, diagnostics);
-    return { ok: false, publishEvidence: readModel, diagnostics };
-  }
-
-  const publishArtifact = recordAt(artifact, 'publishArtifact');
-  const publishSmoke = recordAt(artifact, 'publishSmoke');
-  const publishRunSmoke = recordAt(artifact, 'publishRunSmoke');
-  const smokeReadback = recordAt(publishSmoke, 'readback');
-  const runSmokeRuntime = recordAt(publishRunSmoke, 'runtime');
-  const runSmokeProjection = recordAt(publishRunSmoke, 'projection');
-  const runSmokeCommandProof = recordAt(publishRunSmoke, 'commandProof');
-  const acceptedCommand = recordAt(runSmokeCommandProof, 'acceptedCommand');
-  const rejectedCommand = recordAt(runSmokeCommandProof, 'rejectedCommand');
-  const dependencyGuard = recordAt(smokeReadback, 'dependencyGuard');
-  const diagnostics: StudioDiagnostic[] = [];
-  const evidenceKind = stringAt(artifact, 'evidenceKind') ?? 'unknown';
-  const evidenceVersion = stringAt(artifact, 'evidenceVersion') ?? 'unknown';
-  const artifactVersion = stringAt(publishArtifact, 'artifactVersion');
-  const expectedArtifactVersion = options.workspace?.manifest.asha.publishArtifactFormatVersion ?? null;
-  const dependencyGuardStatus = stringAt(smokeReadback, 'publishDependencyGuard') ?? 'missing';
-  const runtimeMode = stringAt(runSmokeRuntime, 'runtimeMode');
-  const worldHash = stringAt(runSmokeProjection, 'worldHash');
-  const acceptedCommandStatus = stringAt(acceptedCommand, 'status');
-  const rejectedCommandStatus = stringAt(rejectedCommand, 'status');
-  const validations = stringArrayAt(artifact, 'validations');
-  const smokeChecks = stringArrayAt(publishSmoke, 'checks');
-  const runChecks = stringArrayAt(publishRunSmoke, 'checks');
-
-  if (evidenceKind !== 'asha_demo_publish_evidence_manifest' || evidenceVersion !== 'publish-evidence.v1') {
-    diagnostics.push(studioPublishEvidenceDiagnostic(
-      'publish_evidence_version_mismatch',
-      'Publish evidence manifest kind or version is not supported by Studio.',
-      evidencePath,
-      `${evidenceKind}:${evidenceVersion}`,
-    ));
-  }
-  if (expectedArtifactVersion !== null && artifactVersion !== expectedArtifactVersion) {
-    diagnostics.push(studioPublishEvidenceDiagnostic(
-      'publish_evidence_stale',
-      'Publish evidence artifact version does not match the opened workspace manifest.',
-      stringAt(publishArtifact, 'path') ?? evidencePath,
-      artifactVersion ?? 'missing',
-    ));
-  }
-  if (
-    stringAt(publishArtifact, 'artifactHash') === null
-    || stringAt(smokeReadback, 'artifactHash') !== stringAt(publishArtifact, 'artifactHash')
-    || numberAt(publishArtifact, 'compiledAssetCount') !== numberAt(smokeReadback, 'compiledAssetCount')
-    || numberAt(publishArtifact, 'publishAssetCount') !== numberAt(smokeReadback, 'publishAssetCount')
-  ) {
-    diagnostics.push(studioPublishEvidenceDiagnostic(
-      'publish_evidence_stale',
-      'Publish evidence manifest no longer agrees with publish artifact readback.',
-      stringAt(publishArtifact, 'path') ?? evidencePath,
-      stringAt(smokeReadback, 'artifactHash') ?? 'missing',
-    ));
-  }
-  if (
-    dependencyGuardStatus !== 'no-studio-dev-only-fragments'
-    || !smokeChecks.includes('runnable_dependency_guard_passed')
-  ) {
-    diagnostics.push(studioPublishEvidenceDiagnostic(
-      'publish_evidence_dependency_guard_failed',
-      'Publish dependency guard is missing or failed.',
-      stringAt(publishSmoke, 'path') ?? evidencePath,
-      dependencyGuardStatus,
-    ));
-  }
-  if (
-    runtimeMode !== 'reference'
-    || worldHash === null
-    || acceptedCommandStatus !== 'accepted'
-    || rejectedCommandStatus !== 'rejected'
-    || !validations.includes('runtime_projection_readback_present')
-    || !validations.includes('packaged_command_proof_present')
-  ) {
-    diagnostics.push(studioPublishEvidenceDiagnostic(
-      'publish_evidence_run_smoke_failed',
-      'Publish run smoke evidence is missing runtime projection or command proof readback.',
-      stringAt(publishRunSmoke, 'path') ?? evidencePath,
-      runtimeMode ?? 'missing',
-    ));
-  }
-
-  const status: StudioPublishEvidenceStatus = diagnostics.some(
-    diagnostic => diagnostic.code === 'publish_evidence_version_mismatch'
-      || diagnostic.code === 'publish_evidence_stale',
-  )
-    ? 'stale'
-    : diagnostics.length > 0
-      ? 'degraded'
-      : 'ready';
-  const packedResources = recordArrayAt(smokeReadback, 'packedResources').map(resource => ({
-    assetId: stringAt(resource, 'assetId') ?? 'unknown',
-    outputKey: stringAt(resource, 'outputKey') ?? 'unknown',
-    sourceHash: stringAt(resource, 'sourceHash'),
-    packedHash: stringAt(resource, 'packedHash'),
-    runnableHash: stringAt(resource, 'runnableHash'),
-  }));
-  const readModel: StudioPublishEvidenceReadModel = {
-    publishEvidenceVersion: 'studio-publish-evidence.v0',
-    status,
-    evidenceKind,
-    evidenceVersion,
-    evidenceId: stringAt(artifact, 'evidenceId'),
-    evidenceHash: stringAt(artifact, 'evidenceHash'),
-    artifactPath: stringAt(publishArtifact, 'path'),
-    artifactHash: stringAt(publishArtifact, 'artifactHash'),
-    artifactVersion,
-    artifactFileHash: stringAt(publishArtifact, 'fileHash'),
-    runnableTarget: stringAt(publishArtifact, 'runnableTarget'),
-    runnableEntrypointPath: stringAt(publishArtifact, 'runnableEntrypointPath'),
-    runnableEntrypointHash: stringAt(publishArtifact, 'runnableEntrypointHash'),
-    resourcePackManifestPath: stringAt(publishArtifact, 'resourcePackManifestPath'),
-    resourcePackManifestHash: stringAt(publishArtifact, 'resourcePackManifestHash'),
-    compiledAssetCount: numberAt(publishArtifact, 'compiledAssetCount') ?? 0,
-    publishAssetCount: numberAt(publishArtifact, 'publishAssetCount') ?? 0,
-    packedResources,
-    dependencyGuard: {
-      status: dependencyGuardStatus,
-      inspectedFileCount: stringArrayAt(dependencyGuard, 'inspectedRunnableFiles').length,
-      forbiddenFragments: stringArrayAt(dependencyGuard, 'forbiddenFragments'),
-    },
-    runSmoke: {
-      path: stringAt(publishRunSmoke, 'path'),
-      fileHash: stringAt(publishRunSmoke, 'fileHash'),
-      runtimeMode,
-      launcherName: stringAt(runSmokeRuntime, 'launcherName'),
-      worldHash,
-      acceptedCommandStatus,
-      rejectedCommandStatus,
-      resolvedResourceCount: numberAt(publishRunSmoke, 'resolvedResourceCount') ?? packedResources.length,
-    },
-    checks: [...smokeChecks, ...runChecks],
-    validations,
-    evidenceRefs: [
-      {
-        kind: 'publish-evidence',
-        path: evidencePath,
-        sha256: stringAt(artifact, 'evidenceHash'),
-      },
-      {
-        kind: 'publish-artifact',
-        path: stringAt(publishArtifact, 'path') ?? 'missing',
-        sha256: stringAt(publishArtifact, 'fileHash'),
-      },
-      {
-        kind: 'publish-run-smoke',
-        path: stringAt(publishRunSmoke, 'path') ?? 'missing',
-        sha256: stringAt(publishRunSmoke, 'fileHash'),
-      },
-    ],
-    diagnostics,
-    nonClaims: stringArrayAt(artifact, 'nonClaims'),
-    publishEvidenceHash: fnv1aHash('studio-publish-evidence', {
-      evidenceKind,
-      evidenceVersion,
-      evidenceHash: stringAt(artifact, 'evidenceHash'),
-      status,
-      diagnostics,
-      artifact: publishArtifact,
-      smokeReadback,
-      runSmoke: publishRunSmoke,
-    }),
-  };
-
-  return { ok: diagnostics.length === 0, publishEvidence: readModel, diagnostics };
-}
-
-function buildMissingStudioPublishEvidence(
-  evidencePath: string,
-  diagnostics: readonly StudioDiagnostic[],
-): StudioPublishEvidenceReadModel {
-  return {
-    publishEvidenceVersion: 'studio-publish-evidence.v0',
-    status: 'missing',
-    evidenceKind: 'missing',
-    evidenceVersion: 'missing',
-    evidenceId: null,
-    evidenceHash: null,
-    artifactPath: null,
-    artifactHash: null,
-    artifactVersion: null,
-    artifactFileHash: null,
-    runnableTarget: null,
-    runnableEntrypointPath: null,
-    runnableEntrypointHash: null,
-    resourcePackManifestPath: null,
-    resourcePackManifestHash: null,
-    compiledAssetCount: 0,
-    publishAssetCount: 0,
-    packedResources: [],
-    dependencyGuard: {
-      status: 'missing',
-      inspectedFileCount: 0,
-      forbiddenFragments: [],
-    },
-    runSmoke: {
-      path: null,
-      fileHash: null,
-      runtimeMode: null,
-      launcherName: null,
-      worldHash: null,
-      acceptedCommandStatus: null,
-      rejectedCommandStatus: null,
-      resolvedResourceCount: 0,
-    },
-    checks: [],
-    validations: [],
-    evidenceRefs: [
-      {
-        kind: 'publish-evidence',
-        path: evidencePath,
-        sha256: null,
-      },
-    ],
-    diagnostics,
-    nonClaims: [
-      'not_native_runtime_authority',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-      'not_store_submission',
-    ],
-    publishEvidenceHash: fnv1aHash('studio-publish-evidence-missing', {
-      evidencePath,
-      diagnostics,
-    }),
-  };
-}
-
-export function exportStudioWorkspaceCockpitEvidence(input: {
-  readonly studioWorkspace: StudioWorkspaceReadModel;
-  readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
-  readonly assetInventory: StudioAssetInventoryReadModel | null;
-  readonly runtimeSessions: StudioRuntimeSessionListReadModel | null;
-  readonly commandProposalPanel: StudioCommandProposalPanelReadModel | null;
-  readonly publishEvidence: StudioPublishEvidenceReadModel | null;
-  readonly visiblePanelMarkers: readonly string[];
-  readonly diagnostics?: readonly StudioDiagnostic[];
-}): StudioWorkspaceCockpitEvidenceResult {
-  const diagnostics: StudioDiagnostic[] = [...(input.diagnostics ?? [])];
-  const requiredMarkers = [
-    'studio-game-workspace-overview',
-    'studio-assets-panel',
-    'studio-runtime-session-panel',
-    'studio-command-proposal-panel',
-    'studio-publish-evidence-panel',
-  ];
-  if (input.gameWorkspace === null) {
-    diagnostics.push(studioWorkspaceCockpitDiagnostic(
-      'cockpit_missing_game_workspace',
-      'Workspace cockpit evidence requires an opened game workspace readout.',
-      null,
-      null,
-    ));
-  }
-  if (input.assetInventory === null || input.assetInventory.entries.length === 0) {
-    diagnostics.push(studioWorkspaceCockpitDiagnostic(
-      'cockpit_missing_asset_inventory',
-      'Workspace cockpit evidence requires asset inventory readout data.',
-      null,
-      null,
-    ));
-  }
-  if (input.runtimeSessions === null || input.runtimeSessions.sessions.length === 0) {
-    diagnostics.push(studioWorkspaceCockpitDiagnostic(
-      'cockpit_missing_runtime_sessions',
-      'Workspace cockpit evidence requires runtime session readout data.',
-      null,
-      null,
-    ));
-  }
-  if (input.commandProposalPanel === null || input.commandProposalPanel.proposals.length === 0) {
-    diagnostics.push(studioWorkspaceCockpitDiagnostic(
-      'cockpit_missing_command_proposals',
-      'Workspace cockpit evidence requires command proposal evidence rows.',
-      null,
-      null,
-    ));
-  }
-  if (input.publishEvidence === null || input.publishEvidence.status !== 'ready') {
-    diagnostics.push(studioWorkspaceCockpitDiagnostic(
-      'cockpit_missing_publish_evidence',
-      'Workspace cockpit evidence requires ready publish evidence.',
-      input.publishEvidence?.evidenceId ?? null,
-      input.publishEvidence?.status ?? null,
-    ));
-  }
-  for (const marker of requiredMarkers) {
-    if (!input.visiblePanelMarkers.includes(marker)) {
-      diagnostics.push(studioWorkspaceCockpitDiagnostic(
-        'cockpit_missing_panel_marker',
-        `Workspace cockpit evidence marker is missing: ${marker}.`,
-        marker,
-        null,
-      ));
-    }
-  }
-
-  const gameWorkspace = input.gameWorkspace;
-  const assetInventory = input.assetInventory;
-  const runtimeSessions = input.runtimeSessions;
-  const commandProposalPanel = input.commandProposalPanel;
-  const publishEvidence = input.publishEvidence;
-  const generatedFrom = {
-    studioWorkspaceHash: input.studioWorkspace.scene.sceneHash,
-    gameWorkspaceHash: gameWorkspace?.workspaceHash ?? 'missing',
-    assetInventoryHash: assetInventory?.inventoryHash ?? 'missing',
-    runtimeSessionListHash: runtimeSessions?.sessionListHash ?? 'missing',
-    commandProposalPanelHash: commandProposalPanel?.panelHash ?? 'missing',
-    publishEvidenceHash: publishEvidence?.publishEvidenceHash ?? 'missing',
-  };
-  const artifactBody = {
-    generatedFrom,
-    workspace: {
-      gameId: gameWorkspace?.gameId ?? 'missing',
-      manifestPath: gameWorkspace?.manifestPath ?? 'missing',
-      manifestHash: gameWorkspace?.workspaceHash ?? 'missing',
-      attachEndpoint: gameWorkspace?.attachEndpoint ?? 'missing',
-      publishCommand: gameWorkspace?.publishCommand ?? 'missing',
-    },
-    panels: {
-      visibleMarkers: input.visiblePanelMarkers,
-      assetInventory: {
-        status: assetInventory?.status ?? 'missing',
-        entryCount: assetInventory?.entries.length ?? 0,
-        evidenceRefs: assetInventory?.entries.flatMap(entry => entry.evidenceRefs) ?? [],
-      },
-      runtimeSessions: {
-        activeSessionId: runtimeSessions?.activeSessionId ?? 'missing',
-        statuses: runtimeSessions?.sessions.map(session => `${session.sessionType}:${session.status}`) ?? [],
-      },
-      commandProposals: {
-        actionIds: commandProposalPanel?.actions.map(action => action.actionId) ?? [],
-        proposalHashes: commandProposalPanel?.proposals.map(proposal => proposal.proposalHash) ?? [],
-        statuses: commandProposalPanel?.proposals.map(proposal => proposal.status) ?? [],
-      },
-      publishEvidence: {
-        status: publishEvidence?.status ?? 'missing',
-        evidenceHash: publishEvidence?.evidenceHash ?? null,
-        artifactHash: publishEvidence?.artifactHash ?? null,
-        dependencyGuard: publishEvidence?.dependencyGuard.status ?? 'missing',
-      },
-    },
-    diagnostics,
-  };
-  const artifact: StudioWorkspaceCockpitEvidenceArtifact = {
-    artifactKind: 'studio_workspace_cockpit_evidence',
-    artifactVersion: 'studio-workspace-cockpit-evidence.v0',
-    ...artifactBody,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_publish_builder',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-    ],
-    artifactHash: fnv1aHash('studio-workspace-cockpit-evidence', artifactBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, artifact, diagnostics: [] }
-    : { ok: false, artifact, diagnostics };
-}
 
 export interface StudioAssetInventoryArtifactInput {
   readonly artifactKind?: string;
@@ -6258,138 +4040,6 @@ export function buildStudioCatalogWorkflowReadModel(input: {
   };
 }
 
-export function buildStudioAuthoredStatePanelReflection(input: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly assetInventory: StudioAssetInventoryReadModel;
-  readonly authoredSceneObjectId: SceneObjectId;
-  readonly authoredSceneObjectLabel: string;
-  readonly authoredCatalogAssetId: string;
-  readonly visiblePanelMarkers: readonly string[];
-}): StudioAuthoredStatePanelReflectionResult {
-  const diagnostics: StudioDiagnostic[] = [];
-  const requiredMarkers = [
-    'studio-hierarchy-panel',
-    'studio-viewport-top-panel',
-    'studio-inspector-panel',
-    'studio-assets-panel',
-  ];
-  for (const marker of requiredMarkers) {
-    if (!input.visiblePanelMarkers.includes(marker)) {
-      diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
-        'authored_panel_marker_missing',
-        `Authored state panel reflection marker is missing: ${marker}.`,
-        marker,
-        null,
-      ));
-    }
-  }
-
-  const hierarchyObject = input.workspace.sceneObjectSnapshot.objects.find(
-    object => object.objectId === input.authoredSceneObjectId,
-  );
-  const selectedEntity = input.workspace.entities.find(entity => entity.id === input.workspace.selectedEntityId);
-  const selectedRenderable = input.workspace.scene.renderables.find(
-    renderable => renderable.renderableId === input.workspace.scene.selectedRenderableId,
-  );
-  const assetEntry = input.assetInventory.entries.find(entry => entry.assetId === input.authoredCatalogAssetId);
-
-  if (hierarchyObject?.displayName !== input.authoredSceneObjectLabel) {
-    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
-      'authored_scene_object_missing_from_hierarchy',
-      `Authored scene object ${input.authoredSceneObjectId} is missing or stale in the hierarchy panel readout.`,
-      input.authoredSceneObjectId,
-      input.authoredSceneObjectLabel,
-    ));
-  }
-  if (
-    selectedEntity?.sceneObjectId !== input.authoredSceneObjectId
-    || selectedEntity.label !== input.authoredSceneObjectLabel
-  ) {
-    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
-      'authored_scene_object_missing_from_inspector',
-      `Authored scene object ${input.authoredSceneObjectId} is not reflected by the selected inspector readout.`,
-      input.workspace.selectedEntityId,
-      input.authoredSceneObjectId,
-    ));
-  }
-  if (
-    input.workspace.scene.selectedRenderableId !== selectedEntity?.renderableId
-    || selectedRenderable === undefined
-  ) {
-    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
-      'authored_scene_object_missing_from_viewport',
-      `Authored scene object ${input.authoredSceneObjectId} is not reflected by the viewport selected renderable.`,
-      input.workspace.scene.selectedRenderableId,
-      selectedEntity?.renderableId ?? null,
-    ));
-  }
-  if (assetEntry === undefined) {
-    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
-      'authored_catalog_entry_missing_from_assets',
-      `Authored catalog entry ${input.authoredCatalogAssetId} is missing from the assets panel readout.`,
-      input.authoredCatalogAssetId,
-      null,
-    ));
-  }
-  if (assetEntry?.assetId !== input.authoredCatalogAssetId) {
-    diagnostics.push(studioAuthoredStatePanelReflectionDiagnostic(
-      'authored_catalog_entry_missing_from_inspector',
-      `Authored catalog entry ${input.authoredCatalogAssetId} is not reflected by the asset inspector readout.`,
-      input.authoredCatalogAssetId,
-      assetEntry?.assetId ?? null,
-    ));
-  }
-
-  const reflectionBody = {
-    visiblePanelMarkers: input.visiblePanelMarkers,
-    expected: {
-      sceneObjectId: input.authoredSceneObjectId,
-      sceneObjectLabel: input.authoredSceneObjectLabel,
-      catalogAssetId: input.authoredCatalogAssetId,
-    },
-    hierarchyPanel: {
-      objectId: hierarchyObject?.objectId ?? null,
-      displayName: hierarchyObject?.displayName ?? null,
-      selected: hierarchyObject?.objectId === input.workspace.selectedEntityId,
-      sceneObjectSnapshotHash: fnv1aHash('studio-scene-object-snapshot', input.workspace.sceneObjectSnapshot),
-    },
-    viewportPanel: {
-      selectedEntityId: input.workspace.selectedEntityId,
-      selectedRenderableId: input.workspace.scene.selectedRenderableId,
-      renderableIds: input.workspace.scene.renderables.map(renderable => renderable.renderableId),
-      sceneHash: input.workspace.scene.sceneHash,
-    },
-    inspectorPanel: {
-      selectedObjectId: selectedEntity?.sceneObjectId ?? null,
-      selectedObjectName: selectedEntity?.label ?? null,
-      selectedCatalogAssetId: assetEntry?.assetId ?? null,
-      selectedCatalogAssetKind: assetEntry?.kind ?? null,
-    },
-    assetsPanel: {
-      assetId: assetEntry?.assetId ?? null,
-      kind: assetEntry?.kind ?? null,
-      sourcePath: assetEntry?.sourcePath ?? null,
-      dependencyStatus: assetEntry?.dependencyStatus ?? null,
-      inventoryHash: input.assetInventory.inventoryHash,
-    },
-    diagnostics,
-  };
-  const reflection: StudioAuthoredStatePanelReflectionReadModel = {
-    reflectionVersion: 'studio-authored-state-panel-reflection.v0',
-    ...reflectionBody,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_private_ui_mutation',
-      'not_dom_screenshot',
-    ],
-    reflectionHash: fnv1aHash('studio-authored-state-panel-reflection', reflectionBody),
-  };
-
-  return diagnostics.length === 0
-    ? { ok: true, reflection, diagnostics: [] }
-    : { ok: false, reflection, diagnostics };
-}
-
 function npmRunScriptName(command: string): string | null {
   const match = /^npm run ([A-Za-z0-9:_-]+)$/.exec(command);
   return match?.[1] ?? null;
@@ -6472,21 +4122,6 @@ function studioCatalogWorkflowDiagnostic(
 ): StudioDiagnostic {
   return {
     severity: code === 'catalog_workflow_validation_diagnostic' ? 'warning' : 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioAuthoredStatePanelReflectionDiagnostic(
-  code: StudioAuthoredStatePanelReflectionDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
     code,
     message,
     source,
@@ -6680,7 +4315,7 @@ function studioRuntimeSessionDiagnostic(
   remediation: string | null,
 ): StudioDiagnostic {
   return {
-    severity: code === 'runtime_session_reserved' ? 'info' : 'error',
+    severity: 'error',
     code,
     message,
     source,
@@ -6703,128 +4338,8 @@ function studioRunningProjectDiscoveryDiagnostic(
   };
 }
 
-function studioLiveDebugSessionDiagnostic(
-  code: StudioLiveDebugSessionDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioLiveSceneEntityDebugDiagnostic(
-  code: StudioLiveSceneEntityDebugDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioLiveAssetResourceDebugDiagnostic(
-  code: StudioLiveAssetResourceDebugDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioLiveRuntimeTelemetryDebugDiagnostic(
-  code: StudioLiveRuntimeTelemetryDebugDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioLiveDebugCommandProposalDiagnostic(
-  code: StudioLiveDebugCommandProposalDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioAuthoredBrowserDebugDiagnostic(
-  code: StudioAuthoredBrowserDebugDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
 function studioAssetInventoryDiagnostic(
   code: StudioAssetInventoryDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioPublishEvidenceDiagnostic(
-  code: StudioPublishEvidenceDiagnosticCode,
-  message: string,
-  source: string | null,
-  remediation: string | null,
-): StudioDiagnostic {
-  return {
-    severity: code === 'publish_evidence_missing' ? 'warning' : 'error',
-    code,
-    message,
-    source,
-    remediation,
-  };
-}
-
-function studioWorkspaceCockpitDiagnostic(
-  code: StudioWorkspaceCockpitEvidenceDiagnosticCode,
   message: string,
   source: string | null,
   remediation: string | null,
@@ -7625,7 +5140,6 @@ function buildInitialTimeline(): {
 export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
   const renderables: readonly StudioSceneRenderableReadModel[] = [];
   const selectedRenderableId = null;
-  const compatibility = buildStudioCompatibilityEvidence();
   const session: StudioSessionReadModel = {
     sessionId: 'studio-authoring',
     scenarioId: 'untitled',
@@ -7646,8 +5160,6 @@ export function buildInitialWorkspaceReadModel(): StudioWorkspaceReadModel {
 
   return {
     workspaceId: 'asha-studio-substrate',
-    compatibilityMarker: 'asha-studio-substrate.angular-nx.v0',
-    compatibility,
     session,
     scene,
     flatSceneDocument,
@@ -8676,13 +6188,6 @@ function recordAt(value: unknown, key: string): Record<string, unknown> {
   return isRecord(value) && isRecord(value[key]) ? value[key] : {};
 }
 
-function recordArrayAt(value: unknown, key: string): readonly Record<string, unknown>[] {
-  if (!isRecord(value) || !Array.isArray(value[key])) {
-    return [];
-  }
-  return value[key].filter(isRecord);
-}
-
 function stringAt(value: unknown, key: string): string | null {
   return isRecord(value) && typeof value[key] === 'string' ? value[key] : null;
 }
@@ -8692,10 +6197,6 @@ function stringArrayAt(value: unknown, key: string): readonly string[] {
     return [];
   }
   return value[key].filter((item): item is string => typeof item === 'string');
-}
-
-function numberAt(value: unknown, key: string): number | null {
-  return isRecord(value) && typeof value[key] === 'number' ? value[key] : null;
 }
 
 export function restoreStudioWorkspaceArtifact(
@@ -8905,110 +6406,6 @@ export function stageStudioProjectWorkspaceLoad(options: {
     ),
     sceneDocument: options.sceneDocument,
     diagnostics: [],
-  };
-}
-
-export function createStudioAgentReadout(
-  readModel: StudioWorkspaceReadModel,
-  options: {
-    readonly generatedAtIso?: string;
-    readonly compatibility?: StudioCompatibilityEvidence;
-    readonly viewport?: StudioViewportReadout;
-    readonly renderSettings?: StudioRenderSettingsReadModel;
-    readonly uiState?: StudioUiStateReadModel;
-    readonly knownLimitations?: readonly string[];
-  } = {},
-): StudioAgentReadoutArtifact {
-  const compatibility = options.compatibility ?? readModel.compatibility;
-  const diagnostics = compatibility.diagnostics;
-  return {
-    schemaVersion: 1,
-    artifactKind: 'agent_readout',
-    artifactId: `agent-readout:${readModel.session.sessionId}`,
-    generatedAtIso: options.generatedAtIso ?? '1970-01-01T00:00:00.000Z',
-    workspaceId: readModel.workspaceId,
-    compatibilityMarker: readModel.compatibilityMarker,
-    session: readModel.session,
-    compatibility,
-    scene: readModel.scene,
-    entities: readModel.entities,
-    selectedEntityId: readModel.selectedEntityId,
-    entityListHash: computeEntityListHash(readModel.entities),
-    viewport: options.viewport,
-    renderSettings: options.renderSettings,
-    uiState: options.uiState,
-    commandTimeline: readModel.timeline,
-    commandResults: readModel.commandResults,
-    readbackMarker: `${readModel.session.sessionId}:${readModel.scene.sceneHash}:${readModel.timelineSequence}`,
-    diagnostics,
-    knownLimitations: options.knownLimitations ?? [
-      'Current Angular base is a browser reference projection; native runtime authority, hardware GPU evidence, and Agora compositor capture remain gated behind later proof slices.',
-    ],
-  };
-}
-
-export function createStudioCompactAgentReadout(options: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly renderSettings: StudioRenderSettingsReadModel;
-  readonly viewportCamera?: StudioViewportCameraReadModel;
-  readonly viewportTool?: StudioViewportToolReadModel;
-  readonly uiState?: StudioUiStateReadModel;
-  readonly latestViewportHit?: StudioViewportHitReadModel | null;
-  readonly diagnostics?: readonly StudioDiagnostic[];
-  readonly nonClaims?: readonly string[];
-}): StudioCompactAgentReadout {
-  const workspace = options.workspace;
-  const selectedEntity =
-    workspace.selectedEntityId === null
-      ? null
-      : workspace.entities.find(entity => entity.id === workspace.selectedEntityId) ?? null;
-
-  return {
-    schemaVersion: 1,
-    artifactKind: 'compact_agent_readout',
-    readoutVersion: 'studio-compact-readout.v0',
-    workspaceId: workspace.workspaceId,
-    compatibilityMarker: workspace.compatibilityMarker,
-    session: {
-      sessionId: workspace.session.sessionId,
-      scenarioId: workspace.session.scenarioId,
-      scenarioLabel: workspace.session.scenarioLabel,
-      status: workspace.session.status,
-    },
-    scene: {
-      sceneId: workspace.scene.sceneId,
-      sceneHash: workspace.scene.sceneHash,
-      renderableCount: workspace.scene.renderables.length,
-      selectedRenderableId: workspace.scene.selectedRenderableId,
-    },
-    selectedEntity:
-      selectedEntity === null
-        ? null
-        : {
-            entityId: selectedEntity.id,
-            label: selectedEntity.label,
-            kind: selectedEntity.kind,
-            sourceState: selectedEntity.sourceState,
-          },
-    viewport: buildStudioViewportReadout({
-      camera: options.viewportCamera,
-      tool: options.viewportTool,
-    }),
-    latestViewportHit: options.latestViewportHit ?? null,
-    renderSettings: options.renderSettings,
-    uiState: options.uiState,
-    latestCommand: workspace.timeline.at(-1) ?? null,
-    latestCommandResult: workspace.commandResults.at(-1) ?? null,
-    timelineSequence: workspace.timelineSequence,
-    readbackMarker: `${workspace.session.sessionId}:${workspace.scene.sceneHash}:${workspace.timelineSequence}`,
-    diagnostics: options.diagnostics ?? workspace.compatibility.diagnostics,
-    nonClaims: options.nonClaims ?? [
-      'browser_reference_projection',
-      'not_native_runtime_authority',
-      'not_hardware_gpu_evidence',
-      'not_performance_evidence',
-      'not_proof_harness',
-    ],
   };
 }
 

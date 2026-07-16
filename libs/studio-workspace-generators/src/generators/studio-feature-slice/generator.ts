@@ -20,10 +20,8 @@ export default async function generateStudioFeatureSlice(
   const templateRoot = join(dirname(new URL(import.meta.url).pathname), 'files');
   const templateOptions = {
     className: normalizedNames.className,
-    constantName: normalizedNames.fileName.replaceAll('-', '_').toUpperCase(),
     fileName: normalizedNames.fileName,
     propertyName: normalizedNames.propertyName,
-    readoutKind: `studio_${normalizedNames.fileName.replaceAll('-', '_')}_readout`,
     visualId: schema.visualId ?? `studio-${normalizedNames.fileName}`,
   };
 

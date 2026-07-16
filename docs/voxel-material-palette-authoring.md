@@ -31,7 +31,7 @@ The panel also lets an editor select one stored palette entry and propose change
 
 - Add multi-row conversion material-map controls once source metadata can enumerate material slots.
 - Add compact edit presets that select a named material binding while still submitting numeric palette/material ids to the current public command surface.
-- In save/load proofs, display material preservation as a first-class pass/fail item rather than only a summary string.
+- Display save/reopen material preservation directly in the editor rather than only as a diagnostic summary.
 
 ## Engine-Owned Gaps
 

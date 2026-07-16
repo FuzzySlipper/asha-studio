@@ -2,20 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   buildInitialWorkspaceReadModel,
-  createStudioCompactAgentReadout,
   build<%= className %>ReadModel,
-  build<%= className %>ReadoutContribution,
 } from '@asha-studio/domain';
 
-test('<%= fileName %> read model follows the shared Studio workspace and compact readout', () => {
+test('<%= fileName %> read model exposes visible workspace content', () => {
   const workspace = buildInitialWorkspaceReadModel();
-  const compactReadout = createStudioCompactAgentReadout({ workspace });
   const readModel = build<%= className %>ReadModel(workspace);
-  const contribution = build<%= className %>ReadoutContribution(readModel, compactReadout);
 
   assert.equal(readModel.readModelVersion, '<%= fileName %>.read-model.v0');
-  assert.equal(readModel.sceneHash, workspace.scene.sceneHash);
-  assert.equal(contribution.artifactKind, '<%= readoutKind %>');
-  assert.equal(contribution.sceneHash, compactReadout.scene.sceneHash);
-  assert.ok(contribution.nonClaims.includes('not_proof_harness'));
+  assert.equal(readModel.entityCount, workspace.entities.length);
+  assert.equal(readModel.selectedEntityId, workspace.selectedEntityId);
 });

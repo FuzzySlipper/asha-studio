@@ -7,17 +7,14 @@ import {
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
   buildStudioLightingProjection,
-  buildStudioAshaDemoProductPathReadModel,
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
   buildStudioCatalogWorkflowReadModel,
   buildDefaultStudioFpsGameplayPresetDraft,
-  buildStudioGameWorkspaceCommandProposalReadModel,
   buildStudioGameWorkspaceReadout,
   buildStudioRuntimeSessionInspectionReadModel,
   buildStudioRunningProjectDiscovery,
   loadStudioAssetInventory,
-  loadStudioPublishEvidence,
   buildStudioViewportReadout,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
@@ -28,8 +25,6 @@ import {
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
-  createStudioCompactAgentReadout,
-  exportStudioWorkspaceCockpitEvidence,
   frameStudioViewportCamera,
   frameStudioViewportCameraOnRenderable,
   findUnresolvedSceneAssetIds,
@@ -37,7 +32,6 @@ import {
   applyCanonicalSceneDocumentReadModel,
   applyProjectedRenderableBoundsReadModel,
   applyStudioCatalogAuthoringOperation,
-  loadStudioGameWorkspaceManifest,
   orbitStudioViewportCamera,
   panStudioViewportCamera,
   refreshStudioGameWorkspaceLiveReadModel,
@@ -57,13 +51,11 @@ import {
   type StudioGameWorkspaceLoadResult,
   type StudioGameWorkspaceAttachReadModel,
   type StudioGameWorkspaceLiveReadModel,
-  type StudioGameWorkspaceReadModel,
   type StudioGameWorkspaceReadout,
   type StudioDevtoolsAttachTransport,
   type StudioFpsGameplayPresetDraft,
   type StudioFpsGameplayPresetDraftField,
   type StudioGeneratedLevelPresetDraft,
-  type StudioAshaDemoProductPathReadModel,
   type StudioRunningProjectDiscoveryReadModel,
   type StudioRuntimeSessionInspectionReadModel,
   type StudioAssetInventoryEntryReadModel,
@@ -71,13 +63,11 @@ import {
   type StudioCatalogSourceEvidenceInput,
   type StudioCatalogWorkflowReadModel,
   type StudioPreferencesReadModel,
-  type StudioRenderSettingsReadModel,
   type StudioRenderSettingKey,
   type StudioLightingMode,
   type StudioLightingProjectionReadModel,
   type StudioAuthoredLightKind,
   type StudioViewportCameraControlDelta,
-  type StudioViewportAdapterReadModel,
   type StudioViewportCameraReadModel,
   type StudioVoxelCoord,
   type StudioViewportHitReadModel,
@@ -140,11 +130,8 @@ import {
   type VoxelEditHistoryRevertRequest,
   type VoxelEditHistorySummary,
   type VoxelEditHistoryUndoRequest,
-  type VoxelAssetContentHashes,
-  type VoxelAssetDiagnostic,
   type VoxelAssetMaterialBinding,
   type VoxelAssetProvenanceKind,
-  type VoxelAssetSparseRun,
   type VoxelCoord,
   type VoxelInstancePickResult,
   type VoxelProjectionBindingReceipt,
@@ -325,23 +312,6 @@ const DEFAULT_VOXEL_ASSET_WORKFLOW_TARGET_DRAFT: StudioVoxelAssetWorkflowTargetD
   targetProjectBundle: null,
   targetAssetPath: null,
 };
-
-const DEFAULT_VOXEL_TRANSCRIPT_DRAFT = JSON.stringify({
-  artifactKind: 'studio_agent_voxel_operation_transcript',
-  artifactVersion: 'studio-agent-voxel-operation-transcript.v0',
-  producer: { kind: 'agent', id: 'external-agent' },
-  target: { studioSurfaceVersion: 'studio-agent-voxel-workflow.v0' },
-  operations: [
-    { operationId: 'inspect-current-voxel-workspace', kind: 'inspect', input: {} },
-  ],
-  nonClaims: [
-    'not_vforge_file',
-    'not_mcp_transport',
-    'not_raw_runtime_bridge_dispatch',
-    'not_runtime_authority',
-    'not_private_studio_state_mutation',
-  ],
-}, null, 2);
 
 const DEFAULT_VOXEL_MATERIAL_PALETTE_EDITOR: StudioVoxelMaterialPaletteEditorReadModel = {
   controlVersion: 'studio-voxel-material-palette-editor.v0',
@@ -731,10 +701,6 @@ export type StudioAgentVoxelWorkflowOperationKind =
   | 'load_voxel_volume_asset'
   | 'unload_voxel_volume_asset'
   | 'initialize_voxel_volume_authoring'
-  | 'view_from_angle'
-  | 'publish_preview'
-  | 'persist_voxel_asset'
-  | 'reopen_voxel_asset'
   | 'submit_voxel_edit'
   | 'submit_compact_voxel_edit';
 export type StudioAgentVoxelWorkflowResultOperation =
@@ -838,163 +804,6 @@ export interface StudioAgentCompactVoxelEditCompileResult {
   readonly batch: CommandBatch | null;
   readonly affordance: StudioAgentCompactVoxelEdit['kind'];
   readonly generatedVoxelCount: number;
-}
-
-export type StudioAgentVoxelViewAngle =
-  | 'front'
-  | 'back'
-  | 'left'
-  | 'right'
-  | 'top'
-  | 'isometric';
-
-export interface StudioAgentVoxelViewFromAngleRequest {
-  readonly angle: StudioAgentVoxelViewAngle;
-  readonly target?: 'selected' | 'scene';
-}
-
-export interface StudioAgentVoxelViewCaptureReadModel {
-  readonly captureVersion: 'studio-agent-voxel-view-capture.v0';
-  readonly angle: StudioAgentVoxelViewAngle;
-  readonly target: 'selected' | 'scene';
-  readonly targetRenderableId: string | null;
-  readonly sessionId: string;
-  readonly sceneHash: string;
-  readonly readbackMarker: string;
-  readonly camera: StudioViewportCameraReadModel;
-  readonly viewport: {
-    readonly cameraHash: string;
-    readonly readbackHash: string;
-    readonly selectedRenderableId: string | null;
-  };
-  readonly evidenceKind: 'projection_view_readout';
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_hardware_gpu_capture',
-    'not_voxelforge_viewer',
-    'not_browser_screenshot',
-  ];
-  readonly captureHash: string;
-}
-
-export interface StudioAgentVoxelPreviewPublicationRequest {
-  readonly artifactPath?: string;
-  readonly label?: string;
-}
-
-export interface StudioAgentVoxelPreviewPublicationReadModel {
-  readonly artifactKind: 'studio_agent_voxel_preview_publication';
-  readonly artifactVersion: 'studio-agent-voxel-preview-publication.v0';
-  readonly label: string;
-  readonly artifactPath: string;
-  readonly sessionId: string;
-  readonly sceneHash: string;
-  readonly readbackMarker: string;
-  readonly conversion: {
-    readonly readoutHash: string;
-    readonly status: string;
-    readonly authorityPosture: string;
-    readonly outputVoxelCount: number | null;
-    readonly outputBoundsLabel: string;
-    readonly evidenceKinds: readonly string[];
-    readonly sourceEvidenceRefs: readonly {
-      readonly source: string;
-      readonly kind: string;
-      readonly uri: string;
-      readonly contentHash: string;
-    }[];
-  };
-  readonly viewport: {
-    readonly cameraHash: string;
-    readonly readbackHash: string;
-    readonly selectedRenderableId: string | null;
-  };
-  readonly nonClaims: readonly [
-    'not_vforge_file',
-    'not_runtime_authority',
-    'not_hardware_gpu_capture',
-    'not_arbitrary_filesystem_write',
-  ];
-  readonly publicationHash: string;
-}
-
-export type StudioAgentVoxelAssetPersistenceSource =
-  | {
-      readonly kind: 'conversion_preview';
-      readonly modelInfo?: VoxelModelInfoReadout | null;
-    }
-  | {
-      readonly kind: 'command_batch';
-      readonly batch: CommandBatch;
-    };
-
-export interface StudioAgentVoxelAssetPersistenceRequest {
-  readonly source: StudioAgentVoxelAssetPersistenceSource;
-  readonly assetId: string;
-  readonly artifactPath?: string;
-  readonly label?: string;
-}
-
-export interface StudioAgentVoxelAssetReopenRequest {
-  readonly asset: VoxelVolumeAsset;
-  readonly artifactPath?: string;
-  readonly expectedAssetId?: string;
-  readonly expectedCanonicalJsonHash?: string;
-}
-
-export interface StudioAgentVoxelAssetPersistenceReadModel {
-  readonly artifactKind: 'studio_agent_voxel_asset_persistence';
-  readonly artifactVersion: 'studio-agent-voxel-asset-persistence.v0';
-  readonly artifactPath: string;
-  readonly label: string;
-  readonly storage: {
-    readonly extension: string;
-    readonly mediaType: string;
-    readonly schemaVersion: number;
-    readonly assetPlane: 'ProjectBundle';
-    readonly runtimePromotion: 'explicit_runtime_to_stored_export';
-  };
-  readonly source: {
-    readonly kind: 'conversion_preview' | 'command_batch';
-    readonly outputVoxelCount: number;
-    readonly boundsLabel: string;
-    readonly evidenceKinds: readonly string[];
-  };
-  readonly asset: VoxelVolumeAsset;
-  readonly serializedAsset: string;
-  readonly validation: {
-    readonly posture: 'studio_shape_check_engine_authority_required';
-    readonly authority: 'svc-voxel-asset';
-    readonly diagnostics: readonly VoxelAssetDiagnostic[];
-  };
-  readonly nonClaims: readonly [
-    'not_vforge_file',
-    'not_runtime_authority',
-    'not_engine_validation',
-    'not_silent_sessionstate_promotion',
-    'not_arbitrary_filesystem_write',
-  ];
-  readonly persistenceHash: string;
-}
-
-export interface StudioAgentVoxelAssetReopenReadModel {
-  readonly artifactKind: 'studio_agent_voxel_asset_reopen';
-  readonly artifactVersion: 'studio-agent-voxel-asset-reopen.v0';
-  readonly artifactPath: string;
-  readonly assetId: string;
-  readonly mediaType: string;
-  readonly schemaVersion: number;
-  readonly reopenedHash: string;
-  readonly expectedHash: string | null;
-  readonly roundTripMatches: boolean;
-  readonly voxelCount: number;
-  readonly boundsLabel: string;
-  readonly validationDiagnostics: readonly VoxelAssetDiagnostic[];
-  readonly nonClaims: readonly [
-    'not_runtime_authority',
-    'not_engine_validation',
-    'not_vforge_file',
-  ];
 }
 
 export interface StudioAgentVoxelVolumeExportReadModel {
@@ -1140,10 +949,6 @@ export type StudioAgentVoxelWorkflowOperation =
   | { readonly kind: 'load_voxel_volume_asset'; readonly loadRequest: VoxelVolumeAssetLoadRequest }
   | { readonly kind: 'unload_voxel_volume_asset'; readonly unloadRequest: VoxelVolumeAssetUnloadRequest }
   | { readonly kind: 'initialize_voxel_volume_authoring'; readonly initializeRequest: VoxelVolumeAuthoringInitializeRequest }
-  | { readonly kind: 'view_from_angle'; readonly view: StudioAgentVoxelViewFromAngleRequest }
-  | { readonly kind: 'publish_preview'; readonly publication?: StudioAgentVoxelPreviewPublicationRequest }
-  | { readonly kind: 'persist_voxel_asset'; readonly persistence: StudioAgentVoxelAssetPersistenceRequest }
-  | { readonly kind: 'reopen_voxel_asset'; readonly reopen: StudioAgentVoxelAssetReopenRequest }
   | { readonly kind: 'submit_voxel_edit'; readonly batch: CommandBatch }
   | { readonly kind: 'submit_compact_voxel_edit'; readonly edit: StudioAgentCompactVoxelEdit };
 
@@ -1187,18 +992,11 @@ export interface StudioAgentVoxelWorkflowSurfaceReadModel {
     readonly coordinateAbsLimit: number;
     readonly authoringAvailable: boolean;
   };
-  readonly viewCapture: {
-    readonly supportedAngles: readonly StudioAgentVoxelViewAngle[];
-    readonly cameraHash: string;
-    readonly readbackHash: string;
-    readonly selectedRenderableId: string | null;
-    readonly evidenceKind: 'projection_view_readout';
-  };
   readonly voxelStorage: {
     readonly extension: string;
     readonly mediaType: string;
     readonly schemaVersion: number;
-    readonly supportedOperations: readonly ['export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'];
+    readonly supportedOperations: readonly ['export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset'];
     readonly assetPlane: 'ProjectBundle';
     readonly authority: 'svc-voxel-asset';
   };
@@ -1223,10 +1021,6 @@ export interface StudioAgentVoxelWorkflowResult {
   readonly voxelVolumeLoad?: StudioAgentVoxelVolumeLoadReadModel | null;
   readonly voxelVolumeUnload?: StudioAgentVoxelVolumeUnloadReadModel | null;
   readonly voxelVolumeAuthoringInitialize?: VoxelVolumeAuthoringInitializeReceipt | null;
-  readonly viewCapture?: StudioAgentVoxelViewCaptureReadModel | null;
-  readonly previewPublication?: StudioAgentVoxelPreviewPublicationReadModel | null;
-  readonly voxelAssetPersistence?: StudioAgentVoxelAssetPersistenceReadModel | null;
-  readonly voxelAssetReopen?: StudioAgentVoxelAssetReopenReadModel | null;
 }
 
 export interface StudioWorkspaceAuthoringCommandReceipt {
@@ -1234,80 +1028,6 @@ export interface StudioWorkspaceAuthoringCommandReceipt {
   readonly batch: CommandBatch;
   readonly result: CommandResult;
   readonly authoringState: WorkspaceAuthoringStateSummary;
-}
-
-export interface StudioAgentVoxelOperationTranscriptEntry {
-  readonly operationId: string;
-  readonly kind: StudioAgentVoxelWorkflowOperationKind;
-  readonly input?: Readonly<Record<string, unknown>>;
-  readonly expected?: {
-    readonly accepted?: boolean;
-  };
-}
-
-export interface StudioAgentVoxelOperationTranscript {
-  readonly artifactKind: 'studio_agent_voxel_operation_transcript';
-  readonly artifactVersion: 'studio-agent-voxel-operation-transcript.v0';
-  readonly producer: {
-    readonly kind: string;
-    readonly id: string;
-    readonly label?: string;
-  };
-  readonly target: {
-    readonly studioSurfaceVersion: 'studio-agent-voxel-workflow.v0';
-    readonly projectBundle?: string;
-    readonly runtimeMode?: string;
-  };
-  readonly operations: readonly StudioAgentVoxelOperationTranscriptEntry[];
-  readonly nonClaims: readonly [
-    'not_vforge_file',
-    'not_mcp_transport',
-    'not_raw_runtime_bridge_dispatch',
-    'not_runtime_authority',
-    'not_private_studio_state_mutation',
-  ];
-}
-
-export interface StudioAgentVoxelOperationTranscriptValidationResult {
-  readonly accepted: boolean;
-  readonly diagnostic: string | null;
-  readonly transcript: StudioAgentVoxelOperationTranscript | null;
-  readonly transcriptHash: string;
-}
-
-export interface StudioAgentVoxelOperationTranscriptReplayOperationReceipt {
-  readonly operationId: string;
-  readonly kind: StudioAgentVoxelWorkflowOperationKind;
-  readonly accepted: boolean;
-  readonly expectedAccepted: boolean | null;
-  readonly expectationMatched: boolean;
-  readonly diagnostic: string | null;
-  readonly surfaceHash: string;
-  readonly resultHash: string;
-}
-
-export interface StudioAgentVoxelOperationTranscriptReplayReceipt {
-  readonly artifactKind: 'studio_agent_voxel_operation_transcript_replay';
-  readonly artifactVersion: 'studio-agent-voxel-operation-transcript-replay.v0';
-  readonly transcriptArtifactKind: 'studio_agent_voxel_operation_transcript' | null;
-  readonly transcriptArtifactVersion: 'studio-agent-voxel-operation-transcript.v0' | null;
-  readonly transcriptHash: string;
-  readonly replayed: boolean;
-  readonly accepted: boolean;
-  readonly diagnostic: string | null;
-  readonly producerId: string | null;
-  readonly operationCount: number;
-  readonly acceptedOperationCount: number;
-  readonly rejectedOperationCount: number;
-  readonly operations: readonly StudioAgentVoxelOperationTranscriptReplayOperationReceipt[];
-  readonly nonClaims: readonly [
-    'not_vforge_file',
-    'not_mcp_transport',
-    'not_raw_runtime_bridge_dispatch',
-    'not_runtime_authority',
-    'not_private_studio_state_mutation',
-  ];
-  readonly receiptHash: string;
 }
 
 export type StudioVoxelAssetWorkflowControlAction =
@@ -1336,14 +1056,6 @@ export const STUDIO_VOXEL_OPERATION_AUTHORITY = {
   inspectRunningGame: 'live_runtime',
   unloadFromRunningGame: 'live_runtime',
 } as const;
-
-export interface StudioVoxelTranscriptControlReadModel {
-  readonly controlVersion: 'studio-voxel-transcript-control.v0';
-  readonly draft: string;
-  readonly status: 'idle' | 'accepted' | 'rejected';
-  readonly message: string;
-  readonly receipt: StudioAgentVoxelOperationTranscriptReplayReceipt | null;
-}
 
 export type StudioVoxelCompactEditControlAction = 'block' | 'fill_box' | 'primitive_box' | 'primitive_line';
 
@@ -1724,70 +1436,6 @@ interface StudioVoxelAssetWorkflowTarget {
   readonly customAssetPath: boolean;
 }
 
-const DEMO_GAME_WORKSPACE_MANIFEST = `[asha]
-engine_version = "0.1.0"
-contracts_version = "0.1.0"
-runtime_bridge_version = "0.1.0"
-devtools_protocol_version = "devtools-protocol.v0"
-publish_artifact_format_version = "publish-artifact.v0"
-engine_source = "../asha-engine"
-
-[workspace]
-scene_roots = ["levels/presets", "levels/scenes"]
-prefab_roots = ["prefabs"]
-asset_roots = ["assets"]
-replay_roots = ["replays"]
-catalog_packages = ["catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
-policy_packages = []
-
-[runtime]
-dev_command = "npm run dev"
-devtools_endpoint = "ws://127.0.0.1:7391"
-wasm_or_native_entry = "dist/runtime/index.js"
-backend_mode = "native"
-backend_profile = "native.napi.launcher.v1"
-backend_proof_refs = ["artifacts/4217/generated-tunnel-room.png"]
-
-[studio]
-workspace_mode = true
-attach_enabled = false
-allowed_source_writes = ["levels/presets", "levels/scenes", "prefabs", "assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
-
-[publish]
-command = "npm run build"
-artifact_dir = "dist"
-verify_command = "npm run typecheck"
-
-[dev_resource_profile]
-local_roots = ["prefabs", "assets", "catalogs/actors", "catalogs/gameplay", "catalogs/materials", "catalogs/spawns", "catalogs/weapons"]
-cache_dir = "dist/dev-cache"
-resolution_policy = "prefer-source"
-
-[publish_resource_profile]
-output_dir = "dist/resources"
-archive_dir = "dist/archive"
-resolution_policy = "locked"
-`;
-
-const DEMO_GAME_WORKSPACE_SCRIPTS: Readonly<Record<string, string>> = {
-  dev: 'node scripts/serve-ui.mjs',
-  build: 'node scripts/build-ui.mjs',
-  typecheck: 'node scripts/check-ui-assets.mjs',
-};
-
-const DEMO_GAME_WORKSPACE_PATHS = new Set([
-  'levels/presets',
-  'levels/scenes',
-  'prefabs',
-  'assets',
-  'replays',
-  'catalogs/actors',
-  'catalogs/gameplay',
-  'catalogs/materials',
-  'catalogs/spawns',
-  'catalogs/weapons',
-]);
-
 const LIVE_RUNTIME_FIXTURE_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
   bundleSchemaVersion: 1,
   protocolVersion: 1,
@@ -1795,10 +1443,10 @@ const LIVE_RUNTIME_FIXTURE_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
 };
 
 function workspaceAuthoringProjectBundle(
-  workspace: StudioGameWorkspaceReadModel,
+  projectIdentity: string,
   document: FlatSceneDocument,
 ): ProjectBundleLoadRequest {
-  const identity = `${workspace.workspaceHash}|${String(document.id)}|${document.schemaVersion}`;
+  const identity = `${projectIdentity}|${String(document.id)}|${document.schemaVersion}`;
   let sceneId = 2_166_136_261;
   for (const character of identity) {
     sceneId ^= character.codePointAt(0) ?? 0;
@@ -1882,161 +1530,6 @@ const STUDIO_PLAYABLE_LOOP_CAMERA_REQUEST: CameraCreateRequest = {
   },
 };
 
-const DEMO_ASSET_INVENTORY_ARTIFACT = {
-  artifactKind: 'asha_demo_asset_inventory',
-  artifactVersion: 'asset-inventory.v1',
-  generatedAt: 'deterministic-as-structure-only',
-  sourceManifest: {
-    path: 'asha.game.toml',
-    hash: 'sha256:8dea305570a722c40d5e046b11197476c4d9e9674ce83f537dc803ada6bb9703',
-  },
-  catalog: {
-    path: 'packages/game-catalogs/catalog.json',
-    hash: 'sha256:d51427117af9d7eefb673cec1a9a555fcb2f7f772950325cc7117d2dc61d1540',
-  },
-  status: 'ok',
-  diagnostics: [],
-  dependencyOrder: [
-    'texture.demo-checker',
-    'material.demo-copper',
-    'mesh.demo-cube',
-    'mesh/import-fixture-a',
-  ],
-  entries: [
-    {
-      assetId: 'mesh.demo-cube',
-      kind: 'static_mesh',
-      sourcePath: 'assets/meshes/demo-cube.mesh.json',
-      dependencies: ['material.demo-copper'],
-      devResolution: {
-        assetId: 'mesh.demo-cube',
-        sourcePath: 'assets/meshes/demo-cube.mesh.json',
-        sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
-        devCacheKey: 'dev-cache/static_mesh/mesh.demo-cube/22b581000100',
-        generatedArtifactVersion: 'asset-import.v1',
-        importStatus: 'clean',
-        publishOutputKey: 'meshes/demo-cube.mesh.json',
-      },
-      publishResolution: {
-        outputKey: 'meshes/demo-cube.mesh.json',
-        packedPath: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
-        packedHash: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
-        packedBytes: 702,
-      },
-      diagnostics: [],
-      evidenceRefs: [
-        {
-          kind: 'source',
-          path: 'assets/meshes/demo-cube.mesh.json',
-          sha256: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
-        },
-        {
-          kind: 'packed-resource',
-          path: 'harness/out/publish/resources/meshes/demo-cube.mesh.json',
-          sha256: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
-        },
-      ],
-    },
-    {
-      assetId: 'mesh/import-fixture-a',
-      kind: 'static_mesh',
-      sourcePath: 'assets/meshes/import-fixture-a.mesh.json',
-      dependencies: ['material.demo-copper'],
-      devResolution: {
-        assetId: 'mesh/import-fixture-a',
-        sourcePath: 'assets/meshes/import-fixture-a.mesh.json',
-        sourceHash: 'sha256:import-fixture-a',
-        devCacheKey: 'dev-cache/static_mesh/mesh-import-fixture-a/import-fixture-a',
-        generatedArtifactVersion: 'asset-import.v1',
-        importStatus: 'clean',
-        publishOutputKey: 'meshes/import-fixture-a.mesh.json',
-      },
-      publishResolution: {
-        outputKey: 'meshes/import-fixture-a.mesh.json',
-        packedPath: 'harness/out/publish/resources/meshes/import-fixture-a.mesh.json',
-        packedHash: null,
-        packedBytes: null,
-      },
-      diagnostics: [],
-      evidenceRefs: [
-        {
-          kind: 'source',
-          path: 'assets/meshes/import-fixture-a.mesh.json',
-          sha256: 'sha256:import-fixture-a',
-        },
-      ],
-    },
-    {
-      assetId: 'material.demo-copper',
-      kind: 'material',
-      sourcePath: 'assets/materials/demo-copper.material.json',
-      dependencies: ['texture.demo-checker'],
-      devResolution: {
-        assetId: 'material.demo-copper',
-        sourcePath: 'assets/materials/demo-copper.material.json',
-        sourceHash: 'sha256:0190cf1f6ec702431fd1e37e38503b9002978681a989d6382830d92e586ccd6d',
-        devCacheKey: 'dev-cache/material/material.demo-copper/0190cf1f6ec7',
-        generatedArtifactVersion: 'asset-import.v1',
-        importStatus: 'clean',
-        publishOutputKey: 'materials/demo-copper.material.json',
-      },
-      publishResolution: {
-        outputKey: 'materials/demo-copper.material.json',
-        packedPath: 'harness/out/publish/resources/materials/demo-copper.material.json',
-        packedHash: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
-        packedBytes: 214,
-      },
-      diagnostics: [],
-      evidenceRefs: [
-        {
-          kind: 'source',
-          path: 'assets/materials/demo-copper.material.json',
-          sha256: 'sha256:0190cf1f6ec702431fd1e37e38503b9002978681a989d6382830d92e586ccd6d',
-        },
-        {
-          kind: 'packed-resource',
-          path: 'harness/out/publish/resources/materials/demo-copper.material.json',
-          sha256: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
-        },
-      ],
-    },
-    {
-      assetId: 'texture.demo-checker',
-      kind: 'texture',
-      sourcePath: 'assets/textures/demo-checker.texture.json',
-      dependencies: [],
-      devResolution: {
-        assetId: 'texture.demo-checker',
-        sourcePath: 'assets/textures/demo-checker.texture.json',
-        sourceHash: 'sha256:46f863709c0cf4f2d5d03b560f492f5556c3482640b69dddcc6a2ac56b8963d3',
-        devCacheKey: 'dev-cache/texture/texture.demo-checker/46f863709c0c',
-        generatedArtifactVersion: 'asset-import.v1',
-        importStatus: 'clean',
-        publishOutputKey: 'textures/demo-checker.texture.json',
-      },
-      publishResolution: {
-        outputKey: 'textures/demo-checker.texture.json',
-        packedPath: 'harness/out/publish/resources/textures/demo-checker.texture.json',
-        packedHash: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
-        packedBytes: 367,
-      },
-      diagnostics: [],
-      evidenceRefs: [
-        {
-          kind: 'source',
-          path: 'assets/textures/demo-checker.texture.json',
-          sha256: 'sha256:46f863709c0cf4f2d5d03b560f492f5556c3482640b69dddcc6a2ac56b8963d3',
-        },
-        {
-          kind: 'packed-resource',
-          path: 'harness/out/publish/resources/textures/demo-checker.texture.json',
-          sha256: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
-        },
-      ],
-    },
-  ],
-} as const;
-
 function stableBrowserHash(text: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < text.length; index += 1) {
@@ -2050,204 +1543,6 @@ function studioMonotonicNow(): number {
   return globalThis.performance?.now() ?? Date.now();
 }
 
-const DEMO_PUBLISH_EVIDENCE = {
-  evidenceKind: 'asha_demo_publish_evidence_manifest',
-  evidenceVersion: 'publish-evidence.v1',
-  generatedAt: 'deterministic-as-structure-only',
-  publishArtifact: {
-    path: 'harness/out/publish/latest/index.json',
-    fileHash: 'sha256:85b942e5df6f30184fc16355d25d362fa06af26878a4fd21c7e274f0e747762a',
-    artifactId: 'asha-demo-publish:sha256:0b62e2e4e86bc1c0ab4ad5930599a068646c1048642bab88d1fb4b601f5f1256',
-    artifactHash: 'sha256:0b62e2e4e86bc1c0ab4ad5930599a068646c1048642bab88d1fb4b601f5f1256',
-    artifactVersion: 'publish-artifact.v0',
-    compiledAssetCount: 3,
-    publishAssetCount: 3,
-    runnableTarget: 'asha-demo-static-reference.v1',
-    runnableEntrypointPath: 'harness/out/publish/runnable/latest/index.html',
-    runnableEntrypointHash: 'sha256:740b5e8836e7e923ef19f3b78c3e4195ab19cc503ba5fce7fda222772e7345a2',
-    resourcePackManifestPath: 'harness/out/publish/resources/manifest.json',
-    resourcePackManifestHash: 'sha256:eb88d4443d0556db892b1f8371523462de0bd994d3c10dba3a1cf88e3828dd68',
-  },
-  publishSmoke: {
-    path: 'harness/out/publish-smoke/latest/index.json',
-    fileHash: 'sha256:95a795c9a2af139e15806bc35a658129cbcceb3e06a8d2bff2a7dadfa9ee08f1',
-    checks: [
-      'publish_artifact_built',
-      'artifact_hash_recomputed',
-      'compiled_assets_match_sources',
-      'packed_resources_match_publish_profile',
-      'no_dev_local_resource_reads',
-      'runnable_dependency_guard_passed',
-      'non_claims_preserved',
-    ],
-    readback: {
-      status: 'ok',
-      artifactPath: 'harness/out/publish/latest/index.json',
-      artifactHash: 'sha256:0b62e2e4e86bc1c0ab4ad5930599a068646c1048642bab88d1fb4b601f5f1256',
-      publishDependencyGuard: 'no-studio-dev-only-fragments',
-      sceneCount: 2,
-      catalogCount: 1,
-      compiledAssetCount: 3,
-      publishAssetCount: 3,
-      packedResources: [
-        {
-          assetId: 'mesh.demo-cube',
-          outputKey: 'meshes/demo-cube.mesh.json',
-          sourceHash: 'sha256:22b58100010034f72eb504d7722aec14b819438bce47e80bf361b3444e238117',
-          packedHash: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
-          runnableHash: 'sha256:277860798a59f8bf7a06e28ad60988799b6d63768d43094ba9537a03108b787e',
-        },
-        {
-          assetId: 'material.demo-copper',
-          outputKey: 'materials/demo-copper.material.json',
-          sourceHash: 'sha256:0190cf1f6ec702431fd1e37e38503b9002978681a989d6382830d92e586ccd6d',
-          packedHash: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
-          runnableHash: 'sha256:89b73b140332526f3b6c63a9b4f26a78ca657ca764ae87262cfbff4b36fb55b2',
-        },
-        {
-          assetId: 'texture.demo-checker',
-          outputKey: 'textures/demo-checker.texture.json',
-          sourceHash: 'sha256:46f863709c0cf4f2d5d03b560f492f5556c3482640b69dddcc6a2ac56b8963d3',
-          packedHash: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
-          runnableHash: 'sha256:033fc8ad02986bbf46064607c516f8ce1fe77714d136712297d9d35414a2473d',
-        },
-      ],
-      dependencyGuard: {
-        inspectedRunnableFiles: [
-          'harness/out/publish/runnable/latest/index.html',
-          'harness/out/publish/runnable/latest/resources/manifest.json',
-          'harness/out/publish/runnable/latest/resources/materials/demo-copper.material.json',
-          'harness/out/publish/runnable/latest/resources/meshes/demo-cube.mesh.json',
-          'harness/out/publish/runnable/latest/resources/textures/demo-checker.texture.json',
-          'harness/out/publish/runnable/latest/runtime/reference-runtime.json',
-        ],
-        forbiddenFragments: [
-          '@asha-studio/',
-          'asha-studio',
-          '../asha-studio',
-          'studio-game-workspace',
-          'harness/out/dev-smoke',
-          'harness/out/publish-smoke',
-          'devtools_endpoint',
-          'ws://127.0.0.1',
-          'ws://localhost',
-        ],
-      },
-    },
-  },
-  publishRunSmoke: {
-    path: 'harness/out/publish-run-smoke/latest/index.json',
-    fileHash: 'sha256:ce809ae83fc0d4f6867c230b1950dbed5d802c90e3f654c9e69b5b563e4d8c8c',
-    runtime: {
-      runtimeMode: 'reference',
-      launcherName: 'reference-game-runtime-launcher',
-      nonClaims: [
-        'not_native_runtime',
-        'not_hardware_gpu',
-        'not_performance_evidence',
-        'not_publish_artifact',
-        'not_wasm_authority',
-      ],
-    },
-    projection: {
-      worldHash: 'reference-world:asha-demo:1002:accepted:0',
-    },
-    commandProof: {
-      acceptedCommand: { status: 'accepted' },
-      rejectedCommand: { status: 'rejected' },
-    },
-    resolvedResourceCount: 3,
-    checks: [
-      'entrypoint_exists_without_dev_server',
-      'runtime_metadata_loaded',
-      'packed_resources_resolved',
-      'reference_runtime_projection_pulled',
-      'packaged_runtime_accepted_command_mutated_projection',
-      'packaged_runtime_rejected_command_preserved_projection',
-      'no_devtools_endpoint_required',
-    ],
-  },
-  validations: [
-    'publish_artifact_hash_matches_readback',
-    'publish_smoke_references_publish_artifact',
-    'publish_run_smoke_references_runnable_artifact',
-    'runnable_entrypoint_hash_recorded',
-    'packed_resource_manifest_hash_recorded',
-    'runtime_projection_readback_present',
-    'packaged_command_proof_present',
-    'compiled_asset_count_matches_readback',
-    'studio_dev_only_dependency_guard_passed',
-  ],
-  nonClaims: [
-    'not_native_runtime_authority',
-    'not_hardware_gpu_evidence',
-    'not_performance_evidence',
-    'not_store_submission',
-  ],
-  evidenceId: 'asha-demo-publish-evidence:sha256:95da5f3787aa4a97bc21ff998305ab2a8ffd6d8b02081cc8b00f410880ad842e',
-  evidenceHash: 'sha256:95da5f3787aa4a97bc21ff998305ab2a8ffd6d8b02081cc8b00f410880ad842e',
-} as const;
-
-function loadDemoGameWorkspace(): StudioGameWorkspaceLoadResult {
-  return loadStudioGameWorkspaceManifest({
-    workspaceRoot: '../asha-demo',
-    manifestPath: 'asha.game.toml',
-    gameId: 'asha-demo',
-    manifestText: DEMO_GAME_WORKSPACE_MANIFEST,
-    packageScripts: DEMO_GAME_WORKSPACE_SCRIPTS,
-    pathExists: relativePath => DEMO_GAME_WORKSPACE_PATHS.has(relativePath),
-  });
-}
-
-function loadDemoAssetInventory(): StudioAssetInventoryLoadResult {
-  return loadStudioAssetInventory(DEMO_ASSET_INVENTORY_ARTIFACT, {
-    referencedRenderableIds: demoReferencedRenderableIds(),
-  });
-}
-
-function demoReferencedRenderableIds(): Readonly<Record<string, readonly string[]>> {
-  return {
-    'mesh.demo-cube': ['model-preview-crate'],
-    'material.demo-copper': ['model-preview-crate'],
-  };
-}
-
-function importProfileForKind(kind: string): string {
-  if (kind === 'static_mesh') {
-    return 'inline-static-mesh.v0';
-  }
-  if (kind === 'material') {
-    return 'inline-material.v0';
-  }
-  return 'inline-texture.v0';
-}
-
-function catalogFromInventoryArtifact(): AshaGameAssetCatalog {
-  return {
-    schemaVersion: 1,
-    entries: DEMO_ASSET_INVENTORY_ARTIFACT.entries.map((entry): AshaGameAssetCatalogEntry => ({
-      id: entry.assetId,
-      kind: entry.kind as AshaGameAssetKind,
-      source: entry.sourcePath,
-      importProfile: importProfileForKind(entry.kind),
-      importMetadata: {
-        sourceHash: entry.devResolution.sourceHash,
-        cacheKey: entry.devResolution.devCacheKey,
-        generatedArtifactVersion: entry.devResolution.generatedArtifactVersion,
-      },
-      dependencies: entry.dependencies ?? [],
-      publish: {
-        include: true,
-        outputKey: entry.publishResolution.outputKey,
-      },
-      diagnostics: {
-        owner: 'asha-studio',
-        notes: [],
-      },
-    })),
-  };
-}
-
 function inventoryFromCatalog(
   catalog: AshaGameAssetCatalog,
   catalogPath: string,
@@ -2258,7 +1553,7 @@ function inventoryFromCatalog(
     artifactKind: 'asha_demo_asset_inventory',
     artifactVersion: 'asset-inventory.v1',
     status: 'ok',
-    sourceManifest: DEMO_ASSET_INVENTORY_ARTIFACT.sourceManifest,
+    sourceManifest: { path: 'asha.game.toml', hash: 'catalog-source-unresolved' },
     catalog: { path: catalogPath, hash: catalogHash },
     diagnostics: [],
     dependencyOrder: catalog.entries.map(entry => entry.id),
@@ -2292,56 +1587,14 @@ function inventoryFromCatalog(
   }, { referencedRenderableIds });
 }
 
-function buildDemoCommandProposalRows(workspace: StudioGameWorkspaceReadModel) {
-  const batch = {
-    commands: [
-      {
-        op: 'setVoxel',
-        grid: 0,
-        coord: { x: 0, y: 0, z: 0 },
-        value: { kind: 'solid', material: 1 },
-      },
-    ],
-  } as const;
-  const rejectedBatch = {
-    commands: [
-      {
-        op: 'setVoxel',
-        grid: 0,
-        coord: { x: 1, y: 0, z: 0 },
-        value: { kind: 'solid', material: 999 },
-      },
-    ],
-  } as const;
-  return [
-    buildStudioGameWorkspaceCommandProposalReadModel({
-      workspace,
-      attachHash: 'fixture:devtools-attach:asha-demo',
-      sequenceId: 'seq-1',
-      batch,
-      status: 'accepted',
-      result: {
-        accepted: 1,
-        rejected: 0,
-        rejections: [],
-      },
-      authorityHashAfter: 'authority:after:accepted',
-    }),
-    buildStudioGameWorkspaceCommandProposalReadModel({
-      workspace,
-      attachHash: 'fixture:devtools-attach:asha-demo',
-      sequenceId: 'seq-2',
-      batch: rejectedBatch,
-      status: 'rejected',
-      result: {
-        accepted: 0,
-        rejected: 1,
-        rejections: [{ reason: 'unknownMaterial', material: 999 }],
-      },
-      authorityHashAfter: 'authority:after:rejected',
-      rejectionReason: 'authority_rejected',
-    }),
-  ];
+function importProfileForKind(kind: string): string {
+  if (kind === 'static_mesh') {
+    return 'inline-static-mesh.v0';
+  }
+  if (kind === 'material') {
+    return 'inline-material.v0';
+  }
+  return 'inline-texture.v0';
 }
 
 function firstDiagnosticMessage(
@@ -2400,10 +1653,6 @@ const AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS: readonly StudioAgentVoxelWorkfl
   'load_voxel_volume_asset',
   'unload_voxel_volume_asset',
   'initialize_voxel_volume_authoring',
-  'view_from_angle',
-  'publish_preview',
-  'persist_voxel_asset',
-  'reopen_voxel_asset',
   'submit_voxel_edit',
   'submit_compact_voxel_edit',
 ];
@@ -2415,56 +1664,6 @@ const AGENT_COMPACT_VOXEL_AFFORDANCES: readonly StudioAgentCompactVoxelEdit['kin
   'fill_box',
   'apply_voxel_primitives',
 ];
-const AGENT_VOXEL_VIEW_ANGLES: readonly StudioAgentVoxelViewAngle[] = [
-  'front',
-  'back',
-  'left',
-  'right',
-  'top',
-  'isometric',
-];
-const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS = [
-  'not_vforge_file',
-  'not_mcp_transport',
-  'not_raw_runtime_bridge_dispatch',
-  'not_runtime_authority',
-  'not_private_studio_state_mutation',
-] as const;
-const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_KIND = 'studio_agent_voxel_operation_transcript' as const;
-const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_VERSION = 'studio-agent-voxel-operation-transcript.v0' as const;
-const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_KIND = 'studio_agent_voxel_operation_transcript_replay' as const;
-const STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_VERSION = 'studio-agent-voxel-operation-transcript-replay.v0' as const;
-const AGENT_VOXEL_TRANSCRIPT_ALLOWED_TOP_LEVEL_KEYS = [
-  'artifactKind',
-  'artifactVersion',
-  'producer',
-  'target',
-  'operations',
-  'nonClaims',
-] as const;
-const AGENT_VOXEL_TRANSCRIPT_ALLOWED_OPERATION_KEYS = ['operationId', 'kind', 'input', 'expected'] as const;
-const AGENT_VOXEL_TRANSCRIPT_INPUT_KEYS: Readonly<Record<StudioAgentVoxelWorkflowOperationKind, readonly string[]>> = {
-  inspect: [],
-  register_conversion_source: ['registration'],
-  register_conversion_mesh_asset: ['registration'],
-  import_conversion_mesh_source: ['importRequest'],
-  configure_conversion: ['patch'],
-  run_conversion: ['commandId'],
-  get_model_info: ['request'],
-  get_model_window: ['request'],
-  export_voxel_volume_asset: ['exportRequest'],
-  save_voxel_volume_asset: ['saveRequest'],
-  load_voxel_volume_asset: ['loadRequest'],
-  unload_voxel_volume_asset: ['unloadRequest'],
-  initialize_voxel_volume_authoring: ['initializeRequest'],
-  view_from_angle: ['view'],
-  publish_preview: ['publication'],
-  persist_voxel_asset: ['persistence'],
-  reopen_voxel_asset: ['reopen'],
-  submit_voxel_edit: ['batch'],
-  submit_compact_voxel_edit: ['edit'],
-};
-
 function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
   const text = JSON.stringify(value);
   let hash = 0;
@@ -2472,585 +1671,6 @@ function stableAgentVoxelWorkflowHash(label: string, value: unknown): string {
     hash = ((hash * 31) + text.charCodeAt(index)) >>> 0;
   }
   return `${label}-${hash.toString(16).padStart(8, '0')}`;
-}
-
-function isAgentVoxelTranscriptRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function agentVoxelTranscriptRecordKeysDiagnostic(
-  value: Readonly<Record<string, unknown>>,
-  allowedKeys: readonly string[],
-  label: string,
-): string | null {
-  const disallowed = Object.keys(value).find(key => !allowedKeys.includes(key));
-  return disallowed === undefined ? null : `${label} contains unsupported field ${disallowed}`;
-}
-
-function agentVoxelTranscriptForbiddenShapeDiagnostic(value: unknown, path = 'transcript'): string | null {
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      const diagnostic = agentVoxelTranscriptForbiddenShapeDiagnostic(value[index], `${path}[${index}]`);
-      if (diagnostic !== null) return diagnostic;
-    }
-    return null;
-  }
-  if (isAgentVoxelTranscriptRecord(value)) {
-    for (const [key, child] of Object.entries(value)) {
-      const lowerKey = key.toLowerCase();
-      if (['method', 'methodname', 'args', 'rpc', 'rawmethod', 'rawruntimebridgecall'].includes(lowerKey)) {
-        return `raw RuntimeBridge or method dispatch is not accepted in voxel transcripts (${path}.${key})`;
-      }
-      if (['privatepath', 'storepath', 'privateimport', 'generatedcontractimport'].includes(lowerKey)) {
-        return `private Studio or generated-contract paths are not accepted in voxel transcripts (${path}.${key})`;
-      }
-      if (['mcptool', 'mcptransport', 'mcpcall'].includes(lowerKey)) {
-        return `MCP transport calls are not accepted in voxel transcripts (${path}.${key})`;
-      }
-      if (['vforgepath', 'vforgefile'].includes(lowerKey)) {
-        return `VoxelForge .vforge files are not accepted in voxel transcripts (${path}.${key})`;
-      }
-      const diagnostic = agentVoxelTranscriptForbiddenShapeDiagnostic(child, `${path}.${key}`);
-      if (diagnostic !== null) return diagnostic;
-    }
-    return null;
-  }
-  if (typeof value === 'string') {
-    if (value.includes('.vforge')) {
-      return `VoxelForge .vforge files are not accepted in voxel transcripts (${path})`;
-    }
-    if (value.startsWith('mcp://') || value === 'voxelforge_mcp_transport') {
-      return `MCP transport calls are not accepted in voxel transcripts (${path})`;
-    }
-    if (
-      value.includes('@asha/contracts/private')
-      || value.includes(['', 'src', 'generated'].join('/'))
-      || value.includes(['', 'src', 'generated'].join('\\'))
-    ) {
-      return `generated-contract import paths are not accepted in voxel transcripts (${path})`;
-    }
-    if (value.includes('RuntimeBridge.') || value.includes('runtimeSessionFacadeState') || value.includes('workspaceState.')) {
-      return `private RuntimeBridge or Studio store paths are not accepted in voxel transcripts (${path})`;
-    }
-  }
-  return null;
-}
-
-function isAgentVoxelTranscriptOperationKind(value: unknown): value is StudioAgentVoxelWorkflowOperationKind {
-  return typeof value === 'string'
-    && AGENT_VOXEL_WORKFLOW_SUPPORTED_OPERATIONS.includes(value as StudioAgentVoxelWorkflowOperationKind);
-}
-
-function agentVoxelTranscriptExpectedAccepted(value: unknown): boolean | null {
-  if (!isAgentVoxelTranscriptRecord(value)) return null;
-  const expected = value['accepted'];
-  return typeof expected === 'boolean' ? expected : null;
-}
-
-function agentVoxelTranscriptOperationToWorkflowOperation(
-  operation: StudioAgentVoxelOperationTranscriptEntry,
-): StudioAgentVoxelWorkflowOperation {
-  const input = operation.input ?? {};
-  return {
-    kind: operation.kind,
-    ...input,
-  } as StudioAgentVoxelWorkflowOperation;
-}
-
-export function parseStudioAgentVoxelOperationTranscript(
-  value: unknown,
-): StudioAgentVoxelOperationTranscriptValidationResult {
-  const transcriptHash = stableAgentVoxelWorkflowHash('studio-agent-voxel-operation-transcript-input', value);
-  const forbiddenDiagnostic = agentVoxelTranscriptForbiddenShapeDiagnostic(value);
-  if (forbiddenDiagnostic !== null) {
-    return { accepted: false, diagnostic: forbiddenDiagnostic, transcript: null, transcriptHash };
-  }
-  if (!isAgentVoxelTranscriptRecord(value)) {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript must be a JSON object',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-  const topLevelDiagnostic = agentVoxelTranscriptRecordKeysDiagnostic(
-    value,
-    AGENT_VOXEL_TRANSCRIPT_ALLOWED_TOP_LEVEL_KEYS,
-    'voxel operation transcript',
-  );
-  if (topLevelDiagnostic !== null) {
-    return { accepted: false, diagnostic: topLevelDiagnostic, transcript: null, transcriptHash };
-  }
-  if (value['artifactKind'] !== STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_KIND) {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript artifactKind must be studio_agent_voxel_operation_transcript',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-  if (value['artifactVersion'] !== STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_VERSION) {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript artifactVersion must be studio-agent-voxel-operation-transcript.v0',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-  const producer = value['producer'];
-  if (!isAgentVoxelTranscriptRecord(producer) || typeof producer['kind'] !== 'string' || typeof producer['id'] !== 'string') {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript producer must include string kind and id',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-  const target = value['target'];
-  if (
-    !isAgentVoxelTranscriptRecord(target)
-    || target['studioSurfaceVersion'] !== 'studio-agent-voxel-workflow.v0'
-  ) {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript target must use studio-agent-voxel-workflow.v0',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-  const operationsValue = value['operations'];
-  if (!Array.isArray(operationsValue) || operationsValue.length === 0) {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript requires at least one operation',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-  const nonClaims = value['nonClaims'];
-  if (
-    !Array.isArray(nonClaims)
-    || !STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS.every(claim => nonClaims.includes(claim))
-  ) {
-    return {
-      accepted: false,
-      diagnostic: 'voxel operation transcript must carry the ASHA-native non-claims',
-      transcript: null,
-      transcriptHash,
-    };
-  }
-
-  const operations: StudioAgentVoxelOperationTranscriptEntry[] = [];
-  for (let index = 0; index < operationsValue.length; index += 1) {
-    const operationValue = operationsValue[index];
-    if (!isAgentVoxelTranscriptRecord(operationValue)) {
-      return {
-        accepted: false,
-        diagnostic: `voxel operation transcript operation ${index} must be an object`,
-        transcript: null,
-        transcriptHash,
-      };
-    }
-    const operationKeysDiagnostic = agentVoxelTranscriptRecordKeysDiagnostic(
-      operationValue,
-      AGENT_VOXEL_TRANSCRIPT_ALLOWED_OPERATION_KEYS,
-      `voxel operation transcript operation ${index}`,
-    );
-    if (operationKeysDiagnostic !== null) {
-      return { accepted: false, diagnostic: operationKeysDiagnostic, transcript: null, transcriptHash };
-    }
-    const kind = operationValue['kind'];
-    if (!isAgentVoxelTranscriptOperationKind(kind)) {
-      return {
-        accepted: false,
-        diagnostic: `voxel operation transcript operation ${index} has unsupported kind ${String(kind)}`,
-        transcript: null,
-        transcriptHash,
-      };
-    }
-    const operationId = operationValue['operationId'];
-    if (typeof operationId !== 'string' || operationId.length === 0) {
-      return {
-        accepted: false,
-        diagnostic: `voxel operation transcript operation ${index} requires a non-empty operationId`,
-        transcript: null,
-        transcriptHash,
-      };
-    }
-    const inputValue = operationValue['input'];
-    if (inputValue !== undefined && !isAgentVoxelTranscriptRecord(inputValue)) {
-      return {
-        accepted: false,
-        diagnostic: `voxel operation transcript operation ${operationId} input must be an object`,
-        transcript: null,
-        transcriptHash,
-      };
-    }
-    const input = inputValue === undefined ? {} : inputValue;
-    const allowedInputKeys = AGENT_VOXEL_TRANSCRIPT_INPUT_KEYS[kind];
-    const disallowedInputKey = Object.keys(input).find(key => !allowedInputKeys.includes(key));
-    if (disallowedInputKey !== undefined) {
-      return {
-        accepted: false,
-        diagnostic: `voxel operation transcript operation ${operationId} has unsupported input field ${disallowedInputKey}`,
-        transcript: null,
-        transcriptHash,
-      };
-    }
-    const missingInputKey = allowedInputKeys.find(key => kind !== 'publish_preview' && input[key] === undefined);
-    if (missingInputKey !== undefined) {
-      return {
-        accepted: false,
-        diagnostic: `voxel operation transcript operation ${operationId} is missing input field ${missingInputKey}`,
-        transcript: null,
-        transcriptHash,
-      };
-    }
-    const expectedValue = operationValue['expected'];
-    if (expectedValue !== undefined) {
-      if (!isAgentVoxelTranscriptRecord(expectedValue)) {
-        return {
-          accepted: false,
-          diagnostic: `voxel operation transcript operation ${operationId} expected must be an object`,
-          transcript: null,
-          transcriptHash,
-        };
-      }
-      const expectedKeysDiagnostic = agentVoxelTranscriptRecordKeysDiagnostic(
-        expectedValue,
-        ['accepted'],
-        `voxel operation transcript operation ${operationId} expected`,
-      );
-      if (expectedKeysDiagnostic !== null) {
-        return { accepted: false, diagnostic: expectedKeysDiagnostic, transcript: null, transcriptHash };
-      }
-      if (expectedValue['accepted'] !== undefined && typeof expectedValue['accepted'] !== 'boolean') {
-        return {
-          accepted: false,
-          diagnostic: `voxel operation transcript operation ${operationId} expected.accepted must be boolean`,
-          transcript: null,
-          transcriptHash,
-        };
-      }
-    }
-    operations.push({
-      operationId,
-      kind,
-      input,
-      ...(expectedValue === undefined ? {} : { expected: expectedValue as { readonly accepted?: boolean } }),
-    });
-  }
-
-  const transcript: StudioAgentVoxelOperationTranscript = {
-    artifactKind: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_KIND,
-    artifactVersion: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_VERSION,
-    producer: {
-      kind: producer['kind'],
-      id: producer['id'],
-      ...(typeof producer['label'] === 'string' ? { label: producer['label'] } : {}),
-    },
-    target: {
-      studioSurfaceVersion: 'studio-agent-voxel-workflow.v0',
-      ...(typeof target['projectBundle'] === 'string' ? { projectBundle: target['projectBundle'] } : {}),
-      ...(typeof target['runtimeMode'] === 'string' ? { runtimeMode: target['runtimeMode'] } : {}),
-    },
-    operations,
-    nonClaims: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS,
-  };
-  return {
-    accepted: true,
-    diagnostic: null,
-    transcript,
-    transcriptHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-operation-transcript', transcript),
-  };
-}
-
-function buildStudioAgentVoxelTranscriptReplayReceipt(options: {
-  readonly validation: StudioAgentVoxelOperationTranscriptValidationResult;
-  readonly operations: readonly StudioAgentVoxelOperationTranscriptReplayOperationReceipt[];
-}): StudioAgentVoxelOperationTranscriptReplayReceipt {
-  const transcript = options.validation.transcript;
-  const operationCount = options.operations.length;
-  const acceptedOperationCount = options.operations.filter(operation => operation.accepted).length;
-  const body = {
-    artifactKind: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_KIND,
-    artifactVersion: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_REPLAY_VERSION,
-    transcriptArtifactKind: transcript?.artifactKind ?? null,
-    transcriptArtifactVersion: transcript?.artifactVersion ?? null,
-    transcriptHash: options.validation.transcriptHash,
-    replayed: options.validation.accepted,
-    accepted: options.validation.accepted && options.operations.every(operation => operation.expectationMatched),
-    diagnostic: options.validation.accepted
-      ? options.operations.find(operation => !operation.expectationMatched)?.diagnostic ?? null
-      : options.validation.diagnostic,
-    producerId: transcript?.producer.id ?? null,
-    operationCount,
-    acceptedOperationCount,
-    rejectedOperationCount: operationCount - acceptedOperationCount,
-    operations: options.operations,
-    nonClaims: STUDIO_AGENT_VOXEL_OPERATION_TRANSCRIPT_NON_CLAIMS,
-  };
-  return {
-    ...body,
-    receiptHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-operation-transcript-replay', body),
-  };
-}
-
-function viewportDistance(camera: StudioViewportCameraReadModel): number {
-  return Math.max(
-    1,
-    Math.hypot(
-      camera.position.x - camera.target.x,
-      camera.position.y - camera.target.y,
-      camera.position.z - camera.target.z,
-    ),
-  );
-}
-
-function cameraForVoxelViewAngle(
-  baseCamera: StudioViewportCameraReadModel,
-  angle: StudioAgentVoxelViewAngle,
-): StudioViewportCameraReadModel {
-  const target = baseCamera.target;
-  const distance = viewportDistance(baseCamera);
-  const raised = Math.max(0.5, distance * 0.18);
-  const diagonal = distance / Math.sqrt(3);
-  const offsetByAngle: Record<StudioAgentVoxelViewAngle, StudioViewportCameraReadModel['position']> = {
-    front: { x: 0, y: -distance, z: raised },
-    back: { x: 0, y: distance, z: raised },
-    left: { x: -distance, y: 0, z: raised },
-    right: { x: distance, y: 0, z: raised },
-    top: { x: 0, y: 0, z: distance },
-    isometric: { x: diagonal, y: -diagonal, z: diagonal },
-  };
-  const up = angle === 'top' ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
-  const offset = offsetByAngle[angle];
-  return buildStudioViewportCameraReadModel({
-    ...baseCamera,
-    position: {
-      x: target.x + offset.x,
-      y: target.y + offset.y,
-      z: target.z + offset.z,
-    },
-    target,
-    up,
-  });
-}
-
-export function buildStudioAgentVoxelViewCaptureReadModel(options: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly viewportTool: StudioViewportToolReadModel;
-  readonly renderSettings: StudioRenderSettingsReadModel;
-  readonly readbackMarker: string;
-  readonly angle: StudioAgentVoxelViewAngle;
-  readonly target?: 'selected' | 'scene';
-}): StudioAgentVoxelViewCaptureReadModel {
-  const target = options.target ?? 'selected';
-  const targetRenderableId = target === 'selected' ? options.workspace.scene.selectedRenderableId : null;
-  const framedCamera =
-    target === 'selected'
-      ? frameStudioViewportCameraOnRenderable(options.workspace.scene, targetRenderableId)
-      : frameStudioViewportCamera(options.workspace.scene);
-  const camera = cameraForVoxelViewAngle(framedCamera, options.angle);
-  const viewport = buildStudioViewportAdapterReadModel({
-    scene: options.workspace.scene,
-    camera,
-    tool: options.viewportTool,
-    renderSettings: options.renderSettings,
-  });
-  const body = {
-    captureVersion: 'studio-agent-voxel-view-capture.v0' as const,
-    angle: options.angle,
-    target,
-    targetRenderableId,
-    sessionId: options.workspace.session.sessionId,
-    sceneHash: options.workspace.scene.sceneHash,
-    readbackMarker: options.readbackMarker,
-    camera,
-    viewport: {
-      cameraHash: camera.cameraHash,
-      readbackHash: viewport.readbackHash,
-      selectedRenderableId: options.workspace.scene.selectedRenderableId,
-    },
-    evidenceKind: 'projection_view_readout' as const,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_hardware_gpu_capture',
-      'not_voxelforge_viewer',
-      'not_browser_screenshot',
-    ] as const,
-  };
-  return {
-    ...body,
-    captureHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-view-capture', body),
-  };
-}
-
-function agentVoxelViewAngleDiagnostic(angle: unknown): string | null {
-  return typeof angle === 'string' && AGENT_VOXEL_VIEW_ANGLES.includes(angle as StudioAgentVoxelViewAngle)
-    ? null
-    : `unsupported voxel view angle ${String(angle)}`;
-}
-
-function agentVoxelPreviewArtifactPathDiagnostic(path: string): string | null {
-  if (!path.startsWith('artifacts/')) {
-    return 'voxel preview publication path must stay under artifacts/';
-  }
-  if (path.includes('..') || path.includes('\\') || path.startsWith('/')) {
-    return 'voxel preview publication path must be a relative artifacts path without traversal';
-  }
-  if (!path.endsWith('.json')) {
-    return 'voxel preview publication path must be a json artifact';
-  }
-  return null;
-}
-
-export function buildStudioAgentVoxelPreviewPublicationReadModel(options: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly shell: StudioVoxelConversionWorkspaceShellReadModel;
-  readonly viewport: StudioViewportAdapterReadModel;
-  readonly readbackMarker: string;
-  readonly artifactPath?: string;
-  readonly label?: string;
-}): StudioAgentVoxelPreviewPublicationReadModel {
-  const artifactPath = options.artifactPath ?? 'artifacts/agent-voxel-preview/latest/index.json';
-  const sourceEvidenceRefs = options.shell.evidenceRows
-    .filter(row => row.status === 'available')
-    .map(row => ({
-      source: row.source,
-      kind: row.kind,
-      uri: row.uri,
-      contentHash: row.contentHash,
-    }));
-  const body = {
-    artifactKind: 'studio_agent_voxel_preview_publication' as const,
-    artifactVersion: 'studio-agent-voxel-preview-publication.v0' as const,
-    label: options.label ?? 'Agent voxel preview',
-    artifactPath,
-    sessionId: options.workspace.session.sessionId,
-    sceneHash: options.workspace.scene.sceneHash,
-    readbackMarker: options.readbackMarker,
-    conversion: {
-      readoutHash: options.shell.readout.readoutHash,
-      status: options.shell.readout.status,
-      authorityPosture: options.shell.readout.authorityPosture,
-      outputVoxelCount: options.shell.previewProjection.outputVoxelCount,
-      outputBoundsLabel: options.shell.previewProjection.outputBoundsLabel,
-      evidenceKinds: Array.from(new Set(sourceEvidenceRefs.map(ref => ref.kind))),
-      sourceEvidenceRefs,
-    },
-    viewport: {
-      cameraHash: options.viewport.camera.cameraHash,
-      readbackHash: options.viewport.readbackHash,
-      selectedRenderableId: options.workspace.scene.selectedRenderableId,
-    },
-    nonClaims: [
-      'not_vforge_file',
-      'not_runtime_authority',
-      'not_hardware_gpu_capture',
-      'not_arbitrary_filesystem_write',
-    ] as const,
-  };
-  return {
-    ...body,
-    publicationHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-preview-publication', body),
-  };
-}
-
-function agentVoxelAssetArtifactPath(assetId: string): string {
-  const safeName = assetId.replace(/^voxel-volume\//, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
-  return `artifacts/agent-voxel-assets/latest/${safeName}.${VOXEL_ASSET_EXTENSION}`;
-}
-
-function agentVoxelAssetArtifactPathDiagnostic(path: string): string | null {
-  if (!path.startsWith('artifacts/')) {
-    return 'voxel asset artifact path must stay under artifacts/';
-  }
-  if (path.includes('..') || path.includes('\\') || path.startsWith('/')) {
-    return 'voxel asset artifact path must be a relative artifacts path without traversal';
-  }
-  if (!path.endsWith(`.${VOXEL_ASSET_EXTENSION}`)) {
-    return `voxel asset artifact path must end with .${VOXEL_ASSET_EXTENSION}`;
-  }
-  return null;
-}
-
-function normalizeVoxelVolumeAssetId(assetId: string): string {
-  if (assetId.startsWith('voxel-volume/')) {
-    return assetId;
-  }
-  if (assetId.startsWith('voxel/')) {
-    return `voxel-volume/${assetId.slice('voxel/'.length)}`;
-  }
-  return `voxel-volume/${assetId.replace(/^\/+/, '')}`;
-}
-
-function normalizeMaterialAssetId(material: number, materialAssetId: string | null | undefined): string {
-  if (typeof materialAssetId === 'string' && materialAssetId.startsWith('material/')) {
-    return materialAssetId;
-  }
-  if (typeof materialAssetId === 'string' && materialAssetId.startsWith('material.')) {
-    return `material/${materialAssetId.slice('material.'.length)}`;
-  }
-  return `material/voxel-${material}`;
-}
-
-type StudioVoxelAssetSolidVoxel = {
-  readonly coord: VoxelCoord;
-  readonly material: number;
-};
-
-function solidVoxelsFromBatch(batch: CommandBatch): readonly StudioVoxelAssetSolidVoxel[] {
-  const cells = new Map<string, StudioVoxelAssetSolidVoxel>();
-  for (const command of batch.commands) {
-    if (command.op !== 'setVoxel') {
-      continue;
-    }
-    const key = `${command.coord.x},${command.coord.y},${command.coord.z}`;
-    if (command.value.kind === 'empty') {
-      cells.delete(key);
-      continue;
-    }
-    cells.set(key, {
-      coord: command.coord,
-      material: command.value.material,
-    });
-  }
-  return Array.from(cells.values()).sort(compareSolidVoxels);
-}
-
-function compareSolidVoxels(a: StudioVoxelAssetSolidVoxel, b: StudioVoxelAssetSolidVoxel): number {
-  return a.coord.z - b.coord.z
-    || a.coord.y - b.coord.y
-    || a.coord.x - b.coord.x
-    || a.material - b.material;
-}
-
-function sparseRunsFromSolidVoxels(voxels: readonly StudioVoxelAssetSolidVoxel[]): readonly VoxelAssetSparseRun[] {
-  const sorted = [...voxels].sort(compareSolidVoxels);
-  const runs: VoxelAssetSparseRun[] = [];
-  for (const voxel of sorted) {
-    const last = runs.at(-1);
-    if (
-      last !== undefined
-      && last.start.y === voxel.coord.y
-      && last.start.z === voxel.coord.z
-      && last.material === voxel.material
-      && last.start.x + last.length === voxel.coord.x
-    ) {
-      runs[runs.length - 1] = {
-        ...last,
-        length: last.length + 1,
-      };
-      continue;
-    }
-    runs.push({
-      start: voxel.coord,
-      length: 1,
-      material: voxel.material,
-    });
-  }
-  return runs;
 }
 
 function subtractVoxelAnnotationSparseRuns(
@@ -3089,375 +1709,8 @@ function subtractVoxelAnnotationSparseRuns(
   );
 }
 
-function boundsFromSolidVoxels(voxels: readonly StudioVoxelAssetSolidVoxel[]): VoxelVolumeAsset['bounds'] {
-  const first = voxels[0];
-  if (first === undefined) {
-    return { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
-  }
-  let minX = first.coord.x;
-  let minY = first.coord.y;
-  let minZ = first.coord.z;
-  let maxX = first.coord.x;
-  let maxY = first.coord.y;
-  let maxZ = first.coord.z;
-  for (const voxel of voxels) {
-    minX = Math.min(minX, voxel.coord.x);
-    minY = Math.min(minY, voxel.coord.y);
-    minZ = Math.min(minZ, voxel.coord.z);
-    maxX = Math.max(maxX, voxel.coord.x);
-    maxY = Math.max(maxY, voxel.coord.y);
-    maxZ = Math.max(maxZ, voxel.coord.z);
-  }
-  return {
-    min: { x: minX, y: minY, z: minZ },
-    max: { x: maxX, y: maxY, z: maxZ },
-  };
-}
-
 function voxelAssetBoundsLabel(bounds: VoxelVolumeAsset['bounds']): string {
   return `[${bounds.min.x},${bounds.min.y},${bounds.min.z}] to [${bounds.max.x},${bounds.max.y},${bounds.max.z}]`;
-}
-
-function materialPaletteFromVoxels(
-  voxels: readonly StudioVoxelAssetSolidVoxel[],
-  materialAssetIds: ReadonlyMap<number, string | null>,
-): readonly VoxelAssetMaterialBinding[] {
-  return Array.from(new Set(voxels.map(voxel => voxel.material)))
-    .sort((a, b) => a - b)
-    .map(material => {
-      const materialAssetId = normalizeMaterialAssetId(material, materialAssetIds.get(material));
-      const materialSlug = materialAssetId.replace(/^material\//, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
-      return {
-        voxelMaterial: material,
-        paletteEntryId: `voxel-material/${materialSlug}`,
-        displayName: `Voxel material ${material}`,
-        materialAssetId,
-        materialCatalogBindingId: materialAssetIds.get(material) === null || materialAssetIds.get(material) === undefined
-          ? null
-          : `catalog-binding/${materialSlug}`,
-      };
-    });
-}
-
-const VOXEL_ASSET_COORDINATE_SYSTEM = 'y_up_right_handed';
-
-function isVoxelAssetFloatPath(path: readonly string[]): boolean {
-  return (
-    (path.length === 3 && path[0] === 'grid' && path[1] === 'origin')
-    || (path.length === 2 && path[0] === 'grid' && path[1] === 'cellSize')
-  );
-}
-
-function canonicalVoxelAssetNumber(value: number, path: readonly string[]): string {
-  if (!Number.isFinite(value)) {
-    throw new Error(`voxel asset JSON number must be finite at ${path.join('.') || '<root>'}`);
-  }
-  if (isVoxelAssetFloatPath(path) && Number.isInteger(value)) {
-    return `${value.toString()}.0`;
-  }
-  return value.toString();
-}
-
-function canonicalVoxelAssetJsonValue(value: unknown, indent = 0, path: readonly string[] = []): string {
-  const padding = ' '.repeat(indent);
-  const childPadding = ' '.repeat(indent + 2);
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return '[]';
-    }
-    return [
-      '[',
-      value
-        .map((item, index) => `${childPadding}${canonicalVoxelAssetJsonValue(item, indent + 2, [...path, String(index)])}`)
-        .join(',\n'),
-      `${padding}]`,
-    ].join('\n');
-  }
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    if (entries.length === 0) {
-      return '{}';
-    }
-    return [
-      '{',
-      entries
-        .map(([key, inner]) => (
-          `${childPadding}${JSON.stringify(key)}: ${canonicalVoxelAssetJsonValue(inner, indent + 2, [...path, key])}`
-        ))
-        .join(',\n'),
-      `${padding}}`,
-    ].join('\n');
-  }
-  if (typeof value === 'number') {
-    return canonicalVoxelAssetNumber(value, path);
-  }
-  if (typeof value === 'string' || typeof value === 'boolean' || value === null) {
-    return JSON.stringify(value);
-  }
-  throw new Error(`unsupported voxel asset JSON value at ${path.join('.') || '<root>'}`);
-}
-
-function canonicalVoxelAssetJson(asset: VoxelVolumeAsset): string {
-  return `${canonicalVoxelAssetJsonValue(asset)}\n`;
-}
-
-const FNV64_OFFSET = 0xcbf29ce484222325n;
-const FNV64_PRIME = 0x100000001b3n;
-const FNV64_MASK = 0xffffffffffffffffn;
-
-function fnv1a64Bytes(bytes: readonly number[]): string {
-  let hash = FNV64_OFFSET;
-  for (const byte of bytes) {
-    hash ^= BigInt(byte & 0xff);
-    hash = (hash * FNV64_PRIME) & FNV64_MASK;
-  }
-  return `fnv1a64:${hash.toString(16).padStart(16, '0')}`;
-}
-
-function utf8Bytes(text: string): readonly number[] {
-  return Array.from(new TextEncoder().encode(text));
-}
-
-function littleEndianBytes(value: bigint, byteCount: number): number[] {
-  const bytes: number[] = [];
-  let current = value;
-  for (let index = 0; index < byteCount; index += 1) {
-    bytes.push(Number(current & 0xffn));
-    current >>= 8n;
-  }
-  return bytes;
-}
-
-function voxelAssetDataHash(runs: readonly VoxelAssetSparseRun[]): string {
-  const bytes: number[] = [];
-  for (const run of runs) {
-    bytes.push(...littleEndianBytes(BigInt.asUintN(64, BigInt(run.start.x)), 8));
-    bytes.push(...littleEndianBytes(BigInt.asUintN(64, BigInt(run.start.y)), 8));
-    bytes.push(...littleEndianBytes(BigInt.asUintN(64, BigInt(run.start.z)), 8));
-    bytes.push(...littleEndianBytes(BigInt(run.length >>> 0), 4));
-    bytes.push(...littleEndianBytes(BigInt(run.material & 0xffff), 2));
-  }
-  return fnv1a64Bytes(bytes);
-}
-
-function computeVoxelAssetHashes(asset: VoxelVolumeAsset): VoxelAssetContentHashes {
-  const normalized: VoxelVolumeAsset = {
-    ...asset,
-    contentHashes: {
-      canonicalJson: '',
-      voxelData: '',
-    },
-  };
-  return {
-    canonicalJson: fnv1a64Bytes(utf8Bytes(canonicalVoxelAssetJson(normalized))),
-    voxelData: voxelAssetDataHash(asset.representation.sparseRuns),
-  };
-}
-
-function withComputedVoxelAssetHashes(asset: VoxelVolumeAsset): VoxelVolumeAsset {
-  return {
-    ...asset,
-    contentHashes: computeVoxelAssetHashes(asset),
-  };
-}
-
-function validationDiagnostic(
-  code: VoxelAssetDiagnostic['code'],
-  reference: string,
-  message: string,
-  severity: VoxelAssetDiagnostic['severity'] = 'error',
-): VoxelAssetDiagnostic {
-  return { code, severity, reference, message };
-}
-
-function buildVoxelAssetFromSolidVoxels(options: {
-  readonly assetId: string;
-  readonly label: string;
-  readonly voxels: readonly StudioVoxelAssetSolidVoxel[];
-  readonly materialAssetIds: ReadonlyMap<number, string | null>;
-  readonly provenanceKind: VoxelAssetProvenanceKind;
-  readonly provenanceUri: string;
-  readonly provenanceHash: string;
-  readonly cellSize: number;
-  readonly origin: readonly [number, number, number];
-  readonly diagnostics?: readonly VoxelAssetDiagnostic[];
-}): VoxelVolumeAsset {
-  const runs = sparseRunsFromSolidVoxels(options.voxels);
-  const withoutHashes: VoxelVolumeAsset = {
-    assetId: normalizeVoxelVolumeAssetId(options.assetId),
-    schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
-    mediaType: VOXEL_ASSET_MEDIA_TYPE,
-    grid: {
-      origin: options.origin,
-      cellSize: options.cellSize,
-      coordinateSystem: VOXEL_ASSET_COORDINATE_SYSTEM,
-    },
-    bounds: boundsFromSolidVoxels(options.voxels),
-    representation: {
-      kind: 'sparse_runs',
-      sparseRuns: runs,
-    },
-    materialPalette: materialPaletteFromVoxels(options.voxels, options.materialAssetIds),
-    provenance: [{
-      kind: options.provenanceKind,
-      uri: options.provenanceUri,
-      contentHash: options.provenanceHash,
-    }],
-    authoring: {
-      label: options.label,
-      createdBy: 'codex-asha-studio',
-      sourceTool: 'asha-studio',
-    },
-    validationDiagnostics: options.diagnostics ?? [],
-    contentHashes: {
-      canonicalJson: '',
-      voxelData: '',
-    },
-  };
-  return withComputedVoxelAssetHashes(withoutHashes);
-}
-
-export function buildStudioAgentVoxelAssetPersistenceReadModel(options: {
-  readonly workspace: StudioWorkspaceReadModel;
-  readonly shell: StudioVoxelConversionWorkspaceShellReadModel;
-  readonly source: StudioAgentVoxelAssetPersistenceSource;
-  readonly assetId: string;
-  readonly artifactPath?: string;
-  readonly label?: string;
-}): StudioAgentVoxelAssetPersistenceReadModel {
-  const assetId = normalizeVoxelVolumeAssetId(options.assetId);
-  const artifactPath = options.artifactPath ?? agentVoxelAssetArtifactPath(assetId);
-  const label = options.label ?? 'Agent voxel asset';
-  let voxels: readonly StudioVoxelAssetSolidVoxel[];
-  let provenanceKind: VoxelAssetProvenanceKind;
-  let provenanceUri: string;
-  let provenanceHash: string;
-  let sourceKind: 'conversion_preview' | 'command_batch';
-  let outputVoxelCount: number;
-  let evidenceKinds: readonly string[];
-  let cellSize = options.shell.settingsDraft.voxelSize;
-  let origin = options.shell.settingsDraft.targetOrigin;
-  const materialAssetIds = new Map<number, string | null>();
-  const diagnostics: VoxelAssetDiagnostic[] = [];
-
-  for (const row of options.shell.previewProjection.materialRows) {
-    materialAssetIds.set(row.voxelMaterial, row.sourceMaterialId);
-  }
-
-  if (options.source.kind === 'conversion_preview') {
-    const preview = options.shell.workspace.preview;
-    voxels = (preview?.sampleVoxels ?? []).map(voxel => ({
-      coord: voxel.coord,
-      material: voxel.material,
-    }));
-    provenanceKind = 'converted';
-    provenanceUri = preview?.evidence.at(-1)?.uri ?? `asha://studio/voxel-conversion/${options.shell.workspace.readoutHash}`;
-    provenanceHash = preview?.outputHash ?? options.shell.workspace.readoutHash;
-    sourceKind = 'conversion_preview';
-    outputVoxelCount = preview?.outputVoxelCount ?? voxels.length;
-    evidenceKinds = Array.from(new Set(options.shell.evidenceRows.filter(row => row.status === 'available').map(row => row.kind)));
-    if (preview !== null && preview !== undefined && preview.sampleVoxels.length !== preview.outputVoxelCount) {
-      diagnostics.push(validationDiagnostic(
-        'invalid_sparse_run',
-        'representation.sparseRuns',
-        'Studio preview samples do not cover the full conversion output; Rust export must provide the complete asset before save.',
-        'warning',
-      ));
-    }
-  } else {
-    voxels = solidVoxelsFromBatch(options.source.batch);
-    provenanceKind = 'runtime_export';
-    provenanceUri = `asha://studio/runtime-session/${options.workspace.session.sessionId}/voxel-command-batch`;
-    provenanceHash = fnv1a64Bytes(utf8Bytes(JSON.stringify(options.source.batch)));
-    sourceKind = 'command_batch';
-    outputVoxelCount = voxels.length;
-    evidenceKinds = ['runtime_export'];
-    cellSize = 1;
-    origin = [0, 0, 0];
-  }
-
-  const asset = buildVoxelAssetFromSolidVoxels({
-    assetId,
-    label,
-    voxels,
-    materialAssetIds,
-    provenanceKind,
-    provenanceUri,
-    provenanceHash,
-    cellSize,
-    origin,
-    diagnostics,
-  });
-  const serializedAsset = canonicalVoxelAssetJson(asset);
-  const body = {
-    artifactKind: 'studio_agent_voxel_asset_persistence' as const,
-    artifactVersion: 'studio-agent-voxel-asset-persistence.v0' as const,
-    artifactPath,
-    label,
-    storage: {
-      extension: VOXEL_ASSET_EXTENSION,
-      mediaType: VOXEL_ASSET_MEDIA_TYPE,
-      schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
-      assetPlane: 'ProjectBundle' as const,
-      runtimePromotion: 'explicit_runtime_to_stored_export' as const,
-    },
-    source: {
-      kind: sourceKind,
-      outputVoxelCount,
-      boundsLabel: voxelAssetBoundsLabel(asset.bounds),
-      evidenceKinds,
-    },
-    asset,
-    serializedAsset,
-    validation: {
-      posture: 'studio_shape_check_engine_authority_required' as const,
-      authority: 'svc-voxel-asset' as const,
-      diagnostics: asset.validationDiagnostics,
-    },
-    nonClaims: [
-      'not_vforge_file',
-      'not_runtime_authority',
-      'not_engine_validation',
-      'not_silent_sessionstate_promotion',
-      'not_arbitrary_filesystem_write',
-    ] as const,
-  };
-  return {
-    ...body,
-    persistenceHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-asset-persistence', body),
-  };
-}
-
-export function buildStudioAgentVoxelAssetReopenReadModel(options: {
-  readonly asset: VoxelVolumeAsset;
-  readonly artifactPath?: string;
-  readonly expectedAssetId?: string;
-  readonly expectedCanonicalJsonHash?: string;
-}): StudioAgentVoxelAssetReopenReadModel {
-  const artifactPath = options.artifactPath ?? agentVoxelAssetArtifactPath(options.asset.assetId);
-  const reopenedHash = computeVoxelAssetHashes(options.asset).canonicalJson;
-  const expectedHash = options.expectedCanonicalJsonHash ?? options.asset.contentHashes.canonicalJson;
-  const expectedAssetId = options.expectedAssetId ?? options.asset.assetId;
-  const voxelCount = options.asset.representation.sparseRuns.reduce((total, run) => total + run.length, 0);
-  return {
-    artifactKind: 'studio_agent_voxel_asset_reopen',
-    artifactVersion: 'studio-agent-voxel-asset-reopen.v0',
-    artifactPath,
-    assetId: options.asset.assetId,
-    mediaType: options.asset.mediaType,
-    schemaVersion: options.asset.schemaVersion,
-    reopenedHash,
-    expectedHash,
-    roundTripMatches: options.asset.assetId === expectedAssetId && reopenedHash === expectedHash,
-    voxelCount,
-    boundsLabel: voxelAssetBoundsLabel(options.asset.bounds),
-    validationDiagnostics: options.asset.validationDiagnostics,
-    nonClaims: [
-      'not_runtime_authority',
-      'not_engine_validation',
-      'not_vforge_file',
-    ],
-  };
 }
 
 function countVoxelAssetVoxels(asset: VoxelVolumeAsset): number {
@@ -5215,9 +3468,16 @@ export class StudioWorkspaceStore {
   private readonly hierarchyFilterState = signal('');
   private readonly viewportHitState = signal<StudioViewportHitReadModel | null>(null);
   private readonly menuMessageState = signal('Workspace ready.');
-  private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>(
-    loadDemoGameWorkspace(),
-  );
+  private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>({
+    ok: false,
+    diagnostics: [{
+      severity: 'info',
+      code: 'workspace_not_open',
+      message: 'No ASHA project workspace is open.',
+      source: null,
+      remediation: 'Open a project workspace from the Project menu.',
+    }],
+  });
   private readonly runtimeAttachState = signal<StudioGameWorkspaceAttachReadModel | null>(null);
   private readonly runtimeLiveState = signal<StudioGameWorkspaceLiveReadModel | null>(null);
   private readonly runtimeSessionBridgeState = signal<NativeBrowserHostRuntimeBridge | null>(null);
@@ -5264,19 +3524,21 @@ export class StudioWorkspaceStore {
   private readonly playableLoopRestartReceiptState = signal<RuntimeSessionLifecycleRestartReceipt | null>(null);
   private readonly runtimeConnectionMessageState = signal('No running project connected.');
   private readonly catalogPathState = signal('packages/game-catalogs/catalog.json');
-  private readonly catalogSourceState = signal<AshaGameAssetCatalog>(catalogFromInventoryArtifact());
+  private readonly catalogSourceState = signal<AshaGameAssetCatalog>({ schemaVersion: 1, entries: [] });
   private readonly selectedCatalogWorkflowAssetIdState = signal<string | null>('mesh.demo-cube');
-  private readonly catalogSourceEvidenceState = signal<readonly StudioCatalogSourceEvidenceInput[]>(
-    DEMO_ASSET_INVENTORY_ARTIFACT.entries.map(entry => ({
-      path: entry.sourcePath,
-      exists: true,
-      hash: entry.devResolution.sourceHash,
-    })),
-  );
+  private readonly catalogSourceEvidenceState = signal<readonly StudioCatalogSourceEvidenceInput[]>([]);
   private readonly catalogWorkflowMessageState = signal('Catalog workflow ready.');
-  private readonly assetInventoryState = signal<StudioAssetInventoryLoadResult>(
-    loadDemoAssetInventory(),
-  );
+  private readonly assetInventoryState = signal<StudioAssetInventoryLoadResult>({
+    ok: false,
+    inventory: null,
+    diagnostics: [{
+      severity: 'info',
+      code: 'asset_inventory_not_loaded',
+      message: 'Open or create a catalog to populate the asset browser.',
+      source: null,
+      remediation: 'Use the Catalog tools after opening a project workspace.',
+    }],
+  });
   private readonly voxelConversionDraftState = signal<StudioVoxelConversionSettingsDraft>(
     DEFAULT_VOXEL_CONVERSION_DRAFT,
   );
@@ -5290,13 +3552,6 @@ export class StudioWorkspaceStore {
   private readonly voxelAssetWorkflowControlState = signal<StudioVoxelAssetWorkflowControlReadModel>(
     DEFAULT_VOXEL_ASSET_WORKFLOW_CONTROL,
   );
-  private readonly voxelTranscriptControlState = signal<StudioVoxelTranscriptControlReadModel>({
-    controlVersion: 'studio-voxel-transcript-control.v0',
-    draft: DEFAULT_VOXEL_TRANSCRIPT_DRAFT,
-    status: 'idle',
-    message: 'Paste a strict voxel-operation transcript or run the inspect example.',
-    receipt: null,
-  });
   private readonly voxelMaterialPaletteEditorState = signal<StudioVoxelMaterialPaletteEditorReadModel>(
     DEFAULT_VOXEL_MATERIAL_PALETTE_EDITOR,
   );
@@ -5339,7 +3594,6 @@ export class StudioWorkspaceStore {
       targetAssetPath: target.assetPath,
     };
   });
-  readonly voxelTranscriptControl = this.voxelTranscriptControlState.asReadonly();
   readonly voxelCompactEditControl = this.voxelCompactEditControlState.asReadonly();
   readonly voxelCompactEditPlacement = computed<StudioVoxelCompactEditPlacementReadModel>(() =>
     buildStudioVoxelCompactEditPlacementReadModel(
@@ -5495,12 +3749,6 @@ export class StudioWorkspaceStore {
     const overview = this.gameWorkspaceState();
     return overview.ok ? overview.workspace : null;
   });
-  readonly publishEvidence = computed(() =>
-    loadStudioPublishEvidence(DEMO_PUBLISH_EVIDENCE, {
-      workspace: this.gameWorkspace(),
-      evidencePath: 'harness/out/publish-evidence/latest/index.json',
-    }),
-  );
   readonly runtimeSessions = computed(() => {
     const workspace = this.gameWorkspace();
     return workspace === null
@@ -5537,12 +3785,6 @@ export class StudioWorkspaceStore {
       paused: this.runtimeSessionPausedState(),
     }),
   );
-  readonly ashaDemoProductPath = computed<StudioAshaDemoProductPathReadModel>(() =>
-    buildStudioAshaDemoProductPathReadModel({
-      gameWorkspace: this.gameWorkspace(),
-      runtimeInspection: this.runtimeSessionInspection(),
-    }),
-  );
   readonly runningProjectDiscovery = computed<StudioRunningProjectDiscoveryReadModel>(() =>
     buildStudioRunningProjectDiscovery({
       workspace: this.gameWorkspace(),
@@ -5557,7 +3799,7 @@ export class StudioWorkspaceStore {
       catalogHash: studioCatalogAuthoringBaseHash(this.catalogSourceState()),
       selectedAssetId: this.selectedCatalogWorkflowAssetIdState(),
       sourceEvidence: this.catalogSourceEvidenceState(),
-      referencedRenderableIds: demoReferencedRenderableIds(),
+      referencedRenderableIds: {},
     }),
   );
   readonly commandProposalPanel = computed(() => {
@@ -5568,7 +3810,7 @@ export class StudioWorkspaceStore {
       : buildStudioCommandProposalPanel({
           workspace,
           runtimeSessions,
-          commandProposals: buildDemoCommandProposalRows(workspace),
+          commandProposals: [],
         });
   });
   readonly voxelConversionWorkspaceShell = computed<StudioVoxelConversionWorkspaceShellReadModel>(() => {
@@ -5594,7 +3836,6 @@ export class StudioWorkspaceStore {
     const inspection = this.runtimeSessionInspection();
     const authoring = this.workspaceAuthoringStateSummaryState();
     const shell = this.voxelConversionWorkspaceShell();
-    const viewport = this.viewportAdapter();
     const body = {
       runtime: {
         attachState: inspection.attachState,
@@ -5633,18 +3874,11 @@ export class StudioWorkspaceStore {
         coordinateAbsLimit: AGENT_VOXEL_EDIT_COORDINATE_ABS_LIMIT,
         authoringAvailable: this.workspaceAuthoringFacadeState() !== null,
       },
-      viewCapture: {
-        supportedAngles: AGENT_VOXEL_VIEW_ANGLES,
-        cameraHash: this.viewportCameraState().cameraHash,
-        readbackHash: viewport.readbackHash,
-        selectedRenderableId: this.workspaceState().scene.selectedRenderableId,
-        evidenceKind: 'projection_view_readout' as const,
-      },
       voxelStorage: {
         extension: VOXEL_ASSET_EXTENSION,
         mediaType: VOXEL_ASSET_MEDIA_TYPE,
         schemaVersion: VOXEL_ASSET_SCHEMA_VERSION,
-        supportedOperations: ['export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset', 'persist_voxel_asset', 'reopen_voxel_asset'] as const,
+        supportedOperations: ['export_voxel_volume_asset', 'save_voxel_volume_asset', 'load_voxel_volume_asset'] as const,
         assetPlane: 'ProjectBundle' as const,
         authority: 'svc-voxel-asset' as const,
       },
@@ -6100,207 +4334,6 @@ export class StudioWorkspaceStore {
           };
         }
       }
-      case 'view_from_angle': {
-        const diagnostic = agentVoxelViewAngleDiagnostic(operation.view.angle);
-        if (diagnostic !== null) {
-          return {
-            accepted: false,
-            operation: operation.kind,
-            diagnostic,
-            surface: this.agentVoxelWorkflowSurface(),
-            viewCapture: null,
-          };
-        }
-        const capture = buildStudioAgentVoxelViewCaptureReadModel({
-          workspace: this.workspaceState(),
-          viewportTool: this.viewportToolState(),
-          renderSettings: this.preferencesStore.renderSettings(),
-          readbackMarker: this.readbackMarker(),
-          angle: operation.view.angle,
-          target: operation.view.target ?? 'selected',
-        });
-        this.viewportCameraState.set(capture.camera);
-        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-          commandId: 'voxel_view.from_angle',
-          label: 'Agent Voxel View',
-          inputSummary: `angle=${capture.angle};target=${capture.target};renderable=${capture.targetRenderableId ?? 'scene'}`,
-          outputSummary: `View capture ${capture.captureHash}.`,
-          status: 'ok',
-        });
-        this.workspaceState.set(recorded.workspace);
-        this.menuMessageState.set(`Voxel view ${capture.angle} captured.`);
-        return {
-          accepted: true,
-          operation: operation.kind,
-          diagnostic: null,
-          surface: this.agentVoxelWorkflowSurface(),
-          viewCapture: capture,
-        };
-      }
-      case 'publish_preview': {
-        const artifactPath = operation.publication?.artifactPath ?? 'artifacts/agent-voxel-preview/latest/index.json';
-        const pathDiagnostic = agentVoxelPreviewArtifactPathDiagnostic(artifactPath);
-        if (pathDiagnostic !== null) {
-          return {
-            accepted: false,
-            operation: operation.kind,
-            diagnostic: pathDiagnostic,
-            surface: this.agentVoxelWorkflowSurface(),
-            previewPublication: null,
-          };
-        }
-        const shell = this.voxelConversionWorkspaceShell();
-        const availableEvidenceCount = shell.evidenceRows.filter(row => row.status === 'available').length;
-        if (shell.readout.authorityPosture !== 'authority_backed' || availableEvidenceCount === 0) {
-          return {
-            accepted: false,
-            operation: operation.kind,
-            diagnostic: 'Publish preview requires authority-backed voxel preview evidence.',
-            surface: this.agentVoxelWorkflowSurface(),
-            previewPublication: null,
-          };
-        }
-        const publication = buildStudioAgentVoxelPreviewPublicationReadModel({
-          workspace: this.workspaceState(),
-          shell,
-          viewport: this.viewportAdapter(),
-          readbackMarker: this.readbackMarker(),
-          artifactPath,
-          label: operation.publication?.label ?? 'Agent voxel preview',
-        });
-        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-          commandId: 'voxel_preview.publish',
-          label: 'Agent Voxel Preview',
-          inputSummary: `path=${publication.artifactPath};readout=${publication.conversion.readoutHash}`,
-          outputSummary: `Preview publication ${publication.publicationHash}.`,
-          status: 'ok',
-        });
-        this.workspaceState.set(recorded.workspace);
-        this.menuMessageState.set('Voxel preview publication prepared.');
-        return {
-          accepted: true,
-          operation: operation.kind,
-          diagnostic: null,
-          surface: this.agentVoxelWorkflowSurface(),
-          previewPublication: publication,
-        };
-      }
-      case 'persist_voxel_asset': {
-        const assetId = normalizeVoxelVolumeAssetId(operation.persistence.assetId);
-        const artifactPath = operation.persistence.artifactPath ?? agentVoxelAssetArtifactPath(assetId);
-        const pathDiagnostic = agentVoxelAssetArtifactPathDiagnostic(artifactPath);
-        if (pathDiagnostic !== null) {
-          return {
-            accepted: false,
-            operation: operation.kind,
-            diagnostic: pathDiagnostic,
-            surface: this.agentVoxelWorkflowSurface(),
-            voxelAssetPersistence: null,
-          };
-        }
-        const shell = this.voxelConversionWorkspaceShell();
-        if (operation.persistence.source.kind === 'conversion_preview') {
-          const preview = shell.workspace.preview;
-          const availableEvidenceCount = shell.evidenceRows.filter(row => row.status === 'available').length;
-          if (shell.readout.authorityPosture !== 'authority_backed' || preview === null || availableEvidenceCount === 0) {
-            return {
-              accepted: false,
-              operation: operation.kind,
-              diagnostic: 'Persisting a converted voxel asset requires authority-backed preview/apply/export evidence.',
-              surface: this.agentVoxelWorkflowSurface(),
-              voxelAssetPersistence: null,
-            };
-          }
-          if (preview.sampleVoxels.length !== preview.outputVoxelCount) {
-            return {
-              accepted: false,
-              operation: operation.kind,
-              diagnostic: 'Persisting a converted voxel asset requires a complete voxel asset payload, not a partial preview sample.',
-              surface: this.agentVoxelWorkflowSurface(),
-              voxelAssetPersistence: null,
-            };
-          }
-        } else if (solidVoxelsFromBatch(operation.persistence.source.batch).length === 0) {
-          return {
-            accepted: false,
-            operation: operation.kind,
-            diagnostic: 'Persisting a command-batch voxel asset requires at least one solid setVoxel command.',
-            surface: this.agentVoxelWorkflowSurface(),
-            voxelAssetPersistence: null,
-          };
-        }
-        const persistenceOptions = {
-          workspace: this.workspaceState(),
-          shell,
-          source: operation.persistence.source,
-          assetId,
-          artifactPath,
-        };
-        const persistence = buildStudioAgentVoxelAssetPersistenceReadModel(
-          operation.persistence.label === undefined
-            ? persistenceOptions
-            : { ...persistenceOptions, label: operation.persistence.label },
-        );
-        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-          commandId: 'voxel_asset.persist',
-          label: 'Agent Voxel Asset Persist',
-          inputSummary: `path=${persistence.artifactPath};asset=${persistence.asset.assetId}`,
-          outputSummary: `Voxel asset ${persistence.asset.contentHashes.canonicalJson} prepared for ProjectBundle storage.`,
-          status: 'ok',
-        });
-        this.workspaceState.set(recorded.workspace);
-        this.menuMessageState.set('Voxel asset persistence prepared.');
-        return {
-          accepted: true,
-          operation: operation.kind,
-          diagnostic: null,
-          surface: this.agentVoxelWorkflowSurface(),
-          voxelAssetPersistence: persistence,
-        };
-      }
-      case 'reopen_voxel_asset': {
-        const artifactPath = operation.reopen.artifactPath ?? agentVoxelAssetArtifactPath(operation.reopen.asset.assetId);
-        const pathDiagnostic = agentVoxelAssetArtifactPathDiagnostic(artifactPath);
-        if (pathDiagnostic !== null) {
-          return {
-            accepted: false,
-            operation: operation.kind,
-            diagnostic: pathDiagnostic,
-            surface: this.agentVoxelWorkflowSurface(),
-            voxelAssetReopen: null,
-          };
-        }
-        const reopenOptions = {
-          asset: operation.reopen.asset,
-          artifactPath,
-        };
-        const reopen = buildStudioAgentVoxelAssetReopenReadModel({
-          ...reopenOptions,
-          ...(operation.reopen.expectedAssetId === undefined ? {} : { expectedAssetId: operation.reopen.expectedAssetId }),
-          ...(operation.reopen.expectedCanonicalJsonHash === undefined ? {} : { expectedCanonicalJsonHash: operation.reopen.expectedCanonicalJsonHash }),
-        });
-        const accepted = reopen.roundTripMatches
-          && reopen.mediaType === VOXEL_ASSET_MEDIA_TYPE
-          && reopen.schemaVersion === VOXEL_ASSET_SCHEMA_VERSION;
-        const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
-          commandId: 'voxel_asset.reopen',
-          label: 'Agent Voxel Asset Reopen',
-          inputSummary: `path=${reopen.artifactPath};asset=${reopen.assetId}`,
-          outputSummary: accepted
-            ? `Voxel asset reopened with ${reopen.voxelCount} voxels.`
-            : 'Voxel asset reopen failed round-trip checks.',
-          status: accepted ? 'ok' : 'rejected',
-        });
-        this.workspaceState.set(recorded.workspace);
-        this.menuMessageState.set(recorded.timelineEntry.outputSummary);
-        return {
-          accepted,
-          operation: operation.kind,
-          diagnostic: accepted ? null : 'Voxel asset reopen failed schema, media type, id, or hash checks.',
-          surface: this.agentVoxelWorkflowSurface(),
-          voxelAssetReopen: reopen,
-        };
-      }
       case 'submit_voxel_edit':
         return this.submitAgentVoxelEdit(operation.batch);
       case 'submit_compact_voxel_edit': {
@@ -6329,67 +4362,7 @@ export class StudioWorkspaceStore {
     }
   }
 
-  runAgentVoxelOperationTranscriptReplay(
-    transcriptInput: unknown,
-  ): StudioAgentVoxelOperationTranscriptReplayReceipt {
-    const validation = parseStudioAgentVoxelOperationTranscript(transcriptInput);
-    if (!validation.accepted || validation.transcript === null) {
-      return buildStudioAgentVoxelTranscriptReplayReceipt({ validation, operations: [] });
-    }
-    const operations = validation.transcript.operations.map(transcriptOperation => {
-      const result = this.runAgentVoxelWorkflowOperation(
-        agentVoxelTranscriptOperationToWorkflowOperation(transcriptOperation),
-      );
-      const expectedAccepted = agentVoxelTranscriptExpectedAccepted(transcriptOperation.expected);
-      const expectationMatched = expectedAccepted === null ? true : result.accepted === expectedAccepted;
-      const resultSummary = {
-        operation: result.operation,
-        accepted: result.accepted,
-        diagnostic: result.diagnostic,
-        surfaceHash: result.surface.surfaceHash,
-        voxelEditReceiptHash: result.voxelEditReceipt === undefined || result.voxelEditReceipt === null
-          ? null
-          : stableAgentVoxelWorkflowHash('studio-agent-voxel-transcript-voxel-edit-receipt', result.voxelEditReceipt),
-      };
-      return {
-        operationId: transcriptOperation.operationId,
-        kind: transcriptOperation.kind,
-        accepted: result.accepted,
-        expectedAccepted,
-        expectationMatched,
-        diagnostic: expectationMatched
-          ? result.diagnostic
-          : [
-              result.diagnostic,
-              `Expected accepted=${String(expectedAccepted)} but replay returned accepted=${String(result.accepted)}`,
-            ].filter((message): message is string => typeof message === 'string' && message.length > 0).join('; '),
-        surfaceHash: result.surface.surfaceHash,
-        resultHash: stableAgentVoxelWorkflowHash('studio-agent-voxel-transcript-operation-result', resultSummary),
-      };
-    });
-    return buildStudioAgentVoxelTranscriptReplayReceipt({ validation, operations });
-  }
-  readonly workspaceCockpitEvidence = computed(() => {
-    const assetInventory = this.assetInventoryState().inventory;
-    return exportStudioWorkspaceCockpitEvidence({
-      studioWorkspace: this.workspaceState(),
-      gameWorkspace: this.gameWorkspace(),
-      assetInventory,
-      runtimeSessions: this.runtimeSessions(),
-      commandProposalPanel: this.commandProposalPanel(),
-      publishEvidence: this.publishEvidence().publishEvidence,
-      visiblePanelMarkers: [
-        'studio-game-workspace-overview',
-        'studio-assets-panel',
-        'studio-runtime-session-panel',
-        'studio-command-proposal-panel',
-        'studio-publish-evidence-panel',
-      ],
-    });
-  });
-
   constructor() {
-    installStudioVoxelWorkflowProductApi(this);
     void this.refreshProjectFiles('');
     void this.openWorkspaceAuthoring();
   }
@@ -6504,28 +4477,12 @@ export class StudioWorkspaceStore {
     return workspace.timeline.at(-1) ?? null;
   });
 
-  readonly readbackMarker = computed(() => {
-    const workspace = this.workspaceState();
-    return `${workspace.session.sessionId}:${workspace.scene.sceneHash}:${workspace.timelineSequence}`;
-  });
-
   readonly viewportAdapter = computed(() =>
     buildStudioViewportAdapterReadModel({
       scene: this.workspaceState().scene,
       camera: this.viewportCameraState(),
       tool: this.viewportToolState(),
       renderSettings: this.preferencesStore.renderSettings(),
-    }),
-  );
-
-  readonly compactAgentReadout = computed(() =>
-    createStudioCompactAgentReadout({
-      workspace: this.workspaceState(),
-      renderSettings: this.preferencesStore.renderSettings(),
-      viewportCamera: this.viewportCameraState(),
-      viewportTool: this.viewportToolState(),
-      uiState: this.uiState(),
-      latestViewportHit: this.viewportHitState(),
     }),
   );
 
@@ -7478,7 +5435,7 @@ export class StudioWorkspaceStore {
       catalogHash: studioCatalogAuthoringBaseHash(this.catalogSourceState()),
       selectedAssetId: this.selectedCatalogWorkflowAssetIdState(),
       sourceEvidence: evidence,
-      referencedRenderableIds: demoReferencedRenderableIds(),
+      referencedRenderableIds: {},
     });
     const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
       commandId: 'catalog.validate_source',
@@ -7608,41 +5565,6 @@ export class StudioWorkspaceStore {
     } catch (error) {
       this.menuMessageState.set(errorMessage(error));
     }
-  }
-
-  setVoxelTranscriptDraft(draft: string): void {
-    this.voxelTranscriptControlState.update(current => ({
-      ...current,
-      draft,
-      status: 'idle',
-      message: 'Transcript draft updated.',
-      receipt: null,
-    }));
-  }
-
-  runVoxelTranscriptControl(): void {
-    const draft = this.voxelTranscriptControlState().draft;
-    let input: unknown;
-    try {
-      input = JSON.parse(draft) as unknown;
-    } catch (error) {
-      this.voxelTranscriptControlState.update(current => ({
-        ...current,
-        status: 'rejected',
-        message: `Transcript JSON is invalid: ${errorMessage(error)}`,
-        receipt: null,
-      }));
-      return;
-    }
-    const receipt = this.runAgentVoxelOperationTranscriptReplay(input);
-    this.voxelTranscriptControlState.update(current => ({
-      ...current,
-      status: receipt.accepted ? 'accepted' : 'rejected',
-      message: receipt.accepted
-        ? `Replayed ${receipt.acceptedOperationCount}/${receipt.operationCount} voxel operations.`
-        : receipt.diagnostic ?? 'Voxel transcript was rejected.',
-      receipt,
-    }));
   }
 
   setVoxelConversionMode(mode: string): void {
@@ -9777,10 +7699,16 @@ export class StudioWorkspaceStore {
 
   async openWorkspaceAuthoring(): Promise<void> {
     const workspace = this.gameWorkspace();
-    if (workspace === null) {
-      this.workspaceAuthoringMessageState.set('Open a game workspace before starting asset authoring.');
-      return;
-    }
+    const document = this.workspaceState().flatSceneDocument;
+    const project = workspace === null
+      ? {
+          gameId: 'untitled',
+          workspaceId: `studio:untitled:${String(document.id)}`,
+        }
+      : {
+          gameId: workspace.gameId,
+          workspaceId: workspace.workspaceHash,
+        };
 
     let attach: StudioWorkspaceAuthoringAttach | null = null;
     try {
@@ -9789,16 +7717,13 @@ export class StudioWorkspaceStore {
       this.workspaceAuthoringMessageState.set('Starting Rust workspace authoring authority.');
       attach = await createStudioRustWorkspaceAuthoringFacade();
       const projectBundle = workspaceAuthoringProjectBundle(
-        workspace,
-        this.workspaceState().flatSceneDocument,
+        project.workspaceId,
+        document,
       );
       const state = attach.facade.open({
-        authoringId: `workspace-authoring:${workspace.gameId}:studio`,
+        authoringId: `workspace-authoring:${project.gameId}:studio`,
         seed: projectBundle.sceneId,
-        project: {
-          gameId: workspace.gameId,
-          workspaceId: workspace.workspaceHash,
-        },
+        project,
         projectBundle,
       });
       this.workspaceAuthoringBridgeState.set(attach.bridge);
@@ -11613,7 +9538,7 @@ export class StudioWorkspaceStore {
         this.catalogSourceState(),
         this.catalogPathState(),
         catalogHash,
-        demoReferencedRenderableIds(),
+        {},
       ),
     );
   }
@@ -11634,74 +9559,6 @@ export class StudioWorkspaceStore {
     }
     return false;
   }
-}
-
-export const ASHA_STUDIO_VOXEL_WORKFLOW_GLOBAL = 'ashaStudioVoxelWorkflow' as const;
-
-function createStudioVoxelWorkflowProductApi(store: StudioWorkspaceStore) {
-  return Object.freeze({
-    kind: 'asha.studio.voxel_workflow.v1' as const,
-    version: 'studio-voxel-workflow.v1' as const,
-    attachRuntimeSessionInspection: (...args: Parameters<StudioWorkspaceStore['attachRuntimeSessionInspection']>) =>
-      store.attachRuntimeSessionInspection(...args),
-    openWorkspaceAuthoring: (...args: Parameters<StudioWorkspaceStore['openWorkspaceAuthoring']>) =>
-      store.openWorkspaceAuthoring(...args),
-    workspaceAuthoringState: () => store.workspaceAuthoringState(),
-    workspaceAuthoringProjection: () => store.workspaceAuthoringProjection(),
-    workspaceAuthoringProjectionPerformance: () => store.workspaceAuthoringProjectionPerformance(),
-    workspaceAuthoringMessage: () => store.workspaceAuthoringMessage(),
-    workspaceAuthoringAvailable: () => store.workspaceAuthoringAvailable(),
-    liveRuntimeAvailable: () => store.liveRuntimeAvailable(),
-    runtimeConnectionMessage: () => store.runtimeConnectionMessage(),
-    runtimeSessionInspection: () => store.runtimeSessionInspection(),
-    runtimeViewportEvidence: () => store.runtimeViewportEvidence(),
-    voxelConversionWorkspaceShell: () => store.voxelConversionWorkspaceShell(),
-    voxelCompactEditControl: () => store.voxelCompactEditControl(),
-    voxelCompactEditPlacement: () => store.voxelCompactEditPlacement(),
-    voxelHistoryPanel: () => store.voxelHistoryPanel(),
-    voxelAssetWorkflowControl: () => store.voxelAssetWorkflowControl(),
-    voxelMaterialPaletteEditor: () => store.voxelMaterialPaletteEditor(),
-    voxelAnnotationControl: () => store.voxelAnnotationControl(),
-    runVoxelAssetWorkflowControl: (...args: Parameters<StudioWorkspaceStore['runVoxelAssetWorkflowControl']>) =>
-      store.runVoxelAssetWorkflowControl(...args),
-    createVoxelHouseTemplate: (...args: Parameters<StudioWorkspaceStore['createVoxelHouseTemplate']>) =>
-      store.createVoxelHouseTemplate(...args),
-    runAgentVoxelWorkflowOperation: (...args: Parameters<StudioWorkspaceStore['runAgentVoxelWorkflowOperation']>) =>
-      store.runAgentVoxelWorkflowOperation(...args),
-    runAgentVoxelOperationTranscriptReplay: (...args: Parameters<StudioWorkspaceStore['runAgentVoxelOperationTranscriptReplay']>) =>
-      store.runAgentVoxelOperationTranscriptReplay(...args),
-    runVoxelHistoryControl: (...args: Parameters<StudioWorkspaceStore['runVoxelHistoryControl']>) =>
-      store.runVoxelHistoryControl(...args),
-    selectVoxelHistoryTarget: (...args: Parameters<StudioWorkspaceStore['selectVoxelHistoryTarget']>) =>
-      store.selectVoxelHistoryTarget(...args),
-    selectViewportHit: (...args: Parameters<StudioWorkspaceStore['selectViewportHit']>) =>
-      store.selectViewportHit(...args),
-    applyViewportHitToVoxelCompactEditControl: (...args: Parameters<StudioWorkspaceStore['applyViewportHitToVoxelCompactEditControl']>) =>
-      store.applyViewportHitToVoxelCompactEditControl(...args),
-    applyRuntimeViewportCameraInput: (...args: Parameters<StudioWorkspaceStore['applyRuntimeViewportCameraInput']>) =>
-      store.applyRuntimeViewportCameraInput(...args),
-    selectRuntimeVoxelAtViewport: (...args: Parameters<StudioWorkspaceStore['selectRuntimeVoxelAtViewport']>) =>
-      store.selectRuntimeVoxelAtViewport(...args),
-    readRuntimeSceneObjectSnapshot: (...args: Parameters<StudioWorkspaceStore['readRuntimeSceneObjectSnapshot']>) =>
-      store.readRuntimeSceneObjectSnapshot(...args),
-    applyRuntimeSceneObjectCommand: (...args: Parameters<StudioWorkspaceStore['applyRuntimeSceneObjectCommand']>) =>
-      store.applyRuntimeSceneObjectCommand(...args),
-  });
-}
-
-export type StudioVoxelWorkflowProductApi = ReturnType<typeof createStudioVoxelWorkflowProductApi>;
-
-type StudioVoxelWorkflowProductGlobal = typeof globalThis & {
-  ashaStudioVoxelWorkflow?: StudioVoxelWorkflowProductApi;
-};
-
-function installStudioVoxelWorkflowProductApi(store: StudioWorkspaceStore): void {
-  Object.defineProperty(globalThis as StudioVoxelWorkflowProductGlobal, ASHA_STUDIO_VOXEL_WORKFLOW_GLOBAL, {
-    configurable: true,
-    enumerable: false,
-    writable: false,
-    value: createStudioVoxelWorkflowProductApi(store),
-  });
 }
 
 interface StudioRuntimeSessionAttach {

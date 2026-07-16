@@ -1,32 +1,18 @@
-import type {
-  StudioCompactAgentReadout,
-  StudioWorkspaceReadModel,
-} from '../../index';
+import type { StudioWorkspaceReadModel } from '../../index';
 
 export interface <%= className %>Diagnostic {
-  readonly code: '<%= propertyName %>_missing_workspace' | '<%= propertyName %>_readback_drift';
+  readonly code: '<%= propertyName %>_missing_workspace';
   readonly message: string;
 }
 
 export interface <%= className %>ReadModel {
   readonly readModelVersion: '<%= fileName %>.read-model.v0';
   readonly workspaceId: string;
-  readonly sceneHash: string;
+  readonly entityCount: number;
   readonly selectedEntityId: string | null;
+  readonly selectedEntityLabel: string | null;
   readonly timelineSequence: number;
   readonly diagnostics: readonly <%= className %>Diagnostic[];
-}
-
-export interface <%= className %>ReadoutContribution {
-  readonly artifactKind: '<%= readoutKind %>';
-  readonly readoutVersion: '<%= fileName %>.readout.v0';
-  readonly compactReadoutVersion: StudioCompactAgentReadout['readoutVersion'];
-  readonly workspaceId: string;
-  readonly sceneHash: string;
-  readonly timelineSequence: number;
-  readonly selectedEntityId: string | null;
-  readonly diagnostics: readonly <%= className %>Diagnostic[];
-  readonly nonClaims: readonly string[];
 }
 
 export function build<%= className %>ReadModel(
@@ -35,37 +21,11 @@ export function build<%= className %>ReadModel(
   return {
     readModelVersion: '<%= fileName %>.read-model.v0',
     workspaceId: workspace.workspaceId,
-    sceneHash: workspace.scene.sceneHash,
+    entityCount: workspace.entities.length,
     selectedEntityId: workspace.selectedEntityId,
+    selectedEntityLabel:
+      workspace.entities.find(entity => entity.id === workspace.selectedEntityId)?.label ?? null,
     timelineSequence: workspace.timelineSequence,
     diagnostics: [],
-  };
-}
-
-export function build<%= className %>ReadoutContribution(
-  readModel: <%= className %>ReadModel,
-  compactReadout: StudioCompactAgentReadout,
-): <%= className %>ReadoutContribution {
-  const diagnostics =
-    readModel.sceneHash === compactReadout.scene.sceneHash
-      ? readModel.diagnostics
-      : [
-          ...readModel.diagnostics,
-          {
-            code: '<%= propertyName %>_readback_drift' as const,
-            message: 'Feature slice read model scene hash drifted from compact Studio readout.',
-          },
-        ];
-
-  return {
-    artifactKind: '<%= readoutKind %>',
-    readoutVersion: '<%= fileName %>.readout.v0',
-    compactReadoutVersion: compactReadout.readoutVersion,
-    workspaceId: readModel.workspaceId,
-    sceneHash: readModel.sceneHash,
-    timelineSequence: readModel.timelineSequence,
-    selectedEntityId: readModel.selectedEntityId,
-    diagnostics,
-    nonClaims: ['not_native_runtime_authority', 'not_proof_harness'],
   };
 }

@@ -33,6 +33,21 @@ This local file is bootstrap context for agents entering the repository. It is n
 - Studio may propose typed commands and project/read state; it must not own runtime authority.
 - Do not add arbitrary `methodName + json` dispatch, private engine imports, generated contract edits, or raw native/WASM transport bypasses.
 
+## Acceptance posture
+
+- Judge editor work by visible/public workflow outcomes: the viewport changed,
+  the authoritative edit was accepted once, rejection left state unchanged, or
+  saved content reopened intact.
+- Keep local regressions for concrete Studio defects and hard authority/import
+  boundaries.
+- Synthetic cross-repository conformance belongs in `asha-testing`.
+- Do not add proof panels, proof-only globals, committed computed reports,
+  source-token delivery checks, fixture refresh gates, or wrappers around
+  upstream checks.
+- Operator diagnostics may expose useful state, but hashes and readouts are
+  secondary to the editor outcome unless identity itself is the behavior under
+  test.
+
 ## Local checks
 
 Prefer the current README/package scripts for exact commands. Fresh-checkout checks should include the documented boundary/docs/build gates, for example:
@@ -44,6 +59,5 @@ pnpm run check:docs-scripts
 pnpm run build
 ```
 
-Only run broader generated-artifact or live-evidence suites when their prerequisites are present, and record those prerequisites in the Den task.
-
-For choosing the lightest useful evidence gate, use `docs/studio-agent-observability-verification.md`.
+For native/LAN workflow checks use `pnpm run studio:dev:native` or
+`pnpm run studio:lan` and record the exact Studio and ASHA revisions.

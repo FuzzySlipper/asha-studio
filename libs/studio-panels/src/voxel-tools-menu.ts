@@ -6,8 +6,7 @@ export type StudioVoxelToolsSection =
   | 'edit'
   | 'asset'
   | 'metadata'
-  | 'history'
-  | 'automation';
+  | 'history';
 
 @Component({
   selector: 'asha-voxel-tools-menu',
@@ -817,33 +816,6 @@ export type StudioVoxelToolsSection =
             }
           </section>
         </div>
-      } @else {
-        <div class="voxel-tools__content" data-voxel-tools-content="automation">
-          <header class="voxel-tools__heading">
-            <div>
-              <strong>Typed automation</strong
-              ><small
-                >Run a bounded voxel operation transcript through the same public workflow
-                surface.</small
-              >
-            </div>
-            <span data-voxel-transcript-receipt>{{ store.voxelTranscriptControl().status }}</span>
-          </header>
-          <label class="voxel-tools__transcript">
-            Operation transcript JSON
-            <textarea
-              data-voxel-transcript-control="draft"
-              spellcheck="false"
-              [value]="store.voxelTranscriptControl().draft"
-              (input)="store.setVoxelTranscriptDraft($any($event.target).value)"
-            ></textarea>
-          </label>
-          <footer class="voxel-tools__actions">
-            <button type="button" data-voxel-transcript-action="run" (click)="store.runVoxelTranscriptControl()">
-              Run typed transcript
-            </button>
-          </footer>
-        </div>
       }
     </section>
   `,
@@ -943,8 +915,7 @@ export type StudioVoxelToolsSection =
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
-      label,
-      .voxel-tools__transcript {
+      label {
         color: var(--asha-color-muted);
         display: grid;
         font-size: 0.68rem;
@@ -1041,7 +1012,6 @@ export class StudioVoxelToolsMenuComponent {
     { id: 'asset', label: 'Asset' },
     { id: 'metadata', label: 'Metadata' },
     { id: 'history', label: 'History' },
-    { id: 'automation', label: 'Automation' },
   ];
   readonly coordinateFields = [
     { id: 'x1', label: 'Start X' },
