@@ -2,8 +2,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import {
+  discardStudioHostFileStage,
   listStudioHostDir,
+  promoteStudioHostFileStage,
   readStudioHostFile,
+  stageStudioHostFile,
   writeStudioHostFile,
 } from './studio-project-file-service';
 
@@ -14,7 +17,7 @@ const port = Number(process.env.ASHA_STUDIO_FILE_PORT ?? '4300');
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, {
     'access-control-allow-origin': '*',
-    'access-control-allow-methods': 'GET, PUT, OPTIONS',
+    'access-control-allow-methods': 'GET, PUT, POST, DELETE, OPTIONS',
     'access-control-allow-headers': 'content-type',
     'content-type': 'application/json; charset=utf-8',
   });
@@ -32,7 +35,7 @@ function readBody(request: IncomingMessage): Promise<string> {
 
 const server = createServer(async (request, response) => {
   response.setHeader('access-control-allow-origin', '*');
-  response.setHeader('access-control-allow-methods', 'GET, PUT, OPTIONS');
+  response.setHeader('access-control-allow-methods', 'GET, PUT, POST, DELETE, OPTIONS');
   response.setHeader('access-control-allow-headers', 'content-type');
   if (request.method === 'OPTIONS') {
     response.writeHead(204);
@@ -52,6 +55,18 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'PUT' && url.pathname === '/api/host-files/file') {
       sendJson(response, 200, await writeStudioHostFile(startDirectory, JSON.parse(await readBody(request))));
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/host-files/stage') {
+      sendJson(response, 200, await stageStudioHostFile(startDirectory, JSON.parse(await readBody(request))));
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/host-files/promote') {
+      sendJson(response, 200, await promoteStudioHostFileStage(JSON.parse(await readBody(request))));
+      return;
+    }
+    if (request.method === 'DELETE' && url.pathname === '/api/host-files/stage') {
+      sendJson(response, 200, await discardStudioHostFileStage(JSON.parse(await readBody(request))));
       return;
     }
     sendJson(response, 404, { ok: false, diagnostic: 'not_found', message: 'Unknown host file route.' });

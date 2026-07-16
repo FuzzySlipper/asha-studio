@@ -18,6 +18,14 @@ explicit reload, overwrite, or cancel decision. Accepted writes use a
 same-directory temporary file and atomic rename. Failed decode, validation,
 read, and write operations leave the current scene and its dirty state intact.
 
+Voxel asset saves add an authority check before that rename. The host first
+stages the candidate beside the destination without replacing it. Studio then
+verifies that the same Rust workspace-authoring cell, generation, working
+revision, and authority snapshot still own the candidate; Rust confirms the
+stored revision; and the host promotes the stage with a compare-and-swap
+rename. An edit or workspace switch during staging discards the stage and
+preserves the destination byte-for-byte.
+
 ## Scene identity and dependencies
 
 Opening a scene projects its authored nodes into the hierarchy and viewport

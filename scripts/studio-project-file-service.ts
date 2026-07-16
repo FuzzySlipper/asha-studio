@@ -4,6 +4,8 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 export type StudioHostFileDiagnosticCode =
   | 'invalid_write_payload'
+  | 'invalid_stage_payload'
+  | 'invalid_stage_token'
   | 'invalid_path'
   | 'host_file_not_found'
   | 'permission_denied'
@@ -28,7 +30,18 @@ export interface StudioHostFileWriteRequest {
   readonly expectedHash?: string | null;
 }
 
+export type StudioHostFileStageRequest = StudioHostFileWriteRequest;
+
+interface StudioHostFileStageReservation {
+  readonly token: string;
+  readonly absolutePath: string;
+  readonly temporaryPath: string;
+  readonly previousHash: string | null;
+  readonly sha256: string;
+}
+
 const hostFileWriteQueues = new Map<string, Promise<void>>();
+const hostFileStageReservations = new Map<string, StudioHostFileStageReservation>();
 
 async function withHostFileWriteLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
   const previous = hostFileWriteQueues.get(path) ?? Promise.resolve();
@@ -220,6 +233,197 @@ export async function writeStudioHostFile(
       await rm(temporaryPath, { force: true }).catch(() => undefined);
     }
   });
+}
+
+function parseHostFileWriteRequest(
+  request: unknown,
+  diagnostic: 'invalid_write_payload' | 'invalid_stage_payload',
+): StudioHostFileWriteRequest | StudioHostFileFailure {
+  if (
+    request === null
+    || typeof request !== 'object'
+    || Array.isArray(request)
+    || typeof (request as Record<string, unknown>)['path'] !== 'string'
+    || typeof (request as Record<string, unknown>)['text'] !== 'string'
+  ) {
+    return {
+      ok: false,
+      diagnostic,
+      message: 'Host file writes require string path and text fields.',
+    };
+  }
+  const parsed = request as StudioHostFileWriteRequest;
+  if (
+    'expectedHash' in parsed
+    && typeof parsed.expectedHash !== 'string'
+    && parsed.expectedHash !== null
+  ) {
+    return {
+      ok: false,
+      diagnostic,
+      message: 'expectedHash must be a string or null when supplied.',
+    };
+  }
+  return parsed;
+}
+
+async function currentHostFileHash(path: string): Promise<string | null | StudioHostFileFailure> {
+  try {
+    return studioHostFileSha256(await readFile(path, 'utf8'));
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+    return hostFileFailure(error, 'Reading existing file', path);
+  }
+}
+
+export async function stageStudioHostFile(
+  startDirectory: string,
+  request: unknown,
+): Promise<unknown> {
+  const parsed = parseHostFileWriteRequest(request, 'invalid_stage_payload');
+  if ('ok' in parsed && !parsed.ok) {
+    return parsed;
+  }
+  const resolved = resolveStudioHostFilePath(startDirectory, parsed.path);
+  if (!resolved.ok) {
+    return resolved;
+  }
+  return withHostFileWriteLock(resolved.absolutePath, async () => {
+    const previousHash = await currentHostFileHash(resolved.absolutePath);
+    if (typeof previousHash === 'object') {
+      return previousHash;
+    }
+    if (parsed.expectedHash !== undefined && previousHash !== parsed.expectedHash) {
+      return {
+        ok: false,
+        diagnostic: 'stale_file_hash',
+        message: `The host file changed since it was opened: ${resolved.absolutePath}`,
+        previousHash,
+      } satisfies StudioHostFileFailure;
+    }
+
+    const token = randomUUID();
+    const targetParent = dirname(resolved.absolutePath);
+    const temporaryPath = join(
+      targetParent,
+      `.${basename(resolved.absolutePath)}.${process.pid}.${token}.stage`,
+    );
+    try {
+      await mkdir(targetParent, { recursive: true });
+      await writeFile(temporaryPath, parsed.text, { encoding: 'utf8', flag: 'wx' });
+      const sha256 = studioHostFileSha256(parsed.text);
+      hostFileStageReservations.set(token, {
+        token,
+        absolutePath: resolved.absolutePath,
+        temporaryPath,
+        previousHash,
+        sha256,
+      });
+      return {
+        ok: true,
+        startDirectory: resolve(startDirectory),
+        token,
+        path: resolved.absolutePath,
+        previousHash,
+        sha256,
+      };
+    } catch (error) {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      return hostFileFailure(error, 'Staging file', resolved.absolutePath);
+    }
+  });
+}
+
+function parseStageToken(request: unknown): string | StudioHostFileFailure {
+  if (
+    request === null
+    || typeof request !== 'object'
+    || Array.isArray(request)
+    || typeof (request as Record<string, unknown>)['token'] !== 'string'
+    || (request as Record<string, string>)['token'].length === 0
+  ) {
+    return {
+      ok: false,
+      diagnostic: 'invalid_stage_token',
+      message: 'A non-empty host file stage token is required.',
+    };
+  }
+  return (request as Record<string, string>)['token'];
+}
+
+export async function promoteStudioHostFileStage(request: unknown): Promise<unknown> {
+  const token = parseStageToken(request);
+  if (typeof token !== 'string') {
+    return token;
+  }
+  const reservation = hostFileStageReservations.get(token);
+  if (reservation === undefined) {
+    return {
+      ok: false,
+      diagnostic: 'invalid_stage_token',
+      message: 'The host file stage token is unknown or already consumed.',
+    } satisfies StudioHostFileFailure;
+  }
+  return withHostFileWriteLock(reservation.absolutePath, async () => {
+    const currentReservation = hostFileStageReservations.get(token);
+    if (currentReservation !== reservation) {
+      return {
+        ok: false,
+        diagnostic: 'invalid_stage_token',
+        message: 'The host file stage token is unknown or already consumed.',
+      } satisfies StudioHostFileFailure;
+    }
+    const currentHash = await currentHostFileHash(reservation.absolutePath);
+    if (typeof currentHash === 'object') {
+      return currentHash;
+    }
+    if (currentHash !== reservation.previousHash) {
+      return {
+        ok: false,
+        diagnostic: 'stale_file_hash',
+        message: `The host file changed after staging: ${reservation.absolutePath}`,
+        previousHash: currentHash,
+      } satisfies StudioHostFileFailure;
+    }
+    try {
+      await rename(reservation.temporaryPath, reservation.absolutePath);
+      hostFileStageReservations.delete(token);
+      return {
+        ok: true,
+        path: reservation.absolutePath,
+        previousHash: reservation.previousHash,
+        sha256: reservation.sha256,
+      };
+    } catch (error) {
+      return hostFileFailure(error, 'Promoting staged file', reservation.absolutePath);
+    }
+  });
+}
+
+export async function discardStudioHostFileStage(request: unknown): Promise<unknown> {
+  const token = parseStageToken(request);
+  if (typeof token !== 'string') {
+    return token;
+  }
+  const reservation = hostFileStageReservations.get(token);
+  if (reservation === undefined) {
+    return {
+      ok: true,
+      discarded: false,
+    };
+  }
+  hostFileStageReservations.delete(token);
+  try {
+    await rm(reservation.temporaryPath, { force: true });
+    return {
+      ok: true,
+      discarded: true,
+    };
+  } catch (error) {
+    return hostFileFailure(error, 'Discarding staged file', reservation.absolutePath);
+  }
 }
 
 // Transitional aliases while #5803 removes the old project-file naming from callers.

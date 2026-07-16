@@ -192,6 +192,19 @@ import {
   buildStudioVoxelRendererPickEvidence,
   voxelInstanceId,
 } from './voxel-instance-authoring.js';
+import {
+  persistStudioWorkspaceAuthoringCandidate,
+  type StudioHostFilePromotion,
+  type StudioHostFileStage,
+} from './workspace-authoring-save.js';
+
+export {
+  persistStudioWorkspaceAuthoringCandidate,
+  type StudioHostFilePromotion,
+  type StudioHostFileStage,
+  type StudioWorkspaceAuthoringSaveRequest,
+  type StudioWorkspaceAuthoringSaveResult,
+} from './workspace-authoring-save.js';
 
 import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
 import type {
@@ -8782,21 +8795,22 @@ export class StudioWorkspaceStore {
         const expectedHostHash = this.activeVoxelAssetFilePathState() === hostAssetPath
           ? this.activeVoxelAssetFileHashState()
           : undefined;
-        const stored = await this.writeHostVoxelAsset(
-          hostAssetPath,
-          saveReadout.serializedAsset,
-          expectedHostHash,
-        );
         const facade = this.workspaceAuthoringFacadeState();
-        const state = facade?.readState() ?? null;
-        if (facade === null || state === null) {
+        if (facade === null) {
           throw new Error('Workspace authoring authority closed before storage confirmation.');
         }
-        facade.confirmStored({
-          expectedWorkspaceId: state.identity.project.workspaceId,
-          expectedGeneration: state.identity.generation,
-          hostPath: stored.path,
+        const stored = await persistStudioWorkspaceAuthoringCandidate({
+          authority: facade,
+          currentAuthority: () => this.workspaceAuthoringFacadeState(),
+          hostPath: hostAssetPath,
           canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
+          stage: () => this.stageHostVoxelAsset(
+            hostAssetPath,
+            saveReadout.serializedAsset ?? '',
+            expectedHostHash,
+          ),
+          promote: token => this.promoteHostVoxelAsset(token),
+          discard: token => this.discardHostVoxelAssetStage(token),
         });
         this.activeVoxelAssetFilePathState.set(stored.path);
         this.activeVoxelAssetFileHashState.set(stored.sha256);
@@ -8814,7 +8828,7 @@ export class StudioWorkspaceStore {
           action,
           accepted: false,
           target,
-          message: `Rust produced a save candidate, but the Studio host did not store it: ${errorMessage(error)}`,
+          message: `Voxel save was not committed; the previous host file was preserved: ${errorMessage(error)}`,
           residentModelId: modelInfoResult.modelInfo.modelId,
           volumeAssetId: modelInfoResult.modelInfo.volumeAssetId,
           voxelCount: saveReadout.voxelCount,
@@ -8980,16 +8994,46 @@ export class StudioWorkspaceStore {
     });
   }
 
-  private async writeHostVoxelAsset(
+  private async stageHostVoxelAsset(
     path: string,
     canonicalJson: string,
     expectedHash?: string | null,
-  ): Promise<{ readonly path: string; readonly sha256: string }> {
+  ): Promise<StudioHostFileStage> {
     const normalizedPath = normalizeProjectFilePath(path);
-    const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
-      method: 'PUT',
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/stage`, {
+      method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path: normalizedPath, text: canonicalJson, expectedHash }),
+    });
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly token?: string;
+      readonly path?: string;
+      readonly sha256?: string;
+      readonly diagnostic?: string;
+      readonly message?: string;
+    };
+    if (
+      !response.ok
+      || payload.ok === false
+      || typeof payload.token !== 'string'
+      || typeof payload.path !== 'string'
+      || typeof payload.sha256 !== 'string'
+    ) {
+      throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
+    }
+    return {
+      token: payload.token,
+      path: normalizeProjectFilePath(payload.path),
+      sha256: payload.sha256,
+    };
+  }
+
+  private async promoteHostVoxelAsset(token: string): Promise<StudioHostFilePromotion> {
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/promote`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
     });
     const payload = await response.json() as {
       readonly ok?: boolean;
@@ -9002,6 +9046,17 @@ export class StudioWorkspaceStore {
       throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
     }
     return { path: normalizeProjectFilePath(payload.path), sha256: payload.sha256 };
+  }
+
+  private async discardHostVoxelAssetStage(token: string): Promise<void> {
+    const response = await fetch(`${projectFileApiBase()}/api/host-files/stage`, {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!response.ok) {
+      throw new Error(`Host file stage cleanup failed with HTTP ${response.status}.`);
+    }
   }
 
   private async readHostVoxelAsset(

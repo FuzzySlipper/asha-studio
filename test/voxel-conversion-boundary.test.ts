@@ -1012,9 +1012,11 @@ test('studio voxel conversion workspace exposes voxel asset save/load controls',
   assert.match(storeSource, /voxelDataHash/);
   assert.match(storeSource, /does not match target/);
   assert.match(storeSource, /STUDIO_VOXEL_OPERATION_AUTHORITY/);
-  assert.match(storeSource, /writeHostVoxelAsset/);
+  assert.match(storeSource, /stageHostVoxelAsset/);
+  assert.match(storeSource, /promoteHostVoxelAsset/);
+  assert.match(storeSource, /discardHostVoxelAssetStage/);
   assert.match(storeSource, /readHostVoxelAsset/);
-  assert.match(storeSource, /confirmStored/);
+  assert.match(storeSource, /persistStudioWorkspaceAuthoringCandidate/);
   assert.match(panelSource, /Workspace asset/);
   assert.match(panelSource, /Running game/);
   assert.match(panelSource, /liveRuntimeAvailable/);

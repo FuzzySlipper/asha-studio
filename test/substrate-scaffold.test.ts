@@ -4025,6 +4025,8 @@ test('selected backend attach proof command has a stable reviewer artifact path'
   assert.equal(browserSmokeSource.includes('marker_strings_without_json_readout_rejected'), true);
   assert.equal(projectFileServerSource.includes('/api/host-files/list'), true);
   assert.equal(projectFileServerSource.includes('/api/host-files/file'), true);
+  assert.equal(projectFileServerSource.includes('/api/host-files/stage'), true);
+  assert.equal(projectFileServerSource.includes('/api/host-files/promote'), true);
   assert.equal(projectFileServerSource.includes('ASHA_STUDIO_PROJECT_ROOT'), false);
   assert.equal(projectFileServiceSource.includes("flag: 'wx'"), true);
   assert.equal(projectFileServiceSource.includes('await rename(temporaryPath, resolved.absolutePath)'), true);
