@@ -748,9 +748,12 @@ function normalizeRotation(rotation: Transform['rotation']): Transform['rotation
 
 function lightingPreviewUpdates(frame: RenderFrameDiff): RenderFrameDiff {
   return {
-    ops: frame.ops.flatMap(op => op.op === 'createLight'
-      ? [{ op: 'updateLight' as const, handle: op.handle, light: op.light }]
-      : []),
+    ops: frame.ops.flatMap(op => {
+      if (op.op === 'createLight') {
+        return [{ op: 'updateLight' as const, handle: op.handle, light: op.light }];
+      }
+      return op.op === 'updateLight' ? [op] : [];
+    }),
   };
 }
 

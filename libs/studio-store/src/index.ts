@@ -48,6 +48,7 @@ import {
   updateStudioRenderSetting,
   updateStudioLightingMode,
   proposeStudioLightAddition,
+  projectStudioAuthoredLightTransformPreview,
   zoomStudioViewportCamera,
   type StudioAssetBrowserCategory,
   type StudioApplicationMenu,
@@ -109,6 +110,7 @@ import {
   type SceneObjectSnapshot,
   type SceneLight,
   type SceneNodeRecord,
+  type SceneNodeId,
   type Transform,
   type VoxelCommand,
   type VoxelConversionEvidenceRef,
@@ -5157,6 +5159,7 @@ interface StudioSceneTransformHistory {
 
 export interface StudioSelectedSceneTransformTarget {
   readonly objectId: SceneObjectId;
+  readonly nodeId: SceneNodeId;
   readonly renderableId: string | null;
   readonly revision: string;
   readonly transform: Transform;
@@ -6432,6 +6435,7 @@ export class StudioWorkspaceStore {
     if (node === undefined || !Number.isSafeInteger(nodeId)) return null;
     return {
       objectId,
+      nodeId: node.id,
       renderableId: workspace.scene.selectedRenderableId,
       revision: studioSceneAuthoringBaseHash(workspace.flatSceneDocument),
       transform: node.transform,
@@ -6972,9 +6976,18 @@ export class StudioWorkspaceStore {
       },
     });
     if (!operation.ok) return null;
+    const lightFrame = this.lightingProjection().mode === 'authored_lights'
+      ? projectStudioAuthoredLightTransformPreview(
+        this.workspaceState().flatSceneDocument,
+        target.nodeId,
+        transform,
+        this.authoredLightFrameState(),
+      )
+      : { ops: [] };
     return {
       ...target,
       transform,
+      lightFrame,
     };
   }
 

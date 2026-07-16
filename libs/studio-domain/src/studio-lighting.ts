@@ -2,6 +2,7 @@ import {
   renderHandle,
   sceneNodeId,
   type FlatSceneDocument,
+  type LightDescriptor,
   type RenderFrameDiff,
   type SceneLight,
   type SceneNodeId,
@@ -24,6 +25,9 @@ export interface StudioLightingProjectionReadModel {
   readonly workLightActive: boolean;
   readonly shadowCapability: 'supported_with_degradation_readout';
 }
+
+type StudioVec3 = readonly [number, number, number];
+type StudioQuaternion = readonly [number, number, number, number];
 
 const WORK_LIGHT_AMBIENT_HANDLE = renderHandle(7_900_001);
 const WORK_LIGHT_DIRECTIONAL_HANDLE = renderHandle(7_900_002);
@@ -155,4 +159,126 @@ export function buildStudioLightingProjection(
     workLightActive: false,
     shadowCapability: 'supported_with_degradation_readout',
   };
+}
+
+/**
+ * Derive one disposable renderer-local authored-light update from the exact
+ * Rust-issued descriptor. Stored light properties remain authoritative; only
+ * the candidate node pose is projected for the duration of the drag.
+ */
+export function projectStudioAuthoredLightTransformPreview(
+  document: FlatSceneDocument,
+  nodeId: SceneNodeId,
+  candidate: SceneTransform,
+  authoritativeFrame: RenderFrameDiff,
+): RenderFrameDiff {
+  const lightNodes = document.nodes
+    .filter(node => node.kind.kind === 'light')
+    .sort((left, right) => (left.id as number) - (right.id as number));
+  const lightIndex = lightNodes.findIndex(node => node.id === nodeId);
+  const selected = lightNodes[lightIndex];
+  if (lightIndex < 0 || selected?.kind.kind !== 'light') return { ops: [] };
+  const authoritativeLights = authoritativeFrame.ops.filter(operation => operation.op === 'createLight');
+  const authoritative = authoritativeLights[lightIndex];
+  if (
+    authoritative === undefined
+    || authoritativeLights.length !== lightNodes.length
+    || authoritative.light.kind !== selected.kind.sceneLight.kind
+  ) {
+    return { ops: [] };
+  }
+  const worldTransform = authoredWorldTransform(document, nodeId, candidate);
+  if (worldTransform === null) return { ops: [] };
+  return {
+    ops: [{
+      op: 'updateLight',
+      handle: authoritative.handle,
+      light: lightDescriptorAtTransform(authoritative.light, worldTransform),
+    }],
+  };
+}
+
+function authoredWorldTransform(
+  document: FlatSceneDocument,
+  nodeId: SceneNodeId,
+  candidate: SceneTransform,
+): SceneTransform | null {
+  const records = new Map(document.nodes.map(node => [node.id as number, node]));
+  const chain: typeof document.nodes[number][] = [];
+  const seen = new Set<number>();
+  let current = records.get(nodeId as number);
+  while (current !== undefined) {
+    const rawId = current.id as number;
+    if (seen.has(rawId)) return null;
+    seen.add(rawId);
+    chain.push(current);
+    current = current.parent === null ? undefined : records.get(current.parent as number);
+  }
+  if (chain.length === 0 || chain.at(-1)?.parent !== null) return null;
+  return chain.reverse().reduce(
+    (world, node) => composeSceneTransform(world, node.id === nodeId ? candidate : node.transform),
+    IDENTITY,
+  );
+}
+
+function composeSceneTransform(parent: SceneTransform, local: SceneTransform): SceneTransform {
+  const scaled: StudioVec3 = [
+    local.translation[0] * parent.scale[0],
+    local.translation[1] * parent.scale[1],
+    local.translation[2] * parent.scale[2],
+  ];
+  const translated = rotateVector(parent.rotation, scaled);
+  return {
+    translation: [
+      parent.translation[0] + translated[0],
+      parent.translation[1] + translated[1],
+      parent.translation[2] + translated[2],
+    ],
+    rotation: multiplyQuaternion(parent.rotation, local.rotation),
+    scale: [
+      parent.scale[0] * local.scale[0],
+      parent.scale[1] * local.scale[1],
+      parent.scale[2] * local.scale[2],
+    ],
+  };
+}
+
+function lightDescriptorAtTransform(
+  descriptor: LightDescriptor,
+  transform: SceneTransform,
+): LightDescriptor {
+  const direction = rotateVector(transform.rotation, [0, 0, -1]);
+  switch (descriptor.kind) {
+    case 'ambient':
+      return descriptor;
+    case 'directional':
+      return { ...descriptor, direction };
+    case 'point':
+      return { ...descriptor, position: transform.translation };
+    case 'spot':
+      return { ...descriptor, position: transform.translation, direction };
+  }
+}
+
+function multiplyQuaternion(left: StudioQuaternion, right: StudioQuaternion): StudioQuaternion {
+  const [ax, ay, az, aw] = left;
+  const [bx, by, bz, bw] = right;
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
+
+function rotateVector(rotation: StudioQuaternion, vector: StudioVec3): StudioVec3 {
+  const magnitude = Math.hypot(...rotation);
+  if (magnitude <= 0.000001) return vector;
+  const normalized = rotation.map(value => value / magnitude) as unknown as StudioQuaternion;
+  const conjugate: StudioQuaternion = [-normalized[0], -normalized[1], -normalized[2], normalized[3]];
+  const rotated = multiplyQuaternion(
+    multiplyQuaternion(normalized, [vector[0], vector[1], vector[2], 0]),
+    conjugate,
+  );
+  return [rotated[0], rotated[1], rotated[2]];
 }

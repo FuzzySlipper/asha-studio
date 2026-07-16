@@ -3,6 +3,7 @@ import test from 'node:test';
 import { renderHandle, sceneId, sceneNodeId, type FlatSceneDocument, type RenderFrameDiff } from '@asha/contracts';
 import {
   buildStudioLightingProjection,
+  projectStudioAuthoredLightTransformPreview,
   proposeStudioLightAddition,
   proposeStudioLightUpdate,
 } from '@asha-studio/domain';
@@ -85,4 +86,45 @@ test('typed light updates retain node pose and identity', () => {
     assert.equal(after.kind.sceneLight.intensity, 9);
     assert.equal(after.kind.sceneLight.range, 22);
   }
+});
+
+test('authored light transform preview derives one disposable update from Rust projection', () => {
+  const added = proposeStudioLightAddition(scene(), 'spot');
+  const authoritativeFrame: RenderFrameDiff = { ops: [{
+    op: 'createLight',
+    handle: renderHandle(41),
+    parent: null,
+    light: {
+      kind: 'spot',
+      color: [0.8, 0.7, 0.6],
+      intensity: 5,
+      enabled: true,
+      position: [6, 4, -4],
+      direction: [-1, 0, 0],
+      range: 18,
+      decay: 2,
+      outerAngleRadians: 0.7,
+      penumbra: 0.25,
+      shadowIntent: 'disabled',
+    },
+  }] };
+  const original = JSON.stringify(authoritativeFrame);
+  const preview = projectStudioAuthoredLightTransformPreview(
+    added.document,
+    added.nodeId,
+    {
+      translation: [8, 7, 3],
+      rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2],
+      scale: [1, 1, 1],
+    },
+    authoritativeFrame,
+  );
+  const update = preview.ops[0];
+  assert.equal(update?.op, 'updateLight');
+  if (update?.op !== 'updateLight' || update.light.kind !== 'spot') return;
+  assert.equal(update.handle, renderHandle(41));
+  assert.notDeepEqual(update.light.position, [6, 4, -4]);
+  assert.notDeepEqual(update.light.direction, [-1, 0, 0]);
+  assert.equal(update.light.intensity, 5);
+  assert.equal(JSON.stringify(authoritativeFrame), original);
 });

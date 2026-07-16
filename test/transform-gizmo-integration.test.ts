@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import type { NativeBrowserHostRuntimeBridge } from '@asha/browser-host';
 import {
+  renderHandle,
   sceneId,
   sceneNodeId,
   type FlatSceneDocument,
@@ -163,6 +164,48 @@ function transformScene(): FlatSceneDocument {
   };
 }
 
+function lightTransformScene(): FlatSceneDocument {
+  return {
+    schemaVersion: 2,
+    id: sceneId(5846),
+    metadata: { name: 'Light transform authority test', authoringFormatVersion: 2 },
+    dependencies: [],
+    nodes: [
+      {
+        id: sceneNodeId(1),
+        parent: null,
+        childOrder: 0,
+        label: 'Root',
+        tags: [],
+        transform: sourceTransform,
+        kind: { kind: 'emptyGroup' },
+      },
+      {
+        id: sceneNodeId(2),
+        parent: sceneNodeId(1),
+        childOrder: 0,
+        label: 'Transform light',
+        tags: ['authored'],
+        transform: sourceTransform,
+        kind: {
+          kind: 'light',
+          sceneLight: {
+            kind: 'spot',
+            color: [1, 0.8, 0.6],
+            intensity: 5,
+            enabled: true,
+            range: 18,
+            decay: 2,
+            outerAngleRadians: 0.7,
+            penumbra: 0.25,
+            shadowIntent: 'disabled',
+          },
+        },
+      },
+    ],
+  };
+}
+
 test('drag previews never call Rust and only an accepted release mutates authority and history', () => {
   const injector = createEnvironmentInjector([
     StudioPreferencesStore,
@@ -282,6 +325,106 @@ test('drag previews never call Rust and only an accepted release mutates authori
     assert.equal(requests.length, 2);
     assert.equal(internals.workspaceState().flatSceneDocument, afterAcceptedDocument);
     assert.equal(internals.sceneTransformHistoryState(), afterAcceptedHistory);
+  } finally {
+    injector.destroy();
+  }
+});
+
+test('authored light drag previews a changed descriptor and stale settlement restores Rust projection', () => {
+  const injector = createEnvironmentInjector([
+    StudioPreferencesStore,
+    StudioWorkspaceStore,
+  ]);
+  try {
+    const store = runInInjectionContext(injector, () => inject(StudioWorkspaceStore));
+    const internals = store as unknown as TransformStoreInternals;
+    const document = lightTransformScene();
+    const projected = applySelectedEntityReadModel(
+      applyCanonicalSceneDocumentReadModel(
+        buildInitialWorkspaceReadModel(),
+        document,
+        '/tmp/light-transform-authority.scene.json',
+      ),
+      'scene-node:2',
+    );
+    const authoritativeFrame: RenderFrameDiff = { ops: [{
+      op: 'createLight',
+      handle: renderHandle(1),
+      parent: null,
+      light: {
+        kind: 'spot',
+        color: [1, 0.8, 0.6],
+        intensity: 5,
+        enabled: true,
+        position: [0, 0, 0],
+        direction: [0, 0, -1],
+        range: 18,
+        decay: 2,
+        outerAngleRadians: 0.7,
+        penumbra: 0.25,
+        shadowIntent: 'disabled',
+      },
+    }] };
+    const requests: Parameters<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']>[0][] = [];
+    const bridge = {
+      applySceneDocumentAuthoring: (
+        request: Parameters<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']>[0],
+      ): ReturnType<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']> => {
+        requests.push(request);
+        return {
+          accepted: false,
+          document: null,
+          contentHash: null,
+          authoredLightFrame: null,
+          rejection: {
+            code: 'contentHashMismatch',
+            message: 'The light drag started from stale Rust authority.',
+            expectedHash: request.expectedContentHash,
+            actualHash: 'rust-light-content-newer',
+          },
+        };
+      },
+    } as unknown as NativeBrowserHostRuntimeBridge;
+
+    internals.workspaceState.set(projected);
+    internals.sceneDocumentCodecBridgeState.set(bridge);
+    internals.sceneDocumentContentHashState.set('rust-light-content-1');
+    internals.authoredLightFrameState.set(authoritativeFrame);
+    internals.sceneTransformHistoryState.set({ entries: [], cursor: 0 });
+    store.setLightingMode('authored_lights');
+
+    const start = store.selectedSceneTransformTarget();
+    assert.notEqual(start, null);
+    if (start === null) return;
+    const candidate = {
+      ...start.transform,
+      translation: [3, 4, 5] as const,
+      rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2] as const,
+    };
+    const preview = store.previewSelectedSceneObjectTransform(start.revision, candidate);
+    assert.notEqual(preview, null);
+    const previewLight = preview?.lightFrame.ops[0];
+    assert.equal(previewLight?.op, 'updateLight');
+    if (previewLight?.op === 'updateLight' && previewLight.light.kind === 'spot') {
+      assert.deepEqual(previewLight.light.position, [3, 4, 5]);
+      assert.notDeepEqual(previewLight.light.direction, [0, 0, -1]);
+    }
+    assert.equal(requests.length, 0);
+    assert.equal(internals.authoredLightFrameState(), authoritativeFrame);
+    assert.equal(store.selectedSceneTransformTarget()?.lightFrame, authoritativeFrame);
+
+    const rejected = store.commitSelectedSceneObjectTransform(start.revision, candidate);
+    assert.equal(rejected.accepted, false);
+    assert.equal(requests.length, 1);
+    assert.equal(internals.workspaceState().flatSceneDocument, document);
+    assert.equal(internals.authoredLightFrameState(), authoritativeFrame);
+    assert.deepEqual(internals.sceneTransformHistoryState(), { entries: [], cursor: 0 });
+    assert.equal(store.selectedSceneTransformTarget()?.lightFrame, authoritativeFrame);
+
+    const locallyStale = store.previewSelectedSceneObjectTransform('stale-light-revision', candidate);
+    assert.equal(locallyStale, null);
+    assert.equal(requests.length, 1);
+    assert.equal(internals.authoredLightFrameState(), authoritativeFrame);
   } finally {
     injector.destroy();
   }
