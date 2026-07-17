@@ -62,6 +62,34 @@ test('settings codecs reject invalid shape and preserve unsupported future artif
   assert.equal(parseStudioHostUserSettings(invalidUser).status, 'invalid');
 });
 
+test('the original v1 project-settings shape migrates transform snapping defaults', () => {
+  const priorV1 = JSON.stringify({
+    schemaVersion: 1,
+    artifactKind: 'asha_studio_project_settings',
+    settingsVersion: 'asha-studio-project-settings.v1',
+    project: { gameId: 'prior-v1-game', manifestPath: 'asha.game.toml' },
+    units: 'meters',
+    spatialGrid: {
+      coordinateSystem: 'rightHandedYUp',
+      origin: [2, 3, 4],
+      spacing: [0.5, 1, 2],
+      plane: 'xz',
+      snapAnchor: 'boundary',
+    },
+  });
+  const parsed = parseStudioProjectSettings(priorV1);
+  assert.equal(parsed.status, 'loaded');
+  if (parsed.status !== 'loaded') return;
+  assert.equal(parsed.migrationApplied, true);
+  assert.deepEqual(parsed.artifact.transformSnapping, {
+    rotationDegrees: 15,
+    scaleIncrement: 0.1,
+  });
+  const roundTrip = parseStudioProjectSettings(serializeStudioProjectSettings(parsed.artifact));
+  assert.equal(roundTrip.status, 'loaded');
+  if (roundTrip.status === 'loaded') assert.equal(roundTrip.migrationApplied, false);
+});
+
 test('host user settings survive service restart and remain isolated by canonical project root', async () => {
   const root = await mkdtemp(join(tmpdir(), 'asha-studio-settings-'));
   const configDirectory = join(root, 'host-config');

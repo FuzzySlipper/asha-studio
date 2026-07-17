@@ -53,6 +53,7 @@ import {
   parseStudioProjectSettings,
   projectStudioAuthoredLightTransformPreview,
   resolveStudioEffectiveSettings,
+  resolveStudioSceneNodeTransformContext,
   serializeStudioHostUserSettings,
   serializeStudioProjectSettings,
   zoomStudioViewportCamera,
@@ -3497,6 +3498,7 @@ export interface StudioSelectedSceneTransformTarget {
   readonly renderableId: string | null;
   readonly revision: string;
   readonly transform: Transform;
+  readonly parentWorldTransform: Transform | null;
   readonly lightFrame: RenderFrameDiff;
 }
 
@@ -4539,12 +4541,18 @@ export class StudioWorkspaceStore {
     const nodeId = Number.parseInt(objectId.slice('scene-node:'.length), 10);
     const node = workspace.flatSceneDocument.nodes.find(candidate => (candidate.id as number) === nodeId);
     if (node === undefined || !Number.isSafeInteger(nodeId)) return null;
+    const transformContext = resolveStudioSceneNodeTransformContext(
+      workspace.flatSceneDocument,
+      node.id,
+    );
+    if (transformContext === null) return null;
     return {
       objectId,
       nodeId: node.id,
       renderableId: workspace.scene.selectedRenderableId,
       revision: studioSceneAuthoringBaseHash(workspace.flatSceneDocument),
       transform: node.transform,
+      parentWorldTransform: transformContext.parentWorldTransform,
       lightFrame: this.lightingProjection().frame,
     };
   });
@@ -9519,6 +9527,7 @@ export class StudioWorkspaceStore {
   }): Promise<StudioProjectOpenSettingsResult> {
     let projectSettingsDirty = false;
     let projectSettingsHash: string | null = null;
+    let projectSettingsLoadMessage: string | null = null;
     let projectSettings = buildDefaultStudioProjectSettings({
       gameId: options.gameId,
       manifestPath: options.manifestPath,
@@ -9539,6 +9548,10 @@ export class StudioWorkspaceStore {
           return { ok: false, message: parsed.diagnostic };
         }
         projectSettings = parsed.artifact;
+        projectSettingsDirty = parsed.migrationApplied;
+        if (parsed.migrationApplied) {
+          projectSettingsLoadMessage = 'Project settings were migrated from the original v1 shape; Save Project Settings to persist transform-snapping defaults.';
+        }
         if (projectSettings.project.gameId !== options.gameId
           || normalizeProjectFilePath(projectSettings.project.manifestPath)
             !== normalizeProjectFilePath(options.manifestPath)) {
@@ -9550,6 +9563,7 @@ export class StudioWorkspaceStore {
         projectSettingsHash = payload.sha256 ?? null;
       } else if (payload.diagnostic === 'host_file_not_found') {
         projectSettingsDirty = true;
+        projectSettingsLoadMessage = 'Project settings were missing; engine defaults are active until Save Project Settings.';
       } else {
         throw new Error(payload.diagnostic ?? 'Project settings read failed.');
       }
@@ -9599,9 +9613,8 @@ export class StudioWorkspaceStore {
           hostUserSettings,
           hostUserSettingsHash: payload.sha256 ?? null,
           hostUserSettingsPath: payload.path ?? null,
-          message: projectSettingsDirty
-            ? 'Project settings were missing; engine defaults are active until Save Project Settings.'
-            : 'Project and host-user settings loaded from the Studio host.',
+          message: projectSettingsLoadMessage
+            ?? 'Project and host-user settings loaded from the Studio host.',
         },
       };
     } catch (error) {

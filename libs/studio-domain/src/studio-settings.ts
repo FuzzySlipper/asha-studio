@@ -90,6 +90,7 @@ export type StudioSettingsParseResult<T> =
   | {
       readonly status: 'loaded';
       readonly artifact: T;
+      readonly migrationApplied: boolean;
       readonly preservedRawText: null;
       readonly diagnostic: null;
     }
@@ -239,6 +240,7 @@ export function parseStudioProjectSettings(
     'asha_studio_project_settings',
     'asha-studio-project-settings.v1',
     validateStudioProjectSettings,
+    migrateStudioProjectSettingsV1,
   );
 }
 
@@ -309,6 +311,10 @@ function parseSettingsArtifact<T>(
   artifactKind: string,
   supportedVersion: string,
   validate: (artifact: T) => T,
+  migrate: ((parsed: Record<string, unknown>) => {
+    readonly artifact: unknown;
+    readonly migrationApplied: boolean;
+  }) | null = null,
 ): StudioSettingsParseResult<T> {
   let parsed: unknown;
   try {
@@ -338,9 +344,11 @@ function parseSettingsArtifact<T>(
     };
   }
   try {
+    const migration = migrate?.(parsed) ?? { artifact: parsed, migrationApplied: false };
     return {
       status: 'loaded',
-      artifact: validate(parsed as T),
+      artifact: validate(migration.artifact as T),
+      migrationApplied: migration.migrationApplied,
       preservedRawText: null,
       diagnostic: null,
     };
@@ -352,6 +360,25 @@ function parseSettingsArtifact<T>(
       diagnostic: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function migrateStudioProjectSettingsV1(parsed: Record<string, unknown>): {
+  readonly artifact: unknown;
+  readonly migrationApplied: boolean;
+} {
+  if (parsed['transformSnapping'] !== undefined) {
+    return { artifact: parsed, migrationApplied: false };
+  }
+  return {
+    artifact: {
+      ...parsed,
+      transformSnapping: {
+        rotationDegrees: 15,
+        scaleIncrement: 0.1,
+      },
+    },
+    migrationApplied: true,
+  };
 }
 
 function canonicalize(value: unknown): unknown {

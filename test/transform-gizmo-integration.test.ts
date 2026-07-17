@@ -23,6 +23,7 @@ import {
   projectTransformManipulator,
   transformManipulatorHandleFromId,
   updateTransformManipulatorDrag,
+  type TransformManipulatorHandle,
 } from '@asha/editor-tools';
 import {
   applyCanonicalSceneDocumentReadModel,
@@ -165,6 +166,122 @@ test('translation snapping shares project origin spacing and boundary or cell-ce
   );
   const fine = applyStudioTranslationGridSnap(candidate, descriptor, true, true).transform.translation;
   assert.deepEqual(fine.map(value => Number(value.toFixed(6))), [-2.7, 1.1, 4.3]);
+});
+
+test('translation grid snapping preserves coordinates outside the active world constraint', () => {
+  const candidate = {
+    kind: 'transform_manipulator_candidate.v0' as const,
+    diagnostics: [],
+    previewOnly: true as const,
+    revision: 'constraint-snap',
+    transform: { ...sourceTransform, translation: [1.6, 0.3, 0.7] as const },
+  };
+  const descriptor = {
+    visible: true,
+    grid: {
+      coordinateSystem: 'rightHandedYUp' as const,
+      origin: [0, 0, 0] as const,
+      spacing: [1, 1, 1] as const,
+    },
+    plane: 'xz' as const,
+    snapAnchor: 'boundary' as const,
+    style: {
+      minorColor: [0.1, 0.1, 0.1, 1] as const,
+      majorColor: [0.2, 0.2, 0.2, 1] as const,
+      xAxisColor: [1, 0, 0, 1] as const,
+      yAxisColor: [0, 1, 0, 1] as const,
+      zAxisColor: [0, 0, 1, 1] as const,
+      majorLineEvery: 4,
+      opacity: 1,
+      fadeStart: 12,
+      fadeEnd: 64,
+    },
+  };
+  const constraint = (handle: TransformManipulatorHandle) => ({
+      handle,
+      orientation: 'world' as const,
+      source: sourceTransform,
+      parentWorldTransform: null,
+    });
+  assert.deepEqual(applyStudioTranslationGridSnap(
+    candidate, descriptor, true, false, constraint({ kind: 'axis', mode: 'translate', axis: 'x' }),
+  ).transform.translation, [2, 0.3, 0.7]);
+  assert.deepEqual(applyStudioTranslationGridSnap(
+    candidate, descriptor, true, false, constraint({ kind: 'axis', mode: 'translate', axis: 'y' }),
+  ).transform.translation, [1.6, 0, 0.7]);
+  assert.deepEqual(applyStudioTranslationGridSnap(
+    candidate, descriptor, true, false, constraint({ kind: 'axis', mode: 'translate', axis: 'z' }),
+  ).transform.translation, [1.6, 0.3, 1]);
+  assert.deepEqual(applyStudioTranslationGridSnap(
+    candidate, descriptor, true, false, constraint({ kind: 'plane', mode: 'translate', plane: 'xy' }),
+  ).transform.translation, [2, 0, 0.7]);
+  assert.deepEqual(applyStudioTranslationGridSnap(
+    candidate, descriptor, true, false, constraint({ kind: 'plane', mode: 'translate', plane: 'xz' }),
+  ).transform.translation, [2, 0.3, 1]);
+  assert.deepEqual(applyStudioTranslationGridSnap(
+    candidate, descriptor, true, false, constraint({ kind: 'plane', mode: 'translate', plane: 'yz' }),
+  ).transform.translation, [1.6, 0, 1]);
+});
+
+test('local translation snapping honors world grid origin and anisotropic spacing', () => {
+  const descriptor = {
+    visible: true,
+    grid: {
+      coordinateSystem: 'rightHandedYUp' as const,
+      origin: [0.5, -0.5, 1] as const,
+      spacing: [2, 0.5, 3] as const,
+    },
+    plane: 'xz' as const,
+    snapAnchor: 'boundary' as const,
+    style: {
+      minorColor: [0.1, 0.1, 0.1, 1] as const,
+      majorColor: [0.2, 0.2, 0.2, 1] as const,
+      xAxisColor: [1, 0, 0, 1] as const,
+      yAxisColor: [0, 1, 0, 1] as const,
+      zAxisColor: [0, 0, 1, 1] as const,
+      majorLineEvery: 4,
+      opacity: 1,
+      fadeStart: 12,
+      fadeEnd: 64,
+    },
+  };
+  const rotatedSource = {
+    ...sourceTransform,
+    translation: [0.5, -0.5, 1] as const,
+    rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2] as const,
+  };
+  const candidate = {
+    kind: 'transform_manipulator_candidate.v0' as const,
+    diagnostics: [],
+    previewOnly: true as const,
+    revision: 'local-constraint-snap',
+    transform: { ...rotatedSource, translation: [2.2, -0.5, -0.2] as const },
+  };
+  const snapped = applyStudioTranslationGridSnap(candidate, descriptor, true, false, {
+    handle: { kind: 'axis', mode: 'translate', axis: 'x' },
+    orientation: 'local',
+    source: rotatedSource,
+    parentWorldTransform: null,
+  }).transform.translation;
+  assert.deepEqual(snapped.map(value => Number(value.toFixed(9))), [2.2, -0.5, 1]);
+
+  const childCandidate = {
+    ...candidate,
+    transform: { ...sourceTransform, translation: [1.6, 0.3, 0.7] as const },
+  };
+  assert.deepEqual(applyStudioTranslationGridSnap(childCandidate, {
+    ...descriptor,
+    grid: { ...descriptor.grid, origin: [0, 0, 0], spacing: [1, 1, 1] },
+  }, true, false, {
+    handle: { kind: 'axis', mode: 'translate', axis: 'x' },
+    orientation: 'world',
+    source: sourceTransform,
+    parentWorldTransform: {
+      translation: [10, 0, 0],
+      rotation: [0, 0, 0, 1],
+      scale: [1, 1, 1],
+    },
+  }).transform.translation, [2, 0.3, 0.7]);
 });
 
 interface MutableSignalForTest<T> {

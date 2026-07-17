@@ -1120,6 +1120,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private transformDragState: {
     readonly pointerId: number;
     readonly drag: TransformManipulatorDrag;
+    readonly parentWorldTransform: Transform | null;
     candidate: TransformManipulatorCandidate;
   } | null = null;
   private transformHoveredHandle: TransformManipulatorHandle | null = null;
@@ -1548,6 +1549,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.transformDragState = {
       pointerId: event.pointerId,
       drag,
+      parentWorldTransform: target.parentWorldTransform,
       candidate: {
         kind: 'transform_manipulator_candidate.v0',
         diagnostics: [],
@@ -1695,6 +1697,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         this.store.effectiveSettings().grid,
         true,
         pending.fine,
+        {
+          handle: dragState.drag.handle,
+          orientation: dragState.drag.orientation,
+          source: dragState.drag.source,
+          parentWorldTransform: dragState.parentWorldTransform,
+        },
       );
     }
     if (!this.applyTransformPreview(candidate)) this.cancelTransformDrag();
