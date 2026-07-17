@@ -540,6 +540,20 @@ export interface StudioProjectSettingsReadModel {
   readonly message: string;
 }
 
+interface StudioProjectOpenSettingsSnapshot {
+  readonly projectSettings: StudioProjectSettingsArtifact;
+  readonly projectSettingsHash: string | null;
+  readonly projectSettingsDirty: boolean;
+  readonly hostUserSettings: StudioHostUserSettingsArtifact;
+  readonly hostUserSettingsHash: string | null;
+  readonly hostUserSettingsPath: string | null;
+  readonly message: string;
+}
+
+type StudioProjectOpenSettingsResult =
+  | { readonly ok: true; readonly snapshot: StudioProjectOpenSettingsSnapshot }
+  | { readonly ok: false; readonly message: string };
+
 export interface StudioVoxelConversionWorkspaceShellRegion {
   readonly id: 'source' | 'settings' | 'preview' | 'diagnostics' | 'timeline' | 'evidence';
   readonly label: string;
@@ -3555,6 +3569,7 @@ export class StudioWorkspaceStore {
     'Scratch session: open or create a project to persist project and host-user settings.',
   );
   private hostUserSettingsWriteChain: Promise<void> = Promise.resolve();
+  private projectOpenGeneration = 0;
   private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>({
     ok: false,
     diagnostics: [{
@@ -9397,8 +9412,8 @@ export class StudioWorkspaceStore {
       if (!response.ok || payload.ok !== true || payload.manifestPath === undefined) {
         throw new Error(payload.message ?? `HTTP ${response.status}`);
       }
-      await this.openProjectManifest(payload.manifestPath);
-      if (this.gameWorkspace() !== null) {
+      const opened = await this.openProjectManifest(payload.manifestPath);
+      if (opened) {
         this.menuMessageState.set(`Created and opened ASHA project ${this.gameWorkspace()?.gameId}.`);
       }
     } catch (error) {
@@ -9408,7 +9423,9 @@ export class StudioWorkspaceStore {
     }
   }
 
-  private async openProjectManifest(manifestPath: string): Promise<void> {
+  private async openProjectManifest(manifestPath: string): Promise<boolean> {
+    const generation = this.projectOpenGeneration + 1;
+    this.projectOpenGeneration = generation;
     try {
       const response = await fetch(`${projectFileApiBase()}/api/projects/open`, {
         method: 'POST',
@@ -9444,28 +9461,53 @@ export class StudioWorkspaceStore {
         packageScripts: payload.packageScripts ?? {},
         pathExists: path => existingPaths.has(path),
       });
-      this.gameWorkspaceState.set(loaded);
       if (!loaded.ok) {
-        this.settingsStatusState.set('error');
-        this.settingsMessageState.set(loaded.diagnostics.map(diagnostic => diagnostic.message).join(' '));
-        this.menuMessageState.set('Project manifest was rejected; the scratch session remains active.');
-        return;
+        const detail = loaded.diagnostics.map(diagnostic => diagnostic.message).join(' ');
+        if (generation === this.projectOpenGeneration) {
+          this.menuMessageState.set(`Project manifest was rejected; the current workspace remains active. ${detail}`);
+        }
+        return false;
       }
-      this.projectRootDraftState.set(loaded.workspace.workspaceRoot);
-      this.projectGameIdDraftState.set(loaded.workspace.gameId);
-      await this.loadSettingsForProject({
+      const settings = await this.loadSettingsForProject({
         projectRoot: loaded.workspace.workspaceRoot,
         gameId: loaded.workspace.gameId,
         manifestPath: loaded.workspace.manifestPath,
         projectSettingsPath: payload.projectSettingsPath
           ?? joinProjectFilePath(loaded.workspace.workspaceRoot, ASHA_STUDIO_PROJECT_SETTINGS_PATH),
       });
+      if (!settings.ok) {
+        if (generation === this.projectOpenGeneration) {
+          this.menuMessageState.set(`Open Project failed: ${settings.message} The current workspace remains active.`);
+        }
+        return false;
+      }
+      await this.hostUserSettingsWriteChain;
+      if (generation !== this.projectOpenGeneration) return false;
+
+      const snapshot = settings.snapshot;
+      this.gameWorkspaceState.set(loaded);
+      this.projectSettingsState.set(snapshot.projectSettings);
+      this.projectSettingsHashState.set(snapshot.projectSettingsHash);
+      this.projectSettingsDirtyState.set(snapshot.projectSettingsDirty);
+      this.hostUserSettingsState.set(snapshot.hostUserSettings);
+      this.hostUserSettingsHashState.set(snapshot.hostUserSettingsHash);
+      this.hostUserSettingsPathState.set(snapshot.hostUserSettingsPath);
+      this.settingsWritesEnabledState.set(true);
+      this.settingsStatusState.set('loaded');
+      this.settingsMessageState.set(snapshot.message);
+      this.preferencesStore.setRenderSetting('showGrid', snapshot.hostUserSettings.sceneView.gridVisible);
+      this.projectRootDraftState.set(loaded.workspace.workspaceRoot);
+      this.projectGameIdDraftState.set(loaded.workspace.gameId);
       this.activeMenuState.set(null);
       this.menuMessageState.set(`Opened ASHA project ${loaded.workspace.gameId}.`);
+      return true;
     } catch (error) {
-      this.settingsStatusState.set('error');
-      this.settingsMessageState.set(`Open Project failed: ${errorMessage(error)}`);
-      this.menuMessageState.set(this.settingsMessageState());
+      if (generation === this.projectOpenGeneration) {
+        this.menuMessageState.set(
+          `Open Project failed: ${errorMessage(error)} The current workspace remains active.`,
+        );
+      }
+      return false;
     }
   }
 
@@ -9474,9 +9516,9 @@ export class StudioWorkspaceStore {
     readonly gameId: string;
     readonly manifestPath: string;
     readonly projectSettingsPath: string;
-  }): Promise<void> {
-    this.settingsWritesEnabledState.set(true);
-    this.projectSettingsDirtyState.set(false);
+  }): Promise<StudioProjectOpenSettingsResult> {
+    let projectSettingsDirty = false;
+    let projectSettingsHash: string | null = null;
     let projectSettings = buildDefaultStudioProjectSettings({
       gameId: options.gameId,
       manifestPath: options.manifestPath,
@@ -9494,26 +9536,29 @@ export class StudioWorkspaceStore {
       if (payload.ok === true && payload.text !== undefined) {
         const parsed = parseStudioProjectSettings(payload.text);
         if (parsed.status !== 'loaded') {
-          this.settingsWritesEnabledState.set(false);
-          this.settingsStatusState.set(parsed.status === 'unsupported_future_version' ? 'unsupported' : 'error');
-          this.settingsMessageState.set(parsed.diagnostic);
-          return;
+          return { ok: false, message: parsed.diagnostic };
         }
         projectSettings = parsed.artifact;
-        this.projectSettingsHashState.set(payload.sha256 ?? null);
+        if (projectSettings.project.gameId !== options.gameId
+          || normalizeProjectFilePath(projectSettings.project.manifestPath)
+            !== normalizeProjectFilePath(options.manifestPath)) {
+          return {
+            ok: false,
+            message: 'Project settings identity does not match the opened project manifest.',
+          };
+        }
+        projectSettingsHash = payload.sha256 ?? null;
       } else if (payload.diagnostic === 'host_file_not_found') {
-        this.projectSettingsHashState.set(null);
-        this.projectSettingsDirtyState.set(true);
+        projectSettingsDirty = true;
       } else {
         throw new Error(payload.diagnostic ?? 'Project settings read failed.');
       }
     } catch (error) {
-      this.settingsStatusState.set('error');
-      this.settingsWritesEnabledState.set(false);
-      this.settingsMessageState.set(`Project settings could not be loaded: ${errorMessage(error)}`);
-      return;
+      return {
+        ok: false,
+        message: `Project settings could not be loaded: ${errorMessage(error)}`,
+      };
     }
-    this.projectSettingsState.set(projectSettings);
 
     try {
       const response = await fetch(
@@ -9535,27 +9580,35 @@ export class StudioWorkspaceStore {
       if (payload.exists === true && payload.text !== null && payload.text !== undefined) {
         const parsed = parseStudioHostUserSettings(payload.text);
         if (parsed.status !== 'loaded') {
-          this.settingsWritesEnabledState.set(false);
-          this.settingsStatusState.set(parsed.status === 'unsupported_future_version' ? 'unsupported' : 'error');
-          this.settingsMessageState.set(parsed.diagnostic);
-          return;
+          return { ok: false, message: parsed.diagnostic };
         }
         hostUserSettings = parsed.artifact;
       }
-      this.hostUserSettingsState.set(hostUserSettings);
-      this.hostUserSettingsHashState.set(payload.sha256 ?? null);
-      this.hostUserSettingsPathState.set(payload.path ?? null);
-      this.preferencesStore.setRenderSetting('showGrid', hostUserSettings.sceneView.gridVisible);
-      this.settingsStatusState.set('loaded');
-      this.settingsMessageState.set(
-        this.projectSettingsDirtyState()
-          ? 'Project settings were missing; engine defaults are active until Save Project Settings.'
-          : 'Project and host-user settings loaded from the Studio host.',
-      );
+      if (hostUserSettings.projectKey !== payload.projectKey) {
+        return {
+          ok: false,
+          message: 'Host-user settings identity does not match the opened project root.',
+        };
+      }
+      return {
+        ok: true,
+        snapshot: {
+          projectSettings,
+          projectSettingsHash,
+          projectSettingsDirty,
+          hostUserSettings,
+          hostUserSettingsHash: payload.sha256 ?? null,
+          hostUserSettingsPath: payload.path ?? null,
+          message: projectSettingsDirty
+            ? 'Project settings were missing; engine defaults are active until Save Project Settings.'
+            : 'Project and host-user settings loaded from the Studio host.',
+        },
+      };
     } catch (error) {
-      this.settingsStatusState.set('error');
-      this.settingsWritesEnabledState.set(false);
-      this.settingsMessageState.set(`Host user settings could not be loaded: ${errorMessage(error)}`);
+      return {
+        ok: false,
+        message: `Host user settings could not be loaded: ${errorMessage(error)}`,
+      };
     }
   }
 
