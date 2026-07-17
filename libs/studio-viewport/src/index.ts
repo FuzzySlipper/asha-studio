@@ -43,13 +43,15 @@ import type {
   StudioBounds,
   StudioEntitySourceState,
   StudioRenderableKind,
-  StudioVec3,
   StudioViewportAdapterReadModel,
   StudioViewportHitFace,
   StudioViewportRenderableAdapter,
   StudioViewportToolMode,
 } from '@asha-studio/domain';
-import { buildStudioViewportHitReadModel } from '@asha-studio/domain';
+import {
+  buildStudioViewportHitReadModel,
+  composeStudioSceneTransform,
+} from '@asha-studio/domain';
 import {
   StudioWorkspaceStore,
   type StudioWorkspaceProjectionDelivery,
@@ -61,6 +63,7 @@ import {
   resolveStudioCameraMovementAxes,
 } from './scene-camera-controls.js';
 import { resolveStudioViewportPickRoute } from './viewport-pick-routing.js';
+import { projectStudioAuthoredRenderableTransform } from './authored-scene-projection.js';
 
 export {
   resolveStudioViewportPickRoute,
@@ -69,6 +72,7 @@ export {
 } from './viewport-pick-routing.js';
 
 export { applyStudioTranslationGridSnap } from './grid-snapping.js';
+export { projectStudioAuthoredRenderableTransform } from './authored-scene-projection.js';
 export {
   hasStudioCameraMovement,
   isStudioCameraMovementCode,
@@ -272,22 +276,6 @@ function transformProjectionPoint(
   ];
 }
 
-function center(bounds: StudioBounds): StudioVec3 {
-  return {
-    x: (bounds.min.x + bounds.max.x) / 2,
-    y: (bounds.min.y + bounds.max.y) / 2,
-    z: (bounds.min.z + bounds.max.z) / 2,
-  };
-}
-
-function size(bounds: StudioBounds): StudioVec3 {
-  return {
-    x: Math.max(0.04, bounds.max.x - bounds.min.x),
-    y: Math.max(0.04, bounds.max.y - bounds.min.y),
-    z: Math.max(0.04, bounds.max.z - bounds.min.z),
-  };
-}
-
 function faceFromProjectionNormal(
   normal: readonly [number, number, number] | null,
 ): StudioViewportHitFace {
@@ -353,21 +341,7 @@ function renderableMaterial(
 }
 
 function renderableTransform(renderable: StudioViewportRenderableAdapter): Transform {
-  const renderableCenter = center(renderable.bounds);
-  const renderableSize = size(renderable.bounds);
-  return {
-    translation: [
-      renderableCenter.x,
-      renderableCenter.y,
-      renderableCenter.z,
-    ],
-    rotation: [0, 0, 0, 1],
-    scale: [
-      renderableSize.x,
-      renderable.kind === 'voxel_grid' ? 0.04 : renderableSize.y,
-      renderableSize.z,
-    ],
-  };
+  return projectStudioAuthoredRenderableTransform(renderable);
 }
 
 function renderableNode(
@@ -711,6 +685,15 @@ function projectedPreviewTransform(
       rendered.scale[2] * candidate.scale[2] / source.scale[2],
     ],
   };
+}
+
+function worldTransformForLocalCandidate(
+  renderable: StudioViewportRenderableAdapter,
+  localTransform: Transform,
+): Transform {
+  return renderable.parentWorldTransform === null
+    ? localTransform
+    : composeStudioSceneTransform(renderable.parentWorldTransform, localTransform);
 }
 
 function multiplyRotation(
@@ -1596,13 +1579,21 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       if (renderable?.kind === 'voxel_grid') {
         const projection = this.authoredVoxelPickIndex.projectionForInstance(target.objectId);
         if (projection !== null) {
+          const sourceWorldTransform = worldTransformForLocalCandidate(
+            renderable,
+            dragState.drag.source,
+          );
+          const candidateWorldTransform = worldTransformForLocalCandidate(
+            renderable,
+            candidate.transform,
+          );
           ops.push({
             op: 'update',
             handle: projection.handle,
             transform: projectedPreviewTransform(
               projection.transform,
-              dragState.drag.source,
-              candidate.transform,
+              sourceWorldTransform,
+              candidateWorldTransform,
             ),
             material: null,
             visible: null,
@@ -1612,13 +1603,21 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       } else if (renderable !== undefined) {
         const handle = renderableHandle(adapter, renderable.renderableId);
         if (handle !== null) {
+          const sourceWorldTransform = worldTransformForLocalCandidate(
+            renderable,
+            dragState.drag.source,
+          );
+          const candidateWorldTransform = worldTransformForLocalCandidate(
+            renderable,
+            candidate.transform,
+          );
           ops.push({
             op: 'update',
             handle,
             transform: projectedPreviewTransform(
               renderableTransform(renderable),
-              dragState.drag.source,
-              candidate.transform,
+              sourceWorldTransform,
+              candidateWorldTransform,
             ),
             material: null,
             visible: null,

@@ -64,8 +64,13 @@ import type {
 } from '@asha/runtime-session';
 import type { StudioLightingMode } from './studio-lighting.js';
 import { ASHA_STUDIO_PROJECT_SETTINGS_PATH } from './studio-settings.js';
+import {
+  resolveStudioSceneNodeTransformContext,
+  transformStudioSceneUnitBounds,
+} from './studio-scene-transform.js';
 
 export * from './studio-lighting.js';
+export * from './studio-scene-transform.js';
 export * from './studio-settings.js';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
@@ -1321,10 +1326,15 @@ export interface StudioBounds {
 
 export interface StudioSceneRenderableReadModel {
   readonly renderableId: string;
+  readonly sceneNodeId: SceneNodeId;
+  readonly parentSceneNodeId: SceneNodeId | null;
   readonly label: string;
   readonly kind: StudioRenderableKind;
   readonly sourceState: StudioEntitySourceState;
   readonly bounds: StudioBounds;
+  readonly localTransform: SceneTransform;
+  readonly parentWorldTransform: SceneTransform | null;
+  readonly worldTransform: SceneTransform;
   readonly meshRef: string | null;
   readonly materialRef: string | null;
   readonly renderHash: string;
@@ -1401,11 +1411,16 @@ export interface StudioViewportCameraMovementIntent {
 
 export interface StudioViewportRenderableAdapter {
   readonly renderableId: string;
+  readonly sceneNodeId: SceneNodeId;
+  readonly parentSceneNodeId: SceneNodeId | null;
   readonly label: string;
   readonly kind: StudioRenderableKind;
   readonly sourceState: StudioEntitySourceState;
   readonly selected: boolean;
   readonly bounds: StudioBounds;
+  readonly localTransform: SceneTransform;
+  readonly parentWorldTransform: SceneTransform | null;
+  readonly worldTransform: SceneTransform;
   readonly meshRef: string | null;
   readonly materialRef: string | null;
   readonly renderHash: string;
@@ -4409,8 +4424,13 @@ function studioAssetInventoryDiagnostic(
 function buildSceneHash(renderables: readonly StudioSceneRenderableReadModel[]): string {
   const hashPayload = renderables.map(renderable => ({
     renderableId: renderable.renderableId,
+    sceneNodeId: renderable.sceneNodeId,
+    parentSceneNodeId: renderable.parentSceneNodeId,
     sourceState: renderable.sourceState,
     bounds: renderable.bounds,
+    localTransform: renderable.localTransform,
+    parentWorldTransform: renderable.parentWorldTransform,
+    worldTransform: renderable.worldTransform,
     renderHash: renderable.renderHash,
   }));
   return fnv1aHash('scene-view', hashPayload);
@@ -4855,11 +4875,16 @@ export function buildStudioViewportAdapterReadModel(options: {
   const renderSettings = options.renderSettings ?? buildStudioRenderSettingsReadModel();
   const renderables = options.scene.renderables.map(renderable => ({
     renderableId: renderable.renderableId,
+    sceneNodeId: renderable.sceneNodeId,
+    parentSceneNodeId: renderable.parentSceneNodeId,
     label: renderable.label,
     kind: renderable.kind,
     sourceState: renderable.sourceState,
     selected: renderable.renderableId === options.scene.selectedRenderableId,
     bounds: renderable.bounds,
+    localTransform: renderable.localTransform,
+    parentWorldTransform: renderable.parentWorldTransform,
+    worldTransform: renderable.worldTransform,
     meshRef: renderable.meshRef,
     materialRef: renderable.materialRef,
     renderHash: renderable.renderHash,
@@ -5301,15 +5326,23 @@ export function clearStudioWorkspaceReadModel(
  * Projects a Rust-validated stored scene document into Studio's authored read model.
  * The document remains the source of truth; renderables are only an editor projection.
  */
-export function applyCanonicalSceneDocumentReadModel(
-  readModel: StudioWorkspaceReadModel,
+function projectCanonicalSceneDocument(
   document: FlatSceneDocument,
-  sourcePath: string | null,
-): StudioWorkspaceReadModel {
+  selectedSceneNodeId?: SceneNodeId | null,
+): {
+  readonly scene: StudioSceneReadModel;
+  readonly renderableLinks: readonly {
+    readonly sceneNodeId: SceneNodeId;
+    readonly renderableId: string;
+  }[];
+} {
   const renderableNodes = document.nodes.filter(node => node.kind.kind !== 'emptyGroup');
   const renderables = renderableNodes.map((node): StudioSceneRenderableReadModel => {
-    const [x, y, z] = node.transform.translation;
-    const [scaleX, scaleY, scaleZ] = node.transform.scale.map(value => Math.abs(value)) as [number, number, number];
+    const transformContext = resolveStudioSceneNodeTransformContext(document, node.id);
+    if (transformContext === null) {
+      throw new Error(`Cannot project scene node ${node.id as number}: invalid authored hierarchy.`);
+    }
+    const bounds = transformStudioSceneUnitBounds(transformContext.worldTransform);
     const asset = 'asset' in node.kind ? node.kind.asset : null;
     const kind: StudioRenderableKind = node.kind.kind === 'voxelVolume'
       ? 'voxel_grid'
@@ -5318,31 +5351,55 @@ export function applyCanonicalSceneDocumentReadModel(
         : 'preview_ghost';
     return {
       renderableId: `scene-node-renderable:${node.id}`,
+      sceneNodeId: node.id,
+      parentSceneNodeId: node.parent,
       label: node.label ?? `Scene node ${node.id}`,
       kind,
       sourceState: 'authoritative',
-      bounds: {
-        min: { x: x - scaleX / 2, y: y - scaleY / 2, z: z - scaleZ / 2 },
-        max: { x: x + scaleX / 2, y: y + scaleY / 2, z: z + scaleZ / 2 },
-      },
+      bounds,
+      localTransform: transformContext.localTransform,
+      parentWorldTransform: transformContext.parentWorldTransform,
+      worldTransform: transformContext.worldTransform,
       meshRef: asset?.id ?? null,
       materialRef: null,
-      renderHash: fnv1aHash('canonical-scene-node', node),
+      renderHash: fnv1aHash('canonical-scene-node', {
+        node,
+        parentWorldTransform: transformContext.parentWorldTransform,
+        worldTransform: transformContext.worldTransform,
+      }),
       visible: true,
       pickable: true,
     };
   });
-  const selectedRenderableId = renderables.at(0)?.renderableId ?? null;
+  const defaultSelection = renderables.at(0)?.renderableId ?? null;
+  const selectedRenderableId = selectedSceneNodeId === undefined
+    ? defaultSelection
+    : selectedSceneNodeId === null
+      ? null
+      : renderables.find(renderable => renderable.sceneNodeId === selectedSceneNodeId)?.renderableId ?? null;
   const scene: StudioSceneReadModel = {
     sceneId: `scene-document:${document.id}`,
     selectedRenderableId,
     renderables,
     sceneHash: buildSceneHash(renderables),
   };
-  const renderableLinks = renderableNodes.map((node, index) => ({
-    sceneNodeId: node.id,
-    renderableId: renderables[index]?.renderableId ?? `scene-node-renderable:${node.id}`,
-  }));
+  return {
+    scene,
+    renderableLinks: renderables.map(renderable => ({
+      sceneNodeId: renderable.sceneNodeId,
+      renderableId: renderable.renderableId,
+    })),
+  };
+}
+
+export function applyCanonicalSceneDocumentReadModel(
+  readModel: StudioWorkspaceReadModel,
+  document: FlatSceneDocument,
+  sourcePath: string | null,
+): StudioWorkspaceReadModel {
+  const projection = projectCanonicalSceneDocument(document);
+  const { scene, renderableLinks } = projection;
+  const selectedRenderableId = scene.selectedRenderableId;
   const sceneObjectSnapshot = buildSceneObjectSnapshot({ document, renderableLinks });
   const session: StudioSessionReadModel = {
     ...readModel.session,
@@ -5670,24 +5727,6 @@ function hasSceneObjectCycle(
   return false;
 }
 
-function relabelRenderableForSceneNode(
-  scene: StudioSceneReadModel,
-  sceneNode: SceneNodeId,
-  label: string | null,
-): StudioSceneReadModel {
-  const renderableIndex = (sceneNode as number) - 2;
-  const renderable = scene.renderables[renderableIndex];
-  if (renderable === undefined || label === null) {
-    return scene;
-  }
-  return {
-    ...scene,
-    renderables: scene.renderables.map((item, index) =>
-      index === renderableIndex ? { ...item, label } : item,
-    ),
-  };
-}
-
 function isFiniteTuple3(value: readonly number[]): value is readonly [number, number, number] {
   return value.length === 3 && value.every(Number.isFinite);
 }
@@ -5733,53 +5772,6 @@ function normalizedRotation(rotation: readonly [number, number, number, number])
     rotation[2] / length,
     rotation[3] / length,
   ];
-}
-
-function transformRenderableForSceneNode(
-  scene: StudioSceneReadModel,
-  sceneNode: SceneNodeId,
-  before: SceneTransform,
-  after: SceneTransform,
-): StudioSceneReadModel {
-  const renderableIndex = (sceneNode as number) - 2;
-  const renderable = scene.renderables[renderableIndex];
-  if (renderable === undefined) {
-    return scene;
-  }
-  const delta = {
-    x: after.translation[0] - before.translation[0],
-    y: after.translation[1] - before.translation[1],
-    z: after.translation[2] - before.translation[2],
-  };
-  const renderables = scene.renderables.map((item, index) =>
-    index === renderableIndex
-      ? {
-          ...item,
-          bounds: {
-            min: {
-              x: item.bounds.min.x + delta.x,
-              y: item.bounds.min.y + delta.y,
-              z: item.bounds.min.z + delta.z,
-            },
-            max: {
-              x: item.bounds.max.x + delta.x,
-              y: item.bounds.max.y + delta.y,
-              z: item.bounds.max.z + delta.z,
-            },
-          },
-          renderHash: fnv1aHash('scene-object-renderable-transform', {
-            renderHash: item.renderHash,
-            transform: after,
-          }),
-        }
-      : item,
-  );
-  return {
-    ...scene,
-    selectedRenderableId: renderable.renderableId,
-    renderables,
-    sceneHash: buildSceneHash(renderables),
-  };
 }
 
 export function createStudioFlatSceneDocument(
@@ -6034,7 +6026,6 @@ export function applySceneObjectCommandReadModel(
           node.id === id ? { ...node, label } : node,
         ),
       };
-      scene = relabelRenderableForSceneNode(scene, id, label);
       selectedSceneNode = id;
     }
   } else if (request.command.kind === 'reparent') {
@@ -6089,7 +6080,6 @@ export function applySceneObjectCommandReadModel(
             item.id === id ? { ...item, transform } : item,
           ),
         };
-        scene = transformRenderableForSceneNode(scene, id, node.transform, transform);
         selectedSceneNode = id;
       }
     }
@@ -6119,7 +6109,6 @@ export function applySceneObjectCommandReadModel(
             item.id === id ? { ...item, transform } : item,
           ),
         };
-        scene = transformRenderableForSceneNode(scene, id, node.transform, transform);
         selectedSceneNode = id;
       }
     }
@@ -6129,6 +6118,9 @@ export function applySceneObjectCommandReadModel(
   }
 
   const accepted = result === null;
+  if (accepted) {
+    scene = projectCanonicalSceneDocument(flatSceneDocument, selectedSceneNode).scene;
+  }
   const sceneObjectSnapshot = buildStudioSceneObjectSnapshot(scene, flatSceneDocument);
   if (accepted) {
     result = {
