@@ -5,6 +5,10 @@
     "sceneFile": {
       "path": "/tmp/asha-scenes/minimal.scene.json",
       "sha256": "sha256:9bce31bf50692b7afc36151ac3b2fe1488fb00e0ce916a2de06ba9ee2579bdc8"
+    },
+    "projectSettings": {
+      "path": ".asha/studio-project-settings.json",
+      "sha256": "sha256:8df9774f7b706c0905840e144547423b06f45c3e12686e537bc700660417b874"
     }
   },
   "project": {
@@ -16,15 +20,16 @@
   "schemaVersion": 1,
   "serializationNotes": [
     "The durable scene remains an ordinary host file referenced by absolute or relative path and hash.",
-    "Editor preferences stay browser-local and are not project content.",
+    "Project spatial defaults are hash-pinned committed content; host-user preferences remain outside the project.",
+    "Host-user preferences are stored by the Studio host and keyed by the canonical project root.",
     "Transient projections are reconstructed from validated authored sources.",
     "Attached runtime authority is never serialized; reconnect after loading stored content."
   ],
   "stateClassification": {
     "attachedRuntime": "disconnect_and_reconnect_not_serialized",
     "durableAuthoredContent": "hash_pinned_project_sources",
-    "editorPreferences": "browser_local_not_serialized",
+    "editorPreferences": "host_user_settings_keyed_by_canonical_project_not_serialized",
     "transientProjection": "reconstructed_not_serialized"
   },
-  "workspaceVersion": "studio-project-workspace.v1"
+  "workspaceVersion": "studio-project-workspace.v2"
 }

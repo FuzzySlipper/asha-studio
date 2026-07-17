@@ -63,8 +63,10 @@ import type {
   RuntimeSessionTelemetrySummary,
 } from '@asha/runtime-session';
 import type { StudioLightingMode } from './studio-lighting.js';
+import { ASHA_STUDIO_PROJECT_SETTINGS_PATH } from './studio-settings.js';
 
 export * from './studio-lighting.js';
+export * from './studio-settings.js';
 
 export type StudioActorKind = 'gui' | 'agent' | 'script';
 export type StudioWorkspaceStatus = 'not_started' | 'ready' | 'degraded';
@@ -1499,7 +1501,7 @@ export interface StudioWorkspaceArtifact {
   readonly schemaVersion: 1;
   readonly artifactKind: 'studio_project_workspace';
   readonly artifactId: string;
-  readonly workspaceVersion: 'studio-project-workspace.v1';
+  readonly workspaceVersion: 'studio-project-workspace.v2';
   readonly savedAtIso: string;
   readonly project: StudioProjectWorkspaceIdentity;
   readonly authoredContent: {
@@ -1507,10 +1509,14 @@ export interface StudioWorkspaceArtifact {
       readonly path: string;
       readonly sha256: string;
     };
+    readonly projectSettings: {
+      readonly path: typeof ASHA_STUDIO_PROJECT_SETTINGS_PATH;
+      readonly sha256: string;
+    };
   };
   readonly stateClassification: {
     readonly durableAuthoredContent: 'hash_pinned_project_sources';
-    readonly editorPreferences: 'browser_local_not_serialized';
+    readonly editorPreferences: 'host_user_settings_keyed_by_canonical_project_not_serialized';
     readonly transientProjection: 'reconstructed_not_serialized';
     readonly attachedRuntime: 'disconnect_and_reconnect_not_serialized';
   };
@@ -6147,6 +6153,7 @@ export function serializeStudioWorkspaceArtifact(options: {
     readonly path: string;
     readonly sha256: string;
   };
+  readonly projectSettingsSha256: string;
   readonly savedAtIso?: string;
 }): string {
   const scenePath = options.sceneFile.path.trim();
@@ -6158,6 +6165,7 @@ export function serializeStudioWorkspaceArtifact(options: {
     || options.project.gameId.trim().length === 0
     || !isSha256Digest(options.project.manifestSha256)
     || !isSha256Digest(options.sceneFile.sha256)
+    || !isSha256Digest(options.projectSettingsSha256)
     || !isUtcIsoTimestamp(savedAtIso)
   ) {
     throw new Error('Studio project workspace requires project identity, a host scene path, and canonical SHA-256 digests.');
@@ -6166,7 +6174,7 @@ export function serializeStudioWorkspaceArtifact(options: {
     schemaVersion: 1,
     artifactKind: 'studio_project_workspace',
     artifactId: `studio-project-workspace:${options.project.gameId}`,
-    workspaceVersion: 'studio-project-workspace.v1',
+    workspaceVersion: 'studio-project-workspace.v2',
     savedAtIso,
     project: {
       gameId: options.project.gameId,
@@ -6178,16 +6186,21 @@ export function serializeStudioWorkspaceArtifact(options: {
         path: scenePath,
         sha256: options.sceneFile.sha256,
       },
+      projectSettings: {
+        path: ASHA_STUDIO_PROJECT_SETTINGS_PATH,
+        sha256: options.projectSettingsSha256,
+      },
     },
     stateClassification: {
       durableAuthoredContent: 'hash_pinned_project_sources',
-      editorPreferences: 'browser_local_not_serialized',
+      editorPreferences: 'host_user_settings_keyed_by_canonical_project_not_serialized',
       transientProjection: 'reconstructed_not_serialized',
       attachedRuntime: 'disconnect_and_reconnect_not_serialized',
     },
     serializationNotes: [
       'The durable scene remains an ordinary host file referenced by absolute or relative path and hash.',
-      'Editor preferences stay browser-local and are not project content.',
+      'Project spatial defaults are hash-pinned committed content; host-user preferences remain outside the project.',
+      'Host-user preferences are stored by the Studio host and keyed by the canonical project root.',
       'Transient projections are reconstructed from validated authored sources.',
       'Attached runtime authority is never serialized; reconnect after loading stored content.',
     ],
@@ -6268,6 +6281,7 @@ export function restoreStudioWorkspaceArtifact(
   const project = recordAt(root, 'project');
   const authoredContent = recordAt(root, 'authoredContent');
   const sceneFile = recordAt(authoredContent, 'sceneFile');
+  const projectSettings = recordAt(authoredContent, 'projectSettings');
   const stateClassification = recordAt(root, 'stateClassification');
   const scenePath = stringAt(sceneFile, 'path');
   const sceneHash = stringAt(sceneFile, 'sha256');
@@ -6276,7 +6290,7 @@ export function restoreStudioWorkspaceArtifact(
   const serializationNotes = stringArrayAt(root, 'serializationNotes');
   const shapeMatches = root['schemaVersion'] === 1
     && root['artifactKind'] === 'studio_project_workspace'
-    && root['workspaceVersion'] === 'studio-project-workspace.v1'
+    && root['workspaceVersion'] === 'studio-project-workspace.v2'
     && root['artifactId'] === `studio-project-workspace:${String(project['gameId'] ?? '')}`
     && isUtcIsoTimestamp(root['savedAtIso'])
     && typeof project['gameId'] === 'string'
@@ -6287,8 +6301,10 @@ export function restoreStudioWorkspaceArtifact(
     && scenePath !== null
     && scenePath.trim().length > 0
     && isSha256Digest(sceneHash)
+    && projectSettings['path'] === ASHA_STUDIO_PROJECT_SETTINGS_PATH
+    && isSha256Digest(projectSettings['sha256'])
     && stateClassification['durableAuthoredContent'] === 'hash_pinned_project_sources'
-    && stateClassification['editorPreferences'] === 'browser_local_not_serialized'
+    && stateClassification['editorPreferences'] === 'host_user_settings_keyed_by_canonical_project_not_serialized'
     && stateClassification['transientProjection'] === 'reconstructed_not_serialized'
     && stateClassification['attachedRuntime'] === 'disconnect_and_reconnect_not_serialized'
     && Array.isArray(root['serializationNotes'])
@@ -6301,7 +6317,7 @@ export function restoreStudioWorkspaceArtifact(
         diagnostic(
           'error',
           'workspace_artifact_shape_mismatch',
-          'Studio project workspace artifact does not match studio-project-workspace.v1.',
+          'Studio project workspace artifact does not match studio-project-workspace.v2.',
           'studio_project_workspace',
           'Load a typed project artifact with a host scene-file path and canonical digests.',
         ),
@@ -6313,7 +6329,7 @@ export function restoreStudioWorkspaceArtifact(
     schemaVersion: 1,
     artifactKind: 'studio_project_workspace',
     artifactId: root['artifactId'] as string,
-    workspaceVersion: 'studio-project-workspace.v1',
+    workspaceVersion: 'studio-project-workspace.v2',
     savedAtIso: root['savedAtIso'] as string,
     project: {
       gameId: project['gameId'] as string,
@@ -6325,10 +6341,14 @@ export function restoreStudioWorkspaceArtifact(
         path: scenePath as string,
         sha256: sceneHash as string,
       },
+      projectSettings: {
+        path: ASHA_STUDIO_PROJECT_SETTINGS_PATH,
+        sha256: projectSettings['sha256'] as string,
+      },
     },
     stateClassification: {
       durableAuthoredContent: 'hash_pinned_project_sources',
-      editorPreferences: 'browser_local_not_serialized',
+      editorPreferences: 'host_user_settings_keyed_by_canonical_project_not_serialized',
       transientProjection: 'reconstructed_not_serialized',
       attachedRuntime: 'disconnect_and_reconnect_not_serialized',
     },

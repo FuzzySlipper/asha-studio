@@ -201,6 +201,33 @@ export * from './host-file-dialog-focus';
 
         @if (store.activeMenu() === 'project') {
           <section class="menu-popover menu-popover--project" aria-label="Project menu">
+            <div class="project-open" data-visual-id="studio-project-open-controls">
+              <strong>{{ store.projectSettingsReadout().mode === 'project' ? 'Current Project' : 'Scratch Session' }}</strong>
+              <small>{{ store.projectSettingsReadout().projectRoot ?? 'No project root. Scenes and preferences are session-only.' }}</small>
+              <label>
+                <span>Project directory on Studio host</span>
+                <input
+                  type="text"
+                  [value]="store.projectRootDraft()"
+                  placeholder="/home/dev/my-asha-game"
+                  (input)="store.setProjectRootDraft($any($event.target).value)"
+                />
+              </label>
+              <label>
+                <span>Game ID (Create only)</span>
+                <input
+                  type="text"
+                  [value]="store.projectGameIdDraft()"
+                  placeholder="my-asha-game"
+                  (input)="store.setProjectGameIdDraft($any($event.target).value)"
+                />
+              </label>
+              <div class="project-connect__actions">
+                <button type="button" (click)="openProject()">Open Project</button>
+                <button type="button" (click)="createProject()">Create Project</button>
+              </div>
+              <small>{{ store.projectSettingsReadout().message }}</small>
+            </div>
             <div class="project-connect" data-visual-id="studio-running-project-picker">
               <strong>Running ASHA Project</strong>
               <small>{{ store.runningProjectDiscovery().endpoint || 'No endpoint' }}</small>
@@ -255,52 +282,8 @@ export * from './host-file-dialog-focus';
 
         @if (store.activeMenu() === 'preferences') {
           <section class="menu-popover menu-popover--preferences" aria-label="Preferences">
-            <div class="preferences-section">
-              <strong>Viewport</strong>
-              <label>
-                <input
-                  type="checkbox"
-                  [checked]="store.renderSettings().wireframeEnabled"
-                  (change)="setRenderSetting('wireframeEnabled', $any($event.target).checked)"
-                />
-                Wireframe
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  [checked]="store.renderSettings().showGrid"
-                  (change)="setRenderSetting('showGrid', $any($event.target).checked)"
-                />
-                Grid
-              </label>
-            </div>
-            <div class="preferences-section">
-              <strong>Readback</strong>
-              <label>
-                <input
-                  type="checkbox"
-                  [checked]="store.renderSettings().showPreviewGhosts"
-                  (change)="setRenderSetting('showPreviewGhosts', $any($event.target).checked)"
-                />
-                Preview Ghosts
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  [checked]="store.renderSettings().showReadbackOverlay"
-                  (change)="setRenderSetting('showReadbackOverlay', $any($event.target).checked)"
-                />
-                Overlay
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  [checked]="store.renderSettings().showRaycastHitDebug"
-                  (change)="setRenderSetting('showRaycastHitDebug', $any($event.target).checked)"
-                />
-                Raycast Debug
-              </label>
-            </div>
+            <button type="button" (click)="store.openOptions('scene-view')">Options…</button>
+            <small>Project spatial defaults and Studio-host user preferences.</small>
           </section>
         }
 
@@ -330,6 +313,116 @@ export * from './host-file-dialog-focus';
 
       <asha-inspector-panel class="inspector-panel" />
       <asha-assets-bottom-panel class="assets-panel" />
+
+      @if (store.optionsPanelOpen()) {
+        <div class="options-panel-backdrop" data-visual-id="studio-options-panel" (mousedown)="store.closeOptions()">
+          <section class="options-panel" role="dialog" aria-modal="true" aria-label="Studio Options" (mousedown)="$event.stopPropagation()">
+            <header class="options-panel__header">
+              <div>
+                <strong>Studio Options</strong>
+                <small>{{ store.projectSettingsReadout().mode === 'project' ? store.projectSettingsReadout().projectRoot : 'Scratch session' }}</small>
+              </div>
+              <button type="button" aria-label="Close options" (click)="store.closeOptions()">×</button>
+            </header>
+            <nav class="options-panel__tabs" aria-label="Options categories">
+              <button type="button" [class.is-current]="store.optionsTab() === 'scene-view'" (click)="store.setOptionsTab('scene-view')">Scene View</button>
+              <button type="button" [class.is-current]="store.optionsTab() === 'keyboard'" (click)="store.setOptionsTab('keyboard')">Keyboard</button>
+            </nav>
+
+            @if (store.optionsTab() === 'scene-view') {
+              <div class="options-panel__content" data-options-tab="scene-view">
+                <fieldset>
+                  <legend>Project spatial defaults</legend>
+                  <small>Committed with the project · right-handed Y-up · meters</small>
+                  <div class="options-grid options-grid--triple">
+                    @for (axis of [0, 1, 2]; track axis) {
+                      <label>
+                        <span>Origin {{ ['X', 'Y', 'Z'][axis] }}</span>
+                        <input type="number" step="0.25" [disabled]="!store.projectSettingsReadout().writesEnabled"
+                          [value]="store.projectSettings().spatialGrid.origin[axis]"
+                          (change)="store.setProjectGridOrigin($any(axis), $any($event.target).valueAsNumber)" />
+                      </label>
+                    }
+                  </div>
+                  <div class="options-grid">
+                    <label>
+                      <span>Base spacing</span>
+                      <input type="number" min="0.0001" step="0.25" [disabled]="!store.projectSettingsReadout().writesEnabled"
+                        [value]="store.projectSettings().spatialGrid.spacing[0]"
+                        (change)="store.setProjectGridSpacing($any($event.target).valueAsNumber)" />
+                    </label>
+                    <label>
+                      <span>Plane</span>
+                      <select [disabled]="!store.projectSettingsReadout().writesEnabled" [value]="store.projectSettings().spatialGrid.plane"
+                        (change)="store.setProjectGridPlane($any($event.target).value)">
+                        <option value="xz">XZ (ground)</option>
+                        <option value="xy">XY</option>
+                        <option value="yz">YZ</option>
+                      </select>
+                    </label>
+                  </div>
+                  <button type="button" [disabled]="!store.projectSettingsReadout().writesEnabled || !store.projectSettingsReadout().projectDirty"
+                    (click)="store.saveProjectSettings()">Save Project Settings</button>
+                </fieldset>
+
+                <fieldset>
+                  <legend>Scene view on this Studio host</legend>
+                  <small>Stored outside the project, keyed by its canonical host path.</small>
+                  <label class="options-check">
+                    <input type="checkbox" [checked]="store.effectiveSettings().grid.visible"
+                      (change)="setRenderSetting('showGrid', $any($event.target).checked)" />
+                    Show grid
+                  </label>
+                  <div class="options-grid options-grid--colors">
+                    @for (color of gridColors; track color.key) {
+                      <label>
+                        <span>{{ color.label }}</span>
+                        <input type="color" [value]="gridColorHex(color.key)"
+                          (input)="store.setGridColor(color.key, $any($event.target).value)" />
+                      </label>
+                    }
+                  </div>
+                  <div class="options-grid">
+                    <label>
+                      <span>Camera speed</span>
+                      <input type="number" min="0.1" step="0.5" [value]="store.effectiveSettings().cameraMoveSpeed"
+                        (change)="store.setCameraMoveSpeed($any($event.target).valueAsNumber)" />
+                    </label>
+                    <label>
+                      <span>Boost multiplier</span>
+                      <input type="number" min="1" step="0.5" [value]="store.effectiveSettings().cameraBoostMultiplier"
+                        (change)="store.setCameraBoostMultiplier($any($event.target).valueAsNumber)" />
+                    </label>
+                  </div>
+                  <label class="options-check">
+                    <input type="checkbox" [checked]="store.effectiveSettings().invertLookY"
+                      (change)="store.setInvertLookY($any($event.target).checked)" />
+                    Invert orbit look Y
+                  </label>
+                </fieldset>
+                <p class="options-panel__status">{{ store.projectSettingsReadout().message }}</p>
+              </div>
+            } @else {
+              <div class="options-panel__content" data-options-tab="keyboard">
+                <fieldset>
+                  <legend>Scene-view movement</legend>
+                  <small>Use KeyboardEvent.code values so bindings are layout-stable.</small>
+                  <div class="options-grid options-grid--keyboard">
+                    @for (binding of keyboardBindings; track binding.key) {
+                      <label>
+                        <span>{{ binding.label }}</span>
+                        <input type="text" [value]="store.effectiveSettings().keyboard[binding.key]"
+                          (change)="store.setKeyboardBinding(binding.key, $any($event.target).value)" />
+                      </label>
+                    }
+                  </div>
+                </fieldset>
+                <p class="options-panel__status">{{ store.projectSettingsReadout().message }}</p>
+              </div>
+            }
+          </section>
+        </div>
+      }
 
       @if (store.projectFileDialog().mode; as fileDialogMode) {
         <div
@@ -635,9 +728,30 @@ export * from './host-file-dialog-focus';
       }
 
       .project-connect,
+      .project-open,
       .project-session-list {
         display: grid;
         gap: 0.35rem;
+      }
+
+      .project-open {
+        border-bottom: 1px solid var(--asha-color-border);
+        padding: 0.4rem 0.35rem 0.65rem;
+      }
+
+      .project-open label {
+        align-items: stretch;
+        display: grid;
+        gap: 0.2rem;
+        padding: 0;
+      }
+
+      .project-open input {
+        background: #0c1114;
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        min-width: 0;
+        padding: 0.35rem;
       }
 
       .project-connect small,
@@ -653,6 +767,10 @@ export * from './host-file-dialog-focus';
         display: grid;
         gap: 0.25rem;
         grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .project-open .project-connect__actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .project-session-list {
@@ -713,6 +831,7 @@ export * from './host-file-dialog-focus';
         min-width: 0;
       }
 
+      .options-panel-backdrop,
       .host-file-dialog-backdrop {
         align-items: center;
         background: rgba(4, 7, 9, 0.72);
@@ -722,6 +841,134 @@ export * from './host-file-dialog-focus';
         padding: 1rem;
         position: fixed;
         z-index: 100;
+      }
+
+      .options-panel {
+        background: #151b20;
+        border: 1px solid #53616a;
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
+        display: grid;
+        grid-template-columns: 9rem minmax(26rem, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        max-height: calc(100vh - 4rem);
+        min-height: 28rem;
+        overflow: hidden;
+        width: min(48rem, calc(100vw - 2rem));
+      }
+
+      .options-panel__header {
+        align-items: center;
+        border-bottom: 1px solid var(--asha-color-border);
+        display: flex;
+        grid-column: 1 / -1;
+        justify-content: space-between;
+        padding: 0.65rem 0.75rem;
+      }
+
+      .options-panel__header div {
+        display: grid;
+        gap: 0.15rem;
+      }
+
+      .options-panel__header small,
+      .options-panel fieldset > small,
+      .options-panel__status {
+        color: var(--asha-color-muted);
+      }
+
+      .options-panel button,
+      .options-panel input,
+      .options-panel select {
+        font: inherit;
+      }
+
+      .options-panel button {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        padding: 0.35rem 0.55rem;
+      }
+
+      .options-panel button:disabled {
+        color: #657179;
+        cursor: not-allowed;
+      }
+
+      .options-panel__tabs {
+        background: #101519;
+        border-right: 1px solid var(--asha-color-border);
+        display: grid;
+        align-content: start;
+        gap: 0.25rem;
+        padding: 0.5rem;
+      }
+
+      .options-panel__tabs button {
+        text-align: left;
+      }
+
+      .options-panel__tabs button.is-current {
+        background: var(--asha-color-control-active);
+      }
+
+      .options-panel__content {
+        display: grid;
+        gap: 0.75rem;
+        overflow: auto;
+        padding: 0.75rem;
+      }
+
+      .options-panel fieldset {
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.65rem;
+        margin: 0;
+        padding: 0.75rem;
+      }
+
+      .options-grid {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .options-grid--triple {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .options-grid--colors {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+
+      .options-grid--keyboard {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .options-grid label {
+        display: grid;
+        gap: 0.2rem;
+      }
+
+      .options-grid input,
+      .options-grid select {
+        background: #0c1114;
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        min-width: 0;
+        padding: 0.35rem;
+      }
+
+      .options-grid input[type='color'] {
+        height: 2rem;
+        padding: 0.1rem;
+        width: 100%;
+      }
+
+      .options-check {
+        align-items: center;
+        display: flex;
+        gap: 0.45rem;
       }
 
       .host-file-dialog {
@@ -1004,6 +1251,22 @@ export * from './host-file-dialog-focus';
 })
 export class StudioShellComponent {
   readonly store = inject(StudioWorkspaceStore);
+  readonly gridColors = [
+    { key: 'minorColor', label: 'Minor lines' },
+    { key: 'majorColor', label: 'Major lines' },
+    { key: 'xAxisColor', label: 'X axis' },
+    { key: 'yAxisColor', label: 'Y axis' },
+    { key: 'zAxisColor', label: 'Z axis' },
+  ] as const;
+  readonly keyboardBindings = [
+    { key: 'moveForward', label: 'Forward' },
+    { key: 'moveBackward', label: 'Backward' },
+    { key: 'moveLeft', label: 'Left' },
+    { key: 'moveRight', label: 'Right' },
+    { key: 'moveDown', label: 'Down' },
+    { key: 'moveUp', label: 'Up' },
+    { key: 'boost', label: 'Speed boost' },
+  ] as const;
   private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private fileDialogReturnTarget: HTMLElement | null = null;
 
@@ -1013,6 +1276,21 @@ export class StudioShellComponent {
 
   newWorkspace(): void {
     this.store.newWorkspace();
+  }
+
+  openProject(): void {
+    void this.store.openProject();
+  }
+
+  createProject(): void {
+    void this.store.createProject();
+  }
+
+  gridColorHex(key: typeof this.gridColors[number]['key']): string {
+    const color = this.store.hostUserSettings().sceneView[key];
+    return `#${color.slice(0, 3).map(channel =>
+      Math.round(channel * 255).toString(16).padStart(2, '0')
+    ).join('')}`;
   }
 
   saveScene(): void {
@@ -1118,13 +1396,20 @@ export class StudioShellComponent {
 
   @HostListener('window:beforeunload', ['$event'])
   protectUnsavedScene(event: BeforeUnloadEvent): void {
-    if (this.store.sceneDirty() || this.store.workspaceAuthoringDirty()) {
+    if (this.store.sceneDirty()
+      || this.store.workspaceAuthoringDirty()
+      || this.store.projectSettingsReadout().projectDirty) {
       event.preventDefault();
     }
   }
 
   @HostListener('document:keydown', ['$event'])
   handleFileDialogKeyboard(event: KeyboardEvent): void {
+    if (this.store.optionsPanelOpen() && event.key === 'Escape') {
+      event.preventDefault();
+      this.store.closeOptions();
+      return;
+    }
     if (this.store.projectFileDialog().mode === null) return;
     if (event.key === 'Escape') {
       event.preventDefault();

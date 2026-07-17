@@ -46,11 +46,37 @@ Studio host, validates and loads it through `WorkspaceAuthoringFacade`, and
 renders only the resulting public mesh projection. Missing or rejected voxel
 assets remain unresolved; Studio does not substitute local geometry.
 
+## Project and user settings
+
+Studio starts in a visibly labelled scratch session. **Project > Open Project**
+opens the host project's `asha.game.toml`; **Create Project** creates that
+manifest, its standard authored-content directories, and the initial committed
+settings artifact. Project identity is the canonical directory on the Studio
+host, never the LAN browser origin.
+
+The settings layers have deliberately different ownership:
+
+- `.asha/studio-project-settings.json` is typed, versioned project content. It
+  commits right-handed Y-up spatial semantics, meters, grid origin, grid plane,
+  base spacing, and snap anchor. Its writes are explicit and stale-hash checked.
+- host-user settings hold visual grid colors/visibility, scene-camera speed and
+  inversion, and keyboard bindings. The file service stores them under the
+  Studio host's config directory, keyed by a SHA-256 digest of the canonical
+  project root. They are never project files and never use browser storage.
+- hover, selection, drag previews, open panels, and other transient session
+  state are reconstructed and are not serialized.
+
+Effective values resolve in the order session override, host-user setting,
+project setting, then engine default. Unknown settings versions are retained
+byte-for-byte, diagnosed, and left write-disabled rather than being silently
+rewritten. Preferences > Options exposes the current source paths and separates
+Scene View settings from Keyboard settings.
+
 ## Optional workspace pointer
 
-`studio-project-workspace.v1` is an optional project convenience artifact, not
+`studio-project-workspace.v2` is an optional project convenience artifact, not
 an alternate scene format. It may identify a game manifest and point to one
-ordinary scene file by host path and SHA-256 digest. It does not serialize
-editor preferences, viewport projections, runtime authority, or a copy of the
-scene. The inspectable example is
+ordinary scene file and the committed project settings by path and SHA-256
+digest. It does not serialize host-user preferences, viewport projections,
+runtime authority, or a copy of the scene. The inspectable example is
 `fixtures/studio-project-workspace.sample.json`.

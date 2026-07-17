@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
+  ASHA_STUDIO_PROJECT_SETTINGS_PATH,
   attachStudioGameWorkspaceDevtools,
   assessStudioSceneCoordinateSystem,
   buildStudioUiStateReadModel,
@@ -8,6 +9,8 @@ import {
   buildAssetBrowserCategories,
   buildStudioPreferencesReadModel,
   buildStudioLightingProjection,
+  buildDefaultStudioHostUserSettings,
+  buildDefaultStudioProjectSettings,
   buildStudioRuntimeSessionList,
   buildStudioCommandProposalPanel,
   buildStudioCatalogWorkflowReadModel,
@@ -16,6 +19,7 @@ import {
   buildStudioRuntimeSessionInspectionReadModel,
   buildStudioRunningProjectDiscovery,
   loadStudioAssetInventory,
+  loadStudioGameWorkspaceManifest,
   buildStudioViewportReadout,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
@@ -43,7 +47,12 @@ import {
   updateStudioRenderSetting,
   updateStudioLightingMode,
   proposeStudioLightAddition,
+  parseStudioHostUserSettings,
+  parseStudioProjectSettings,
   projectStudioAuthoredLightTransformPreview,
+  resolveStudioEffectiveSettings,
+  serializeStudioHostUserSettings,
+  serializeStudioProjectSettings,
   zoomStudioViewportCamera,
   type StudioAssetBrowserCategory,
   type StudioApplicationMenu,
@@ -67,6 +76,11 @@ import {
   type StudioRenderSettingKey,
   type StudioLightingMode,
   type StudioLightingProjectionReadModel,
+  type StudioEffectiveSettings,
+  type StudioHostUserSettingsArtifact,
+  type StudioKeyboardBindings,
+  type StudioProjectSettingsArtifact,
+  type StudioSceneViewPlane,
   type StudioAuthoredLightKind,
   type StudioViewportCameraControlDelta,
   type StudioViewportCameraReadModel,
@@ -504,6 +518,23 @@ export interface StudioSceneFileConflictReadModel {
   readonly actualHash: string | null;
   readonly canonicalJson: string;
   readonly document: FlatSceneDocument;
+}
+
+export type StudioOptionsTab = 'scene-view' | 'keyboard';
+
+export interface StudioProjectSettingsReadModel {
+  readonly mode: 'scratch' | 'project';
+  readonly projectRoot: string | null;
+  readonly manifestPath: string | null;
+  readonly projectSettingsPath: string | null;
+  readonly projectSettingsHash: string | null;
+  readonly hostUserSettingsHash: string | null;
+  readonly hostUserSettingsPath: string | null;
+  readonly projectKey: string;
+  readonly projectDirty: boolean;
+  readonly writesEnabled: boolean;
+  readonly status: 'scratch' | 'loaded' | 'unsupported' | 'error';
+  readonly message: string;
 }
 
 export interface StudioVoxelConversionWorkspaceShellRegion {
@@ -3149,19 +3180,7 @@ export function buildStudioVoxelConversionWorkspaceShellForInputs(options: {
   });
 }
 
-function browserStorage(): Storage | null {
-  try {
-    return globalThis.localStorage ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function projectFileApiBase(): string {
-  const configured = browserStorage()?.getItem('asha-studio.project-file-api') ?? null;
-  if (configured !== null && configured.length > 0) {
-    return configured.replace(/\/$/, '');
-  }
   const locationLike = globalThis.location;
   const protocol = locationLike?.protocol ?? 'http:';
   const hostname = locationLike?.hostname ?? '127.0.0.1';
@@ -3211,6 +3230,18 @@ function joinProjectFilePath(directory: string, fileName: string): string {
     return `/${normalizedFileName.replace(/^\/+/, '')}`;
   }
   return `${normalizedDirectory}/${normalizedFileName.replace(/^\/+/, '')}`;
+}
+
+function parseHexColor(value: string): readonly [number, number, number] | null {
+  const match = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (match === null) return null;
+  const hex = match.at(1);
+  if (hex === undefined) return null;
+  return [
+    Number.parseInt(hex.slice(0, 2), 16) / 255,
+    Number.parseInt(hex.slice(2, 4), 16) / 255,
+    Number.parseInt(hex.slice(4, 6), 16) / 255,
+  ];
 }
 
 function projectFileEntrySort(left: StudioProjectFileEntry, right: StudioProjectFileEntry): number {
@@ -3501,6 +3532,26 @@ export class StudioWorkspaceStore {
   private readonly hierarchyFilterState = signal('');
   private readonly viewportHitState = signal<StudioViewportHitReadModel | null>(null);
   private readonly menuMessageState = signal('Workspace ready.');
+  private readonly optionsPanelOpenState = signal(false);
+  private readonly optionsTabState = signal<StudioOptionsTab>('scene-view');
+  private readonly projectRootDraftState = signal('');
+  private readonly projectGameIdDraftState = signal('');
+  private readonly projectSettingsState = signal<StudioProjectSettingsArtifact>(
+    buildDefaultStudioProjectSettings({ gameId: 'scratch', manifestPath: 'scratch' }),
+  );
+  private readonly hostUserSettingsState = signal<StudioHostUserSettingsArtifact>(
+    buildDefaultStudioHostUserSettings('scratch'),
+  );
+  private readonly projectSettingsHashState = signal<string | null>(null);
+  private readonly hostUserSettingsHashState = signal<string | null>(null);
+  private readonly hostUserSettingsPathState = signal<string | null>(null);
+  private readonly projectSettingsDirtyState = signal(false);
+  private readonly settingsWritesEnabledState = signal(true);
+  private readonly settingsStatusState = signal<'scratch' | 'loaded' | 'unsupported' | 'error'>('scratch');
+  private readonly settingsMessageState = signal(
+    'Scratch session: open or create a project to persist project and host-user settings.',
+  );
+  private hostUserSettingsWriteChain: Promise<void> = Promise.resolve();
   private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>({
     ok: false,
     diagnostics: [{
@@ -3727,6 +3778,37 @@ export class StudioWorkspaceStore {
   readonly hierarchyFilter = this.hierarchyFilterState.asReadonly();
   readonly viewportHit = this.viewportHitState.asReadonly();
   readonly menuMessage = this.menuMessageState.asReadonly();
+  readonly optionsPanelOpen = this.optionsPanelOpenState.asReadonly();
+  readonly optionsTab = this.optionsTabState.asReadonly();
+  readonly projectRootDraft = this.projectRootDraftState.asReadonly();
+  readonly projectGameIdDraft = this.projectGameIdDraftState.asReadonly();
+  readonly projectSettings = this.projectSettingsState.asReadonly();
+  readonly hostUserSettings = this.hostUserSettingsState.asReadonly();
+  readonly effectiveSettings = computed<StudioEffectiveSettings>(() =>
+    resolveStudioEffectiveSettings({
+      project: this.projectSettingsState(),
+      hostUser: this.hostUserSettingsState(),
+    }),
+  );
+  readonly projectSettingsReadout = computed<StudioProjectSettingsReadModel>(() => {
+    const workspace = this.gameWorkspace();
+    return {
+      mode: workspace === null ? 'scratch' : 'project',
+      projectRoot: workspace?.workspaceRoot ?? null,
+      manifestPath: workspace?.manifestPath ?? null,
+      projectSettingsPath: workspace === null
+        ? null
+        : joinProjectFilePath(workspace.workspaceRoot, ASHA_STUDIO_PROJECT_SETTINGS_PATH),
+      projectSettingsHash: this.projectSettingsHashState(),
+      hostUserSettingsHash: this.hostUserSettingsHashState(),
+      hostUserSettingsPath: this.hostUserSettingsPathState(),
+      projectKey: this.hostUserSettingsState().projectKey,
+      projectDirty: this.projectSettingsDirtyState(),
+      writesEnabled: this.settingsWritesEnabledState() && workspace !== null,
+      status: this.settingsStatusState(),
+      message: this.settingsMessageState(),
+    };
+  });
   readonly gameWorkspaceOverview = this.gameWorkspaceState.asReadonly();
   readonly runtimeConnectionMessage = this.runtimeConnectionMessageState.asReadonly();
   readonly workspaceAuthoringState = this.workspaceAuthoringStateSummaryState.asReadonly();
@@ -9253,8 +9335,383 @@ export class StudioWorkspaceStore {
     );
   }
 
+  setProjectRootDraft(path: string): void {
+    this.projectRootDraftState.set(normalizeProjectFilePath(path));
+  }
+
+  setProjectGameIdDraft(gameId: string): void {
+    this.projectGameIdDraftState.set(gameId);
+  }
+
+  async openProject(): Promise<void> {
+    const root = this.projectRootDraftState().trim();
+    if (root.length === 0) {
+      this.menuMessageState.set('Open Project requires a host project directory.');
+      return;
+    }
+    await this.openProjectManifest(joinProjectFilePath(root, 'asha.game.toml'));
+  }
+
+  async createProject(): Promise<void> {
+    const root = this.projectRootDraftState().trim();
+    if (root.length === 0) {
+      this.menuMessageState.set('Create Project requires a host project directory.');
+      return;
+    }
+    try {
+      const response = await fetch(`${projectFileApiBase()}/api/projects/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          projectRoot: root,
+          gameId: this.projectGameIdDraftState().trim() || undefined,
+        }),
+      });
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly manifestPath?: string;
+        readonly message?: string;
+      };
+      if (!response.ok || payload.ok !== true || payload.manifestPath === undefined) {
+        throw new Error(payload.message ?? `HTTP ${response.status}`);
+      }
+      await this.openProjectManifest(payload.manifestPath);
+      if (this.gameWorkspace() !== null) {
+        this.menuMessageState.set(`Created and opened ASHA project ${this.gameWorkspace()?.gameId}.`);
+      }
+    } catch (error) {
+      this.settingsStatusState.set('error');
+      this.settingsMessageState.set(`Create Project failed: ${errorMessage(error)}`);
+      this.menuMessageState.set(this.settingsMessageState());
+    }
+  }
+
+  private async openProjectManifest(manifestPath: string): Promise<void> {
+    try {
+      const response = await fetch(`${projectFileApiBase()}/api/projects/open`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ manifestPath }),
+      });
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly workspaceRoot?: string;
+        readonly manifestPath?: string;
+        readonly manifestText?: string;
+        readonly manifestSha256?: string;
+        readonly gameId?: string;
+        readonly packageScripts?: Readonly<Record<string, string>>;
+        readonly existingRelativePaths?: readonly string[];
+        readonly projectSettingsPath?: string;
+        readonly message?: string;
+      };
+      if (!response.ok
+        || payload.ok !== true
+        || payload.workspaceRoot === undefined
+        || payload.manifestPath === undefined
+        || payload.manifestText === undefined
+        || payload.gameId === undefined) {
+        throw new Error(payload.message ?? `HTTP ${response.status}`);
+      }
+      const existingPaths = new Set(payload.existingRelativePaths ?? []);
+      const loaded = loadStudioGameWorkspaceManifest({
+        workspaceRoot: payload.workspaceRoot,
+        manifestPath: payload.manifestPath,
+        gameId: payload.gameId,
+        manifestText: payload.manifestText,
+        packageScripts: payload.packageScripts ?? {},
+        pathExists: path => existingPaths.has(path),
+      });
+      this.gameWorkspaceState.set(loaded);
+      if (!loaded.ok) {
+        this.settingsStatusState.set('error');
+        this.settingsMessageState.set(loaded.diagnostics.map(diagnostic => diagnostic.message).join(' '));
+        this.menuMessageState.set('Project manifest was rejected; the scratch session remains active.');
+        return;
+      }
+      this.projectRootDraftState.set(loaded.workspace.workspaceRoot);
+      this.projectGameIdDraftState.set(loaded.workspace.gameId);
+      await this.loadSettingsForProject({
+        projectRoot: loaded.workspace.workspaceRoot,
+        gameId: loaded.workspace.gameId,
+        manifestPath: loaded.workspace.manifestPath,
+        projectSettingsPath: payload.projectSettingsPath
+          ?? joinProjectFilePath(loaded.workspace.workspaceRoot, ASHA_STUDIO_PROJECT_SETTINGS_PATH),
+      });
+      this.activeMenuState.set(null);
+      this.menuMessageState.set(`Opened ASHA project ${loaded.workspace.gameId}.`);
+    } catch (error) {
+      this.settingsStatusState.set('error');
+      this.settingsMessageState.set(`Open Project failed: ${errorMessage(error)}`);
+      this.menuMessageState.set(this.settingsMessageState());
+    }
+  }
+
+  private async loadSettingsForProject(options: {
+    readonly projectRoot: string;
+    readonly gameId: string;
+    readonly manifestPath: string;
+    readonly projectSettingsPath: string;
+  }): Promise<void> {
+    this.settingsWritesEnabledState.set(true);
+    this.projectSettingsDirtyState.set(false);
+    let projectSettings = buildDefaultStudioProjectSettings({
+      gameId: options.gameId,
+      manifestPath: options.manifestPath,
+    });
+    try {
+      const response = await fetch(
+        `${projectFileApiBase()}/api/host-files/file?path=${encodeURIComponent(options.projectSettingsPath)}`,
+      );
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly diagnostic?: string;
+        readonly text?: string;
+        readonly sha256?: string;
+      };
+      if (payload.ok === true && payload.text !== undefined) {
+        const parsed = parseStudioProjectSettings(payload.text);
+        if (parsed.status !== 'loaded') {
+          this.settingsWritesEnabledState.set(false);
+          this.settingsStatusState.set(parsed.status === 'unsupported_future_version' ? 'unsupported' : 'error');
+          this.settingsMessageState.set(parsed.diagnostic);
+          return;
+        }
+        projectSettings = parsed.artifact;
+        this.projectSettingsHashState.set(payload.sha256 ?? null);
+      } else if (payload.diagnostic === 'host_file_not_found') {
+        this.projectSettingsHashState.set(null);
+        this.projectSettingsDirtyState.set(true);
+      } else {
+        throw new Error(payload.diagnostic ?? 'Project settings read failed.');
+      }
+    } catch (error) {
+      this.settingsStatusState.set('error');
+      this.settingsWritesEnabledState.set(false);
+      this.settingsMessageState.set(`Project settings could not be loaded: ${errorMessage(error)}`);
+      return;
+    }
+    this.projectSettingsState.set(projectSettings);
+
+    try {
+      const response = await fetch(
+        `${projectFileApiBase()}/api/studio-settings/user?projectRoot=${encodeURIComponent(options.projectRoot)}`,
+      );
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly exists?: boolean;
+        readonly projectKey?: string;
+        readonly path?: string;
+        readonly text?: string | null;
+        readonly sha256?: string | null;
+        readonly message?: string;
+      };
+      if (payload.ok !== true || payload.projectKey === undefined) {
+        throw new Error(payload.message ?? 'Host user settings read failed.');
+      }
+      let hostUserSettings = buildDefaultStudioHostUserSettings(payload.projectKey);
+      if (payload.exists === true && payload.text !== null && payload.text !== undefined) {
+        const parsed = parseStudioHostUserSettings(payload.text);
+        if (parsed.status !== 'loaded') {
+          this.settingsWritesEnabledState.set(false);
+          this.settingsStatusState.set(parsed.status === 'unsupported_future_version' ? 'unsupported' : 'error');
+          this.settingsMessageState.set(parsed.diagnostic);
+          return;
+        }
+        hostUserSettings = parsed.artifact;
+      }
+      this.hostUserSettingsState.set(hostUserSettings);
+      this.hostUserSettingsHashState.set(payload.sha256 ?? null);
+      this.hostUserSettingsPathState.set(payload.path ?? null);
+      this.preferencesStore.setRenderSetting('showGrid', hostUserSettings.sceneView.gridVisible);
+      this.settingsStatusState.set('loaded');
+      this.settingsMessageState.set(
+        this.projectSettingsDirtyState()
+          ? 'Project settings were missing; engine defaults are active until Save Project Settings.'
+          : 'Project and host-user settings loaded from the Studio host.',
+      );
+    } catch (error) {
+      this.settingsStatusState.set('error');
+      this.settingsWritesEnabledState.set(false);
+      this.settingsMessageState.set(`Host user settings could not be loaded: ${errorMessage(error)}`);
+    }
+  }
+
+  openOptions(tab: StudioOptionsTab = 'scene-view'): void {
+    this.optionsTabState.set(tab);
+    this.optionsPanelOpenState.set(true);
+    this.activeMenuState.set(null);
+  }
+
+  closeOptions(): void {
+    this.optionsPanelOpenState.set(false);
+  }
+
+  setOptionsTab(tab: StudioOptionsTab): void {
+    this.optionsTabState.set(tab);
+  }
+
+  setProjectGridOrigin(axis: 0 | 1 | 2, value: number): void {
+    if (!Number.isFinite(value) || !this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    const origin = current.spatialGrid.origin.map((entry, index) => index === axis ? value : entry) as [number, number, number];
+    this.projectSettingsState.set({
+      ...current,
+      spatialGrid: { ...current.spatialGrid, origin },
+    });
+    this.projectSettingsDirtyState.set(true);
+  }
+
+  setProjectGridSpacing(value: number): void {
+    if (!Number.isFinite(value) || value <= 0 || !this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    this.projectSettingsState.set({
+      ...current,
+      spatialGrid: { ...current.spatialGrid, spacing: [value, value, value] },
+    });
+    this.projectSettingsDirtyState.set(true);
+  }
+
+  setProjectGridPlane(plane: StudioSceneViewPlane): void {
+    if (!this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    this.projectSettingsState.set({
+      ...current,
+      spatialGrid: { ...current.spatialGrid, plane },
+    });
+    this.projectSettingsDirtyState.set(true);
+  }
+
+  async saveProjectSettings(): Promise<void> {
+    const workspace = this.gameWorkspace();
+    if (workspace === null || !this.settingsWritesEnabledState()) {
+      this.settingsMessageState.set('Project settings cannot be saved in scratch or unsupported-version mode.');
+      return;
+    }
+    const path = joinProjectFilePath(workspace.workspaceRoot, ASHA_STUDIO_PROJECT_SETTINGS_PATH);
+    try {
+      const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          text: serializeStudioProjectSettings(this.projectSettingsState()),
+          expectedHash: this.projectSettingsHashState(),
+        }),
+      });
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly sha256?: string;
+        readonly message?: string;
+      };
+      if (!response.ok || payload.ok !== true) throw new Error(payload.message ?? `HTTP ${response.status}`);
+      this.projectSettingsHashState.set(payload.sha256 ?? null);
+      this.projectSettingsDirtyState.set(false);
+      this.settingsMessageState.set(`Saved committed project settings to ${path}.`);
+    } catch (error) {
+      this.settingsMessageState.set(`Project settings save rejected: ${errorMessage(error)}`);
+    }
+  }
+
+  setGridColor(
+    key: 'minorColor' | 'majorColor' | 'xAxisColor' | 'yAxisColor' | 'zAxisColor',
+    value: string,
+  ): void {
+    const rgb = parseHexColor(value);
+    if (rgb === null) return;
+    this.updateHostUserSettings(current => ({
+      ...current,
+      sceneView: {
+        ...current.sceneView,
+        [key]: [...rgb, current.sceneView[key][3]],
+      },
+    }));
+  }
+
+  setCameraMoveSpeed(value: number): void {
+    if (!Number.isFinite(value) || value <= 0) return;
+    this.updateHostUserSettings(current => ({
+      ...current,
+      sceneView: { ...current.sceneView, cameraMoveSpeed: value },
+    }));
+  }
+
+  setCameraBoostMultiplier(value: number): void {
+    if (!Number.isFinite(value) || value < 1) return;
+    this.updateHostUserSettings(current => ({
+      ...current,
+      sceneView: { ...current.sceneView, cameraBoostMultiplier: value },
+    }));
+  }
+
+  setInvertLookY(value: boolean): void {
+    this.updateHostUserSettings(current => ({
+      ...current,
+      sceneView: { ...current.sceneView, invertLookY: value },
+    }));
+  }
+
+  setKeyboardBinding(key: keyof StudioKeyboardBindings, value: string): void {
+    const binding = value.trim();
+    if (binding.length === 0) return;
+    this.updateHostUserSettings(current => ({
+      ...current,
+      keyboard: { ...current.keyboard, [key]: binding },
+    }));
+  }
+
+  private updateHostUserSettings(
+    update: (current: StudioHostUserSettingsArtifact) => StudioHostUserSettingsArtifact,
+  ): void {
+    if (!this.settingsWritesEnabledState()) return;
+    this.hostUserSettingsState.set(update(this.hostUserSettingsState()));
+    void this.persistHostUserSettings();
+  }
+
+  private persistHostUserSettings(): Promise<void> {
+    const workspace = this.gameWorkspace();
+    if (workspace === null) {
+      this.settingsMessageState.set('Scratch view settings are session-only until a project is opened.');
+      return Promise.resolve();
+    }
+    this.hostUserSettingsWriteChain = this.hostUserSettingsWriteChain.then(async () => {
+      const artifact = this.hostUserSettingsState();
+      const response = await fetch(`${projectFileApiBase()}/api/studio-settings/user`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          projectRoot: workspace.workspaceRoot,
+          text: serializeStudioHostUserSettings(artifact),
+          expectedHash: this.hostUserSettingsHashState(),
+        }),
+      });
+      const payload = await response.json() as {
+        readonly ok?: boolean;
+        readonly sha256?: string;
+        readonly path?: string;
+        readonly message?: string;
+      };
+      if (!response.ok || payload.ok !== true) {
+        this.settingsMessageState.set(`Host user settings save rejected: ${payload.message ?? `HTTP ${response.status}`}`);
+        return;
+      }
+      this.hostUserSettingsHashState.set(payload.sha256 ?? null);
+      this.hostUserSettingsPathState.set(payload.path ?? this.hostUserSettingsPathState());
+      this.settingsMessageState.set('Host user settings saved for this canonical project root.');
+    }).catch(error => {
+      this.settingsMessageState.set(`Host user settings save failed: ${errorMessage(error)}`);
+    });
+    return this.hostUserSettingsWriteChain;
+  }
+
   setRenderSetting(key: StudioRenderSettingKey, value: boolean): void {
     this.preferencesStore.setRenderSetting(key, value);
+    if (key === 'showGrid') {
+      this.updateHostUserSettings(current => ({
+        ...current,
+        sceneView: { ...current.sceneView, gridVisible: value },
+      }));
+    }
     const recorded = recordStudioWorkspaceUiCommand(this.workspaceState(), {
       commandId: 'preferences.set_render_setting',
       label: 'Set Render Preference',

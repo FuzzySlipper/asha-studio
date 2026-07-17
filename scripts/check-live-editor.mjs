@@ -25,6 +25,14 @@ try {
   await expect(page.getByRole('button', { name: 'Evidence', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0);
 
+  await page.getByRole('button', { name: 'Preferences', exact: true }).click();
+  await page.getByRole('button', { name: 'Options…', exact: true }).click();
+  const optionsPanel = page.locator('[data-visual-id="studio-options-panel"]');
+  await expect(optionsPanel).toBeVisible();
+  await expect(optionsPanel).toContainText('right-handed Y-up');
+  await expect(optionsPanel).toContainText('Scratch session');
+  await page.getByRole('button', { name: 'Close options', exact: true }).click();
+
   await page.getByRole('button', { name: 'Scene', exact: true }).click();
   await page.locator('[data-add-light="directional"]').click();
   await expect(page.getByText('Directional Light', { exact: true }).first()).toBeVisible();

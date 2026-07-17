@@ -10,6 +10,14 @@ import {
   stageStudioHostFile,
   writeStudioHostFile,
 } from './studio-project-file-service';
+import {
+  readStudioUserSettings,
+  writeStudioUserSettings,
+} from './studio-user-settings-service';
+import {
+  createStudioProject,
+  openStudioProject,
+} from './studio-project-service';
 
 const startDirectory = resolve(process.env.ASHA_STUDIO_START_DIRECTORY ?? process.cwd());
 const host = process.env.ASHA_STUDIO_FILE_HOST ?? '0.0.0.0';
@@ -72,6 +80,33 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'DELETE' && url.pathname === '/api/host-files/stage') {
       sendJson(response, 200, await discardStudioHostFileStage(JSON.parse(await readBody(request))));
+      return;
+    }
+    if (request.method === 'GET' && url.pathname === '/api/studio-settings/user') {
+      sendJson(response, 200, await readStudioUserSettings({
+        projectRoot: url.searchParams.get('projectRoot') ?? '',
+      }));
+      return;
+    }
+    if (request.method === 'PUT' && url.pathname === '/api/studio-settings/user') {
+      const body = JSON.parse(await readBody(request)) as {
+        readonly projectRoot?: string;
+        readonly text?: string;
+        readonly expectedHash?: string | null;
+      };
+      sendJson(response, 200, await writeStudioUserSettings({
+        projectRoot: body.projectRoot ?? '',
+        text: body.text ?? '',
+        expectedHash: body.expectedHash,
+      }));
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/projects/open') {
+      sendJson(response, 200, await openStudioProject(startDirectory, JSON.parse(await readBody(request))));
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/projects/create') {
+      sendJson(response, 200, await createStudioProject(startDirectory, JSON.parse(await readBody(request))));
       return;
     }
     sendJson(response, 404, { ok: false, diagnostic: 'not_found', message: 'Unknown host file route.' });
