@@ -7,6 +7,7 @@ import {
   assessStudioSceneCoordinateSystem,
   buildInitialWorkspaceReadModel,
   buildStudioViewportCameraReadModel,
+  moveStudioViewportCamera,
   orbitStudioViewportCamera,
 } from '@asha-studio/domain';
 import {
@@ -22,6 +23,37 @@ test('new Studio scenes and the editor camera use one right-handed Y-up conventi
   assert.equal(workspace.flatSceneDocument.metadata.authoringFormatVersion, 2);
   assert.ok(workspace.flatSceneDocument.nodes.some(node => node.tags.includes(STUDIO_SCENE_Y_UP_TAG)));
   assert.equal(assessStudioSceneCoordinateSystem(workspace.flatSceneDocument).status, 'right_handed_y_up');
+});
+
+test('keyboard camera movement stays camera-relative on XZ and world-relative on Y', () => {
+  const camera = buildStudioViewportCameraReadModel({
+    position: { x: 0, y: 4, z: 8 },
+    target: { x: 0, y: 1, z: 0 },
+  });
+  const moved = moveStudioViewportCamera(camera, {
+    forward: 1,
+    right: 1,
+    up: 1,
+    distance: 3,
+  });
+  const positionDelta = {
+    x: moved.position.x - camera.position.x,
+    y: moved.position.y - camera.position.y,
+    z: moved.position.z - camera.position.z,
+  };
+  const targetDelta = {
+    x: moved.target.x - camera.target.x,
+    y: moved.target.y - camera.target.y,
+    z: moved.target.z - camera.target.z,
+  };
+  assert.ok(Math.abs(targetDelta.x - positionDelta.x) < 1e-9);
+  assert.ok(Math.abs(targetDelta.y - positionDelta.y) < 1e-9);
+  assert.ok(Math.abs(targetDelta.z - positionDelta.z) < 1e-9);
+  assert.ok(positionDelta.x > 0);
+  assert.ok(positionDelta.y > 0);
+  assert.ok(positionDelta.z < 0);
+  assert.ok(Math.abs(Math.hypot(positionDelta.x, positionDelta.y, positionDelta.z) - 3) < 1e-9);
+  assert.deepEqual(moved.up, { x: 0, y: 1, z: 0 });
 });
 
 test('orbit changes elevation on Y while preserving radius and the Y-up vector', () => {

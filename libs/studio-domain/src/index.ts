@@ -1392,6 +1392,13 @@ export interface StudioViewportCameraControlDelta {
   readonly deltaY: number;
 }
 
+export interface StudioViewportCameraMovementIntent {
+  readonly forward: number;
+  readonly right: number;
+  readonly up: number;
+  readonly distance: number;
+}
+
 export interface StudioViewportRenderableAdapter {
   readonly renderableId: string;
   readonly label: string;
@@ -4718,6 +4725,38 @@ export function panStudioViewportCamera(
     ...camera,
     position: addVec3(camera.position, pan),
     target: addVec3(camera.target, pan),
+  });
+}
+
+export function moveStudioViewportCamera(
+  camera: StudioViewportCameraReadModel,
+  intent: StudioViewportCameraMovementIntent,
+): StudioViewportCameraReadModel {
+  if (!Number.isFinite(intent.distance) || intent.distance < 0) {
+    throw new Error('viewport camera movement distance must be finite and non-negative');
+  }
+  if (![intent.forward, intent.right, intent.up].every(axis => Number.isFinite(axis))) {
+    throw new Error('viewport camera movement axes must be finite');
+  }
+  const viewForward = normalizeVec3(subVec3(camera.target, camera.position));
+  const horizontalForward = normalizeVec3({ x: viewForward.x, y: 0, z: viewForward.z });
+  const stableForward = lengthVec3(horizontalForward) <= 0.0001
+    ? { x: 0, y: 0, z: -1 }
+    : horizontalForward;
+  const right = normalizeVec3(crossVec3(stableForward, { x: 0, y: 1, z: 0 }));
+  const direction = normalizeVec3(addVec3(
+    addVec3(
+      scaleVec3(stableForward, intent.forward),
+      scaleVec3(right, intent.right),
+    ),
+    { x: 0, y: intent.up, z: 0 },
+  ));
+  const translation = scaleVec3(direction, intent.distance);
+
+  return buildStudioViewportCameraReadModel({
+    ...camera,
+    position: addVec3(camera.position, translation),
+    target: addVec3(camera.target, translation),
   });
 }
 

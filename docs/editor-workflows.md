@@ -34,6 +34,16 @@ coordinates. Rotation and scale retain separate committed increments. Holding
 Ctrl temporarily inverts Snap and Shift requests fine movement; all drag frames
 remain renderer-local and pointer release still sends one Rust settlement.
 
+Clicking the Scene View gives its canvas keyboard focus. While it owns focus,
+W/S move forward and backward in the camera's horizontal XZ basis, A/D strafe,
+and Q/E move along world -Y/+Y. Movement samples held keys every animation frame
+and translates the camera and orbit target together, so it composes with orbit,
+pan, zoom, and frame-selection controls without changing authored or runtime
+authority. Shift boosts the configured host-user camera speed. Preferences >
+Options exposes key capture, speed, boost, and separate vertical look/pan
+inversion. Losing viewport or window focus, hiding the document, pointer
+cancellation, and component teardown all clear held movement.
+
 Voxel authoring uses the same boundary/center vocabulary in asset-local space:
 integer coordinates name cell extents and the selection overlay is centered at
 coordinate plus one half cell. Moving the owning scene transform moves both the

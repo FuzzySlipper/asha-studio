@@ -24,6 +24,7 @@ try {
 
   await expect(page.getByRole('button', { name: 'Evidence', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0);
+  const cameraPosition = page.locator('[data-scene-camera-position]');
 
   await page.getByRole('button', { name: 'Preferences', exact: true }).click();
   await page.getByRole('button', { name: 'Options…', exact: true }).click();
@@ -31,7 +32,20 @@ try {
   await expect(optionsPanel).toBeVisible();
   await expect(optionsPanel).toContainText('right-handed Y-up');
   await expect(optionsPanel).toContainText('Scratch session');
+  const cameraWhileOptionsOpen = await cameraPosition.textContent();
+  await optionsPanel.getByLabel('Camera speed').focus();
+  await page.keyboard.down('w');
+  await page.waitForTimeout(100);
+  await page.keyboard.up('w');
+  expect(await cameraPosition.textContent()).toBe(cameraWhileOptionsOpen);
   await page.getByRole('button', { name: 'Close options', exact: true }).click();
+
+  const cameraBeforeKeyboardMove = await cameraPosition.textContent();
+  await viewport.focus();
+  await page.keyboard.down('w');
+  await page.waitForTimeout(180);
+  await page.keyboard.up('w');
+  await expect.poll(() => cameraPosition.textContent()).not.toBe(cameraBeforeKeyboardMove);
 
   await page.getByRole('button', { name: 'Scene', exact: true }).click();
   await page.locator('[data-add-light="directional"]').click();

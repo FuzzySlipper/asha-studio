@@ -60,7 +60,7 @@ The settings layers have deliberately different ownership:
   commits right-handed Y-up spatial semantics, meters, grid origin, grid plane,
   base spacing, and snap anchor. Its writes are explicit and stale-hash checked.
 - host-user settings hold visual grid colors/visibility, scene-camera speed and
-  inversion, and keyboard bindings. The file service stores them under the
+  boost, look/pan inversion, and configurable WASD/QE keyboard bindings. The file service stores them under the
   Studio host's config directory, keyed by a SHA-256 digest of the canonical
   project root. They are never project files and never use browser storage.
 - hover, selection, drag previews, open panels, and other transient session

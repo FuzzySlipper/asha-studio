@@ -444,6 +444,11 @@ export * from './host-file-dialog-focus';
                       (change)="store.setInvertLookY($any($event.target).checked)" />
                     Invert orbit look Y
                   </label>
+                  <label class="options-check">
+                    <input type="checkbox" [checked]="store.effectiveSettings().invertPanY"
+                      (change)="store.setInvertPanY($any($event.target).checked)" />
+                    Invert pan Y
+                  </label>
                   <div class="options-panel__actions">
                     <button type="button" (click)="store.restoreSceneViewDefaults()">Restore Scene View Defaults</button>
                   </div>
@@ -454,13 +459,14 @@ export * from './host-file-dialog-focus';
               <div class="options-panel__content" data-options-tab="keyboard">
                 <fieldset>
                   <legend>Scene-view movement</legend>
-                  <small>Use KeyboardEvent.code values so bindings are layout-stable.</small>
+                  <small>Click a binding and press a key. Bindings use layout-stable KeyboardEvent.code values.</small>
                   <div class="options-grid options-grid--keyboard">
                     @for (binding of keyboardBindings; track binding.key) {
                       <label>
                         <span>{{ binding.label }}</span>
-                        <input type="text" [value]="store.effectiveSettings().keyboard[binding.key]"
-                          (change)="store.setKeyboardBinding(binding.key, $any($event.target).value)" />
+                        <input type="text" readonly data-keyboard-binding-capture
+                          [value]="store.effectiveSettings().keyboard[binding.key]"
+                          (keydown)="captureKeyboardBinding($event, binding.key)" />
                       </label>
                     }
                   </div>
@@ -1345,6 +1351,16 @@ export class StudioShellComponent {
     return `#${color.slice(0, 3).map(channel =>
       Math.round(channel * 255).toString(16).padStart(2, '0')
     ).join('')}`;
+  }
+
+  captureKeyboardBinding(
+    event: KeyboardEvent,
+    key: typeof this.keyboardBindings[number]['key'],
+  ): void {
+    if (event.code === 'Tab' || event.code === 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.store.setKeyboardBinding(key, event.code);
   }
 
   saveScene(): void {

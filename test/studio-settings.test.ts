@@ -78,7 +78,8 @@ test('host user settings survive service restart and remain isolated by canonica
       configDirectory,
       text: serializeStudioHostUserSettings({
         ...artifact,
-        sceneView: { ...artifact.sceneView, cameraMoveSpeed: 18 },
+        sceneView: { ...artifact.sceneView, cameraMoveSpeed: 18, invertPanY: true },
+        keyboard: { ...artifact.keyboard, moveForward: 'ArrowUp' },
       }),
       expectedHash: null,
     }) as { readonly ok: boolean; readonly sha256?: string };
@@ -91,6 +92,8 @@ test('host user settings survive service restart and remain isolated by canonica
     };
     assert.equal(afterRestart.ok, true);
     assert.equal(parseStudioHostUserSettings(afterRestart.text).artifact?.sceneView.cameraMoveSpeed, 18);
+    assert.equal(parseStudioHostUserSettings(afterRestart.text).artifact?.sceneView.invertPanY, true);
+    assert.equal(parseStudioHostUserSettings(afterRestart.text).artifact?.keyboard.moveForward, 'ArrowUp');
 
     const staleWrite = await writeStudioUserSettings({
       projectRoot: projectA,

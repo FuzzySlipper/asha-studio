@@ -55,6 +55,11 @@ import {
   type StudioWorkspaceProjectionDelivery,
 } from '@asha-studio/store';
 import { applyStudioTranslationGridSnap } from './grid-snapping.js';
+import {
+  hasStudioCameraMovement,
+  isStudioCameraMovementCode,
+  resolveStudioCameraMovementAxes,
+} from './scene-camera-controls.js';
 import { resolveStudioViewportPickRoute } from './viewport-pick-routing.js';
 
 export {
@@ -64,6 +69,11 @@ export {
 } from './viewport-pick-routing.js';
 
 export { applyStudioTranslationGridSnap } from './grid-snapping.js';
+export {
+  hasStudioCameraMovement,
+  isStudioCameraMovementCode,
+  resolveStudioCameraMovementAxes,
+} from './scene-camera-controls.js';
 
 type StudioRenderColor = readonly [number, number, number];
 
@@ -759,6 +769,7 @@ function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly
           class="viewport-scene__canvas"
           data-renderer-owner="asha-renderer-host"
           aria-label="ASHA engine renderer viewport"
+          tabindex="0"
         ></canvas>
         @if (store.viewportAdapter().renderSettings.showReadbackOverlay) {
           <div class="viewport-classification" data-viewport-classification="stored-authored-preview">
@@ -840,7 +851,12 @@ function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly
       </div>
 
       <footer class="viewport-scene__footer">
-        <span>{{ store.viewportAdapter().camera.cameraHash }}</span>
+        <span data-scene-camera-position>
+          camera
+          {{ store.viewportAdapter().camera.position.x.toFixed(2) }},
+          {{ store.viewportAdapter().camera.position.y.toFixed(2) }},
+          {{ store.viewportAdapter().camera.position.z.toFixed(2) }}
+        </span>
         <span>{{ store.viewportAdapter().tool.activeTool }}</span>
         <span>{{ store.viewportAdapter().sceneHash }}</span>
       </footer>
@@ -906,6 +922,11 @@ function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly
         position: absolute;
         touch-action: none;
         width: 100%;
+      }
+
+      .viewport-scene__canvas:focus-visible {
+        outline: 1px solid var(--asha-color-accent);
+        outline-offset: -2px;
       }
 
       .viewport-classification {
@@ -1125,6 +1146,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     readonly snapping: boolean;
   } | null = null;
   private transformPreviewFrameRequest: number | null = null;
+  private readonly pressedCameraMovementCodes = new Set<string>();
+  private cameraMovementFrameRequest: number | null = null;
+  private lastCameraMovementFrameAt: number | null = null;
 
   private readonly adapterEffect = effect(() => {
     const adapter = this.store.viewportAdapter();
@@ -1204,6 +1228,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (this.transformPreviewFrameRequest !== null) {
       cancelAnimationFrame(this.transformPreviewFrameRequest);
     }
+    this.clearCameraMovement();
     this.viewport?.channels.runtime.clear();
     this.viewport?.channels.authored.clear();
     this.viewport?.channels.overlay.clear();
@@ -1221,7 +1246,11 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     canvas.addEventListener('pointercancel', this.handlePointerCancel);
     canvas.addEventListener('contextmenu', this.handleContextMenu);
     canvas.addEventListener('wheel', this.handleWheel, { passive: false });
-    document.addEventListener('keydown', this.handleKeyDown);
+    canvas.addEventListener('keydown', this.handleKeyDown);
+    canvas.addEventListener('keyup', this.handleKeyUp);
+    canvas.addEventListener('blur', this.handleCanvasBlur);
+    window.addEventListener('blur', this.handleWindowBlur);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
   }
 
   private removeInputListeners(): void {
@@ -1235,7 +1264,11 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     canvas.removeEventListener('pointercancel', this.handlePointerCancel);
     canvas.removeEventListener('contextmenu', this.handleContextMenu);
     canvas.removeEventListener('wheel', this.handleWheel);
-    document.removeEventListener('keydown', this.handleKeyDown);
+    canvas.removeEventListener('keydown', this.handleKeyDown);
+    canvas.removeEventListener('keyup', this.handleKeyUp);
+    canvas.removeEventListener('blur', this.handleCanvasBlur);
+    window.removeEventListener('blur', this.handleWindowBlur);
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
   }
 
   private syncViewport(
@@ -1690,6 +1723,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (canvas === null) {
       return;
     }
+    canvas.focus({ preventScroll: true });
     const activeTool = this.store.viewportTool().activeTool;
     const mode = manipulatorModeForTool(activeTool);
     if (event.button === 0 && mode !== null && this.beginTransformDrag(event, mode)) {
@@ -1921,13 +1955,19 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
 
     if (dragState.tool === 'orbit') {
       if (this.store.runtimeViewportEvidence().camera === null) {
-        this.store.orbitViewportCamera(delta);
+        this.store.orbitViewportCamera({
+          deltaX: delta.deltaX,
+          deltaY: delta.deltaY * (this.store.effectiveSettings().invertLookY ? -1 : 1),
+        });
       } else {
         this.store.applyRuntimeViewportCameraInput('look', delta);
       }
     } else if (dragState.tool === 'pan') {
       if (this.store.runtimeViewportEvidence().camera === null) {
-        this.store.panViewportCamera(delta);
+        this.store.panViewportCamera({
+          deltaX: delta.deltaX,
+          deltaY: delta.deltaY * (this.store.effectiveSettings().invertPanY ? -1 : 1),
+        });
       } else {
         this.store.applyRuntimeViewportCameraInput('pan', delta);
       }
@@ -2000,17 +2040,86 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (this.voxelStrokeState?.pointerId === event.pointerId) this.voxelStrokeState = null;
     if (this.dragState?.pointerId === event.pointerId) this.dragState = null;
     if (this.transformDragState?.pointerId === event.pointerId) this.cancelTransformDrag();
+    this.clearCameraMovement();
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || this.transformDragState === null) return;
-    event.preventDefault();
-    const pointerId = this.transformDragState.pointerId;
-    if (this.canvasElement?.hasPointerCapture(pointerId)) {
-      this.canvasElement.releasePointerCapture(pointerId);
+    if (event.key === 'Escape' && this.transformDragState !== null) {
+      event.preventDefault();
+      const pointerId = this.transformDragState.pointerId;
+      if (this.canvasElement?.hasPointerCapture(pointerId)) {
+        this.canvasElement.releasePointerCapture(pointerId);
+      }
+      this.cancelTransformDrag();
+      return;
     }
-    this.cancelTransformDrag();
+    const bindings = this.store.effectiveSettings().keyboard;
+    if (this.store.runtimeViewportEvidence().camera !== null
+      || !isStudioCameraMovementCode(event.code, bindings)) return;
+    event.preventDefault();
+    this.pressedCameraMovementCodes.add(event.code);
+    this.startCameraMovement();
   };
+
+  private readonly handleKeyUp = (event: KeyboardEvent): void => {
+    if (!this.pressedCameraMovementCodes.delete(event.code)) return;
+    event.preventDefault();
+    if (this.pressedCameraMovementCodes.size === 0) this.stopCameraMovementFrame();
+  };
+
+  private readonly handleCanvasBlur = (): void => this.clearCameraMovement();
+
+  private readonly handleWindowBlur = (): void => this.clearCameraMovement();
+
+  private readonly handleVisibilityChange = (): void => {
+    if (document.visibilityState !== 'visible') this.clearCameraMovement();
+  };
+
+  private startCameraMovement(): void {
+    if (this.cameraMovementFrameRequest !== null) return;
+    this.lastCameraMovementFrameAt = performance.now();
+    this.cameraMovementFrameRequest = requestAnimationFrame(this.advanceCameraMovement);
+  }
+
+  private readonly advanceCameraMovement = (timestamp: number): void => {
+    this.cameraMovementFrameRequest = null;
+    if (this.destroyed || this.store.runtimeViewportEvidence().camera !== null) {
+      this.clearCameraMovement();
+      return;
+    }
+    const settings = this.store.effectiveSettings();
+    const axes = resolveStudioCameraMovementAxes(this.pressedCameraMovementCodes, settings.keyboard);
+    const previousTimestamp = this.lastCameraMovementFrameAt ?? timestamp;
+    const elapsedSeconds = Math.min(Math.max((timestamp - previousTimestamp) / 1_000, 0), 0.1);
+    this.lastCameraMovementFrameAt = timestamp;
+    if (hasStudioCameraMovement(axes) && elapsedSeconds > 0) {
+      const speed = settings.cameraMoveSpeed * (axes.boosted ? settings.cameraBoostMultiplier : 1);
+      this.store.moveViewportCamera({
+        forward: axes.forward,
+        right: axes.right,
+        up: axes.up,
+        distance: speed * elapsedSeconds,
+      });
+    }
+    if (this.pressedCameraMovementCodes.size > 0) {
+      this.cameraMovementFrameRequest = requestAnimationFrame(this.advanceCameraMovement);
+    } else {
+      this.lastCameraMovementFrameAt = null;
+    }
+  };
+
+  private clearCameraMovement(): void {
+    this.pressedCameraMovementCodes.clear();
+    this.stopCameraMovementFrame();
+  }
+
+  private stopCameraMovementFrame(): void {
+    if (this.cameraMovementFrameRequest !== null) {
+      cancelAnimationFrame(this.cameraMovementFrameRequest);
+      this.cameraMovementFrameRequest = null;
+    }
+    this.lastCameraMovementFrameAt = null;
+  }
 
   private readonly handleWheel = (event: WheelEvent): void => {
     event.preventDefault();

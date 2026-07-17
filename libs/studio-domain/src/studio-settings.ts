@@ -59,6 +59,7 @@ export interface StudioHostUserSettingsArtifact {
     readonly cameraMoveSpeed: number;
     readonly cameraBoostMultiplier: number;
     readonly invertLookY: boolean;
+    readonly invertPanY?: boolean;
   };
   readonly keyboard: StudioKeyboardBindings;
 }
@@ -68,6 +69,7 @@ export interface StudioSessionSettingsOverrides {
   readonly cameraMoveSpeed?: number;
   readonly cameraBoostMultiplier?: number;
   readonly invertLookY?: boolean;
+  readonly invertPanY?: boolean;
 }
 
 export interface StudioEffectiveSettings {
@@ -77,6 +79,7 @@ export interface StudioEffectiveSettings {
   readonly cameraMoveSpeed: number;
   readonly cameraBoostMultiplier: number;
   readonly invertLookY: boolean;
+  readonly invertPanY: boolean;
   readonly rotationSnapDegrees: number;
   readonly scaleSnapIncrement: number;
   readonly keyboard: StudioKeyboardBindings;
@@ -156,6 +159,7 @@ export function buildDefaultStudioHostUserSettings(
       cameraMoveSpeed: 6,
       cameraBoostMultiplier: 4,
       invertLookY: false,
+      invertPanY: false,
     },
     keyboard: { ...DEFAULT_KEYBOARD_BINDINGS },
   };
@@ -209,6 +213,7 @@ export function resolveStudioEffectiveSettings(options: {
     cameraMoveSpeed,
     cameraBoostMultiplier,
     invertLookY: session.invertLookY ?? hostUser.sceneView.invertLookY,
+    invertPanY: session.invertPanY ?? hostUser.sceneView.invertPanY ?? false,
     rotationSnapDegrees: project.transformSnapping.rotationDegrees,
     scaleSnapIncrement: project.transformSnapping.scaleIncrement,
     keyboard: { ...hostUser.keyboard },
@@ -287,6 +292,11 @@ export function validateStudioHostUserSettings(
     throw new Error('host user settings must use the supported ASHA Studio v1 schema');
   }
   requireNonEmpty(artifact.projectKey, 'host project key');
+  if (typeof artifact.sceneView.invertLookY !== 'boolean'
+    || (artifact.sceneView.invertPanY !== undefined
+      && typeof artifact.sceneView.invertPanY !== 'boolean')) {
+    throw new Error('host-user camera inversion settings must be boolean');
+  }
   const effective = resolveStudioEffectiveSettings({ hostUser: artifact });
   for (const binding of Object.values(effective.keyboard)) {
     requireNonEmpty(binding, 'keyboard binding');

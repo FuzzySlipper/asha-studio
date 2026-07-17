@@ -38,6 +38,7 @@ import {
   applyProjectedRenderableBoundsReadModel,
   applyStudioCatalogAuthoringOperation,
   orbitStudioViewportCamera,
+  moveStudioViewportCamera,
   panStudioViewportCamera,
   refreshStudioGameWorkspaceLiveReadModel,
   recordStudioWorkspaceUiCommand,
@@ -84,6 +85,7 @@ import {
   type StudioSceneViewPlane,
   type StudioAuthoredLightKind,
   type StudioViewportCameraControlDelta,
+  type StudioViewportCameraMovementIntent,
   type StudioViewportCameraReadModel,
   type StudioVoxelCoord,
   type StudioViewportHitReadModel,
@@ -5591,6 +5593,11 @@ export class StudioWorkspaceStore {
     this.viewportCameraState.set(panStudioViewportCamera(this.viewportCameraState(), delta));
   }
 
+  moveViewportCamera(intent: StudioViewportCameraMovementIntent): void {
+    if (this.runtimeViewportEvidenceState().camera !== null) return;
+    this.viewportCameraState.set(moveStudioViewportCamera(this.viewportCameraState(), intent));
+  }
+
   zoomViewportCamera(wheelDeltaY: number): void {
     this.viewportCameraState.set(zoomStudioViewportCamera(this.viewportCameraState(), wheelDeltaY));
   }
@@ -9725,6 +9732,13 @@ export class StudioWorkspaceStore {
     this.updateHostUserSettings(current => ({
       ...current,
       sceneView: { ...current.sceneView, invertLookY: value },
+    }));
+  }
+
+  setInvertPanY(value: boolean): void {
+    this.updateHostUserSettings(current => ({
+      ...current,
+      sceneView: { ...current.sceneView, invertPanY: value },
     }));
   }
 
