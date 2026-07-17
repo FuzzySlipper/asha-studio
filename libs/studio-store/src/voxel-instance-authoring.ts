@@ -156,6 +156,12 @@ export function buildStudioVoxelProjectionBindingPlan(
   };
 }
 
+export function canConfigureStudioVoxelProjectionInstances(
+  plan: StudioVoxelProjectionBindingPlan,
+): boolean {
+  return plan.activeAssetId !== null;
+}
+
 function inverseRotate(
   rotation: readonly [number, number, number, number],
   value: readonly [number, number, number],

@@ -4,6 +4,7 @@ import { sceneId, sceneNodeId, type FlatSceneDocument } from '@asha/contracts';
 import {
   buildStudioVoxelProjectionBindingPlan,
   buildStudioVoxelRendererPickEvidence,
+  canConfigureStudioVoxelProjectionInstances,
   worldTransformForSceneNode,
 } from '@asha-studio/store';
 
@@ -62,6 +63,15 @@ test('scene voxel nodes become distinct public bindings over one active asset', 
   assert.deepEqual(plan.instances[1]?.transform.translation, [11, 0, 0]);
   assert.deepEqual(plan.instances[1]?.transform.scale, [2, 1, 1]);
   assert.match(plan.registryDigest, /^fnv1a64:/);
+});
+
+test('voxel projection remains request-free until an asset is initialized or loaded', () => {
+  const unopened = buildStudioVoxelProjectionBindingPlan(document(), null);
+  assert.equal(unopened.instances.length, 0);
+  assert.equal(canConfigureStudioVoxelProjectionInstances(unopened), false);
+
+  const active = buildStudioVoxelProjectionBindingPlan(document(), 'voxel-volume/house');
+  assert.equal(canConfigureStudioVoxelProjectionInstances(active), true);
 });
 
 test('world transform composition follows SceneDocument hierarchy', () => {

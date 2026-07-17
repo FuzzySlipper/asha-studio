@@ -197,8 +197,10 @@ import {
 import {
   buildStudioVoxelProjectionBindingPlan,
   buildStudioVoxelRendererPickEvidence,
+  canConfigureStudioVoxelProjectionInstances,
   voxelInstanceId,
 } from './voxel-instance-authoring.js';
+import { StudioWorkspaceAuthoringOpenLifecycle } from './workspace-authoring-lifecycle.js';
 import {
   persistStudioWorkspaceAuthoringCandidate,
   type StudioHostFilePromotion,
@@ -272,9 +274,14 @@ import {
 export {
   buildStudioVoxelProjectionBindingPlan,
   buildStudioVoxelRendererPickEvidence,
+  canConfigureStudioVoxelProjectionInstances,
   voxelInstanceId,
   worldTransformForSceneNode,
 } from './voxel-instance-authoring.js';
+export {
+  StudioWorkspaceAuthoringOpenLifecycle,
+  type StudioWorkspaceAuthoringOpenAttempt,
+} from './workspace-authoring-lifecycle.js';
 export {
   compactStudioWorkspaceProjectionFrame,
   retainStudioWorkspaceProjection,
@@ -3574,6 +3581,7 @@ export class StudioWorkspaceStore {
   );
   private hostUserSettingsWriteChain: Promise<void> = Promise.resolve();
   private projectOpenGeneration = 0;
+  private readonly workspaceAuthoringOpenLifecycle = new StudioWorkspaceAuthoringOpenLifecycle();
   private readonly gameWorkspaceState = signal<StudioGameWorkspaceLoadResult>({
     ok: false,
     diagnostics: [{
@@ -7867,6 +7875,7 @@ export class StudioWorkspaceStore {
   }
 
   async openWorkspaceAuthoring(): Promise<void> {
+    const attempt = this.workspaceAuthoringOpenLifecycle.begin();
     const workspace = this.gameWorkspace();
     const document = this.workspaceState().flatSceneDocument;
     const project = workspace === null
@@ -7882,9 +7891,16 @@ export class StudioWorkspaceStore {
     let attach: StudioWorkspaceAuthoringAttach | null = null;
     try {
       await this.ensureStoredSceneDocumentAuthority();
+      if (!this.workspaceAuthoringOpenLifecycle.isCurrent(attempt)) {
+        return;
+      }
       this.clearWorkspaceAuthoring(true);
       this.workspaceAuthoringMessageState.set('Starting Rust workspace authoring authority.');
       attach = await createStudioRustWorkspaceAuthoringFacade();
+      if (!this.workspaceAuthoringOpenLifecycle.isCurrent(attempt)) {
+        disconnectStudioBrowserHostRuntimeBridge(attach.bridge);
+        return;
+      }
       const projectBundle = workspaceAuthoringProjectBundle(
         project.workspaceId,
         document,
@@ -7904,6 +7920,12 @@ export class StudioWorkspaceStore {
       );
       this.menuMessageState.set('Rust workspace authoring authority is ready.');
     } catch (error) {
+      if (!this.workspaceAuthoringOpenLifecycle.isCurrent(attempt)) {
+        if (attach !== null) {
+          disconnectStudioBrowserHostRuntimeBridge(attach.bridge);
+        }
+        return;
+      }
       if (attach !== null) {
         disconnectStudioBrowserHostRuntimeBridge(attach.bridge);
       }
@@ -7958,6 +7980,16 @@ export class StudioWorkspaceStore {
       this.workspaceState().flatSceneDocument,
       this.activeVoxelAssetIdState(),
     );
+    if (!canConfigureStudioVoxelProjectionInstances(plan)) {
+      this.voxelProjectionBindingReceiptState.set(null);
+      this.clearWorkspaceAuthoringProjectionDelivery();
+      this.voxelAuthoringModeState.set({
+        ...INITIAL_VOXEL_AUTHORING_MODE,
+        activeAssetId: null,
+        message: 'Load or initialize a voxel asset before projecting scene instances.',
+      });
+      return;
+    }
     try {
       const startedAtMs = studioMonotonicNow();
       const configureStartedAtMs = startedAtMs;
