@@ -54,6 +54,11 @@ manifest, its standard authored-content directories, and the initial committed
 settings artifact. Project identity is the canonical directory on the Studio
 host, never the LAN browser origin.
 
+A launch URL may provide one `project` query parameter containing either that
+host directory or its `asha.game.toml` path. Studio sends it through the same
+atomic project-open service as the Project menu; the URL is only startup intent
+and is never persisted as project authority.
+
 The settings layers have deliberately different ownership:
 
 - `.asha/studio-project-settings.json` is typed, versioned project content. It

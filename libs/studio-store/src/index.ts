@@ -9395,12 +9395,20 @@ export class StudioWorkspaceStore {
   }
 
   async openProject(): Promise<void> {
-    const root = this.projectRootDraftState().trim();
-    if (root.length === 0) {
-      this.menuMessageState.set('Open Project requires a host project directory.');
+    await this.openProjectPath(this.projectRootDraftState());
+  }
+
+  async openProjectPath(path: string): Promise<void> {
+    const candidate = normalizeProjectFilePath(path.trim());
+    if (candidate.length === 0) {
+      this.menuMessageState.set('Open Project requires a host project directory or asha.game.toml path.');
       return;
     }
-    await this.openProjectManifest(joinProjectFilePath(root, 'asha.game.toml'));
+    const manifestPath = projectFileName(candidate) === 'asha.game.toml'
+      ? candidate
+      : joinProjectFilePath(candidate, 'asha.game.toml');
+    this.projectRootDraftState.set(parentProjectDir(manifestPath));
+    await this.openProjectManifest(manifestPath);
   }
 
   async createProject(): Promise<void> {
