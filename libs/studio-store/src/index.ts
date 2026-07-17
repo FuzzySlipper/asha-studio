@@ -7778,9 +7778,11 @@ export class StudioWorkspaceStore {
       this.workspaceAuthoringFacadeState.set(null);
       this.workspaceAuthoringStateSummaryState.set(null);
       this.clearWorkspaceAuthoringProjectionDelivery();
-      this.workspaceAuthoringMessageState.set(
-        error instanceof Error ? error.message : 'Workspace authoring authority failed to start.',
-      );
+      const message = error instanceof Error
+        ? error.message
+        : 'Workspace authoring authority failed to start.';
+      this.workspaceAuthoringMessageState.set(message);
+      this.menuMessageState.set(`Workspace authoring failed: ${message}`);
     }
   }
 

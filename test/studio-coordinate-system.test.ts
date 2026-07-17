@@ -19,6 +19,7 @@ test('new Studio scenes and the editor camera use one right-handed Y-up conventi
   const workspace = buildInitialWorkspaceReadModel();
   const camera = buildStudioViewportCameraReadModel();
   assert.deepEqual(camera.up, { x: 0, y: 1, z: 0 });
+  assert.equal(workspace.flatSceneDocument.metadata.authoringFormatVersion, 2);
   assert.ok(workspace.flatSceneDocument.nodes.some(node => node.tags.includes(STUDIO_SCENE_Y_UP_TAG)));
   assert.equal(assessStudioSceneCoordinateSystem(workspace.flatSceneDocument).status, 'right_handed_y_up');
 });

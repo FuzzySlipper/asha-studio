@@ -5461,7 +5461,7 @@ function flatSceneDocumentForScene(
     id: sceneId(1),
     metadata: {
       name: scene.sceneId,
-      authoringFormatVersion: 3,
+      authoringFormatVersion: 2,
     },
     dependencies: scene.renderables.map(renderable => ({
       id: renderable.meshRef ?? renderable.renderableId,
