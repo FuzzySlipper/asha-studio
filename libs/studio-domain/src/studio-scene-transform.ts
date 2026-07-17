@@ -41,6 +41,13 @@ function normalizeQuaternion(
   return value.map(component => component / length) as unknown as SceneTransform['rotation'];
 }
 
+function inverseQuaternion(
+  value: SceneTransform['rotation'],
+): SceneTransform['rotation'] {
+  const normalized = normalizeQuaternion(value);
+  return [-normalized[0], -normalized[1], -normalized[2], normalized[3]];
+}
+
 export function rotateStudioSceneVector(
   rotation: SceneTransform['rotation'],
   vector: SceneTransform['translation'],
@@ -81,6 +88,47 @@ export function composeStudioSceneTransform(
       parent.scale[0] * local.scale[0],
       parent.scale[1] * local.scale[1],
       parent.scale[2] * local.scale[2],
+    ],
+  };
+}
+
+/**
+ * Recover an authored local transform from a composed world transform.
+ *
+ * A zero-scale parent has no inverse, so callers must leave authority
+ * untouched instead of manufacturing a local transform in that case.
+ */
+export function deriveStudioSceneLocalTransform(
+  parent: SceneTransform,
+  world: SceneTransform,
+): SceneTransform | null {
+  if (parent.scale.some(value => !Number.isFinite(value) || Math.abs(value) <= 0.000001)) {
+    return null;
+  }
+  const inverseParentRotation = inverseQuaternion(parent.rotation);
+  const relativeTranslation: SceneTransform['translation'] = [
+    world.translation[0] - parent.translation[0],
+    world.translation[1] - parent.translation[1],
+    world.translation[2] - parent.translation[2],
+  ];
+  const unrotatedTranslation = rotateStudioSceneVector(
+    inverseParentRotation,
+    relativeTranslation,
+  );
+  return {
+    translation: [
+      unrotatedTranslation[0] / parent.scale[0],
+      unrotatedTranslation[1] / parent.scale[1],
+      unrotatedTranslation[2] / parent.scale[2],
+    ],
+    rotation: normalizeQuaternion(multiplyQuaternion(
+      inverseParentRotation,
+      world.rotation,
+    )),
+    scale: [
+      world.scale[0] / parent.scale[0],
+      world.scale[1] / parent.scale[1],
+      world.scale[2] / parent.scale[2],
     ],
   };
 }

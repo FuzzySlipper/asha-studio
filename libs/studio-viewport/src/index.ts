@@ -51,6 +51,7 @@ import type {
 import {
   buildStudioViewportHitReadModel,
   composeStudioSceneTransform,
+  deriveStudioSceneLocalTransform,
 } from '@asha-studio/domain';
 import {
   StudioWorkspaceStore,
@@ -687,15 +688,6 @@ function projectedPreviewTransform(
   };
 }
 
-function worldTransformForLocalCandidate(
-  renderable: StudioViewportRenderableAdapter,
-  localTransform: Transform,
-): Transform {
-  return renderable.parentWorldTransform === null
-    ? localTransform
-    : composeStudioSceneTransform(renderable.parentWorldTransform, localTransform);
-}
-
 function multiplyRotation(
   left: Transform['rotation'],
   right: Transform['rotation'],
@@ -1121,7 +1113,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     readonly pointerId: number;
     readonly drag: TransformManipulatorDrag;
     readonly parentWorldTransform: Transform | null;
+    readonly sourceLocalTransform: Transform;
     candidate: TransformManipulatorCandidate;
+    candidateLocalTransform: Transform;
   } | null = null;
   private transformHoveredHandle: TransformManipulatorHandle | null = null;
   private pendingTransformPointer: {
@@ -1490,7 +1484,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       hovered: this.transformHoveredHandle,
       mode,
       orientation: this.store.transformManipulatorOrientation(),
-      transform: drag?.candidate.transform ?? target.transform,
+      transform: drag?.candidate.transform ?? target.worldTransform,
       visible: true,
     });
   }
@@ -1544,12 +1538,13 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         rotationDegrees: this.store.effectiveSettings().rotationSnapDegrees,
         scale: this.store.effectiveSettings().scaleSnapIncrement,
       },
-      source: target.transform,
+      source: target.worldTransform,
     });
     this.transformDragState = {
       pointerId: event.pointerId,
       drag,
       parentWorldTransform: target.parentWorldTransform,
+      sourceLocalTransform: target.transform,
       candidate: {
         kind: 'transform_manipulator_candidate.v0',
         diagnostics: [],
@@ -1557,6 +1552,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         revision: drag.revision,
         transform: drag.source,
       },
+      candidateLocalTransform: target.transform,
     };
     this.transformHoveredHandle = handle;
     canvas.setPointerCapture(event.pointerId);
@@ -1569,9 +1565,16 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const viewport = this.viewport;
     const dragState = this.transformDragState;
     if (viewport === null || dragState === null) return false;
+    const candidateLocalTransform = dragState.parentWorldTransform === null
+      ? candidate.transform
+      : deriveStudioSceneLocalTransform(
+        dragState.parentWorldTransform,
+        candidate.transform,
+      );
+    if (candidateLocalTransform === null) return false;
     const target = this.store.previewSelectedSceneObjectTransform(
       candidate.revision,
-      candidate.transform,
+      candidateLocalTransform,
     );
     if (target === null) return false;
     const ops: RenderDiff[] = [];
@@ -1581,21 +1584,13 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       if (renderable?.kind === 'voxel_grid') {
         const projection = this.authoredVoxelPickIndex.projectionForInstance(target.objectId);
         if (projection !== null) {
-          const sourceWorldTransform = worldTransformForLocalCandidate(
-            renderable,
-            dragState.drag.source,
-          );
-          const candidateWorldTransform = worldTransformForLocalCandidate(
-            renderable,
-            candidate.transform,
-          );
           ops.push({
             op: 'update',
             handle: projection.handle,
             transform: projectedPreviewTransform(
               projection.transform,
-              sourceWorldTransform,
-              candidateWorldTransform,
+              dragState.drag.source,
+              candidate.transform,
             ),
             material: null,
             visible: null,
@@ -1605,21 +1600,13 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       } else if (renderable !== undefined) {
         const handle = renderableHandle(adapter, renderable.renderableId);
         if (handle !== null) {
-          const sourceWorldTransform = worldTransformForLocalCandidate(
-            renderable,
-            dragState.drag.source,
-          );
-          const candidateWorldTransform = worldTransformForLocalCandidate(
-            renderable,
-            candidate.transform,
-          );
           ops.push({
             op: 'update',
             handle,
             transform: projectedPreviewTransform(
               renderableTransform(renderable),
-              sourceWorldTransform,
-              candidateWorldTransform,
+              dragState.drag.source,
+              candidate.transform,
             ),
             material: null,
             visible: null,
@@ -1632,6 +1619,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const receipt = viewport.channels.authored.apply({ ops });
     if (!receipt.applied) return false;
     dragState.candidate = candidate;
+    dragState.candidateLocalTransform = candidateLocalTransform;
     this.renderOverlay();
     return true;
   }
@@ -1692,18 +1680,37 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       },
     );
     if (dragState.drag.handle.mode === 'translate' && pending.snapping) {
-      candidate = applyStudioTranslationGridSnap(
-        candidate,
+      const candidateLocalTransform = dragState.parentWorldTransform === null
+        ? candidate.transform
+        : deriveStudioSceneLocalTransform(
+          dragState.parentWorldTransform,
+          candidate.transform,
+        );
+      if (candidateLocalTransform === null) {
+        this.cancelTransformDrag();
+        return;
+      }
+      const snappedLocalCandidate = applyStudioTranslationGridSnap(
+        { ...candidate, transform: candidateLocalTransform },
         this.store.effectiveSettings().grid,
         true,
         pending.fine,
         {
           handle: dragState.drag.handle,
           orientation: dragState.drag.orientation,
-          source: dragState.drag.source,
+          source: dragState.sourceLocalTransform,
           parentWorldTransform: dragState.parentWorldTransform,
         },
       );
+      candidate = {
+        ...snappedLocalCandidate,
+        transform: dragState.parentWorldTransform === null
+          ? snappedLocalCandidate.transform
+          : composeStudioSceneTransform(
+            dragState.parentWorldTransform,
+            snappedLocalCandidate.transform,
+          ),
+      };
     }
     if (!this.applyTransformPreview(candidate)) this.cancelTransformDrag();
   }
@@ -2008,7 +2015,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       if (settledDrag === null) return;
       const result = this.store.commitSelectedSceneObjectTransform(
         settledDrag.candidate.revision,
-        settledDrag.candidate.transform,
+        settledDrag.candidateLocalTransform,
       );
       if (result.accepted) this.syncCurrentViewport();
       else this.restoreAuthoritativeTransform();

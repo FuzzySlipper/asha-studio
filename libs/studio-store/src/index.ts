@@ -27,6 +27,7 @@ import {
   buildStudioViewportToolReadModel,
   buildStudioSceneAuthoringOperation,
   clearStudioWorkspaceReadModel,
+  composeStudioSceneTransform,
   createSelectEntityIntent,
   createRenameSceneObjectRequest,
   createReparentSceneObjectRequest,
@@ -3499,6 +3500,7 @@ export interface StudioSelectedSceneTransformTarget {
   readonly revision: string;
   readonly transform: Transform;
   readonly parentWorldTransform: Transform | null;
+  readonly worldTransform: Transform;
   readonly lightFrame: RenderFrameDiff;
 }
 
@@ -4553,6 +4555,7 @@ export class StudioWorkspaceStore {
       revision: studioSceneAuthoringBaseHash(workspace.flatSceneDocument),
       transform: node.transform,
       parentWorldTransform: transformContext.parentWorldTransform,
+      worldTransform: transformContext.worldTransform,
       lightFrame: this.lightingProjection().frame,
     };
   });
@@ -5092,6 +5095,9 @@ export class StudioWorkspaceStore {
     return {
       ...target,
       transform,
+      worldTransform: target.parentWorldTransform === null
+        ? transform
+        : composeStudioSceneTransform(target.parentWorldTransform, transform),
       lightFrame,
     };
   }

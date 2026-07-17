@@ -15,6 +15,7 @@ import {
   sceneNodeId,
   type FlatSceneDocument,
   type RenderFrameDiff,
+  type Transform,
 } from '@asha/contracts';
 import {
   DEFAULT_TRANSFORM_MANIPULATOR_SNAPPING,
@@ -29,6 +30,8 @@ import {
   applyCanonicalSceneDocumentReadModel,
   applySelectedEntityReadModel,
   buildInitialWorkspaceReadModel,
+  composeStudioSceneTransform,
+  deriveStudioSceneLocalTransform,
   type StudioWorkspaceReadModel,
 } from '@asha-studio/domain';
 import {
@@ -53,6 +56,14 @@ const camera = {
   fovYDegrees: 42,
   viewport: { width: 800, height: 600 },
 };
+
+function roundedTransform(transform: Transform): Transform {
+  return {
+    translation: transform.translation.map(value => Number(value.toFixed(9))) as [number, number, number],
+    rotation: transform.rotation.map(value => Number(value.toFixed(9))) as [number, number, number, number],
+    scale: transform.scale.map(value => Number(value.toFixed(9))) as [number, number, number],
+  };
+}
 
 test('Studio consumes the public camera-aware manipulator candidate contract', () => {
   const frame = projectTransformManipulator({
@@ -108,6 +119,9 @@ test('Studio gizmo path previews per frame and settles through one revision-boun
   assert.equal(viewportSource.includes('editor-grid-x:'), false);
   assert.equal(viewportSource.includes('previewSelectedSceneObjectTransform'), true);
   assert.equal(viewportSource.includes('commitSelectedSceneObjectTransform'), true);
+  assert.equal(viewportSource.includes('transform: drag?.candidate.transform ?? target.worldTransform'), true);
+  assert.equal(viewportSource.includes('source: target.worldTransform'), true);
+  assert.equal(viewportSource.includes('settledDrag.candidateLocalTransform'), true);
   assert.equal(viewportSource.includes('totalDeltaX / 160'), false);
   assert.equal(storeSource.includes('buildStudioSceneAuthoringOperation'), true);
   assert.equal(storeSource.includes('expectedBaseHash: expectedRevision'), true);
@@ -331,6 +345,144 @@ function transformScene(): FlatSceneDocument {
     ],
   };
 }
+
+function parentedTransformScene(): FlatSceneDocument {
+  return {
+    schemaVersion: 2,
+    id: sceneId(5880),
+    metadata: { name: 'Parented transform gizmo test', authoringFormatVersion: 2 },
+    dependencies: [{ id: 'mesh.parented-target', version: { req: 'any' }, hash: null }],
+    nodes: [
+      {
+        id: sceneNodeId(1),
+        parent: null,
+        childOrder: 0,
+        label: 'Root',
+        tags: [],
+        transform: sourceTransform,
+        kind: { kind: 'emptyGroup' },
+      },
+      {
+        id: sceneNodeId(2),
+        parent: sceneNodeId(1),
+        childOrder: 0,
+        label: 'Rotated parent',
+        tags: [],
+        transform: {
+          translation: [10, 0, 0],
+          rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2],
+          scale: [2, 1, 1],
+        },
+        kind: { kind: 'emptyGroup' },
+      },
+      {
+        id: sceneNodeId(3),
+        parent: sceneNodeId(2),
+        childOrder: 0,
+        label: 'Parented transform target',
+        tags: ['authored'],
+        transform: {
+          translation: [1, 2, 3],
+          rotation: [0, 0, 0, 1],
+          scale: [1, 2, 3],
+        },
+        kind: {
+          kind: 'staticMesh',
+          asset: { id: 'mesh.parented-target', version: { req: 'any' }, hash: null },
+        },
+      },
+    ],
+  };
+}
+
+test('parented Studio gizmo projects, picks, and drags in world space while authoring local space', () => {
+  const injector = createEnvironmentInjector([
+    StudioPreferencesStore,
+    StudioWorkspaceStore,
+  ]);
+  try {
+    const store = runInInjectionContext(injector, () => inject(StudioWorkspaceStore));
+    const internals = store as unknown as TransformStoreInternals;
+    internals.workspaceState.set(applySelectedEntityReadModel(
+      applyCanonicalSceneDocumentReadModel(
+        buildInitialWorkspaceReadModel(),
+        parentedTransformScene(),
+        '/tmp/parented-transform-gizmo.scene.json',
+      ),
+      'scene-node:3',
+    ));
+
+    const target = store.selectedSceneTransformTarget();
+    assert.notEqual(target, null);
+    if (target === null || target.parentWorldTransform === null) return;
+    assert.deepEqual(target.transform.translation, [1, 2, 3]);
+    assert.deepEqual(
+      target.worldTransform.translation.map(value => Number(value.toFixed(9))),
+      [13, 2, -2],
+    );
+
+    const frame = projectTransformManipulator({
+      active: null,
+      hovered: null,
+      mode: 'translate',
+      orientation: 'world',
+      transform: target.worldTransform,
+      visible: true,
+    });
+    const xHandleOp = frame.ops.find(op => {
+      if (op.op !== 'create') return false;
+      const handle = transformManipulatorHandleFromId(op.handle);
+      return handle?.kind === 'axis' && handle.mode === 'translate' && handle.axis === 'x';
+    });
+    assert.equal(xHandleOp?.op, 'create');
+    if (xHandleOp?.op !== 'create') return;
+    assert.deepEqual(
+      xHandleOp.node.transform.translation.map(value => Number(value.toFixed(9))),
+      [13.62, 2, -2],
+    );
+
+    const xHandle = transformManipulatorHandleFromId(xHandleOp.handle);
+    assert.notEqual(xHandle, null);
+    if (xHandle === null) return;
+    const drag = beginTransformManipulatorDrag({
+      camera,
+      handle: xHandle,
+      orientation: 'world',
+      pointer: [400, 300],
+      revision: target.revision,
+      snapping: { ...DEFAULT_TRANSFORM_MANIPULATOR_SNAPPING, enabled: false },
+      source: target.worldTransform,
+    });
+    assert.deepEqual(roundedTransform(drag.source).translation, [13, 2, -2]);
+
+    const candidateWorldTransform = {
+      ...drag.source,
+      translation: [15, 2, -2] as const,
+    };
+    const candidateLocalTransform = deriveStudioSceneLocalTransform(
+      target.parentWorldTransform,
+      candidateWorldTransform,
+    );
+    assert.notEqual(candidateLocalTransform, null);
+    if (candidateLocalTransform === null) return;
+    assert.deepEqual(
+      roundedTransform(composeStudioSceneTransform(target.parentWorldTransform, candidateLocalTransform)),
+      roundedTransform(candidateWorldTransform),
+    );
+    const preview = store.previewSelectedSceneObjectTransform(
+      target.revision,
+      candidateLocalTransform,
+    );
+    assert.notEqual(preview, null);
+    assert.deepEqual(
+      preview === null ? null : roundedTransform(preview.worldTransform),
+      roundedTransform(candidateWorldTransform),
+    );
+    assert.notDeepEqual(preview?.transform, candidateWorldTransform);
+  } finally {
+    injector.destroy();
+  }
+});
 
 function lightTransformScene(): FlatSceneDocument {
   return {
