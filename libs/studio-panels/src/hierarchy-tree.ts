@@ -4,28 +4,14 @@ export function hierarchyEntityHasChildren(
   entities: readonly StudioEntityReadModel[],
   entity: StudioEntityReadModel,
 ): boolean {
-  const index = entities.findIndex(candidate => candidate.id === entity.id);
-  const next = index < 0 ? undefined : entities[index + 1];
-  return next !== undefined && next.depth > entity.depth;
+  return entities.some(candidate => candidate.parentId === entity.id);
 }
 
 export function visibleHierarchyEntities(
   entities: readonly StudioEntityReadModel[],
 ): readonly StudioEntityReadModel[] {
-  const ancestorExpandedByDepth: boolean[] = [];
-  const visible: StudioEntityReadModel[] = [];
-
-  for (const entity of entities) {
-    const ancestorsExpanded = ancestorExpandedByDepth
-      .slice(0, entity.depth)
-      .every(expanded => expanded);
-
-    if (entity.depth === 0 || ancestorsExpanded) visible.push(entity);
-    ancestorExpandedByDepth[entity.depth] = entity.expanded;
-    ancestorExpandedByDepth.length = entity.depth + 1;
-  }
-
-  return visible;
+  const entityById = new Map(entities.map(entity => [entity.id, entity]));
+  return entities.filter(entity => ancestorsAreExpanded(entity, entityById));
 }
 
 export function filteredHierarchyEntities(
@@ -36,16 +22,36 @@ export function filteredHierarchyEntities(
   if (query.length === 0) return visibleHierarchyEntities(entities);
 
   const includedIds = new Set<string>();
-  const ancestors: StudioEntityReadModel[] = [];
+  const entityById = new Map(entities.map(entity => [entity.id, entity]));
   for (const entity of entities) {
-    ancestors.length = entity.depth;
     if (entityMatchesFilter(entity, query)) {
       includedIds.add(entity.id);
-      for (const ancestor of ancestors) includedIds.add(ancestor.id);
+      let parentId = entity.parentId;
+      const visited = new Set<string>();
+      while (parentId !== null && !visited.has(parentId)) {
+        visited.add(parentId);
+        includedIds.add(parentId);
+        parentId = entityById.get(parentId)?.parentId ?? null;
+      }
     }
-    ancestors[entity.depth] = entity;
   }
   return entities.filter(entity => includedIds.has(entity.id));
+}
+
+function ancestorsAreExpanded(
+  entity: StudioEntityReadModel,
+  entityById: ReadonlyMap<string, StudioEntityReadModel>,
+): boolean {
+  let parentId = entity.parentId;
+  const visited = new Set<string>();
+  while (parentId !== null) {
+    if (visited.has(parentId)) return false;
+    visited.add(parentId);
+    const parent = entityById.get(parentId);
+    if (parent === undefined || !parent.expanded) return false;
+    parentId = parent.parentId;
+  }
+  return true;
 }
 
 function entityMatchesFilter(entity: StudioEntityReadModel, query: string): boolean {

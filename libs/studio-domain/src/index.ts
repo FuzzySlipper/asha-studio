@@ -1443,6 +1443,7 @@ export interface StudioViewportAdapterReadModel {
 
 export interface StudioEntityReadModel {
   readonly id: string;
+  readonly parentId: string | null;
   readonly label: string;
   readonly kind: StudioEntityKind;
   readonly sourceState: StudioEntitySourceState;
@@ -5054,6 +5055,35 @@ function selectedObjectIdForRenderable(
   );
 }
 
+function sceneObjectsInHierarchyPreorder(
+  snapshot: EditorSceneObjectSnapshot,
+): readonly EditorSceneObjectSnapshot['objects'][number][] {
+  const childrenByParent = new Map<SceneObjectId | null, EditorSceneObjectSnapshot['objects'][number][]>();
+  for (const object of snapshot.objects) {
+    const siblings = childrenByParent.get(object.parentObjectId) ?? [];
+    siblings.push(object);
+    childrenByParent.set(object.parentObjectId, siblings);
+  }
+  const compare = (
+    left: EditorSceneObjectSnapshot['objects'][number],
+    right: EditorSceneObjectSnapshot['objects'][number],
+  ): number => left.childOrder - right.childOrder
+    || (left.sceneNodeId as number) - (right.sceneNodeId as number);
+  for (const siblings of childrenByParent.values()) siblings.sort(compare);
+
+  const ordered: EditorSceneObjectSnapshot['objects'][number][] = [];
+  const visited = new Set<SceneObjectId>();
+  const visit = (object: EditorSceneObjectSnapshot['objects'][number]): void => {
+    if (visited.has(object.objectId)) return;
+    visited.add(object.objectId);
+    ordered.push(object);
+    for (const child of childrenByParent.get(object.objectId) ?? []) visit(child);
+  };
+  for (const root of childrenByParent.get(null) ?? []) visit(root);
+  for (const orphan of [...snapshot.objects].sort(compare)) visit(orphan);
+  return ordered;
+}
+
 function projectEntitiesFromScene(
   session: StudioSessionReadModel,
   scene: StudioSceneReadModel,
@@ -5063,7 +5093,7 @@ function projectEntitiesFromScene(
   const expandedById = new Map(previousEntities.map(entity => [entity.id, entity.expanded]));
   const selectedObjectId = selectedObjectIdForRenderable(sceneObjectSnapshot, scene.selectedRenderableId);
   const renderableById = new Map(scene.renderables.map(renderable => [renderable.renderableId, renderable]));
-  const objectRows = sceneObjectSnapshot.objects.map(object => {
+  const objectRows = sceneObjectsInHierarchyPreorder(sceneObjectSnapshot).map(object => {
     const renderable =
       object.provenance.renderableId === null
         ? null
@@ -5072,6 +5102,7 @@ function projectEntitiesFromScene(
     const hasChildren = sceneObjectSnapshot.objects.some(item => item.parentObjectId === object.objectId);
     return {
       id: object.objectId,
+      parentId: object.parentObjectId ?? scene.sceneId,
       label: object.displayName,
       kind: kindForSceneObject(object, renderable),
       sourceState: sourceStateForSceneObject(object, renderable),
@@ -5088,6 +5119,7 @@ function projectEntitiesFromScene(
   return [
     {
       id: `session:${session.sessionId}`,
+      parentId: null,
       label: session.scenarioLabel,
       kind: 'session',
       sourceState: 'reference',
@@ -5101,6 +5133,7 @@ function projectEntitiesFromScene(
     },
     {
       id: scene.sceneId,
+      parentId: `session:${session.sessionId}`,
       label: 'Scene View',
       kind: 'scene',
       sourceState: 'authoritative',
@@ -5121,6 +5154,7 @@ export function computeEntityListHash(entities: readonly StudioEntityReadModel[]
     'entity-list',
     entities.map(entity => ({
       id: entity.id,
+      parentId: entity.parentId,
       sourceState: entity.sourceState,
       selected: entity.selected,
       renderableId: entity.renderableId,

@@ -22,9 +22,11 @@ function entity(
   label: string,
   depth: number,
   expanded: boolean,
+  parentId: string | null,
 ): StudioEntityReadModel {
   return {
     id,
+    parentId,
     label,
     kind: depth < 3 ? 'empty_group' : 'static_mesh',
     sourceState: 'authoritative',
@@ -39,11 +41,11 @@ function entity(
 }
 
 const nestedTree = [
-  entity('root', 'Root', 0, true),
-  entity('parent', 'Parent', 1, false),
-  entity('child', 'Child', 2, false),
-  entity('target', 'Needle Target', 3, false),
-  entity('sibling', 'Sibling', 1, false),
+  entity('root', 'Root', 0, true, null),
+  entity('parent', 'Parent', 1, false, 'root'),
+  entity('child', 'Child', 2, false, 'parent'),
+  entity('target', 'Needle Target', 3, false, 'child'),
+  entity('sibling', 'Sibling', 1, false, 'root'),
 ];
 
 function hierarchyScene(): FlatSceneDocument {
@@ -56,12 +58,23 @@ function hierarchyScene(): FlatSceneDocument {
     schemaVersion: 2,
     id: sceneId(5879),
     metadata: { name: 'Hierarchy ergonomics', authoringFormatVersion: 2 },
-    dependencies: [],
+    dependencies: [{ id: 'mesh.grandchild', version: { req: 'any' }, hash: null }],
     nodes: [
       { id: sceneNodeId(1), parent: null, childOrder: 0, label: 'Root', tags: [STUDIO_SCENE_Y_UP_TAG], transform, kind: { kind: 'emptyGroup' } },
-      { id: sceneNodeId(2), parent: sceneNodeId(1), childOrder: 0, label: 'Parent', tags: [], transform, kind: { kind: 'emptyGroup' } },
-      { id: sceneNodeId(3), parent: sceneNodeId(2), childOrder: 0, label: 'Child', tags: [], transform, kind: { kind: 'emptyGroup' } },
-      { id: sceneNodeId(4), parent: sceneNodeId(3), childOrder: 0, label: 'Leaf', tags: [], transform, kind: { kind: 'emptyGroup' } },
+      { id: sceneNodeId(2), parent: sceneNodeId(1), childOrder: 0, label: 'Parent A', tags: [], transform, kind: { kind: 'emptyGroup' } },
+      { id: sceneNodeId(3), parent: sceneNodeId(1), childOrder: 1, label: 'Sibling B', tags: [], transform, kind: { kind: 'emptyGroup' } },
+      {
+        id: sceneNodeId(4),
+        parent: sceneNodeId(2),
+        childOrder: 0,
+        label: 'Grandchild A',
+        tags: [],
+        transform,
+        kind: {
+          kind: 'staticMesh',
+          asset: { id: 'mesh.grandchild', version: { req: 'any' }, hash: null },
+        },
+      },
     ],
   };
 }
@@ -88,10 +101,7 @@ test('per-node expansion changes only the requested UI row and survives scene pr
     hierarchyScene(),
     null,
   );
-  const parent = initial.entities.find((candidate, index) =>
-    candidate.sceneObjectId !== null
-      && initial.entities[index + 1]?.depth > candidate.depth,
-  );
+  const parent = initial.entities.find(candidate => candidate.label === 'Parent A');
   assert.ok(parent);
   const collapsed = setHierarchyEntityExpansionReadModel(initial, parent.id, false);
   assert.equal(collapsed.entities.find(candidate => candidate.id === parent.id)?.expanded, false);
@@ -120,9 +130,7 @@ test('selecting a collapsed parent expands that parent without bulk expansion', 
       hierarchyScene(),
       null,
     ));
-    const parent = store.workspace().entities.find((candidate, index, entities) =>
-      candidate.selectable && entities[index + 1]?.depth > candidate.depth,
-    );
+    const parent = store.workspace().entities.find(candidate => candidate.label === 'Parent A');
     assert.ok(parent);
     store.setHierarchyExpanded(false);
     store.selectEntity(parent.id);
@@ -136,4 +144,47 @@ test('selecting a collapsed parent expands that parent without bulk expansion', 
   } finally {
     injector.destroy();
   }
+});
+
+test('real sibling-before-grandchild snapshots become explicit deterministic hierarchy rows', () => {
+  const workspace = applyCanonicalSceneDocumentReadModel(
+    buildInitialWorkspaceReadModel(),
+    hierarchyScene(),
+    null,
+  );
+  const objectRows = workspace.entities.filter(entity => entity.sceneObjectId !== null);
+  assert.deepEqual(objectRows.map(entity => entity.label), [
+    'Root',
+    'Parent A',
+    'Grandchild A',
+    'Sibling B',
+  ]);
+  const root = objectRows.find(entity => entity.label === 'Root');
+  const parent = objectRows.find(entity => entity.label === 'Parent A');
+  const grandchild = objectRows.find(entity => entity.label === 'Grandchild A');
+  const sibling = objectRows.find(entity => entity.label === 'Sibling B');
+  assert.ok(root && parent && grandchild && sibling);
+  assert.equal(grandchild.parentId, parent.id);
+  assert.equal(sibling.parentId, root.id);
+  assert.equal(hierarchyEntityHasChildren(objectRows, parent), true);
+
+  const collapsed = workspace.entities.map(entity => {
+    if (entity.id === root.id) return { ...entity, expanded: true };
+    if (entity.id === parent.id) return { ...entity, expanded: false };
+    return entity;
+  });
+  assert.deepEqual(visibleHierarchyEntities(collapsed)
+    .filter(entity => entity.sceneObjectId !== null)
+    .map(entity => entity.label), [
+    'Root',
+    'Parent A',
+    'Sibling B',
+  ]);
+  assert.deepEqual(filteredHierarchyEntities(collapsed, 'grandchild')
+    .filter(entity => entity.sceneObjectId !== null)
+    .map(entity => entity.label), [
+    'Root',
+    'Parent A',
+    'Grandchild A',
+  ]);
 });
