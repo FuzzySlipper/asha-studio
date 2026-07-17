@@ -45,8 +45,8 @@ const camera = {
   position: [4, 4, 4] as const,
   basis: {
     forward: [-0.577350269, -0.577350269, -0.577350269] as const,
-    right: [0.707106781, -0.707106781, 0] as const,
-    up: [-0.40824829, -0.40824829, 0.816496581] as const,
+    right: [0.707106781, 0, -0.707106781] as const,
+    up: [-0.40824829, 0.816496581, -0.40824829] as const,
   },
   fovYDegrees: 42,
   viewport: { width: 800, height: 600 },

@@ -13,3 +13,6 @@
   renderer-private engine modules.
 - Browser automation supplements human inspection; it does not turn debug
   hashes or screenshots into product authority.
+- Studio does not yet provide an in-place migration command for voxel assets
+  authored before the Y-up correction. Those assets are diagnosed and left
+  untouched rather than silently rotating their stored cells.

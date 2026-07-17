@@ -22,10 +22,10 @@ test('house template stays bounded and leaves recognizable openings', () => {
   const solid = (coord: string): boolean => finalVoxels.get(coord) === true;
 
   assert.ok(solid('0:0:0'), 'floor corner');
-  assert.ok(solid('5:4:10'), 'roof ridge');
-  assert.ok(solid('8:6:12'), 'chimney top');
-  assert.ok(!solid('5:0:2'), 'front doorway opening');
-  assert.ok(!solid('2:8:2'), 'rear window opening');
-  assert.ok(!solid('10:6:2'), 'side window opening');
-  assert.deepEqual(STUDIO_VOXEL_HOUSE_BOUNDS.max, { x: 10, y: 8, z: 12 });
+  assert.ok(solid('5:10:4'), 'roof ridge is high on Y');
+  assert.ok(solid('8:12:6'), 'chimney top is high on Y');
+  assert.ok(!solid('5:2:0'), 'front doorway opening');
+  assert.ok(!solid('2:2:8'), 'rear window opening');
+  assert.ok(!solid('10:2:6'), 'side window opening');
+  assert.deepEqual(STUDIO_VOXEL_HOUSE_BOUNDS.max, { x: 10, y: 12, z: 8 });
 });

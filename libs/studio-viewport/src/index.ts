@@ -351,8 +351,8 @@ function renderableTransform(renderable: StudioViewportRenderableAdapter): Trans
     rotation: [0, 0, 0, 1],
     scale: [
       renderableSize.x,
-      renderableSize.y,
-      renderable.kind === 'voxel_grid' ? 0.04 : renderableSize.z,
+      renderable.kind === 'voxel_grid' ? 0.04 : renderableSize.y,
+      renderableSize.z,
     ],
   };
 }
@@ -560,14 +560,14 @@ function buildViewportOverlayFrame(
         op: 'create',
         handle: renderHandle(handle),
         parent: null,
-        node: createDebugNode(`editor-grid-x:${index}`, [0, offset, -0.04], [4, 0.008, 0.008], [0.035, 0.098, 0.129, 0.72]),
+        node: createDebugNode(`editor-grid-x:${index}`, [0, -0.04, offset], [4, 0.008, 0.008], [0.035, 0.098, 0.129, 0.72]),
       });
       handle += 1;
       ops.push({
         op: 'create',
         handle: renderHandle(handle),
         parent: null,
-        node: createDebugNode(`editor-grid-y:${index}`, [offset, 0, -0.04], [0.008, 4, 0.008], [0.035, 0.098, 0.129, 0.72]),
+        node: createDebugNode(`editor-grid-z:${index}`, [offset, -0.04, 0], [0.008, 0.008, 4], [0.035, 0.098, 0.129, 0.72]),
       });
       handle += 1;
     }

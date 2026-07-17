@@ -2,6 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { mapStudioIntentToCommand } from '@asha-studio/command-dispatch';
 import {
   attachStudioGameWorkspaceDevtools,
+  assessStudioSceneCoordinateSystem,
   buildStudioUiStateReadModel,
   applySelectedEntityReadModel,
   buildAssetBrowserCategories,
@@ -1097,8 +1098,40 @@ export interface StudioVoxelAssetWorkflowControlReadModel {
 
 export const STUDIO_VOXEL_HOUSE_BOUNDS = {
   min: { x: 0, y: 0, z: 0 },
-  max: { x: 10, y: 8, z: 12 },
+  max: { x: 10, y: 12, z: 8 },
 } as const;
+
+export const STUDIO_VOXEL_Y_UP_SOURCE_TOOL = 'asha-studio/y-up.v1';
+export const STUDIO_VOXEL_LEGACY_SOURCE_TOOL = 'asha-studio';
+
+export interface StudioVoxelAssetCoordinateSystemAssessment {
+  readonly compatible: boolean;
+  readonly message: string;
+}
+
+/** Classify stored voxel bytes before asking Rust to load them. */
+export function assessStudioVoxelAssetCoordinateSystem(
+  asset: VoxelVolumeAsset,
+): StudioVoxelAssetCoordinateSystemAssessment {
+  if (asset.grid.coordinateSystem !== 'y_up_right_handed') {
+    return {
+      compatible: false,
+      message: `Voxel asset coordinateSystem ${asset.grid.coordinateSystem} is unsupported; ASHA requires y_up_right_handed. The file was not changed.`,
+    };
+  }
+  if (asset.authoring.sourceTool === STUDIO_VOXEL_LEGACY_SOURCE_TOOL) {
+    return {
+      compatible: false,
+      message: 'This asset was authored by legacy Studio before the Y-up correction and its content orientation is ambiguous. Explicitly migrate Z height to Y before opening; Studio did not reinterpret or overwrite the file.',
+    };
+  }
+  return {
+    compatible: true,
+    message: asset.authoring.sourceTool === STUDIO_VOXEL_Y_UP_SOURCE_TOOL
+      ? 'Voxel asset is confirmed right-handed Y-up Studio content.'
+      : 'Voxel asset declares the canonical ASHA right-handed Y-up grid.',
+  };
+}
 
 /**
  * Builds a recognizable one-chunk house without introducing a Studio-owned
@@ -1116,18 +1149,18 @@ export function buildStudioVoxelHouseCommandBatches(grid: number): readonly Comm
     });
   };
 
-  // Floor.
+  // Floor: XZ footprint at the minimum Y boundary.
   for (let x = 0; x <= 10; x += 1) {
-    for (let y = 0; y <= 8; y += 1) add(x, y, 0);
+    for (let z = 0; z <= 8; z += 1) add(x, 0, z);
   }
 
   // Front and back walls. Openings are intentionally absent geometry.
-  for (const y of [0, 8]) {
+  for (const z of [0, 8]) {
     for (let x = 0; x <= 10; x += 1) {
-      for (let z = 1; z <= 5; z += 1) {
-        const doorway = y === 0 && x >= 4 && x <= 6 && z <= 3;
+      for (let y = 1; y <= 5; y += 1) {
+        const doorway = z === 0 && x >= 4 && x <= 6 && y <= 3;
         const window = ((x >= 1 && x <= 3) || (x >= 7 && x <= 9))
-          && z >= 2 && z <= 3;
+          && y >= 2 && y <= 3;
         if (!doorway && !window) add(x, y, z);
       }
     }
@@ -1135,10 +1168,10 @@ export function buildStudioVoxelHouseCommandBatches(grid: number): readonly Comm
 
   // Side walls with paired windows.
   for (const x of [0, 10]) {
-    for (let y = 1; y <= 7; y += 1) {
-      for (let z = 1; z <= 5; z += 1) {
-        const window = ((y >= 1 && y <= 3) || (y >= 5 && y <= 7))
-          && z >= 2 && z <= 3;
+    for (let z = 1; z <= 7; z += 1) {
+      for (let y = 1; y <= 5; y += 1) {
+        const window = ((z >= 1 && z <= 3) || (z >= 5 && z <= 7))
+          && y >= 2 && y <= 3;
         if (!window) add(x, y, z);
       }
     }
@@ -1146,16 +1179,16 @@ export function buildStudioVoxelHouseCommandBatches(grid: number): readonly Comm
 
   // Stepped gable roof, with the ridge running across the house width.
   for (let inset = 0; inset <= 4; inset += 1) {
-    const roofZ = 6 + inset;
+    const roofY = 6 + inset;
     for (let x = 0; x <= 10; x += 1) {
-      add(x, inset, roofZ);
-      add(x, 8 - inset, roofZ);
+      add(x, roofY, inset);
+      add(x, roofY, 8 - inset);
     }
   }
 
   // Chimney above the rear roof slope.
   for (let x = 8; x <= 9; x += 1) {
-    for (let z = 9; z <= 12; z += 1) add(x, 6, z);
+    for (let y = 9; y <= 12; y += 1) add(x, y, 6);
   }
 
   const batches: CommandBatch[] = [];
@@ -6346,8 +6379,8 @@ export class StudioWorkspaceStore {
     this.sceneDocumentContentHashState.set(authored.contentHash);
     this.refreshSceneVoxelProjection();
     this.viewportCameraState.set(buildStudioViewportCameraReadModel({
-      position: { x: 22, y: -18, z: 20 },
-      target: { x: 5, y: 4, z: 5.5 },
+      position: { x: 22, y: 20, z: -18 },
+      target: { x: 5, y: 5.5, z: 4 },
     }));
     return true;
   }
@@ -6381,7 +6414,7 @@ export class StudioWorkspaceStore {
           authoring: {
             label: 'Studio scratch-authored voxel volume',
             createdBy: 'asha-studio',
-            sourceTool: 'asha-studio',
+            sourceTool: STUDIO_VOXEL_Y_UP_SOURCE_TOOL,
           },
           maxMaterialBindings: 256,
         },
@@ -6789,7 +6822,7 @@ export class StudioWorkspaceStore {
       targetAssetId: target.targetAssetId,
       label: 'Studio voxel workflow asset',
       createdBy: 'asha-studio',
-      sourceTool: 'asha-studio',
+      sourceTool: STUDIO_VOXEL_Y_UP_SOURCE_TOOL,
       maxSparseRuns: 2_048,
       expectedSessionHash: modelInfo.sessionHash,
     };
@@ -8635,6 +8668,10 @@ export class StudioWorkspaceStore {
       // wire value becomes Studio state until Rust accepts it and returns matching
       // canonical and voxel-data hashes.
       const candidate = wireValue as VoxelVolumeAsset;
+      const coordinateAssessment = assessStudioVoxelAssetCoordinateSystem(candidate);
+      if (!coordinateAssessment.compatible) {
+        throw new Error(coordinateAssessment.message);
+      }
       const loadResult = this.runAgentVoxelWorkflowOperation({
         kind: 'load_voxel_volume_asset',
         loadRequest: {
@@ -8728,6 +8765,10 @@ export class StudioWorkspaceStore {
       if (!result.accepted || result.document === null || result.contentHash === null) {
         throw new Error(this.sceneCodecDiagnostic(result));
       }
+      const coordinateAssessment = assessStudioSceneCoordinateSystem(result.document);
+      if (coordinateAssessment.status === 'legacy_z_up') {
+        throw new Error(coordinateAssessment.message);
+      }
       const authored = this.requestStoredSceneDocumentAuthoring(
         result.document,
         {
@@ -8767,7 +8808,7 @@ export class StudioWorkspaceStore {
         resourceKind: 'scene',
         path: absolutePath,
         status: 'accepted',
-        message: `Opened scene ${absolutePath}.`,
+        message: coordinateAssessment.message,
       });
       this.sceneFileConflictState.set(null);
       this.viewportHitState.set(null);
@@ -8783,8 +8824,8 @@ export class StudioWorkspaceStore {
         .filter(assetId => !reconnected.has(assetId));
       this.menuMessageState.set(
         unresolvedAssetIds.length === 0
-          ? `Opened ${absolutePath} from the Studio host.`
-          : `Opened ${absolutePath}; unresolved scene assets: ${unresolvedAssetIds.join(', ')}.`,
+          ? `Opened ${absolutePath} from the Studio host. ${coordinateAssessment.message}`
+          : `Opened ${absolutePath}; unresolved scene assets: ${unresolvedAssetIds.join(', ')}. ${coordinateAssessment.message}`,
       );
     } catch (error) {
       const message = `Open failed without replacing the current document: ${errorMessage(error)}`;
@@ -8831,6 +8872,11 @@ export class StudioWorkspaceStore {
       try {
         const stored = await this.readHostVoxelAsset(assetPath);
         const asset = JSON.parse(stored.text) as VoxelVolumeAsset;
+        const coordinateAssessment = assessStudioVoxelAssetCoordinateSystem(asset);
+        if (!coordinateAssessment.compatible) {
+          this.workspaceAuthoringMessageState.set(coordinateAssessment.message);
+          continue;
+        }
         const volumeAssetId = `voxel/${assetName}`;
         const receipt = facade.loadVoxelVolumeAsset({
           asset,

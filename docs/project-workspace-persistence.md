@@ -18,6 +18,13 @@ explicit reload, overwrite, or cancel decision. Accepted writes use a
 same-directory temporary file and atomic rename. Failed decode, validation,
 read, and write operations leave the current scene and its dirty state intact.
 
+Scene coordinates are never rewritten as part of Open. New Studio scenes carry
+the right-handed Y-up root marker documented in `docs/editor-workflows.md`.
+Unmarked scenes open with a visible compatibility message and retain their exact
+stored coordinates; explicitly legacy Z-up scenes fail before replacing the
+current document. The same fail-before-replacement rule applies to ambiguous
+legacy Studio voxel assets.
+
 Voxel asset saves add an authority check before that rename. The host first
 stages the candidate beside the destination without replacing it. Studio then
 verifies that the same Rust workspace-authoring cell, generation, working

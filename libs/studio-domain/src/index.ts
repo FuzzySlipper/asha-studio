@@ -80,7 +80,47 @@ export type StudioEntityKind =
   | 'scene'
   | 'collection';
 export type StudioDiagnosticSeverity = 'info' | 'warning' | 'error';
+export type StudioSceneCoordinateSystemStatus =
+  | 'right_handed_y_up'
+  | 'legacy_z_up'
+  | 'unverified';
 export type StudioViewportHitFace = 'x_min' | 'x_max' | 'y_min' | 'y_max' | 'z_min' | 'z_max';
+
+export const STUDIO_SCENE_Y_UP_TAG = 'asha-studio:coordinate-system:right-handed-y-up.v1';
+export const STUDIO_SCENE_LEGACY_Z_UP_TAG = 'asha-studio:coordinate-system:right-handed-z-up.v0';
+
+export interface StudioSceneCoordinateSystemAssessment {
+  readonly status: StudioSceneCoordinateSystemStatus;
+  readonly message: string;
+}
+
+/**
+ * Classify persisted scene coordinates without rewriting them. ASHA scenes are
+ * canonical right-handed Y-up; the Studio marker records that the authoring UI
+ * used the same convention. Unmarked documents remain byte-for-byte unchanged
+ * and are surfaced as unverified instead of being silently rotated.
+ */
+export function assessStudioSceneCoordinateSystem(
+  document: FlatSceneDocument,
+): StudioSceneCoordinateSystemAssessment {
+  const tags = document.nodes.flatMap(node => node.tags);
+  if (tags.includes(STUDIO_SCENE_LEGACY_Z_UP_TAG)) {
+    return {
+      status: 'legacy_z_up',
+      message: 'This scene declares the legacy Studio Z-up convention. Convert it explicitly to right-handed Y-up before opening; Studio did not alter the file.',
+    };
+  }
+  if (tags.includes(STUDIO_SCENE_Y_UP_TAG)) {
+    return {
+      status: 'right_handed_y_up',
+      message: 'Scene coordinates are confirmed right-handed Y-up.',
+    };
+  }
+  return {
+    status: 'unverified',
+    message: 'This scene has no Studio coordinate marker. It was opened as canonical ASHA right-handed Y-up without transforming its stored coordinates.',
+  };
+}
 export type StudioEntityBadge =
   | 'authority-backed'
   | 'preview-only'
@@ -4493,9 +4533,9 @@ export function buildStudioViewportCameraReadModel(options: {
   readonly far?: number;
 } = {}): StudioViewportCameraReadModel {
   const camera = {
-    position: options.position ?? { x: 4.6, y: 5.2, z: 4.1 },
-    target: options.target ?? { x: 1.25, y: 1.1, z: 0.55 },
-    up: options.up ?? { x: 0, y: 0, z: 1 },
+    position: options.position ?? { x: 4.6, y: 4.1, z: 5.2 },
+    target: options.target ?? { x: 1.25, y: 0.55, z: 1.1 },
+    up: options.up ?? { x: 0, y: 1, z: 0 },
     fovDegrees: options.fovDegrees ?? 42,
     near: options.near ?? 0.05,
     far: options.far ?? 100,
@@ -4639,13 +4679,13 @@ export function orbitStudioViewportCamera(
 ): StudioViewportCameraReadModel {
   const offset = subVec3(camera.position, camera.target);
   const radius = clamp(lengthVec3(offset), 0.6, 40);
-  const yaw = Math.atan2(offset.y, offset.x) - delta.deltaX * 0.008;
-  const horizontal = Math.hypot(offset.x, offset.y);
-  const pitch = clamp(Math.atan2(offset.z, horizontal) + delta.deltaY * 0.008, -1.15, 1.15);
+  const yaw = Math.atan2(offset.z, offset.x) - delta.deltaX * 0.008;
+  const horizontal = Math.hypot(offset.x, offset.z);
+  const pitch = clamp(Math.atan2(offset.y, horizontal) + delta.deltaY * 0.008, -1.15, 1.15);
   const nextOffset = {
     x: Math.cos(pitch) * Math.cos(yaw) * radius,
-    y: Math.cos(pitch) * Math.sin(yaw) * radius,
-    z: Math.sin(pitch) * radius,
+    y: Math.sin(pitch) * radius,
+    z: Math.cos(pitch) * Math.sin(yaw) * radius,
   };
 
   return buildStudioViewportCameraReadModel({
@@ -4752,8 +4792,8 @@ function frameStudioViewportCameraForRenderables(
   return buildStudioViewportCameraReadModel({
     position: {
       x: target.x + extent * 1.75,
-      y: target.y + extent * 2.15,
-      z: target.z + extent * 1.45,
+      y: target.y + extent * 1.45,
+      z: target.z + extent * 2.15,
     },
     target,
   });
@@ -5407,7 +5447,7 @@ function flatSceneDocumentForScene(
     parent: null,
     childOrder: 0,
     label: 'Scene Root',
-    tags: ['studio-root'],
+    tags: ['studio-root', STUDIO_SCENE_Y_UP_TAG],
     transform: {
       translation: [0, 0, 0],
       rotation: [0, 0, 0, 1],
@@ -5421,7 +5461,7 @@ function flatSceneDocumentForScene(
     id: sceneId(1),
     metadata: {
       name: scene.sceneId,
-      authoringFormatVersion: 1,
+      authoringFormatVersion: 3,
     },
     dependencies: scene.renderables.map(renderable => ({
       id: renderable.meshRef ?? renderable.renderableId,
