@@ -42,6 +42,7 @@ import {
   refreshStudioGameWorkspaceLiveReadModel,
   recordStudioWorkspaceUiCommand,
   setHierarchyExpansionReadModel,
+  setHierarchyEntityExpansionReadModel,
   studioCatalogAuthoringBaseHash,
   studioSceneAuthoringBaseHash,
   updateStudioRenderSetting,
@@ -4626,7 +4627,14 @@ export class StudioWorkspaceStore {
   );
 
   selectEntity(entityId: string): void {
-    const workspace = this.workspaceState();
+    let workspace = this.workspaceState();
+    const entityIndex = workspace.entities.findIndex(entity => entity.id === entityId);
+    const entity = workspace.entities[entityIndex];
+    const hasChildren = entity !== undefined
+      && (workspace.entities[entityIndex + 1]?.depth ?? -1) > entity.depth;
+    if (entity !== undefined && hasChildren && !entity.expanded) {
+      workspace = setHierarchyEntityExpansionReadModel(workspace, entityId, true);
+    }
     const intent = createSelectEntityIntent(workspace, entityId);
     const dispatchResult = mapStudioIntentToCommand(intent);
 
@@ -5611,6 +5619,13 @@ export class StudioWorkspaceStore {
   setHierarchyExpanded(expanded: boolean): void {
     this.workspaceState.set(setHierarchyExpansionReadModel(this.workspaceState(), expanded));
     this.menuMessageState.set(expanded ? 'Hierarchy expanded.' : 'Hierarchy collapsed.');
+  }
+
+  setHierarchyEntityExpanded(entityId: string, expanded: boolean): void {
+    const workspace = this.workspaceState();
+    if (!workspace.entities.some(entity => entity.id === entityId)) return;
+    this.workspaceState.set(setHierarchyEntityExpansionReadModel(workspace, entityId, expanded));
+    this.menuMessageState.set(`${expanded ? 'Expanded' : 'Collapsed'} hierarchy node ${entityId}.`);
   }
 
   setAssetBrowserCategory(category: StudioAssetBrowserCategory): void {

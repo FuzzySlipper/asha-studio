@@ -5422,6 +5422,19 @@ export function setHierarchyExpansionReadModel(
   };
 }
 
+export function setHierarchyEntityExpansionReadModel(
+  readModel: StudioWorkspaceReadModel,
+  entityId: string,
+  expanded: boolean,
+): StudioWorkspaceReadModel {
+  return {
+    ...readModel,
+    entities: readModel.entities.map(entity => entity.id === entityId
+      ? { ...entity, expanded }
+      : entity),
+  };
+}
+
 function flatSceneNodeKindForRenderable(
   renderable: StudioSceneRenderableReadModel,
 ): FlatSceneDocument['nodes'][number]['kind'] {

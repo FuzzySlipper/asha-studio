@@ -42,7 +42,12 @@ try {
   await page.getByRole('button', { name: 'Asset', exact: true }).click();
   await page.locator('[data-voxel-asset-action="create_house"]').click();
   await expect(page.locator('.studio-menu__status')).toContainText(/Created a \d+-voxel house/, { timeout: 30_000 });
-  await page.getByTitle('Expand hierarchy').click();
+  await expect(page.getByText('Voxel house', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Hierarchy row Scene Root', exact: true }).click();
+  await expect(page.getByText('Voxel house', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Collapse Scene Root', exact: true }).click();
+  await expect(page.getByText('Voxel house', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expand Scene Root', exact: true }).click();
   await expect(page.getByText('Voxel house', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Voxel', exact: true }).click();
 

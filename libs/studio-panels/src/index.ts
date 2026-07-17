@@ -10,49 +10,12 @@ import type {
 } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
 import type { SceneObjectId } from '@asha/editor-tools';
+import {
+  filteredHierarchyEntities,
+  hierarchyEntityHasChildren,
+} from './hierarchy-tree';
 
 export { StudioVoxelToolsMenuComponent } from './voxel-tools-menu';
-
-function visibleHierarchyEntities(
-  entities: readonly StudioEntityReadModel[],
-): readonly StudioEntityReadModel[] {
-  const ancestorExpandedByDepth: boolean[] = [];
-  const visible: StudioEntityReadModel[] = [];
-
-  for (const entity of entities) {
-    const ancestorsExpanded = ancestorExpandedByDepth
-      .slice(0, entity.depth)
-      .every(expanded => expanded);
-
-    if (entity.depth === 0 || ancestorsExpanded) {
-      visible.push(entity);
-    }
-    ancestorExpandedByDepth[entity.depth] = entity.expanded;
-  }
-
-  return visible;
-}
-
-function filteredHierarchyEntities(
-  entities: readonly StudioEntityReadModel[],
-  filter: string,
-): readonly StudioEntityReadModel[] {
-  const query = filter.trim().toLocaleLowerCase();
-  const visible = visibleHierarchyEntities(entities);
-  if (query.length === 0) {
-    return visible;
-  }
-  return visible.filter(entity =>
-    [
-      entity.label,
-      entity.kind,
-      entity.badge,
-      entity.sourceState,
-      entity.renderableId ?? '',
-      entity.sceneObjectId ?? '',
-    ].some(value => value.toLocaleLowerCase().includes(query)),
-  );
-}
 
 @Component({
   selector: 'asha-runtime-tools-menu',
@@ -1676,41 +1639,57 @@ export class StudioViewportToolbarPanelComponent {
         />
       </div>
 
-      <div class="tree-list">
+      <div class="tree-list" role="tree" aria-label="Scene hierarchy">
         @for (entity of visibleEntities(); track entity.id) {
-          <button
+          <div
             class="tree-row"
-            type="button"
             draggable="true"
             [class.tree-row--selected]="entity.selected"
             [class.tree-row--static]="!entity.selectable"
             [class.tree-row--drop-target]="dropTargetSceneObjectId() === entity.sceneObjectId"
-            [disabled]="!entity.selectable"
             [attr.data-scene-object-id]="entity.sceneObjectId"
             [attr.data-selected-entity]="entity.selected ? entity.id : null"
-            [attr.aria-label]="'Hierarchy row ' + entity.label"
+            [attr.role]="'treeitem'"
+            [attr.aria-expanded]="hasChildren(entity) ? entity.expanded : null"
             [style.padding-left.px]="entity.depth * 10 + 6"
-            (click)="store.selectEntity(entity.id)"
             (dragstart)="startDrag($event, entity)"
             (dragend)="endDrag()"
             (dragover)="dragOver($event, entity)"
             (dragleave)="dragLeave(entity)"
             (drop)="dropOnEntity($event, entity)"
           >
-            <span class="tree-toggle">{{ entity.expanded ? 'v' : '>' }}</span>
-            <span class="tree-icon">{{ iconForKind(entity.kind) }}</span>
-            <span class="tree-label">{{ entity.label }}</span>
-            <small
-              class="tree-badge"
-              [class.tree-badge--authority-backed]="entity.badge === 'authority-backed'"
-              [class.tree-badge--preview-only]="entity.badge === 'preview-only'"
-              [class.tree-badge--projected]="entity.badge === 'projected'"
-              [class.tree-badge--reference]="entity.badge === 'reference'"
-              [class.tree-badge--selected]="entity.badge === 'selected'"
+            <button
+              class="tree-toggle"
+              type="button"
+              [class.tree-toggle--leaf]="!hasChildren(entity)"
+              [disabled]="!hasChildren(entity)"
+              [attr.aria-label]="(entity.expanded ? 'Collapse ' : 'Expand ') + entity.label"
+              (pointerdown)="$event.stopPropagation()"
+              (click)="toggleEntityExpansion($event, entity)"
             >
-              {{ entity.badge }}
-            </small>
-          </button>
+              {{ hasChildren(entity) ? (entity.expanded ? 'v' : '>') : '·' }}
+            </button>
+            <button
+              class="tree-row__select"
+              type="button"
+              [disabled]="!entity.selectable"
+              [attr.aria-label]="'Hierarchy row ' + entity.label"
+              (click)="selectEntity(entity)"
+            >
+              <span class="tree-icon">{{ iconForKind(entity.kind) }}</span>
+              <span class="tree-label">{{ entity.label }}</span>
+              <small
+                class="tree-badge"
+                [class.tree-badge--authority-backed]="entity.badge === 'authority-backed'"
+                [class.tree-badge--preview-only]="entity.badge === 'preview-only'"
+                [class.tree-badge--projected]="entity.badge === 'projected'"
+                [class.tree-badge--reference]="entity.badge === 'reference'"
+                [class.tree-badge--selected]="entity.badge === 'selected'"
+              >
+                {{ entity.badge }}
+              </small>
+            </button>
+          </div>
         }
       </div>
 
@@ -1828,20 +1807,14 @@ export class StudioViewportToolbarPanelComponent {
         background: transparent;
         border: 1px solid transparent;
         color: var(--asha-color-ink);
-        cursor: pointer;
         display: flex;
-        font: inherit;
-        font-size: 0.76rem;
-        gap: 0.28rem;
+        gap: 0.08rem;
         min-height: 1.45rem;
         min-width: 0;
-        padding-bottom: 0;
         padding-right: 0.25rem;
-        padding-top: 0;
-        text-align: left;
       }
 
-      .tree-row:hover:not(:disabled),
+      .tree-row:hover,
       .tree-row--selected {
         background: var(--asha-color-control);
       }
@@ -1855,11 +1828,47 @@ export class StudioViewportToolbarPanelComponent {
         border-color: var(--asha-color-accent);
       }
 
-      .tree-row:disabled {
+      .tree-row__select {
+        align-items: center;
+        background: transparent;
+        border: 0;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        flex: 1 1 auto;
+        font: inherit;
+        font-size: 0.76rem;
+        gap: 0.28rem;
+        min-height: 1.35rem;
+        min-width: 0;
+        padding: 0;
+        text-align: left;
+      }
+
+      .tree-row__select:disabled {
         cursor: default;
       }
 
-      .tree-toggle,
+      .tree-toggle {
+        background: transparent;
+        border: 0;
+        color: var(--asha-color-muted);
+        cursor: pointer;
+        flex: 0 0 auto;
+        font: inherit;
+        font-size: 0.62rem;
+        height: 1.2rem;
+        padding: 0;
+        text-align: center;
+        width: 0.9rem;
+      }
+
+      .tree-toggle:disabled,
+      .tree-toggle--leaf {
+        cursor: default;
+        opacity: 0.45;
+      }
+
       .tree-icon {
         color: var(--asha-color-muted);
         flex: 0 0 auto;
@@ -1917,6 +1926,22 @@ export class StudioHierarchyPanelComponent {
   readonly draggingSceneObjectId = signal<SceneObjectId | null>(null);
   readonly dropTargetSceneObjectId = signal<SceneObjectId | null>(null);
 
+  hasChildren(entity: StudioEntityReadModel): boolean {
+    return hierarchyEntityHasChildren(this.store.workspace().entities, entity);
+  }
+
+  selectEntity(entity: StudioEntityReadModel): void {
+    if (!entity.selectable) return;
+    this.store.selectEntity(entity.id);
+  }
+
+  toggleEntityExpansion(event: Event, entity: StudioEntityReadModel): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.hasChildren(entity)) return;
+    this.store.setHierarchyEntityExpanded(entity.id, !entity.expanded);
+  }
+
   renameSelectedSceneObject(): void {
     const objectId = this.selectedSceneObjectId();
     if (objectId === null) {
@@ -1939,7 +1964,11 @@ export class StudioHierarchyPanelComponent {
   }
 
   startDrag(event: DragEvent, entity: StudioEntityReadModel): void {
-    if (entity.sceneObjectId === null) {
+    const target = event.target;
+    if (
+      entity.sceneObjectId === null
+      || (target instanceof Element && target.closest('.tree-toggle') !== null)
+    ) {
       event.preventDefault();
       return;
     }
