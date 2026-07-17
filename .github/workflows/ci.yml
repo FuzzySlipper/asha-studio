@@ -54,21 +54,9 @@ jobs:
         working-directory: asha-engine/ts
         run: pnpm install --frozen-lockfile
 
-      - name: Build ASHA engine TS packages used by Studio
+      - name: Build ASHA engine TypeScript workspace
         working-directory: asha-engine/ts
-        run: >
-          pnpm
-          --filter @asha/contracts
-          --filter @asha/runtime-session
-          --filter @asha/native-bridge
-          --filter @asha/runtime-bridge
-          --filter @asha/command-registry
-          --filter @asha/game-workspace
-          --filter @asha/catalog-core
-          --filter @asha/devtools
-          --filter @asha/editor-tools
-          --filter @asha/render-projection
-          run build
+        run: pnpm -r --if-present run build
 
       - name: Install ASHA Studio dependencies
         working-directory: asha-studio

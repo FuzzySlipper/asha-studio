@@ -7586,33 +7586,36 @@ export class StudioWorkspaceStore {
     }
 
     try {
-      materialPreview = bridge.readModelMaterialPreview(STUDIO_RUNTIME_MODEL_PREVIEW_REQUEST);
-      diagnostics.push(...materialPreview.diagnostics.map(entry => `material_preview: ${entry}`));
+      const preview = bridge.readModelMaterialPreview(STUDIO_RUNTIME_MODEL_PREVIEW_REQUEST);
+      materialPreview = preview;
+      diagnostics.push(...preview.diagnostics.map(entry => `material_preview: ${entry}`));
     } catch (error) {
       diagnostics.push(`material_preview: ${errorMessage(error)}`);
     }
 
     try {
-      voxelMesh = bridge.readVoxelMeshEvidence({ grid: 1, chunks: [] });
-      diagnostics.push(...voxelMesh.diagnostics.map(entry => `voxel_mesh: ${entry}`));
+      const mesh = bridge.readVoxelMeshEvidence({ grid: 1, chunks: [] });
+      voxelMesh = mesh;
+      diagnostics.push(...mesh.diagnostics.map(entry => `voxel_mesh: ${entry}`));
     } catch (error) {
       diagnostics.push(`voxel_mesh: ${errorMessage(error)}`);
     }
 
     if (camera !== null) {
       try {
-        voxelSelection = bridge.selectVoxel({
+        const selection = bridge.selectVoxel({
           camera: camera.camera,
           grid: 1,
           viewport: camera.viewport,
           screenPoint: { x: 0.5, y: 0.5, space: 'normalized_0_1' },
           maxDistance: 100,
         });
+        voxelSelection = selection;
         voxelPick = bridge.pickVoxel({
-          grid: voxelSelection.pickRay.grid,
-          origin: voxelSelection.pickRay.origin,
-          direction: voxelSelection.pickRay.direction,
-          maxDistance: voxelSelection.pickRay.maxDistance,
+          grid: selection.pickRay.grid,
+          origin: selection.pickRay.origin,
+          direction: selection.pickRay.direction,
+          maxDistance: selection.pickRay.maxDistance,
         });
       } catch (error) {
         diagnostics.push(`voxel_selection: ${errorMessage(error)}`);
