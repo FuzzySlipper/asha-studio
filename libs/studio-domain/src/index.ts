@@ -82,6 +82,8 @@ export type StudioRenderableKind = 'voxel_grid' | 'voxel_cell' | 'static_mesh' |
 export type StudioEntityKind =
   | StudioRenderableKind
   | 'empty_group'
+  | 'entity_instance'
+  | 'scene_bootstrap'
   | 'sprite'
   | 'session'
   | 'scene'
@@ -4998,6 +5000,14 @@ function kindForSceneObject(
   object: EditorSceneObjectSnapshot['objects'][number],
   renderable: StudioSceneRenderableReadModel | null,
 ): StudioEntityKind {
+  // Entity instances have an authored identity that is more useful in the
+  // hierarchy than the preview geometry used to visualize them.
+  if (object.kind === 'entityInstance') {
+    return 'entity_instance';
+  }
+  if (object.kind === 'bootstrap') {
+    return 'scene_bootstrap';
+  }
   if (renderable !== null) {
     return renderable.kind;
   }
@@ -5235,13 +5245,15 @@ export function validateSelectionCommandSync(input: {
       message: 'No selection.set_active_entity command result is recorded in the shared timeline.',
     }];
   }
-  const expectedRenderableId =
-    input.commandEntityId === null
-      ? null
-      : input.entityRenderableLinks?.[input.commandEntityId] ?? input.commandEntityId;
+  const hasExplicitRenderableLink = input.commandEntityId !== null
+    && Object.prototype.hasOwnProperty.call(input.entityRenderableLinks ?? {}, input.commandEntityId);
+  const expectedRenderableId = input.commandEntityId === null
+    ? null
+    : hasExplicitRenderableLink
+      ? input.entityRenderableLinks?.[input.commandEntityId] ?? null
+      : input.commandEntityId;
   if (
     input.commandEntityId === null
-    || input.viewportSelectedRenderableId === null
     || expectedRenderableId !== input.viewportSelectedRenderableId
     || !input.commandSelected
     || !input.selectableEntityIds.includes(input.commandEntityId)
@@ -5370,7 +5382,9 @@ function projectCanonicalSceneDocument(
     readonly renderableId: string;
   }[];
 } {
-  const renderableNodes = document.nodes.filter(node => node.kind.kind !== 'emptyGroup');
+  const renderableNodes = document.nodes.filter(
+    node => node.kind.kind !== 'emptyGroup' && node.kind.kind !== 'bootstrap',
+  );
   const renderables = renderableNodes.map((node): StudioSceneRenderableReadModel => {
     const transformContext = resolveStudioSceneNodeTransformContext(document, node.id);
     if (transformContext === null) {
@@ -6588,7 +6602,9 @@ export function applySelectedEntityReadModel(
     scene,
     readModel.sceneObjectSnapshot,
     readModel.entities,
-  );
+  ).map(entity => entity.id === entityId
+    ? { ...entity, selected: true, badge: 'selected' as const }
+    : entity);
   const sequenceIndex = readModel.timeline.length;
   const selectedEntity = entities.find(entity => entity.id === entityId);
   const selectedLabel = selectedEntity?.label ?? entityId;

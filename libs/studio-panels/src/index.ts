@@ -9,6 +9,7 @@ import type {
   StudioViewportToolMode,
 } from '@asha-studio/domain';
 import { StudioWorkspaceStore } from '@asha-studio/store';
+import type { SceneNodeRecord } from '@asha/contracts';
 import type { SceneObjectId } from '@asha/editor-tools';
 import {
   filteredHierarchyEntities,
@@ -2032,6 +2033,8 @@ export class StudioHierarchyPanelComponent {
       scene: '#',
       collection: 'A',
       empty_group: 'O',
+      entity_instance: 'E',
+      scene_bootstrap: 'B',
       sprite: 'I',
       voxel_grid: 'G',
       voxel_cell: 'V',
@@ -2049,7 +2052,7 @@ export class StudioHierarchyPanelComponent {
     <section class="inspector-panel" data-visual-id="studio-inspector-panel">
       <header class="inspector-header">
         <span class="panel-kicker">6 · Inspector</span>
-        <span class="inspector-context">voxel · preview-crate</span>
+        <span class="inspector-context">stored scene · Rust validated</span>
       </header>
 
       @if (store.selectedRenderable(); as renderable) {
@@ -2096,6 +2099,22 @@ export class StudioHierarchyPanelComponent {
               <dd>{{ renderable.materialRef ?? 'none' }}</dd>
             </dl>
           </section>
+
+          @if (selectedEntityInstance(); as instanceNode) {
+            <section class="field-section" data-inspector-section="entity-instance">
+              <h2>Entity Instance</h2>
+              <dl>
+                <dt>instance</dt>
+                <dd>{{ instanceNode.kind.instance.instanceId }}</dd>
+                <dt>reference</dt>
+                <dd>{{ entityReferenceLabel(instanceNode) }}</dd>
+                <dt>spawn marker</dt>
+                <dd>{{ instanceNode.kind.instance.spawnMarkerId ?? 'none' }}</dd>
+                <dt>placement</dt>
+                <dd>stored local transform · runtime seeds a fresh authority transform</dd>
+              </dl>
+            </section>
+          }
 
           <section class="field-section" data-inspector-section="asset-details">
             <h2>Asset Details</h2>
@@ -2271,8 +2290,45 @@ export class StudioHierarchyPanelComponent {
             </section>
           }
         </div>
+      } @else if (selectedSceneBootstrap(); as bootstrapNode) {
+        <div class="object-summary">
+          <span class="object-chip">B</span>
+          <div>
+            <strong>{{ bootstrapNode.label ?? 'Scene Bootstrap' }}</strong>
+            <span>scene-node:{{ bootstrapNode.id }}</span>
+          </div>
+        </div>
+        <div class="inspector-scroll">
+          <section class="field-section" data-inspector-section="scene-bootstrap">
+            <h2>Scene Bootstrap</h2>
+            <small>Stored generator and catalog inputs are resolved atomically by Rust when a fresh RuntimeSession starts.</small>
+            @if (bootstrapNode.kind.bindings.generator; as generator) {
+              <dl>
+                <dt>generator provider</dt>
+                <dd>{{ generator.providerId }}</dd>
+                <dt>preset</dt>
+                <dd>{{ generator.presetId }}</dd>
+                <dt>seed</dt>
+                <dd>{{ generator.seed }}</dd>
+              </dl>
+            } @else {
+              <p class="empty-state">No procedural generator binding.</p>
+            }
+            <h2>Catalog Bindings</h2>
+            @for (catalog of bootstrapNode.kind.bindings.catalogs; track catalog.bindingId) {
+              <dl data-bootstrap-catalog-binding>
+                <dt>{{ catalog.bindingId }}</dt>
+                <dd>{{ catalog.catalogId }}</dd>
+                <dt>source</dt>
+                <dd>{{ catalog.sourcePath }}</dd>
+              </dl>
+            } @empty {
+              <p class="empty-state">No catalog bindings.</p>
+            }
+          </section>
+        </div>
       } @else {
-        <p class="empty-state">No selected renderable.</p>
+        <p class="empty-state">Select a scene object to inspect its stored authoring data.</p>
       }
     </section>
   `,
@@ -2476,14 +2532,47 @@ export class StudioHierarchyPanelComponent {
 export class StudioInspectorPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
 
-  readonly selectedSceneTransform = computed(() => {
+  readonly selectedSceneNode = computed<SceneNodeRecord | null>(() => {
     const objectId = this.store.selectedEntity()?.sceneObjectId ?? null;
     if (objectId === null || !objectId.startsWith('scene-node:')) return null;
     const nodeId = Number.parseInt(objectId.slice('scene-node:'.length), 10);
     return this.store.workspace().flatSceneDocument.nodes.find(
       node => (node.id as number) === nodeId,
-    )?.transform ?? null;
+    ) ?? null;
   });
+
+  readonly selectedEntityInstance = computed<(SceneNodeRecord & {
+    readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'entityInstance' }>;
+  }) | null>(() => {
+    const node = this.selectedSceneNode();
+    return node?.kind.kind === 'entityInstance'
+      ? node as SceneNodeRecord & { readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'entityInstance' }> }
+      : null;
+  });
+
+  readonly selectedSceneBootstrap = computed<(SceneNodeRecord & {
+    readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'bootstrap' }>;
+  }) | null>(() => {
+    const node = this.selectedSceneNode();
+    return node?.kind.kind === 'bootstrap'
+      ? node as SceneNodeRecord & { readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'bootstrap' }> }
+      : null;
+  });
+
+  readonly selectedSceneTransform = computed(() => {
+    if (!this.store.selectedSceneObjectTransformEditable()) return null;
+    return this.selectedSceneNode()?.transform ?? null;
+  });
+
+  entityReferenceLabel(node: SceneNodeRecord & {
+    readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'entityInstance' }>;
+  }): string {
+    const reference = node.kind.instance.reference;
+    if (reference.kind === 'entityDefinition') {
+      return `EntityDefinition ${reference.stableId}`;
+    }
+    return `Prefab ${reference.prefabId}${reference.variantId === null ? '' : ` · variant ${reference.variantId}`}`;
+  }
 
   readonly selectedBoundsLabel = computed(() => {
     const renderable = this.store.selectedRenderable();

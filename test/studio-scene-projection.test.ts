@@ -3,11 +3,13 @@ import test from 'node:test';
 import { sceneId, sceneNodeId, type FlatSceneDocument } from '@asha/contracts';
 import {
   applyCanonicalSceneDocumentReadModel,
+  applySelectedEntityReadModel,
   applySceneObjectCommandReadModel,
   buildInitialWorkspaceReadModel,
   buildStudioViewportAdapterReadModel,
   createRotateSceneObjectRequest,
   createTranslateSceneObjectRequest,
+  validateSelectionCommandSync,
 } from '@asha-studio/domain';
 import { projectStudioAuthoredRenderableTransform } from '../libs/studio-viewport/src/authored-scene-projection.js';
 
@@ -60,6 +62,81 @@ function asymmetricParentChildScene(): FlatSceneDocument {
         kind: {
           kind: 'staticMesh',
           asset: { id: 'mesh.child', version: { req: 'any' }, hash: null },
+        },
+      },
+    ],
+  };
+}
+
+function canonicalEntityInstanceScene(): FlatSceneDocument {
+  const identity = {
+    translation: [0, 0, 0] as const,
+    rotation: [0, 0, 0, 1] as const,
+    scale: [1, 1, 1] as const,
+  };
+  return {
+    schemaVersion: 3,
+    id: sceneId(5904),
+    metadata: { name: 'Generated tunnel room', authoringFormatVersion: 3 },
+    dependencies: [],
+    nodes: [
+      {
+        id: sceneNodeId(1),
+        parent: null,
+        childOrder: 0,
+        label: 'Runtime Inputs',
+        tags: [],
+        transform: identity,
+        kind: {
+          kind: 'bootstrap',
+          bindings: {
+            generator: { providerId: 'asha.generated-tunnel', presetId: 'tiny-enclosed', seed: 17 },
+            catalogs: [
+              { bindingId: 'materials', catalogId: 'asha.demo.materials.v1', sourcePath: 'catalogs/materials.json' },
+              { bindingId: 'spawns', catalogId: 'asha.demo.spawns.v1', sourcePath: 'catalogs/spawns.json' },
+            ],
+          },
+        },
+      },
+      {
+        id: sceneNodeId(10),
+        parent: null,
+        childOrder: 1,
+        label: 'Actors',
+        tags: [],
+        transform: { ...identity, translation: [10, 0, 0] },
+        kind: { kind: 'emptyGroup' },
+      },
+      {
+        id: sceneNodeId(101),
+        parent: sceneNodeId(10),
+        childOrder: 0,
+        label: 'Player Start',
+        tags: [],
+        transform: { ...identity, translation: [1, 1.62, 2] },
+        kind: {
+          kind: 'entityInstance',
+          instance: {
+            instanceId: 'player.start',
+            reference: { kind: 'entityDefinition', stableId: 'actor/demo-player' },
+            spawnMarkerId: 'spawn.player.start',
+          },
+        },
+      },
+      {
+        id: sceneNodeId(202),
+        parent: sceneNodeId(10),
+        childOrder: 1,
+        label: 'Tunnel Enemy',
+        tags: [],
+        transform: { ...identity, translation: [4, 1.2, -6] },
+        kind: {
+          kind: 'entityInstance',
+          instance: {
+            instanceId: 'enemy.primary',
+            reference: { kind: 'entityDefinition', stableId: 'actor/generated-tunnel-enemy' },
+            spawnMarkerId: 'spawn.enemy.primary',
+          },
         },
       },
     ],
@@ -142,5 +219,65 @@ test('authored parent rotation and scale survive editing, serialization, and vis
       buildStudioViewportAdapterReadModel({ scene: reopened.scene }).renderables[0]!,
     ),
     reopenedRenderable.worldTransform,
+  );
+});
+
+test('canonical entity instances and bootstrap bindings remain ordinary editable scene data', () => {
+  const opened = applyCanonicalSceneDocumentReadModel(
+    buildInitialWorkspaceReadModel(),
+    canonicalEntityInstanceScene(),
+    '/tmp/generated-tunnel-room.scene.json',
+  );
+  assert.deepEqual(opened.scene.renderables.map(renderable => renderable.label), [
+    'Player Start',
+    'Tunnel Enemy',
+  ]);
+  assert.deepEqual(
+    opened.entities
+      .filter(entity => entity.sceneObjectId !== null)
+      .map(entity => [entity.label, entity.kind]),
+    [
+      ['Runtime Inputs', 'scene_bootstrap'],
+      ['Actors', 'empty_group'],
+      ['Player Start', 'entity_instance'],
+      ['Tunnel Enemy', 'entity_instance'],
+    ],
+  );
+
+  const bootstrap = opened.entities.find(entity => entity.kind === 'scene_bootstrap');
+  assert.ok(bootstrap);
+  const bootstrapSelected = applySelectedEntityReadModel(opened, bootstrap.id);
+  assert.equal(bootstrapSelected.selectedEntityId, bootstrap.id);
+  assert.equal(bootstrapSelected.scene.selectedRenderableId, null);
+  assert.equal(bootstrapSelected.entities.find(entity => entity.id === bootstrap.id)?.selected, true);
+  assert.deepEqual(validateSelectionCommandSync({
+    commandPresent: true,
+    commandEntityId: bootstrap.id,
+    commandSelected: true,
+    viewportSelectedRenderableId: null,
+    selectableEntityIds: bootstrapSelected.entities.filter(entity => entity.selectable).map(entity => entity.id),
+    entityRenderableLinks: Object.fromEntries(
+      bootstrapSelected.entities.map(entity => [entity.id, entity.renderableId]),
+    ),
+  }), []);
+
+  const player = opened.entities.find(entity => entity.label === 'Player Start');
+  assert.ok(player?.sceneObjectId);
+  const edited = applySceneObjectCommandReadModel(
+    opened,
+    createTranslateSceneObjectRequest(opened, player.sceneObjectId, [2, 0, 0]),
+  );
+  assert.equal(edited.ok, true);
+  const saved = JSON.stringify(edited.workspace.flatSceneDocument);
+  const reopened = applyCanonicalSceneDocumentReadModel(
+    buildInitialWorkspaceReadModel(),
+    JSON.parse(saved) as FlatSceneDocument,
+    '/tmp/generated-tunnel-room.scene.json',
+  );
+  const reopenedPlayer = reopened.flatSceneDocument.nodes.find(node => node.id === sceneNodeId(101));
+  assert.deepEqual(reopenedPlayer?.transform.translation, [3, 1.62, 2]);
+  assert.equal(
+    reopened.flatSceneDocument.nodes.find(node => node.kind.kind === 'bootstrap')?.kind.kind,
+    'bootstrap',
   );
 });
