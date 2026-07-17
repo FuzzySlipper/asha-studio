@@ -1283,7 +1283,11 @@ type ViewportToolbarTool = {
         </span>
         <span data-toolbar-readout="camera-mode">persp</span>
         <span data-toolbar-readout="lens">{{ store.viewportAdapter().camera.fovDegrees }}deg</span>
-        <span data-toolbar-readout="grid">grid {{ store.viewportAdapter().renderSettings.showGrid ? 'on' : 'off' }}</span>
+        <span data-toolbar-readout="grid">
+          grid {{ store.effectiveSettings().grid.visible ? 'on' : 'off' }}
+          · {{ store.effectiveSettings().grid.grid.spacing[0] }}m
+          · {{ store.effectiveSettings().grid.snapAnchor === 'cellCenter' ? 'cell center' : 'boundary' }}
+        </span>
         <span data-toolbar-readout="gizmos">gizmos ref</span>
         <span data-toolbar-readout="shading">
           shading: {{ store.viewportAdapter().renderSettings.wireframeEnabled ? 'wire' : 'solid' }}

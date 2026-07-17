@@ -34,6 +34,7 @@ import {
   StudioPreferencesStore,
   StudioWorkspaceStore,
 } from '@asha-studio/store';
+import { applyStudioTranslationGridSnap } from '../libs/studio-viewport/src/grid-snapping.js';
 
 const repoRoot = process.cwd();
 const sourceTransform = {
@@ -102,6 +103,8 @@ test('Studio gizmo path previews per frame and settles through one revision-boun
   );
 
   assert.equal(viewportSource.includes('requestAnimationFrame'), true);
+  assert.equal(viewportSource.includes('viewport.setGrid(gridDescriptor.visible ? gridDescriptor : null)'), true);
+  assert.equal(viewportSource.includes('editor-grid-x:'), false);
   assert.equal(viewportSource.includes('previewSelectedSceneObjectTransform'), true);
   assert.equal(viewportSource.includes('commitSelectedSceneObjectTransform'), true);
   assert.equal(viewportSource.includes('totalDeltaX / 160'), false);
@@ -114,6 +117,54 @@ test('Studio gizmo path previews per frame and settles through one revision-boun
   assert.equal(panelSource.includes("id: 'scale_object'"), true);
   assert.equal(panelSource.includes('data-transform-orientation="local"'), true);
   assert.equal(panelSource.includes('data-transform-snapping'), true);
+});
+
+test('translation snapping shares project origin spacing and boundary or cell-center semantics', () => {
+  const candidate = {
+    kind: 'transform_manipulator_candidate.v0' as const,
+    diagnostics: [],
+    previewOnly: true as const,
+    revision: 'scene-revision-grid',
+    transform: {
+      ...sourceTransform,
+      translation: [-2.7, 1.1, 4.4] as const,
+    },
+  };
+  const descriptor = {
+    visible: true,
+    grid: {
+      coordinateSystem: 'rightHandedYUp' as const,
+      origin: [0.5, -0.5, 1] as const,
+      spacing: [2, 0.5, 3] as const,
+    },
+    plane: 'xz' as const,
+    snapAnchor: 'boundary' as const,
+    style: {
+      minorColor: [0.1, 0.1, 0.1, 1] as const,
+      majorColor: [0.2, 0.2, 0.2, 1] as const,
+      xAxisColor: [1, 0, 0, 1] as const,
+      yAxisColor: [0, 1, 0, 1] as const,
+      zAxisColor: [0, 0, 1, 1] as const,
+      majorLineEvery: 4,
+      opacity: 1,
+      fadeStart: 12,
+      fadeEnd: 64,
+    },
+  };
+  assert.deepEqual(
+    applyStudioTranslationGridSnap(candidate, descriptor, true).transform.translation,
+    [-3.5, 1, 4],
+  );
+  assert.deepEqual(
+    applyStudioTranslationGridSnap(candidate, { ...descriptor, snapAnchor: 'cellCenter' }, true).transform.translation,
+    [-2.5, 1.25, 5.5],
+  );
+  assert.deepEqual(
+    applyStudioTranslationGridSnap(candidate, descriptor, false).transform.translation,
+    candidate.transform.translation,
+  );
+  const fine = applyStudioTranslationGridSnap(candidate, descriptor, true, true).transform.translation;
+  assert.deepEqual(fine.map(value => Number(value.toFixed(6))), [-2.7, 1.1, 4.3]);
 });
 
 interface MutableSignalForTest<T> {

@@ -54,6 +54,7 @@ import {
   StudioWorkspaceStore,
   type StudioWorkspaceProjectionDelivery,
 } from '@asha-studio/store';
+import { applyStudioTranslationGridSnap } from './grid-snapping.js';
 import { resolveStudioViewportPickRoute } from './viewport-pick-routing.js';
 
 export {
@@ -61,6 +62,8 @@ export {
   type StudioRuntimeViewportPickAnchor,
   type StudioViewportPickRoute,
 } from './viewport-pick-routing.js';
+
+export { applyStudioTranslationGridSnap } from './grid-snapping.js';
 
 type StudioRenderColor = readonly [number, number, number];
 
@@ -553,25 +556,6 @@ function buildViewportOverlayFrame(
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
   let handle = 1;
-  if (adapter.renderSettings.showGrid) {
-    for (let index = 0; index <= 16; index += 1) {
-      const offset = -2 + index * 0.25;
-      ops.push({
-        op: 'create',
-        handle: renderHandle(handle),
-        parent: null,
-        node: createDebugNode(`editor-grid-x:${index}`, [0, -0.04, offset], [4, 0.008, 0.008], [0.035, 0.098, 0.129, 0.72]),
-      });
-      handle += 1;
-      ops.push({
-        op: 'create',
-        handle: renderHandle(handle),
-        parent: null,
-        node: createDebugNode(`editor-grid-z:${index}`, [offset, -0.04, 0], [0.008, 0.008, 4], [0.035, 0.098, 0.129, 0.72]),
-      });
-      handle += 1;
-    }
-  }
   const selected = adapter.renderables.find(renderable => renderable.selected && renderable.visible);
   if (selected !== undefined) {
     const transform = renderableTransform(selected);
@@ -1110,6 +1094,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private renderedRuntimeKey: string | null = null;
   private renderedAuthoringProjectionKey: string | null = null;
   private renderedOverlayKey: string | null = null;
+  private renderedGridKey: string | null = null;
   private authoredBaseHandles: readonly RenderHandle[] = [];
   private readonly authoredVoxelPickIndex = new AuthoredVoxelProjectionPickIndex();
   private debugPick: AshaRendererEditorViewportPickHint | null = null;
@@ -1272,6 +1257,19 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
         ? buildEditorViewportCamera(adapter)
         : buildRuntimeViewportCamera(runtimeCamera),
     );
+    const gridDescriptor = this.store.effectiveSettings().grid;
+    const gridKey = JSON.stringify(gridDescriptor);
+    if (gridKey !== this.renderedGridKey) {
+      const gridReceipt = viewport.setGrid(gridDescriptor.visible ? gridDescriptor : null);
+      if (!gridReceipt.applied) {
+        this.viewportMountDiagnostic.set(
+          gridReceipt.diagnostics.at(0)?.message ?? 'Engine renderer host rejected the project grid descriptor.',
+        );
+      } else {
+        this.viewportMountDiagnostic.set(null);
+        this.renderedGridKey = gridKey;
+      }
+    }
     canvas.style.cursor = cursorForTool(
       adapter.tool.activeTool,
       this.dragState !== null || this.transformDragState !== null,
@@ -1525,13 +1523,22 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       snapping: {
         ...DEFAULT_TRANSFORM_MANIPULATOR_SNAPPING,
         enabled: this.store.transformManipulatorSnapping(),
+        translation: this.store.effectiveSettings().grid.grid.spacing[0],
+        rotationDegrees: this.store.effectiveSettings().rotationSnapDegrees,
+        scale: this.store.effectiveSettings().scaleSnapIncrement,
       },
       source: target.transform,
     });
     this.transformDragState = {
       pointerId: event.pointerId,
       drag,
-      candidate: updateTransformManipulatorDrag(drag, manipulatorCamera(viewport), this.pointerPoint(event)),
+      candidate: {
+        kind: 'transform_manipulator_candidate.v0',
+        diagnostics: [],
+        previewOnly: true,
+        revision: drag.revision,
+        transform: drag.source,
+      },
     };
     this.transformHoveredHandle = handle;
     canvas.setPointerCapture(event.pointerId);
@@ -1641,12 +1648,23 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const pending = this.pendingTransformPointer;
     this.pendingTransformPointer = null;
     if (viewport === null || dragState === null || pending === null) return;
-    const candidate = updateTransformManipulatorDrag(
+    let candidate = updateTransformManipulatorDrag(
       dragState.drag,
       manipulatorCamera(viewport),
       pending.point,
-      { fine: pending.fine, snapping: pending.snapping },
+      {
+        fine: pending.fine,
+        snapping: dragState.drag.handle.mode === 'translate' ? false : pending.snapping,
+      },
     );
+    if (dragState.drag.handle.mode === 'translate' && pending.snapping) {
+      candidate = applyStudioTranslationGridSnap(
+        candidate,
+        this.store.effectiveSettings().grid,
+        true,
+        pending.fine,
+      );
+    }
     if (!this.applyTransformPreview(candidate)) this.cancelTransformDrag();
   }
 

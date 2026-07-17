@@ -24,6 +24,21 @@ ground plane is XZ, and inspector X/Y/Z values are the exact stored values.
 Camera orbit, picking, light direction, transform gizmos, voxel cells, and
 scene-node transforms do not perform a renderer-only axis swap.
 
+The Scene View grid is the engine renderer host's procedural grid, not Studio
+debug geometry. Its world-space origin and spacing remain fixed while the
+renderer changes extent and fade for the current camera. The committed project
+settings supply plane, origin, per-axis spacing, and boundary-versus-cell-center
+snap semantics; host-user settings supply only visibility and presentation.
+Translation preview uses that exact origin and spacing for positive and negative
+coordinates. Rotation and scale retain separate committed increments. Holding
+Ctrl temporarily inverts Snap and Shift requests fine movement; all drag frames
+remain renderer-local and pointer release still sends one Rust settlement.
+
+Voxel authoring uses the same boundary/center vocabulary in asset-local space:
+integer coordinates name cell extents and the selection overlay is centered at
+coordinate plus one half cell. Moving the owning scene transform moves both the
+projected voxel asset and its local cell overlay without rewriting voxel data.
+
 New Studio scenes carry the inspectable
 `asha-studio:coordinate-system:right-handed-y-up.v1` root tag. New voxel assets
 record `asha-studio/y-up.v1` as their source tool in addition to the engine's

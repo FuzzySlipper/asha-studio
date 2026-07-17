@@ -9582,6 +9582,43 @@ export class StudioWorkspaceStore {
     this.projectSettingsDirtyState.set(true);
   }
 
+  setProjectGridSnapAnchor(snapAnchor: 'boundary' | 'cellCenter'): void {
+    if (!this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    this.projectSettingsState.set({
+      ...current,
+      spatialGrid: { ...current.spatialGrid, snapAnchor },
+    });
+    this.projectSettingsDirtyState.set(true);
+  }
+
+  setProjectRotationSnap(value: number): void {
+    if (!Number.isFinite(value) || value <= 0 || !this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    this.projectSettingsState.set({
+      ...current,
+      transformSnapping: { ...current.transformSnapping, rotationDegrees: value },
+    });
+    this.projectSettingsDirtyState.set(true);
+  }
+
+  setProjectScaleSnap(value: number): void {
+    if (!Number.isFinite(value) || value <= 0 || !this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    this.projectSettingsState.set({
+      ...current,
+      transformSnapping: { ...current.transformSnapping, scaleIncrement: value },
+    });
+    this.projectSettingsDirtyState.set(true);
+  }
+
+  restoreProjectSpatialDefaults(): void {
+    if (!this.settingsWritesEnabledState()) return;
+    const current = this.projectSettingsState();
+    this.projectSettingsState.set(buildDefaultStudioProjectSettings(current.project));
+    this.projectSettingsDirtyState.set(true);
+  }
+
   async saveProjectSettings(): Promise<void> {
     const workspace = this.gameWorkspace();
     if (workspace === null || !this.settingsWritesEnabledState()) {
@@ -9626,6 +9663,31 @@ export class StudioWorkspaceStore {
         [key]: [...rgb, current.sceneView[key][3]],
       },
     }));
+  }
+
+  setGridPresentationNumber(
+    key: 'majorLineEvery' | 'opacity' | 'fadeStart' | 'fadeEnd',
+    value: number,
+  ): void {
+    if (!Number.isFinite(value)) return;
+    if (key === 'majorLineEvery' && (!Number.isSafeInteger(value) || value < 1)) return;
+    if (key === 'opacity' && (value < 0 || value > 1)) return;
+    if (key === 'fadeStart' && (value < 0 || value >= this.hostUserSettingsState().sceneView.fadeEnd)) return;
+    if (key === 'fadeEnd' && value <= this.hostUserSettingsState().sceneView.fadeStart) return;
+    this.updateHostUserSettings(current => ({
+      ...current,
+      sceneView: { ...current.sceneView, [key]: value },
+    }));
+  }
+
+  restoreSceneViewDefaults(): void {
+    const current = this.hostUserSettingsState();
+    const defaults = buildDefaultStudioHostUserSettings(current.projectKey);
+    this.updateHostUserSettings(previous => ({
+      ...previous,
+      sceneView: defaults.sceneView,
+    }));
+    this.preferencesStore.setRenderSetting('showGrid', defaults.sceneView.gridVisible);
   }
 
   setCameraMoveSpeed(value: number): void {

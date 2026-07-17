@@ -24,6 +24,10 @@ export interface StudioProjectSettingsArtifact {
     readonly plane: StudioSceneViewPlane;
     readonly snapAnchor: SpatialGridSnapAnchor;
   };
+  readonly transformSnapping: {
+    readonly rotationDegrees: number;
+    readonly scaleIncrement: number;
+  };
 }
 
 export interface StudioKeyboardBindings {
@@ -73,6 +77,8 @@ export interface StudioEffectiveSettings {
   readonly cameraMoveSpeed: number;
   readonly cameraBoostMultiplier: number;
   readonly invertLookY: boolean;
+  readonly rotationSnapDegrees: number;
+  readonly scaleSnapIncrement: number;
   readonly keyboard: StudioKeyboardBindings;
   readonly sourcePrecedence: readonly ['session', 'host-user', 'project', 'engine'];
 }
@@ -120,6 +126,10 @@ export function buildDefaultStudioProjectSettings(options: {
       spacing: [...DEFAULT_EDITOR_GRID_DESCRIPTOR.grid.spacing],
       plane: DEFAULT_EDITOR_GRID_DESCRIPTOR.plane,
       snapAnchor: DEFAULT_EDITOR_GRID_DESCRIPTOR.snapAnchor,
+    },
+    transformSnapping: {
+      rotationDegrees: 15,
+      scaleIncrement: 0.1,
     },
   };
 }
@@ -199,6 +209,8 @@ export function resolveStudioEffectiveSettings(options: {
     cameraMoveSpeed,
     cameraBoostMultiplier,
     invertLookY: session.invertLookY ?? hostUser.sceneView.invertLookY,
+    rotationSnapDegrees: project.transformSnapping.rotationDegrees,
+    scaleSnapIncrement: project.transformSnapping.scaleIncrement,
     keyboard: { ...hostUser.keyboard },
     sourcePrecedence: ['session', 'host-user', 'project', 'engine'],
   };
@@ -257,6 +269,12 @@ export function validateStudioProjectSettings(
     plane: artifact.spatialGrid.plane,
     snapAnchor: artifact.spatialGrid.snapAnchor,
   });
+  if (!Number.isFinite(artifact.transformSnapping.rotationDegrees)
+    || artifact.transformSnapping.rotationDegrees <= 0
+    || !Number.isFinite(artifact.transformSnapping.scaleIncrement)
+    || artifact.transformSnapping.scaleIncrement <= 0) {
+    throw new Error('project transform snap increments must be finite and positive');
+  }
   return artifact;
 }
 

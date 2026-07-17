@@ -360,9 +360,32 @@ export * from './host-file-dialog-focus';
                         <option value="yz">YZ</option>
                       </select>
                     </label>
+                    <label>
+                      <span>Translation snap</span>
+                      <select [disabled]="!store.projectSettingsReadout().writesEnabled" [value]="store.projectSettings().spatialGrid.snapAnchor"
+                        (change)="store.setProjectGridSnapAnchor($any($event.target).value)">
+                        <option value="boundary">Grid boundary / intersection</option>
+                        <option value="cellCenter">Cell center</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Rotation increment (degrees)</span>
+                      <input type="number" min="0.1" step="1" [disabled]="!store.projectSettingsReadout().writesEnabled"
+                        [value]="store.projectSettings().transformSnapping.rotationDegrees"
+                        (change)="store.setProjectRotationSnap($any($event.target).valueAsNumber)" />
+                    </label>
+                    <label>
+                      <span>Scale increment</span>
+                      <input type="number" min="0.001" step="0.05" [disabled]="!store.projectSettingsReadout().writesEnabled"
+                        [value]="store.projectSettings().transformSnapping.scaleIncrement"
+                        (change)="store.setProjectScaleSnap($any($event.target).valueAsNumber)" />
+                    </label>
                   </div>
-                  <button type="button" [disabled]="!store.projectSettingsReadout().writesEnabled || !store.projectSettingsReadout().projectDirty"
-                    (click)="store.saveProjectSettings()">Save Project Settings</button>
+                  <div class="options-panel__actions">
+                    <button type="button" [disabled]="!store.projectSettingsReadout().writesEnabled" (click)="store.restoreProjectSpatialDefaults()">Restore Project Defaults</button>
+                    <button type="button" [disabled]="!store.projectSettingsReadout().writesEnabled || !store.projectSettingsReadout().projectDirty"
+                      (click)="store.saveProjectSettings()">Save Project Settings</button>
+                  </div>
                 </fieldset>
 
                 <fieldset>
@@ -384,6 +407,28 @@ export * from './host-file-dialog-focus';
                   </div>
                   <div class="options-grid">
                     <label>
+                      <span>Major line every</span>
+                      <input type="number" min="1" step="1" [value]="store.hostUserSettings().sceneView.majorLineEvery"
+                        (change)="store.setGridPresentationNumber('majorLineEvery', $any($event.target).valueAsNumber)" />
+                    </label>
+                    <label>
+                      <span>Opacity</span>
+                      <input type="number" min="0" max="1" step="0.05" [value]="store.hostUserSettings().sceneView.opacity"
+                        (change)="store.setGridPresentationNumber('opacity', $any($event.target).valueAsNumber)" />
+                    </label>
+                    <label>
+                      <span>Fade start</span>
+                      <input type="number" min="0" step="1" [value]="store.hostUserSettings().sceneView.fadeStart"
+                        (change)="store.setGridPresentationNumber('fadeStart', $any($event.target).valueAsNumber)" />
+                    </label>
+                    <label>
+                      <span>Fade end</span>
+                      <input type="number" min="0.1" step="1" [value]="store.hostUserSettings().sceneView.fadeEnd"
+                        (change)="store.setGridPresentationNumber('fadeEnd', $any($event.target).valueAsNumber)" />
+                    </label>
+                  </div>
+                  <div class="options-grid">
+                    <label>
                       <span>Camera speed</span>
                       <input type="number" min="0.1" step="0.5" [value]="store.effectiveSettings().cameraMoveSpeed"
                         (change)="store.setCameraMoveSpeed($any($event.target).valueAsNumber)" />
@@ -399,6 +444,9 @@ export * from './host-file-dialog-focus';
                       (change)="store.setInvertLookY($any($event.target).checked)" />
                     Invert orbit look Y
                   </label>
+                  <div class="options-panel__actions">
+                    <button type="button" (click)="store.restoreSceneViewDefaults()">Restore Scene View Defaults</button>
+                  </div>
                 </fieldset>
                 <p class="options-panel__status">{{ store.projectSettingsReadout().message }}</p>
               </div>
@@ -969,6 +1017,12 @@ export * from './host-file-dialog-focus';
         align-items: center;
         display: flex;
         gap: 0.45rem;
+      }
+
+      .options-panel__actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
       }
 
       .host-file-dialog {
