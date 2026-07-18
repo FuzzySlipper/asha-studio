@@ -110,6 +110,8 @@ import {
   type ModelMaterialPreviewRequest,
   type ModelMaterialPreviewSnapshot,
   type PickResult,
+  type ProjectConfigurationValue,
+  type ProjectContentCodecResult,
   type EntityId,
   type FlatSceneDocument,
   type RenderHandle,
@@ -206,6 +208,32 @@ import {
   type StudioHostFilePromotion,
   type StudioHostFileStage,
 } from './workspace-authoring-save.js';
+import {
+  buildStudioProjectContentBrowserReadModel,
+  findStudioProjectContentEntryByReference,
+  inspectStudioProjectContentFile,
+  updateProjectConfigurationField,
+  type StudioProjectContentBrowserReadModel,
+  type StudioProjectContentEditableFieldReadModel,
+  type StudioProjectContentFileDescriptor,
+  type StudioProjectContentLoadedFile,
+  type StudioProjectContentNavigationKind,
+} from './project-content-browser.js';
+
+export {
+  buildStudioProjectContentBrowserReadModel,
+  findStudioProjectContentEntryByReference,
+  inspectStudioProjectContentFile,
+  projectContentNavigationKey,
+  updateProjectConfigurationField,
+  type StudioProjectContentBrowserReadModel,
+  type StudioProjectContentCategoryId,
+  type StudioProjectContentEditableFieldReadModel,
+  type StudioProjectContentEntryReadModel,
+  type StudioProjectContentFileDescriptor,
+  type StudioProjectContentLoadedFile,
+  type StudioProjectContentNavigationKind,
+} from './project-content-browser.js';
 
 export {
   persistStudioWorkspaceAuthoringCandidate,
@@ -3225,6 +3253,52 @@ function isCanonicalProjectFileSha256(value: string): boolean {
   return /^sha256:[0-9a-f]{64}$/.test(value);
 }
 
+function projectConfigurationValueFromStudioField(
+  field: StudioProjectContentEditableFieldReadModel,
+  rawValue: string | number | boolean,
+): ProjectConfigurationValue | null {
+  switch (field.valueKind) {
+    case 'boolean': {
+      if (typeof rawValue === 'boolean') return { kind: 'boolean', value: rawValue };
+      if (rawValue === 'true') return { kind: 'boolean', value: true };
+      if (rawValue === 'false') return { kind: 'boolean', value: false };
+      return null;
+    }
+    case 'integer': {
+      const value = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+      if (!Number.isSafeInteger(value)) return null;
+      if (field.integerMin !== null && value < field.integerMin) return null;
+      if (field.integerMax !== null && value > field.integerMax) return null;
+      return { kind: 'integer', value };
+    }
+    case 'number': {
+      const value = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+      if (!Number.isFinite(value)) return null;
+      if (field.numberMin !== null && value < field.numberMin) return null;
+      if (field.numberMax !== null && value > field.numberMax) return null;
+      return { kind: 'number', value };
+    }
+    case 'string':
+      return typeof rawValue === 'string' && (!field.required || rawValue.trim().length > 0)
+        ? { kind: 'string', value: rawValue }
+        : null;
+    case 'reference': {
+      if (
+        typeof rawValue !== 'string'
+        || rawValue.trim().length === 0
+        || field.referenceKind === null
+      ) {
+        return null;
+      }
+      return {
+        kind: 'reference',
+        referenceKind: field.referenceKind,
+        targetId: rawValue.trim(),
+      };
+    }
+  }
+}
+
 function parentProjectDir(path: string): string {
   const normalized = normalizeProjectFilePath(path).replace(/\/$/, '');
   const slashIndex = normalized.lastIndexOf('/');
@@ -3602,6 +3676,14 @@ export class StudioWorkspaceStore {
   private readonly workspaceAuthoringBridgeState = signal<NativeBrowserHostRuntimeBridge | null>(null);
   private readonly workspaceAuthoringFacadeState = signal<WorkspaceAuthoringFacade | null>(null);
   private readonly workspaceAuthoringStateSummaryState = signal<WorkspaceAuthoringStateSummary | null>(null);
+  private readonly projectContentDescriptorsState = signal<readonly StudioProjectContentFileDescriptor[]>([]);
+  private readonly projectContentFilesState = signal<readonly StudioProjectContentLoadedFile[]>([]);
+  private readonly projectContentCodecState = signal<ProjectContentCodecResult | null>(null);
+  private readonly projectContentStatusState = signal<StudioProjectContentBrowserReadModel['status']>('closed');
+  private readonly projectContentMessageState = signal('Open an ASHA project to inspect stored content.');
+  private readonly selectedProjectContentEntryIdState = signal<string | null>(null);
+  private readonly dirtyProjectContentDocumentIdsState = signal<readonly string[]>([]);
+  private readonly staleProjectContentSourcePathState = signal<string | null>(null);
   private readonly workspaceAuthoringProjectionState = signal<StudioWorkspaceProjectionDelivery | null>(null);
   private workspaceAuthoringProjectionAcknowledgedHash: string | null = null;
   private readonly workspaceAuthoringProjectionTimings = new Map<string, StudioWorkspaceProjectionTiming>();
@@ -3894,6 +3976,20 @@ export class StudioWorkspaceStore {
     const overview = this.gameWorkspaceState();
     return overview.ok ? overview.workspace : null;
   });
+  readonly projectContentBrowser = computed<StudioProjectContentBrowserReadModel>(() =>
+    buildStudioProjectContentBrowserReadModel({
+      status: this.projectContentStatusState(),
+      message: this.projectContentMessageState(),
+      projectRoot: this.gameWorkspace()?.workspaceRoot ?? null,
+      files: this.projectContentFilesState(),
+      codec: this.projectContentCodecState(),
+      selectedEntryId: this.selectedProjectContentEntryIdState(),
+      dirtyDocumentIds: this.dirtyProjectContentDocumentIdsState(),
+      staleSourcePath: this.staleProjectContentSourcePathState(),
+      activeScenePath: this.activeSceneFilePathState(),
+      activeScene: this.workspaceState().flatSceneDocument,
+    }),
+  );
   readonly runtimeSessions = computed(() => {
     const workspace = this.gameWorkspace();
     return workspace === null
@@ -5690,6 +5786,33 @@ export class StudioWorkspaceStore {
     this.bottomPanelTabState.set(tab);
   }
 
+  selectProjectContentEntry(entryId: string): void {
+    const browser = this.projectContentBrowser();
+    const exists = browser.categories
+      .flatMap(category => category.entries)
+      .some(entry => entry.entryId === entryId);
+    if (!exists) return;
+    this.selectedProjectContentEntryIdState.set(entryId);
+  }
+
+  navigateProjectContentReference(kind: StudioProjectContentNavigationKind, id: string): void {
+    const entry = findStudioProjectContentEntryByReference(this.projectContentBrowser(), kind, id);
+    if (entry === null) {
+      this.menuMessageState.set(`No manifest-discovered stored source resolves ${kind} ${id}.`);
+      return;
+    }
+    this.selectedProjectContentEntryIdState.set(entry.entryId);
+    this.bottomPanelTabState.set('project-content');
+    this.menuMessageState.set(`Opened stored source ${entry.sourcePath}.`);
+  }
+
+  async openProjectContentScene(path: string): Promise<void> {
+    await this.openSceneFileFromProject(path);
+    if (this.unsavedScenePromptState() !== null) {
+      this.activeMenuState.set('file');
+    }
+  }
+
   setVoxelConversionSourceAsset(assetId: string): void {
     const selectedSourceAssetId = assetId.length === 0 ? null : assetId;
     this.voxelConversionDraftState.update(draft => ({ ...draft, selectedSourceAssetId }));
@@ -6873,14 +6996,14 @@ export class StudioWorkspaceStore {
           currentAuthority: () => this.workspaceAuthoringFacadeState(),
           hostPath: hostAssetPath,
           canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
-          stage: () => this.stageHostVoxelAsset(
+          stage: () => this.stageHostAuthoringFile(
             hostAssetPath,
             saveReadout.serializedAsset ?? '',
             expectedHostHash,
           ),
-          promote: token => this.promoteHostVoxelAsset(token),
-          finalize: token => this.finalizeHostVoxelAssetStage(token),
-          discard: token => this.discardHostVoxelAssetStage(token),
+          promote: token => this.promoteHostAuthoringFile(token),
+          finalize: token => this.finalizeHostAuthoringFileStage(token),
+          discard: token => this.discardHostAuthoringFileStage(token),
         });
         this.activeVoxelAssetFilePathState.set(stored.path);
         this.activeVoxelAssetFileHashState.set(stored.sha256);
@@ -7070,7 +7193,7 @@ export class StudioWorkspaceStore {
     });
   }
 
-  private async stageHostVoxelAsset(
+  private async stageHostAuthoringFile(
     path: string,
     canonicalJson: string,
     expectedHash?: string | null,
@@ -7106,7 +7229,7 @@ export class StudioWorkspaceStore {
     };
   }
 
-  private async promoteHostVoxelAsset(token: string): Promise<StudioHostFilePromotion> {
+  private async promoteHostAuthoringFile(token: string): Promise<StudioHostFilePromotion> {
     const response = await fetch(`${projectFileApiBase()}/api/host-files/promote`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -7125,7 +7248,7 @@ export class StudioWorkspaceStore {
     return { path: normalizeProjectFilePath(payload.path), sha256: payload.sha256 };
   }
 
-  private async finalizeHostVoxelAssetStage(token: string): Promise<void> {
+  private async finalizeHostAuthoringFileStage(token: string): Promise<void> {
     const response = await fetch(`${projectFileApiBase()}/api/host-files/finalize`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -7141,7 +7264,7 @@ export class StudioWorkspaceStore {
     }
   }
 
-  private async discardHostVoxelAssetStage(token: string): Promise<void> {
+  private async discardHostAuthoringFileStage(token: string): Promise<void> {
     const response = await fetch(`${projectFileApiBase()}/api/host-files/stage`, {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
@@ -7911,6 +8034,17 @@ export class StudioWorkspaceStore {
         project,
         projectBundle,
       });
+      const sceneCodecBridge = await this.sceneDocumentCodecBridge();
+      const encodedScene = sceneCodecBridge.encodeSceneDocument({ document });
+      if (!encodedScene.accepted || encodedScene.canonicalJson === null) {
+        throw new Error(this.sceneCodecDiagnostic(encodedScene));
+      }
+      const installedScene = attach.facade.decodeSceneDocument({
+        sourceText: encodedScene.canonicalJson,
+      });
+      if (!installedScene.accepted) {
+        throw new Error(this.sceneCodecDiagnostic(installedScene));
+      }
       this.workspaceAuthoringBridgeState.set(attach.bridge);
       this.workspaceAuthoringFacadeState.set(attach.facade);
       this.workspaceAuthoringStateSummaryState.set(state);
@@ -8557,6 +8691,7 @@ export class StudioWorkspaceStore {
   confirmDiscardUnsavedScene(): void {
     const prompt = this.unsavedScenePromptState();
     this.unsavedScenePromptState.set(null);
+    this.activeMenuState.set(null);
     if (prompt?.action === 'new') {
       void this.createNewScene();
     } else if (prompt?.action === 'open' && prompt.path !== null) {
@@ -8986,6 +9121,7 @@ export class StudioWorkspaceStore {
       this.activeVoxelAssetFileHashState.set(null);
       await this.openWorkspaceAuthoring();
       const reconnectedVoxelAssetIds = await this.reconnectSceneVoxelAssets(authored.document);
+      await this.refreshProjectContentBrowser();
       const reconnected = new Set(reconnectedVoxelAssetIds);
       const unresolvedAssetIds = this.unresolvedSceneAssetIds(authored.document)
         .filter(assetId => !reconnected.has(assetId));
@@ -9495,6 +9631,7 @@ export class StudioWorkspaceStore {
         readonly gameId?: string;
         readonly packageScripts?: Readonly<Record<string, string>>;
         readonly existingRelativePaths?: readonly string[];
+        readonly projectContentFiles?: readonly StudioProjectContentFileDescriptor[];
         readonly projectSettingsPath?: string;
         readonly message?: string;
       };
@@ -9552,7 +9689,19 @@ export class StudioWorkspaceStore {
       this.preferencesStore.setRenderSetting('showGrid', snapshot.hostUserSettings.sceneView.gridVisible);
       this.projectRootDraftState.set(loaded.workspace.workspaceRoot);
       this.projectGameIdDraftState.set(loaded.workspace.gameId);
+      this.projectContentDescriptorsState.set(payload.projectContentFiles ?? []);
+      this.projectContentFilesState.set([]);
+      this.projectContentCodecState.set(null);
+      this.projectContentStatusState.set('loading');
+      this.projectContentMessageState.set('Opening Rust project-content authoring.');
+      this.selectedProjectContentEntryIdState.set(null);
+      this.dirtyProjectContentDocumentIdsState.set([]);
+      this.staleProjectContentSourcePathState.set(null);
       this.activeMenuState.set(null);
+      await this.openWorkspaceAuthoring();
+      if (generation !== this.projectOpenGeneration) return false;
+      await this.refreshProjectContentBrowser();
+      if (generation !== this.projectOpenGeneration) return false;
       this.menuMessageState.set(`Opened ASHA project ${loaded.workspace.gameId}.`);
       return true;
     } catch (error) {
@@ -9563,6 +9712,232 @@ export class StudioWorkspaceStore {
       }
       return false;
     }
+  }
+
+  async refreshProjectContentBrowser(): Promise<void> {
+    const workspace = this.gameWorkspace();
+    const descriptors = this.projectContentDescriptorsState();
+    if (workspace === null) {
+      this.projectContentStatusState.set('closed');
+      this.projectContentMessageState.set('Open an ASHA project to inspect stored content.');
+      return;
+    }
+    this.projectContentStatusState.set('loading');
+    this.projectContentMessageState.set('Reading manifest-discovered project content from the Studio host.');
+    try {
+      const files = await Promise.all(descriptors.map(descriptor => this.readProjectContentFile(descriptor)));
+      this.projectContentFilesState.set(files);
+      this.dirtyProjectContentDocumentIdsState.set([]);
+      this.staleProjectContentSourcePathState.set(null);
+      const facade = this.workspaceAuthoringFacadeState();
+      if (facade === null) {
+        this.projectContentCodecState.set(null);
+        this.projectContentStatusState.set('degraded');
+        this.projectContentMessageState.set(
+          `Discovered ${files.length} stored JSON sources, but Rust workspace authoring is unavailable.`,
+        );
+        return;
+      }
+      const sources = files.flatMap(file =>
+        file.sourceClass === 'canonical-candidate' && file.sourceKind !== null
+          ? [{
+              documentId: file.documentId,
+              kind: file.sourceKind,
+              sourceText: file.text,
+            }]
+          : [],
+      );
+      if (sources.length === 0) {
+        this.projectContentCodecState.set(null);
+        this.projectContentStatusState.set('ready');
+        this.projectContentMessageState.set(
+          `Discovered ${files.length} stored sources; none yet use a canonical project-content document shape.`,
+        );
+        return;
+      }
+      const codec = facade.decodeProjectContent({ sources });
+      this.projectContentCodecState.set(codec);
+      this.refreshWorkspaceAuthoringState(facade);
+      this.projectContentStatusState.set(codec.accepted ? 'ready' : 'degraded');
+      this.projectContentMessageState.set(
+        codec.accepted
+          ? `Rust validated ${codec.documents.length} project-content documents discovered from ${descriptors.length} files.`
+          : `Rust rejected ${codec.diagnostics.length} project-content fields or references; stored legacy sources remain inspectable.`,
+      );
+      const browser = this.projectContentBrowser();
+      if (browser.selectedEntryId !== null) {
+        this.selectedProjectContentEntryIdState.set(browser.selectedEntryId);
+      }
+    } catch (error) {
+      this.projectContentCodecState.set(null);
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(`Project content could not be opened: ${errorMessage(error)}`);
+    }
+  }
+
+  async reloadProjectContentFromDisk(): Promise<void> {
+    if (this.gameWorkspace() === null) {
+      this.projectContentMessageState.set('Open an ASHA project before reloading stored content.');
+      return;
+    }
+    this.projectContentMessageState.set('Discarding the current project-content working set and reopening host files.');
+    await this.openWorkspaceAuthoring();
+    await this.refreshProjectContentBrowser();
+  }
+
+  applyProjectConfigurationField(
+    documentId: string,
+    configurationId: string,
+    fieldId: string,
+    rawValue: string | number | boolean,
+  ): void {
+    const facade = this.workspaceAuthoringFacadeState();
+    const codec = this.projectContentCodecState();
+    const browser = this.projectContentBrowser();
+    const field = browser.editableFields.find(candidate =>
+      candidate.documentId === documentId
+      && candidate.configurationId === configurationId
+      && candidate.fieldId === fieldId,
+    );
+    if (facade === null || codec === null || codec.setHash === null || field === undefined) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set('The selected field is not backed by an open Rust project-content set.');
+      return;
+    }
+    const dirtyIds = this.dirtyProjectContentDocumentIdsState();
+    if (dirtyIds.length > 0 && !dirtyIds.includes(documentId)) {
+      this.projectContentMessageState.set(
+        `Save or reload ${dirtyIds[0] ?? 'the current document'} before editing another stored file.`,
+      );
+      return;
+    }
+    const value = projectConfigurationValueFromStudioField(field, rawValue);
+    if (value === null) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(`${field.label} has an invalid ${field.valueKind} value.`);
+      return;
+    }
+    const document = updateProjectConfigurationField(
+      codec.documents,
+      documentId,
+      configurationId,
+      fieldId,
+      value,
+    );
+    if (document === null) {
+      this.projectContentMessageState.set('The provider-owned field no longer exists in the current document revision.');
+      return;
+    }
+    const authorityState = facade.readState();
+    try {
+      const result = facade.applyProjectContentAuthoring({
+        expectedWorkspaceId: authorityState.identity.project.workspaceId,
+        expectedGeneration: authorityState.identity.generation,
+        expectedWorkingRevision: authorityState.workingRevision,
+        expectedSetHash: codec.setHash,
+        command: { kind: 'upsert', document },
+      });
+      this.refreshWorkspaceAuthoringState(facade);
+      if (!result.accepted || result.setHash === null) {
+        this.projectContentCodecState.set({
+          ...codec,
+          providerSchemas: result.providerSchemas,
+          fieldMetadata: result.fieldMetadata,
+          diagnostics: result.diagnostics,
+        });
+        this.projectContentStatusState.set('degraded');
+        this.projectContentMessageState.set(
+          result.diagnostics.at(0)?.message ?? 'Rust rejected the project-content edit.',
+        );
+        return;
+      }
+      this.projectContentCodecState.set(result);
+      this.dirtyProjectContentDocumentIdsState.set([documentId]);
+      this.staleProjectContentSourcePathState.set(null);
+      this.projectContentStatusState.set('ready');
+      this.projectContentMessageState.set(
+        `Rust accepted ${field.label}; save the revision-bound canonical file to keep it.`,
+      );
+    } catch (error) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(`Project-content edit rejected: ${errorMessage(error)}`);
+    }
+  }
+
+  async saveSelectedProjectContent(): Promise<void> {
+    const facade = this.workspaceAuthoringFacadeState();
+    const codec = this.projectContentCodecState();
+    const selected = this.projectContentBrowser().selectedEntry;
+    if (facade === null || codec === null || codec.setHash === null || selected === null) {
+      this.projectContentMessageState.set('Select a Rust-validated changed document before saving.');
+      return;
+    }
+    if (!this.dirtyProjectContentDocumentIdsState().includes(selected.documentId)) {
+      this.projectContentMessageState.set('The selected project-content document has no accepted changes.');
+      return;
+    }
+    const file = this.projectContentFilesState().find(candidate => candidate.documentId === selected.documentId);
+    const canonical = codec.canonicalFiles.find(candidate => candidate.documentId === selected.documentId);
+    if (file === undefined || canonical === undefined) {
+      this.projectContentMessageState.set('Rust did not produce a canonical file for the selected stored source.');
+      return;
+    }
+    try {
+      const stored = await persistStudioWorkspaceAuthoringCandidate({
+        authority: facade,
+        currentAuthority: () => this.workspaceAuthoringFacadeState(),
+        hostPath: file.path,
+        canonicalJsonHash: codec.setHash,
+        stage: () => this.stageHostAuthoringFile(file.path, canonical.canonicalJson, file.sha256),
+        promote: token => this.promoteHostAuthoringFile(token),
+        finalize: token => this.finalizeHostAuthoringFileStage(token),
+        discard: token => this.discardHostAuthoringFileStage(token),
+      });
+      this.projectContentFilesState.update(files => files.map(candidate =>
+        candidate.documentId === selected.documentId
+          ? { ...candidate, path: stored.path, text: canonical.canonicalJson, sha256: stored.sha256 }
+          : candidate,
+      ));
+      this.dirtyProjectContentDocumentIdsState.set([]);
+      this.staleProjectContentSourcePathState.set(null);
+      this.workspaceAuthoringStateSummaryState.set(facade.readState());
+      this.projectContentStatusState.set('ready');
+      this.projectContentMessageState.set(
+        stored.cleanupDiagnostic === null
+          ? `Saved and confirmed ${file.relativePath} at Rust revision ${stored.storedRevision}.`
+          : `Saved ${file.relativePath}; host backup cleanup needs attention: ${stored.cleanupDiagnostic}`,
+      );
+      this.menuMessageState.set(`Saved typed project content ${file.relativePath}.`);
+    } catch (error) {
+      const message = errorMessage(error);
+      const stale = /changed since|stale_file_hash|expectedHash/iu.test(message);
+      this.staleProjectContentSourcePathState.set(stale ? file.path : null);
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(
+        stale
+          ? `${file.relativePath} changed on the Studio host. Reload it before making another save decision.`
+          : `Project-content save was not committed: ${message}`,
+      );
+    }
+  }
+
+  private async readProjectContentFile(
+    descriptor: StudioProjectContentFileDescriptor,
+  ): Promise<StudioProjectContentLoadedFile> {
+    const response = await fetch(
+      `${projectFileApiBase()}/api/host-files/file?path=${encodeURIComponent(descriptor.path)}`,
+    );
+    const payload = await response.json() as {
+      readonly ok?: boolean;
+      readonly text?: string;
+      readonly sha256?: string;
+      readonly message?: string;
+      readonly diagnostic?: string;
+    };
+    if (!response.ok || payload.ok !== true || payload.text === undefined || payload.sha256 === undefined) {
+      throw new Error(payload.message ?? payload.diagnostic ?? `HTTP ${response.status}`);
+    }
+    return inspectStudioProjectContentFile(descriptor, payload.text, payload.sha256);
   }
 
   private async loadSettingsForProject(options: {

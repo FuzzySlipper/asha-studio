@@ -160,6 +160,7 @@ export type StudioAssetBrowserCategory =
   | 'preview';
 export type StudioBottomPanelTab =
   | 'timeline'
+  | 'project-content'
   | 'assets'
   | 'catalog'
   | 'commands';

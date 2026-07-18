@@ -1,5 +1,5 @@
-import { mkdir, readFile, realpath, stat } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { mkdir, readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { parseAshaGameManifestToml } from '@asha/game-workspace';
 import {
   ASHA_STUDIO_PROJECT_SETTINGS_PATH,
@@ -14,6 +14,21 @@ import {
 } from './studio-project-file-service';
 
 const DEFAULT_MANIFEST_FILE_NAME = 'asha.game.toml';
+
+export type StudioProjectContentRootKind =
+  | 'scene'
+  | 'prefab'
+  | 'asset'
+  | 'catalog'
+  | 'policy';
+
+export interface StudioProjectContentFileDescriptor {
+  readonly path: string;
+  readonly relativePath: string;
+  readonly rootKind: StudioProjectContentRootKind;
+  readonly size: number;
+  readonly mtimeMs: number;
+}
 
 export async function openStudioProject(
   startDirectory: string,
@@ -44,13 +59,16 @@ export async function openStudioProject(
   } catch {
     return projectFailure('project_package_missing', `Open Project requires ${packagePath}.`);
   }
+  const contentRoots = [
+    ...parsedManifest.manifest.workspace.sceneRoots.map(path => ({ path, rootKind: 'scene' as const })),
+    ...parsedManifest.manifest.workspace.prefabRoots.map(path => ({ path, rootKind: 'prefab' as const })),
+    ...parsedManifest.manifest.workspace.assetRoots.map(path => ({ path, rootKind: 'asset' as const })),
+    ...parsedManifest.manifest.workspace.catalogPackages.map(path => ({ path, rootKind: 'catalog' as const })),
+    ...parsedManifest.manifest.workspace.policyPackages.map(path => ({ path, rootKind: 'policy' as const })),
+  ];
   const relativeRoots = [
-    ...parsedManifest.manifest.workspace.sceneRoots,
-    ...parsedManifest.manifest.workspace.prefabRoots,
-    ...parsedManifest.manifest.workspace.assetRoots,
+    ...contentRoots.map(root => root.path),
     ...parsedManifest.manifest.workspace.replayRoots,
-    ...parsedManifest.manifest.workspace.catalogPackages,
-    ...parsedManifest.manifest.workspace.policyPackages,
   ];
   const existingRelativePaths: string[] = [];
   for (const candidate of relativeRoots) {
@@ -67,6 +85,7 @@ export async function openStudioProject(
       )
     : {};
   const packageName = typeof packageJson['name'] === 'string' ? packageJson['name'].trim() : '';
+  const projectContentFiles = await discoverStudioProjectContentFiles(workspaceRoot, contentRoots);
   return {
     ok: true,
     workspaceRoot,
@@ -77,8 +96,62 @@ export async function openStudioProject(
     gameId: packageName.length > 0 ? packageName : basename(workspaceRoot),
     packageScripts,
     existingRelativePaths,
+    projectContentFiles,
     projectSettingsPath: join(workspaceRoot, ASHA_STUDIO_PROJECT_SETTINGS_PATH),
   };
+}
+
+export async function discoverStudioProjectContentFiles(
+  workspaceRoot: string,
+  roots: readonly {
+    readonly path: string;
+    readonly rootKind: StudioProjectContentRootKind;
+  }[],
+): Promise<readonly StudioProjectContentFileDescriptor[]> {
+  const discovered = new Map<string, StudioProjectContentFileDescriptor>();
+  for (const root of roots) {
+    const absoluteRoot = resolve(workspaceRoot, root.path);
+    await walkProjectContentRoot(workspaceRoot, absoluteRoot, root.rootKind, discovered);
+  }
+  return [...discovered.values()].sort((left, right) =>
+    left.relativePath.localeCompare(right.relativePath),
+  );
+}
+
+async function walkProjectContentRoot(
+  workspaceRoot: string,
+  directory: string,
+  rootKind: StudioProjectContentRootKind,
+  discovered: Map<string, StudioProjectContentFileDescriptor>,
+): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await walkProjectContentRoot(workspaceRoot, path, rootKind, discovered);
+      continue;
+    }
+    if (!entry.isFile() || extname(entry.name).toLowerCase() !== '.json') {
+      continue;
+    }
+    const fileStat = await stat(path);
+    const canonical = await canonicalPath(path);
+    if (discovered.has(canonical)) {
+      continue;
+    }
+    discovered.set(canonical, {
+      path: canonical,
+      relativePath: relative(workspaceRoot, canonical).split('\\').join('/'),
+      rootKind,
+      size: fileStat.size,
+      mtimeMs: fileStat.mtimeMs,
+    });
+  }
 }
 
 export async function createStudioProject(

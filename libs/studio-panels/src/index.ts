@@ -2107,9 +2107,21 @@ export class StudioHierarchyPanelComponent {
                 <dt>instance</dt>
                 <dd>{{ instanceNode.kind.instance.instanceId }}</dd>
                 <dt>reference</dt>
-                <dd>{{ entityReferenceLabel(instanceNode) }}</dd>
+                <dd>
+                  <button type="button" (click)="openEntityInstanceReference(instanceNode)">
+                    {{ entityReferenceLabel(instanceNode) }}
+                  </button>
+                </dd>
                 <dt>spawn marker</dt>
-                <dd>{{ instanceNode.kind.instance.spawnMarkerId ?? 'none' }}</dd>
+                <dd>
+                  @if (instanceNode.kind.instance.spawnMarkerId; as markerId) {
+                    <button type="button" (click)="store.navigateProjectContentReference('spawnMarker', markerId)">
+                      {{ markerId }}
+                    </button>
+                  } @else {
+                    none
+                  }
+                </dd>
                 <dt>placement</dt>
                 <dd>stored local transform · runtime seeds a fresh authority transform</dd>
               </dl>
@@ -2320,7 +2332,11 @@ export class StudioHierarchyPanelComponent {
                 <dt>{{ catalog.bindingId }}</dt>
                 <dd>{{ catalog.catalogId }}</dd>
                 <dt>source</dt>
-                <dd>{{ catalog.sourcePath }}</dd>
+                <dd>
+                  <button type="button" (click)="store.navigateProjectContentReference('source', catalog.sourcePath)">
+                    {{ catalog.sourcePath }}
+                  </button>
+                </dd>
               </dl>
             } @empty {
               <p class="empty-state">No catalog bindings.</p>
@@ -2505,6 +2521,19 @@ export class StudioHierarchyPanelComponent {
         white-space: nowrap;
       }
 
+      dd button {
+        background: transparent;
+        border: 0;
+        color: var(--asha-color-accent-text);
+        cursor: pointer;
+        font: inherit;
+        max-width: 100%;
+        overflow: hidden;
+        padding: 0;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .editable-field {
         min-width: 0;
       }
@@ -2572,6 +2601,17 @@ export class StudioInspectorPanelComponent {
       return `EntityDefinition ${reference.stableId}`;
     }
     return `Prefab ${reference.prefabId}${reference.variantId === null ? '' : ` · variant ${reference.variantId}`}`;
+  }
+
+  openEntityInstanceReference(node: SceneNodeRecord & {
+    readonly kind: Extract<SceneNodeRecord['kind'], { readonly kind: 'entityInstance' }>;
+  }): void {
+    const reference = node.kind.instance.reference;
+    if (reference.kind === 'entityDefinition') {
+      this.store.navigateProjectContentReference('entityDefinition', reference.stableId);
+      return;
+    }
+    this.store.navigateProjectContentReference('prefab', String(reference.prefabId));
   }
 
   readonly selectedBoundsLabel = computed(() => {
@@ -2668,6 +2708,13 @@ export class StudioInspectorPanelComponent {
           </button>
           <button
             type="button"
+            [class.active]="store.bottomPanelTab() === 'project-content'"
+            (click)="store.setBottomPanelTab('project-content')"
+          >
+            Project Content
+          </button>
+          <button
+            type="button"
             [class.active]="store.bottomPanelTab() === 'assets'"
             (click)="store.setBottomPanelTab('assets')"
           >
@@ -2719,6 +2766,158 @@ export class StudioInspectorPanelComponent {
               }
             </tbody>
           </table>
+        </div>
+      } @else if (store.bottomPanelTab() === 'project-content') {
+        <div class="project-content-browser" data-visual-id="studio-project-content-browser">
+          @if (store.projectContentBrowser(); as browser) {
+            <header class="project-content-toolbar">
+              <div>
+                <strong>Stored Project Content</strong>
+                <span>{{ browser.status }} · {{ browser.providerSchemaCount }} provider schemas</span>
+                <small>{{ browser.projectRoot ?? 'No project open' }}</small>
+              </div>
+              <button type="button" (click)="reloadProjectContent()">Reload from Disk</button>
+              <button
+                type="button"
+                [disabled]="!browser.canSaveSelected"
+                (click)="saveProjectContent()"
+              >
+                Save Accepted Change
+              </button>
+            </header>
+            <section class="project-content-message" [attr.data-project-content-status]="browser.status">
+              {{ browser.message }}
+            </section>
+            @if (browser.staleSourcePath !== null) {
+              <section class="project-content-stale" data-project-content-stale="true">
+                The host file changed outside Studio: {{ browser.staleSourcePath }}. Reload from disk before saving.
+              </section>
+            }
+            <div class="project-content-grid">
+              <nav class="project-content-tree" aria-label="Stored project content">
+                @for (category of browser.categories; track category.categoryId) {
+                  <section>
+                    <header>
+                      <strong>{{ category.label }}</strong>
+                      <span>{{ category.entries.length }}</span>
+                    </header>
+                    @for (entry of category.entries; track entry.entryId) {
+                      <button
+                        type="button"
+                        [class.is-current]="entry.entryId === browser.selectedEntryId"
+                        [attr.data-project-content-entry]="entry.entryId"
+                        [attr.data-project-content-entry-status]="entry.status"
+                        (click)="store.selectProjectContentEntry(entry.entryId)"
+                      >
+                        <strong>{{ entry.title }}</strong>
+                        <span>{{ entry.subtitle }}</span>
+                        <small>{{ entry.status }}</small>
+                      </button>
+                    } @empty {
+                      <p>No manifest-discovered sources.</p>
+                    }
+                  </section>
+                }
+              </nav>
+              <section class="project-content-inspector">
+                @if (browser.selectedEntry; as entry) {
+                  <header>
+                    <div>
+                      <strong>{{ entry.title }}</strong>
+                      <span>{{ entry.documentKind }} · {{ entry.status }}</span>
+                    </div>
+                    @if (browser.dirtyDocumentIds.includes(entry.documentId)) {
+                      <span class="project-content-dirty">Unsaved accepted change</span>
+                    }
+                  </header>
+                  <dl>
+                    <dt>stored source</dt>
+                    <dd>{{ entry.sourcePath }}</dd>
+                    <dt>document</dt>
+                    <dd>{{ entry.documentId }}</dd>
+                  </dl>
+                  @if (entry.documentKind === 'scene') {
+                    <button type="button" (click)="openProjectContentScene(entry.sourcePath)">
+                      Open Stored Scene
+                    </button>
+                  }
+                  @if (entry.details.length > 0) {
+                    <section class="project-content-details">
+                      <strong>Typed Readout</strong>
+                      @for (detail of entry.details; track detail) {
+                        <span>{{ detail }}</span>
+                      }
+                    </section>
+                  }
+                  @if (entry.relationships.length > 0) {
+                    <section class="project-content-relationships">
+                      <strong>Stored Relationships</strong>
+                      @for (relationship of entry.relationships; track relationship.navigationKind + ':' + relationship.targetId) {
+                        <button
+                          type="button"
+                          (click)="store.navigateProjectContentReference(relationship.navigationKind, relationship.targetId)"
+                        >
+                          {{ relationship.label }}
+                        </button>
+                      }
+                    </section>
+                  }
+                  @if (browser.editableFields.length > 0) {
+                    <section class="project-content-fields" data-project-content-typed-fields>
+                      <strong>Provider-owned Configuration</strong>
+                      @for (field of browser.editableFields; track field.configurationId + ':' + field.fieldId) {
+                        <label>
+                          <span>{{ field.label }}{{ field.required ? ' *' : '' }}</span>
+                          @if (field.valueKind === 'boolean') {
+                            <input
+                              type="checkbox"
+                              [checked]="field.value"
+                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).checked)"
+                            />
+                          } @else if (field.valueKind === 'reference') {
+                            <select
+                              [value]="field.value"
+                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).value)"
+                            >
+                              @for (option of field.options; track option.value) {
+                                <option [value]="option.value">{{ option.label }}</option>
+                              }
+                            </select>
+                          } @else if (field.valueKind === 'integer' || field.valueKind === 'number') {
+                            <input
+                              type="number"
+                              [step]="field.valueKind === 'integer' ? 1 : 'any'"
+                              [min]="field.integerMin ?? field.numberMin"
+                              [max]="field.integerMax ?? field.numberMax"
+                              [value]="field.value"
+                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).valueAsNumber)"
+                            />
+                          } @else {
+                            <input
+                              type="text"
+                              [value]="field.value"
+                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).value)"
+                            />
+                          }
+                          <small>{{ field.configurationId }} · {{ field.fieldId }}</small>
+                        </label>
+                      }
+                    </section>
+                  }
+                  @if (entry.diagnostics.length > 0) {
+                    <section class="project-content-diagnostics" data-project-content-diagnostics="entry">
+                      <strong>Rust Diagnostics</strong>
+                      @for (diagnostic of entry.diagnostics; track diagnostic.documentId + ':' + diagnostic.path + ':' + diagnostic.code) {
+                        <span>{{ diagnostic.path }} · {{ diagnostic.message }}</span>
+                      }
+                    </section>
+                  }
+                } @else {
+                  <p class="empty-assets">Open a Game Project to inspect its stored sources.</p>
+                }
+              </section>
+            </div>
+          }
         </div>
       } @else if (store.bottomPanelTab() === 'assets') {
         <div class="asset-browser">
@@ -3296,6 +3495,166 @@ export class StudioInspectorPanelComponent {
         white-space: nowrap;
       }
 
+      .project-content-browser {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .project-content-toolbar {
+        display: flex;
+        gap: 0.45rem;
+      }
+
+      .project-content-toolbar div {
+        display: grid;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .project-content-toolbar small,
+      .project-content-tree span,
+      .project-content-tree small,
+      .project-content-inspector span,
+      .project-content-inspector small {
+        color: var(--asha-color-muted);
+      }
+
+      .project-content-message,
+      .project-content-stale {
+        border: 1px solid var(--asha-color-border);
+        font-size: 0.75rem;
+        padding: 0.35rem 0.5rem;
+      }
+
+      .project-content-stale,
+      .project-content-message[data-project-content-status='degraded'] {
+        border-color: var(--asha-color-warning);
+        color: var(--asha-color-warning-text);
+      }
+
+      .project-content-grid {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: minmax(17rem, 0.85fr) minmax(24rem, 1.4fr);
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .project-content-tree,
+      .project-content-inspector {
+        border: 1px solid var(--asha-color-border);
+        min-height: 0;
+        overflow: auto;
+        padding: 0.5rem;
+      }
+
+      .project-content-tree section,
+      .project-content-details,
+      .project-content-relationships,
+      .project-content-fields,
+      .project-content-diagnostics {
+        display: grid;
+        gap: 0.3rem;
+      }
+
+      .project-content-tree section + section {
+        margin-top: 0.6rem;
+      }
+
+      .project-content-tree section > header {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .project-content-tree button,
+      .project-content-relationships button {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--asha-color-ink);
+        cursor: pointer;
+        display: grid;
+        font: inherit;
+        gap: 0.1rem;
+        min-width: 0;
+        padding: 0.35rem 0.45rem;
+        text-align: left;
+      }
+
+      .project-content-tree button.is-current {
+        background: var(--asha-color-control-active);
+        border-color: var(--asha-color-accent);
+      }
+
+      .project-content-tree button[data-project-content-entry-status='rust-rejected'],
+      .project-content-tree button[data-project-content-entry-status='migration-required'] {
+        border-color: var(--asha-color-warning);
+      }
+
+      .project-content-inspector {
+        display: grid;
+        gap: 0.6rem;
+        grid-auto-rows: max-content;
+      }
+
+      .project-content-inspector > header {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .project-content-inspector > header div,
+      .project-content-details,
+      .project-content-fields label,
+      .project-content-diagnostics {
+        display: grid;
+        gap: 0.2rem;
+      }
+
+      .project-content-inspector dl {
+        display: grid;
+        font-size: 0.75rem;
+        gap: 0.2rem 0.5rem;
+        grid-template-columns: max-content minmax(0, 1fr);
+        margin: 0;
+      }
+
+      .project-content-inspector dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .project-content-details,
+      .project-content-relationships,
+      .project-content-fields,
+      .project-content-diagnostics {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        padding: 0.5rem;
+      }
+
+      .project-content-fields {
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+      }
+
+      .project-content-fields > strong {
+        grid-column: 1 / -1;
+      }
+
+      .project-content-fields input,
+      .project-content-fields select {
+        background: var(--asha-color-panel);
+        border: 1px solid var(--asha-color-border);
+        color: var(--asha-color-ink);
+        min-height: 2rem;
+      }
+
+      .project-content-dirty {
+        color: var(--asha-color-accent-text) !important;
+        font-weight: 700;
+      }
+
       .catalog-workflow {
         display: grid;
         gap: 0.5rem;
@@ -3404,6 +3763,18 @@ export class StudioInspectorPanelComponent {
 })
 export class StudioAssetsBottomPanelComponent {
   readonly store = inject(StudioWorkspaceStore);
+
+  reloadProjectContent(): void {
+    void this.store.reloadProjectContentFromDisk();
+  }
+
+  saveProjectContent(): void {
+    void this.store.saveSelectedProjectContent();
+  }
+
+  openProjectContentScene(path: string): void {
+    void this.store.openProjectContentScene(path);
+  }
 
   selectAssetCategory(category: StudioAssetBrowserCategory): void {
     this.store.setAssetBrowserCategory(category);
