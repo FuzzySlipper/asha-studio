@@ -1,17 +1,79 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type {
-  ProjectContentCodecResult,
-  ProjectContentDocument,
+import {
+  prefabId,
+  prefabPartId,
+  type ProjectContentCodecResult,
+  type ProjectContentDocument,
 } from '@asha/contracts';
+import { parseAshaGameManifestToml, type AshaGameManifest } from '@asha/game-workspace';
 import { buildInitialWorkspaceReadModel } from '@asha-studio/domain';
 import {
   buildStudioProjectContentBrowserReadModel,
   findStudioProjectContentEntryByReference,
+  formatProjectContentPrefabPartReference,
   inspectStudioProjectContentFile,
+  selectStudioProjectContentSceneSources,
   updateProjectConfigurationField,
   type StudioProjectContentFileDescriptor,
 } from '@asha-studio/store';
+
+const MANIFEST_TEXT = `[asha]
+engine_version = "0.1.0"
+contracts_version = "0.1.0"
+runtime_bridge_version = "0.1.0"
+devtools_protocol_version = "devtools-protocol.v0"
+publish_artifact_format_version = "publish-artifact.v0"
+engine_source = "../asha-engine"
+
+[workspace]
+scene_roots = ["scenes"]
+prefab_roots = ["prefabs"]
+asset_roots = ["assets"]
+replay_roots = ["replays"]
+catalog_packages = ["catalogs"]
+policy_packages = ["policies"]
+
+[runtime]
+dev_command = "npm run dev"
+devtools_endpoint = "ws://127.0.0.1:7391"
+wasm_or_native_entry = "dist/runtime/index.js"
+backend_mode = "reference"
+backend_profile = "reference"
+backend_proof_refs = []
+
+[studio]
+workspace_mode = true
+attach_enabled = false
+allowed_source_writes = ["scenes", "prefabs", "assets", "catalogs"]
+
+[publish]
+command = "npm run build"
+artifact_dir = "dist"
+verify_command = "npm run verify"
+
+[dev_resource_profile]
+local_roots = ["assets", "catalogs"]
+cache_dir = "dist/dev-cache"
+resolution_policy = "prefer-source"
+
+[publish_resource_profile]
+output_dir = "dist/resources"
+archive_dir = "dist/archive"
+resolution_policy = "locked"
+`;
+
+function manifest(allowedSourceWrites = '["scenes", "prefabs", "assets", "catalogs"]'): AshaGameManifest {
+  const parsed = parseAshaGameManifestToml(
+    MANIFEST_TEXT.replace(
+      'allowed_source_writes = ["scenes", "prefabs", "assets", "catalogs"]',
+      `allowed_source_writes = ${allowedSourceWrites}`,
+    ),
+  );
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) throw new Error('test manifest must parse');
+  return parsed.manifest;
+}
 
 const DESCRIPTOR: StudioProjectContentFileDescriptor = {
   path: '/projects/demo/catalogs/gameplay.json',
@@ -142,8 +204,10 @@ test('provider schemas produce typed fields and reference navigation without pro
     selectedEntryId: `document:${source.documentId}`,
     dirtyDocumentIds: [],
     staleSourcePath: null,
+    manifest: manifest(),
     activeScenePath: null,
     activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [buildInitialWorkspaceReadModel().flatSceneDocument],
   });
 
   assert.deepEqual(
@@ -161,8 +225,10 @@ test('provider schemas produce typed fields and reference navigation without pro
     selectedEntryId: `document:${source.documentId}`,
     dirtyDocumentIds: [source.documentId],
     staleSourcePath: source.path,
+    manifest: manifest(),
     activeScenePath: null,
     activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [buildInitialWorkspaceReadModel().flatSceneDocument],
   });
   assert.equal(stale.canSaveSelected, false);
   assert.equal(stale.staleSourcePath, source.path);
@@ -198,10 +264,156 @@ test('legacy spawn relationships remain navigable while clearly requiring migrat
     selectedEntryId: null,
     dirtyDocumentIds: [],
     staleSourcePath: null,
+    manifest: manifest(),
     activeScenePath: null,
     activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [buildInitialWorkspaceReadModel().flatSceneDocument],
   });
   const entry = findStudioProjectContentEntryByReference(browser, 'spawnMarker', 'spawn.player');
   assert.equal(entry?.status, 'migration-required');
   assert.equal(entry?.sourcePath, '/projects/demo/content/starts.json');
+});
+
+test('manifest write authorization disables dirty project content outside allowed_source_writes', () => {
+  const descriptor: StudioProjectContentFileDescriptor = {
+    ...DESCRIPTOR,
+    path: '/projects/demo/catalogs/catalog.json',
+    relativePath: 'catalogs/catalog.json',
+  };
+  const source = inspectStudioProjectContentFile(
+    descriptor,
+    JSON.stringify({ configurations: [], bindings: [], overrides: [], triggers: [] }),
+    'sha256:source',
+  );
+  const browser = buildStudioProjectContentBrowserReadModel({
+    status: 'ready',
+    message: 'ready',
+    projectRoot: '/projects/demo',
+    files: [source],
+    codec: gameplayCodec(),
+    selectedEntryId: `document:${source.documentId}`,
+    dirtyDocumentIds: [source.documentId],
+    staleSourcePath: null,
+    manifest: manifest('["scenes", "prefabs", "assets"]'),
+    activeScenePath: null,
+    activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [buildInitialWorkspaceReadModel().flatSceneDocument],
+  });
+
+  assert.equal(browser.canSaveSelected, false);
+  assert.equal(browser.selectedWriteAuthorization?.allowed, false);
+  assert.match(browser.selectedWriteAuthorization?.diagnostic ?? '', /outside allowed roots/);
+});
+
+test('prefab-part options use the canonical Rust target identity and bindings are navigable', () => {
+  const gameplay = gameplayCodec().documents[0];
+  assert.equal(gameplay?.kind, 'gameplayConfiguration');
+  if (gameplay?.kind !== 'gameplayConfiguration') throw new Error('gameplay fixture missing');
+  const gameplayWithBinding: ProjectContentDocument = {
+    ...gameplay,
+    document: {
+      ...gameplay.document,
+      configurations: [{
+        ...gameplay.document.configurations[0]!,
+        values: [{
+          fieldId: 'part',
+          value: { kind: 'reference', referenceKind: 'prefabPart', targetId: '70:interaction/body' },
+        }],
+      }],
+      bindings: [{
+        bindingId: 'binding.player',
+        moduleId: 'demo.movement-module',
+        configurationId: 'demo.movement',
+        stateSchema: { namespace: 'demo', name: 'state', version: 1, schemaHash: 'state' },
+        target: { kind: 'prefabPart', part: { prefab: prefabId(70), role: 'interaction/body' } },
+        requiredReads: [],
+        outputContracts: [],
+        enabled: true,
+      }],
+    },
+  };
+  const prefab: ProjectContentDocument = {
+    kind: 'prefabRegistry',
+    documentId: 'prefab-registry:prefabs/registry.json',
+    registry: {
+      schemaVersion: 1,
+      definitions: [{
+        id: prefabId(70),
+        schemaVersion: 1,
+        displayName: 'Player Prefab',
+        parts: [],
+        partRoles: [{ role: 'interaction/body', part: prefabPartId(1) }],
+        variant: null,
+      }],
+    },
+  };
+  const codec: ProjectContentCodecResult = {
+    ...gameplayCodec(),
+    documents: [gameplayWithBinding, prefab],
+    providerSchemas: [{
+      ...gameplayCodec().providerSchemas[0]!,
+      fields: [{
+        fieldId: 'part',
+        label: 'Prefab part',
+        valueKind: 'reference',
+        required: true,
+        referenceKind: 'prefabPart',
+        integerMin: null,
+        integerMax: null,
+        numberMin: null,
+        numberMax: null,
+      }],
+    }],
+  };
+  const source = inspectStudioProjectContentFile(
+    DESCRIPTOR,
+    JSON.stringify({ configurations: [], bindings: [], overrides: [], triggers: [] }),
+    'sha256:source',
+  );
+  const browser = buildStudioProjectContentBrowserReadModel({
+    status: 'ready',
+    message: 'ready',
+    projectRoot: '/projects/demo',
+    files: [source],
+    codec,
+    selectedEntryId: `document:${source.documentId}`,
+    dirtyDocumentIds: [],
+    staleSourcePath: null,
+    manifest: manifest(),
+    activeScenePath: null,
+    activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [buildInitialWorkspaceReadModel().flatSceneDocument],
+  });
+
+  assert.equal(formatProjectContentPrefabPartReference(70, 'interaction/body'), '70:interaction/body');
+  assert.deepEqual(browser.editableFields[0]?.options, [{
+    value: '70:interaction/body',
+    label: 'Player Prefab · interaction/body',
+  }]);
+  assert.equal(
+    findStudioProjectContentEntryByReference(browser, 'binding', 'binding.player')?.documentId,
+    source.documentId,
+  );
+});
+
+test('manifest scene admission includes every stored scene and ignores an active scene from another project', () => {
+  const sceneA = inspectStudioProjectContentFile(
+    { ...DESCRIPTOR, rootKind: 'scene', path: '/projects/b/scenes/a.scene.json', relativePath: 'scenes/a.scene.json' },
+    JSON.stringify({ schemaVersion: 1, id: 1, metadata: {}, dependencies: [], nodes: [] }),
+    'sha256:a',
+  );
+  const sceneB = inspectStudioProjectContentFile(
+    { ...DESCRIPTOR, rootKind: 'scene', path: '/projects/b/scenes/b.scene.json', relativePath: 'scenes/b.scene.json' },
+    JSON.stringify({ schemaVersion: 1, id: 2, metadata: {}, dependencies: [], nodes: [] }),
+    'sha256:b',
+  );
+  const sources = selectStudioProjectContentSceneSources(
+    [sceneA, sceneB],
+    '/projects/a/scenes/old.scene.json',
+    JSON.stringify({ schemaVersion: 1, id: 1, metadata: {}, dependencies: [], nodes: [{ old: true }] }),
+  );
+
+  assert.deepEqual(sources.map(source => source.path), [sceneA.path, sceneB.path]);
+  assert.equal(sources[0]?.sourceText, sceneA.text);
+  assert.equal(sources[1]?.sourceText, sceneB.text);
 });

@@ -212,6 +212,8 @@ import {
   buildStudioProjectContentBrowserReadModel,
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
+  resolveStudioProjectContentWriteAuthorization,
+  selectStudioProjectContentSceneSources,
   updateProjectConfigurationField,
   type StudioProjectContentBrowserReadModel,
   type StudioProjectContentEditableFieldReadModel,
@@ -224,7 +226,10 @@ export {
   buildStudioProjectContentBrowserReadModel,
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
+  formatProjectContentPrefabPartReference,
   projectContentNavigationKey,
+  resolveStudioProjectContentWriteAuthorization,
+  selectStudioProjectContentSceneSources,
   updateProjectConfigurationField,
   type StudioProjectContentBrowserReadModel,
   type StudioProjectContentCategoryId,
@@ -233,6 +238,8 @@ export {
   type StudioProjectContentFileDescriptor,
   type StudioProjectContentLoadedFile,
   type StudioProjectContentNavigationKind,
+  type StudioProjectContentSceneSource,
+  type StudioProjectContentWriteAuthorizationReadModel,
 } from './project-content-browser.js';
 
 export {
@@ -547,9 +554,10 @@ export interface StudioProjectFileDialogReadModel {
 }
 
 export interface StudioUnsavedScenePromptReadModel {
-  readonly action: 'new' | 'open' | 'open-voxel-asset';
+  readonly action: 'new' | 'open' | 'open-voxel-asset' | 'open-project' | 'create-project';
   readonly path: string | null;
   readonly message: string;
+  readonly confirmLabel: string;
 }
 
 export interface StudioSceneFileConflictReadModel {
@@ -3678,6 +3686,7 @@ export class StudioWorkspaceStore {
   private readonly workspaceAuthoringStateSummaryState = signal<WorkspaceAuthoringStateSummary | null>(null);
   private readonly projectContentDescriptorsState = signal<readonly StudioProjectContentFileDescriptor[]>([]);
   private readonly projectContentFilesState = signal<readonly StudioProjectContentLoadedFile[]>([]);
+  private readonly projectContentSceneDocumentsState = signal<readonly FlatSceneDocument[]>([]);
   private readonly projectContentCodecState = signal<ProjectContentCodecResult | null>(null);
   private readonly projectContentStatusState = signal<StudioProjectContentBrowserReadModel['status']>('closed');
   private readonly projectContentMessageState = signal('Open an ASHA project to inspect stored content.');
@@ -3986,8 +3995,10 @@ export class StudioWorkspaceStore {
       selectedEntryId: this.selectedProjectContentEntryIdState(),
       dirtyDocumentIds: this.dirtyProjectContentDocumentIdsState(),
       staleSourcePath: this.staleProjectContentSourcePathState(),
+      manifest: this.gameWorkspace()?.manifest ?? null,
       activeScenePath: this.activeSceneFilePathState(),
       activeScene: this.workspaceState().flatSceneDocument,
+      projectScenes: this.projectContentSceneDocumentsState(),
     }),
   );
   readonly runtimeSessions = computed(() => {
@@ -7997,10 +8008,21 @@ export class StudioWorkspaceStore {
     }
   }
 
-  async openWorkspaceAuthoring(): Promise<void> {
+  async openWorkspaceAuthoring(options: {
+    readonly reconcileProjectContent?: boolean;
+    readonly projectContentFiles?: readonly StudioProjectContentLoadedFile[];
+  } = {}): Promise<void> {
+    if (this.projectContentNeedsReconciliation() && options.reconcileProjectContent !== true) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(
+        'Save the accepted project-content edit or explicitly Reload from Disk before replacing Rust authoring authority.',
+      );
+      return;
+    }
     const attempt = this.workspaceAuthoringOpenLifecycle.begin();
     const workspace = this.gameWorkspace();
     const document = this.workspaceState().flatSceneDocument;
+    const projectContentFiles = options.projectContentFiles ?? this.projectContentFilesState();
     const project = workspace === null
       ? {
           gameId: 'untitled',
@@ -8039,15 +8061,34 @@ export class StudioWorkspaceStore {
       if (!encodedScene.accepted || encodedScene.canonicalJson === null) {
         throw new Error(this.sceneCodecDiagnostic(encodedScene));
       }
-      const installedScene = attach.facade.decodeSceneDocument({
-        sourceText: encodedScene.canonicalJson,
-      });
-      if (!installedScene.accepted) {
-        throw new Error(this.sceneCodecDiagnostic(installedScene));
+      const sceneSources = workspace === null
+        ? [{ path: 'scratch.scene.json', sourceText: encodedScene.canonicalJson }]
+        : selectStudioProjectContentSceneSources(
+            projectContentFiles,
+            this.activeSceneFilePathState(),
+            encodedScene.canonicalJson,
+          );
+      const sceneDocuments: FlatSceneDocument[] = [];
+      const sceneDiagnostics: string[] = [];
+      for (const sceneSource of sceneSources) {
+        const installedScene = attach.facade.decodeSceneDocument({ sourceText: sceneSource.sourceText });
+        if (!installedScene.accepted || installedScene.document === null) {
+          sceneDiagnostics.push(`${sceneSource.path}: ${this.sceneCodecDiagnostic(installedScene)}`);
+          continue;
+        }
+        sceneDocuments.push(installedScene.document);
       }
       this.workspaceAuthoringBridgeState.set(attach.bridge);
       this.workspaceAuthoringFacadeState.set(attach.facade);
       this.workspaceAuthoringStateSummaryState.set(state);
+      this.projectContentSceneDocumentsState.set(sceneDocuments);
+      if (workspace !== null) {
+        this.decodeProjectContentFiles(attach.facade, projectContentFiles, sceneDiagnostics);
+      }
+      if (options.reconcileProjectContent === true) {
+        this.dirtyProjectContentDocumentIdsState.set([]);
+        this.staleProjectContentSourcePathState.set(null);
+      }
       this.refreshWorkspaceVoxelProjection(attach.facade, state);
       this.workspaceAuthoringMessageState.set(
         `Workspace authoring ready · generation ${state.identity.generation} · ${state.lifecycleHash}.`,
@@ -8066,12 +8107,56 @@ export class StudioWorkspaceStore {
       this.workspaceAuthoringBridgeState.set(null);
       this.workspaceAuthoringFacadeState.set(null);
       this.workspaceAuthoringStateSummaryState.set(null);
+      this.projectContentSceneDocumentsState.set([]);
       this.clearWorkspaceAuthoringProjectionDelivery();
       const message = error instanceof Error
         ? error.message
         : 'Workspace authoring authority failed to start.';
       this.workspaceAuthoringMessageState.set(message);
       this.menuMessageState.set(`Workspace authoring failed: ${message}`);
+    }
+  }
+
+  private decodeProjectContentFiles(
+    facade: WorkspaceAuthoringFacade,
+    files: readonly StudioProjectContentLoadedFile[],
+    sceneDiagnostics: readonly string[],
+  ): void {
+    const sources = files.flatMap(file =>
+      file.sourceClass === 'canonical-candidate' && file.sourceKind !== null
+        ? [{ documentId: file.documentId, kind: file.sourceKind, sourceText: file.text }]
+        : [],
+    );
+    if (sources.length === 0) {
+      this.projectContentCodecState.set(null);
+      this.projectContentStatusState.set(sceneDiagnostics.length === 0 ? 'ready' : 'degraded');
+      this.projectContentMessageState.set(
+        sceneDiagnostics.length === 0
+          ? `Discovered ${files.length} stored sources; none yet use a canonical project-content document shape.`
+          : `Rust rejected manifest scene sources: ${sceneDiagnostics.join(' ')}`,
+      );
+      return;
+    }
+    const codec = facade.decodeProjectContent({ sources });
+    this.projectContentCodecState.set(codec);
+    this.refreshWorkspaceAuthoringState(facade);
+    const accepted = codec.accepted && sceneDiagnostics.length === 0;
+    this.projectContentStatusState.set(accepted ? 'ready' : 'degraded');
+    this.projectContentMessageState.set(
+      accepted
+        ? `Rust validated ${codec.documents.length} project-content documents against ${this.projectContentSceneDocumentsState().length} manifest scenes.`
+        : [
+            ...(sceneDiagnostics.length === 0
+              ? []
+              : [`Rust rejected manifest scene sources: ${sceneDiagnostics.join(' ')}`]),
+            ...(codec.accepted
+              ? []
+              : [`Rust rejected ${codec.diagnostics.length} project-content fields or references.`]),
+          ].join(' '),
+    );
+    const browser = this.projectContentBrowser();
+    if (browser.selectedEntryId !== null) {
+      this.selectedProjectContentEntryIdState.set(browser.selectedEntryId);
     }
   }
 
@@ -8089,6 +8174,7 @@ export class StudioWorkspaceStore {
     this.workspaceAuthoringFacadeState.set(null);
     this.workspaceAuthoringBridgeState.set(null);
     this.workspaceAuthoringStateSummaryState.set(null);
+    this.projectContentSceneDocumentsState.set([]);
     this.clearWorkspaceAuthoringProjectionDelivery();
     this.voxelProjectionBindingReceiptState.set(null);
     this.voxelAuthoringModeState.set(INITIAL_VOXEL_AUTHORING_MODE);
@@ -8676,12 +8762,35 @@ export class StudioWorkspaceStore {
     this.runtimeConnectionMessageState.set(outputSummary);
   }
 
+  private projectContentNeedsReconciliation(): boolean {
+    return this.dirtyProjectContentDocumentIdsState().length > 0
+      || this.staleProjectContentSourcePathState() !== null;
+  }
+
+  private authoringReconciliationMessage(action: string): string {
+    const parts: string[] = [];
+    if (this.sceneDirty()) parts.push('unsaved scene changes');
+    if (this.workspaceAuthoringDirty() && this.dirtyProjectContentDocumentIdsState().length === 0) {
+      parts.push('unsaved asset-authoring changes');
+    }
+    if (this.dirtyProjectContentDocumentIdsState().length > 0) {
+      parts.push(`Rust-accepted project-content edits for ${this.dirtyProjectContentDocumentIdsState().join(', ')}`);
+    }
+    if (this.staleProjectContentSourcePathState() !== null) {
+      parts.push(`unreconciled external changes to ${this.staleProjectContentSourcePathState()}`);
+    }
+    return `Discard or reload ${parts.join(', ')} and ${action}?`;
+  }
+
   newWorkspace(): void {
-    if (this.sceneDirty() || this.workspaceAuthoringDirty()) {
+    if (this.sceneDirty() || this.workspaceAuthoringDirty() || this.projectContentNeedsReconciliation()) {
       this.unsavedScenePromptState.set({
         action: 'new',
         path: null,
-        message: 'Discard unsaved scene or asset-authoring changes and create a new scene?',
+        message: this.authoringReconciliationMessage('create a new scene'),
+        confirmLabel: this.projectContentNeedsReconciliation()
+          ? 'Discard content and continue'
+          : 'Discard and continue',
       });
       return;
     }
@@ -8698,6 +8807,10 @@ export class StudioWorkspaceStore {
       void this.openSceneFileFromHost(prompt.path, true);
     } else if (prompt?.action === 'open-voxel-asset' && prompt.path !== null) {
       void this.openVoxelAssetFileFromHost(prompt.path, true);
+    } else if (prompt?.action === 'open-project' && prompt.path !== null) {
+      void this.openProjectPath(prompt.path, true);
+    } else if (prompt?.action === 'create-project') {
+      void this.createProject(true);
     }
   }
 
@@ -8746,7 +8859,11 @@ export class StudioWorkspaceStore {
       this.activeVoxelAssetIdState.set(null);
       this.activeVoxelAssetFilePathState.set(null);
       this.activeVoxelAssetFileHashState.set(null);
-      await this.openWorkspaceAuthoring();
+      if (this.gameWorkspace() === null) {
+        await this.openWorkspaceAuthoring({ reconcileProjectContent: true });
+      } else {
+        await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
+      }
       this.menuMessageState.set('New untitled scene created.');
     } catch (error) {
       this.menuMessageState.set(`New Scene failed without replacing the current document: ${errorMessage(error)}`);
@@ -8929,11 +9046,14 @@ export class StudioWorkspaceStore {
   }
 
   private async openSceneFileFromProject(path: string): Promise<void> {
-    if (this.sceneDirty() || this.workspaceAuthoringDirty()) {
+    if (this.sceneDirty() || this.workspaceAuthoringDirty() || this.projectContentNeedsReconciliation()) {
       this.unsavedScenePromptState.set({
         action: 'open',
         path,
-        message: `Discard unsaved scene or asset-authoring changes and open ${path}?`,
+        message: this.authoringReconciliationMessage(`open ${path}`),
+        confirmLabel: this.projectContentNeedsReconciliation()
+          ? 'Reconcile and continue'
+          : 'Discard and continue',
       });
       return;
     }
@@ -8941,11 +9061,14 @@ export class StudioWorkspaceStore {
   }
 
   async openVoxelAssetFileFromProject(path: string): Promise<void> {
-    if (this.workspaceAuthoringDirty()) {
+    if (this.workspaceAuthoringDirty() || this.projectContentNeedsReconciliation()) {
       this.unsavedScenePromptState.set({
         action: 'open-voxel-asset',
         path,
-        message: `Discard unsaved voxel-asset authoring changes and open ${path}? The scene document will be preserved.`,
+        message: `${this.authoringReconciliationMessage(`open ${path}`)} The scene document will be preserved.`,
+        confirmLabel: this.projectContentNeedsReconciliation()
+          ? 'Reconcile and continue'
+          : 'Discard and continue',
       });
       return;
     }
@@ -8953,13 +9076,23 @@ export class StudioWorkspaceStore {
   }
 
   private async openVoxelAssetFileFromHost(path: string, authorizedDiscard: boolean): Promise<void> {
-    if (!authorizedDiscard && this.workspaceAuthoringDirty()) {
+    if (!authorizedDiscard && (this.workspaceAuthoringDirty() || this.projectContentNeedsReconciliation())) {
       this.unsavedScenePromptState.set({
         action: 'open-voxel-asset',
         path,
-        message: `Discard unsaved voxel-asset authoring changes and open ${path}? The scene document will be preserved.`,
+        message: `${this.authoringReconciliationMessage(`open ${path}`)} The scene document will be preserved.`,
+        confirmLabel: this.projectContentNeedsReconciliation()
+          ? 'Reconcile and continue'
+          : 'Discard and continue',
       });
       return;
+    }
+    if (authorizedDiscard && this.projectContentNeedsReconciliation()) {
+      await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
+      if (this.projectContentNeedsReconciliation()) {
+        this.menuMessageState.set('Voxel asset open stopped because project-content reconciliation did not complete.');
+        return;
+      }
     }
     const normalizedPath = normalizeProjectFilePath(path);
     try {
@@ -9037,8 +9170,19 @@ export class StudioWorkspaceStore {
   }
 
   private async openSceneFileFromHost(path: string, authorizedDiscard: boolean): Promise<void> {
-    if (!authorizedDiscard && (this.sceneDirty() || this.workspaceAuthoringDirty())) {
-      this.unsavedScenePromptState.set({ action: 'open', path, message: `Discard unsaved scene or asset-authoring changes and open ${path}?` });
+    if (!authorizedDiscard && (
+      this.sceneDirty()
+      || this.workspaceAuthoringDirty()
+      || this.projectContentNeedsReconciliation()
+    )) {
+      this.unsavedScenePromptState.set({
+        action: 'open',
+        path,
+        message: this.authoringReconciliationMessage(`open ${path}`),
+        confirmLabel: this.projectContentNeedsReconciliation()
+          ? 'Reconcile and continue'
+          : 'Discard and continue',
+      });
       return;
     }
     const normalizedPath = normalizeProjectFilePath(path);
@@ -9119,9 +9263,8 @@ export class StudioWorkspaceStore {
       this.activeVoxelAssetIdState.set(null);
       this.activeVoxelAssetFilePathState.set(null);
       this.activeVoxelAssetFileHashState.set(null);
-      await this.openWorkspaceAuthoring();
+      await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
       const reconnectedVoxelAssetIds = await this.reconnectSceneVoxelAssets(authored.document);
-      await this.refreshProjectContentBrowser();
       const reconnected = new Set(reconnectedVoxelAssetIds);
       const unresolvedAssetIds = this.unresolvedSceneAssetIds(authored.document)
         .filter(assetId => !reconnected.has(assetId));
@@ -9566,10 +9709,24 @@ export class StudioWorkspaceStore {
     await this.openProjectPath(this.projectRootDraftState());
   }
 
-  async openProjectPath(path: string): Promise<void> {
+  async openProjectPath(path: string, authorizedReconciliation = false): Promise<void> {
     const candidate = normalizeProjectFilePath(path.trim());
     if (candidate.length === 0) {
       this.menuMessageState.set('Open Project requires a host project directory or asha.game.toml path.');
+      return;
+    }
+    if (!authorizedReconciliation && (
+      this.sceneDirty()
+      || this.workspaceAuthoringDirty()
+      || this.projectContentNeedsReconciliation()
+    )) {
+      this.unsavedScenePromptState.set({
+        action: 'open-project',
+        path: candidate,
+        message: this.authoringReconciliationMessage(`open project ${candidate}`),
+        confirmLabel: 'Reconcile and continue',
+      });
+      this.activeMenuState.set('project');
       return;
     }
     const manifestPath = projectFileName(candidate) === 'asha.game.toml'
@@ -9579,10 +9736,24 @@ export class StudioWorkspaceStore {
     await this.openProjectManifest(manifestPath);
   }
 
-  async createProject(): Promise<void> {
+  async createProject(authorizedReconciliation = false): Promise<void> {
     const root = this.projectRootDraftState().trim();
     if (root.length === 0) {
       this.menuMessageState.set('Create Project requires a host project directory.');
+      return;
+    }
+    if (!authorizedReconciliation && (
+      this.sceneDirty()
+      || this.workspaceAuthoringDirty()
+      || this.projectContentNeedsReconciliation()
+    )) {
+      this.unsavedScenePromptState.set({
+        action: 'create-project',
+        path: root,
+        message: this.authoringReconciliationMessage(`create project ${root}`),
+        confirmLabel: 'Reconcile and continue',
+      });
+      this.activeMenuState.set('project');
       return;
     }
     try {
@@ -9691,6 +9862,7 @@ export class StudioWorkspaceStore {
       this.projectGameIdDraftState.set(loaded.workspace.gameId);
       this.projectContentDescriptorsState.set(payload.projectContentFiles ?? []);
       this.projectContentFilesState.set([]);
+      this.projectContentSceneDocumentsState.set([]);
       this.projectContentCodecState.set(null);
       this.projectContentStatusState.set('loading');
       this.projectContentMessageState.set('Opening Rust project-content authoring.');
@@ -9698,9 +9870,7 @@ export class StudioWorkspaceStore {
       this.dirtyProjectContentDocumentIdsState.set([]);
       this.staleProjectContentSourcePathState.set(null);
       this.activeMenuState.set(null);
-      await this.openWorkspaceAuthoring();
-      if (generation !== this.projectOpenGeneration) return false;
-      await this.refreshProjectContentBrowser();
+      await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
       if (generation !== this.projectOpenGeneration) return false;
       this.menuMessageState.set(`Opened ASHA project ${loaded.workspace.gameId}.`);
       return true;
@@ -9714,7 +9884,9 @@ export class StudioWorkspaceStore {
     }
   }
 
-  async refreshProjectContentBrowser(): Promise<void> {
+  async refreshProjectContentBrowser(options: {
+    readonly reconcileFromDisk?: boolean;
+  } = {}): Promise<void> {
     const workspace = this.gameWorkspace();
     const descriptors = this.projectContentDescriptorsState();
     if (workspace === null) {
@@ -9722,51 +9894,28 @@ export class StudioWorkspaceStore {
       this.projectContentMessageState.set('Open an ASHA project to inspect stored content.');
       return;
     }
+    if (this.projectContentNeedsReconciliation() && options.reconcileFromDisk !== true) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(
+        'Project content has accepted or externally changed state. Save it or use Reload from Disk before refreshing.',
+      );
+      return;
+    }
     this.projectContentStatusState.set('loading');
     this.projectContentMessageState.set('Reading manifest-discovered project content from the Studio host.');
     try {
       const files = await Promise.all(descriptors.map(descriptor => this.readProjectContentFile(descriptor)));
       this.projectContentFilesState.set(files);
-      this.dirtyProjectContentDocumentIdsState.set([]);
-      this.staleProjectContentSourcePathState.set(null);
-      const facade = this.workspaceAuthoringFacadeState();
-      if (facade === null) {
+      await this.openWorkspaceAuthoring({
+        reconcileProjectContent: options.reconcileFromDisk === true,
+        projectContentFiles: files,
+      });
+      if (this.workspaceAuthoringFacadeState() === null) {
         this.projectContentCodecState.set(null);
         this.projectContentStatusState.set('degraded');
         this.projectContentMessageState.set(
           `Discovered ${files.length} stored JSON sources, but Rust workspace authoring is unavailable.`,
         );
-        return;
-      }
-      const sources = files.flatMap(file =>
-        file.sourceClass === 'canonical-candidate' && file.sourceKind !== null
-          ? [{
-              documentId: file.documentId,
-              kind: file.sourceKind,
-              sourceText: file.text,
-            }]
-          : [],
-      );
-      if (sources.length === 0) {
-        this.projectContentCodecState.set(null);
-        this.projectContentStatusState.set('ready');
-        this.projectContentMessageState.set(
-          `Discovered ${files.length} stored sources; none yet use a canonical project-content document shape.`,
-        );
-        return;
-      }
-      const codec = facade.decodeProjectContent({ sources });
-      this.projectContentCodecState.set(codec);
-      this.refreshWorkspaceAuthoringState(facade);
-      this.projectContentStatusState.set(codec.accepted ? 'ready' : 'degraded');
-      this.projectContentMessageState.set(
-        codec.accepted
-          ? `Rust validated ${codec.documents.length} project-content documents discovered from ${descriptors.length} files.`
-          : `Rust rejected ${codec.diagnostics.length} project-content fields or references; stored legacy sources remain inspectable.`,
-      );
-      const browser = this.projectContentBrowser();
-      if (browser.selectedEntryId !== null) {
-        this.selectedProjectContentEntryIdState.set(browser.selectedEntryId);
       }
     } catch (error) {
       this.projectContentCodecState.set(null);
@@ -9781,8 +9930,7 @@ export class StudioWorkspaceStore {
       return;
     }
     this.projectContentMessageState.set('Discarding the current project-content working set and reopening host files.');
-    await this.openWorkspaceAuthoring();
-    await this.refreshProjectContentBrowser();
+    await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
   }
 
   applyProjectConfigurationField(
@@ -9791,6 +9939,14 @@ export class StudioWorkspaceStore {
     fieldId: string,
     rawValue: string | number | boolean,
   ): void {
+    const staleSourcePath = this.staleProjectContentSourcePathState();
+    if (staleSourcePath !== null) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(
+        `${staleSourcePath} changed on the Studio host. Reload from Disk before applying another field edit.`,
+      );
+      return;
+    }
     const facade = this.workspaceAuthoringFacadeState();
     const codec = this.projectContentCodecState();
     const browser = this.projectContentBrowser();
@@ -9853,7 +10009,6 @@ export class StudioWorkspaceStore {
       }
       this.projectContentCodecState.set(result);
       this.dirtyProjectContentDocumentIdsState.set([documentId]);
-      this.staleProjectContentSourcePathState.set(null);
       this.projectContentStatusState.set('ready');
       this.projectContentMessageState.set(
         `Rust accepted ${field.label}; save the revision-bound canonical file to keep it.`,
@@ -9868,8 +10023,14 @@ export class StudioWorkspaceStore {
     const facade = this.workspaceAuthoringFacadeState();
     const codec = this.projectContentCodecState();
     const selected = this.projectContentBrowser().selectedEntry;
-    if (facade === null || codec === null || codec.setHash === null || selected === null) {
+    const workspace = this.gameWorkspace();
+    if (facade === null || codec === null || codec.setHash === null || selected === null || workspace === null) {
       this.projectContentMessageState.set('Select a Rust-validated changed document before saving.');
+      return;
+    }
+    if (this.staleProjectContentSourcePathState() !== null) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set('Reload the externally changed source before saving project content.');
       return;
     }
     if (!this.dirtyProjectContentDocumentIdsState().includes(selected.documentId)) {
@@ -9882,13 +10043,26 @@ export class StudioWorkspaceStore {
       this.projectContentMessageState.set('Rust did not produce a canonical file for the selected stored source.');
       return;
     }
+    const writeAuthorization = resolveStudioProjectContentWriteAuthorization(file, workspace.manifest);
+    if (!writeAuthorization.allowed || writeAuthorization.normalizedPath === null) {
+      this.projectContentStatusState.set('degraded');
+      this.projectContentMessageState.set(
+        writeAuthorization.diagnostic
+          ?? `${file.relativePath} is not authorized by studio.allowed_source_writes.`,
+      );
+      return;
+    }
+    const authorizedHostPath = joinProjectFilePath(
+      workspace.workspaceRoot,
+      writeAuthorization.normalizedPath,
+    );
     try {
       const stored = await persistStudioWorkspaceAuthoringCandidate({
         authority: facade,
         currentAuthority: () => this.workspaceAuthoringFacadeState(),
-        hostPath: file.path,
+        hostPath: authorizedHostPath,
         canonicalJsonHash: codec.setHash,
-        stage: () => this.stageHostAuthoringFile(file.path, canonical.canonicalJson, file.sha256),
+        stage: () => this.stageHostAuthoringFile(authorizedHostPath, canonical.canonicalJson, file.sha256),
         promote: token => this.promoteHostAuthoringFile(token),
         finalize: token => this.finalizeHostAuthoringFileStage(token),
         discard: token => this.discardHostAuthoringFileStage(token),

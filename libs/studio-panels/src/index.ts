@@ -2096,7 +2096,15 @@ export class StudioHierarchyPanelComponent {
               <dt>mesh</dt>
               <dd>{{ renderable.meshRef ?? 'none' }}</dd>
               <dt>material</dt>
-              <dd>{{ renderable.materialRef ?? 'none' }}</dd>
+              <dd>
+                @if (renderable.materialRef; as materialId) {
+                  <button type="button" (click)="store.navigateProjectContentReference('material', materialId)">
+                    {{ materialId }}
+                  </button>
+                } @else {
+                  none
+                }
+              </dd>
             </dl>
           </section>
 
@@ -2138,7 +2146,15 @@ export class StudioHierarchyPanelComponent {
               <dt>mesh asset</dt>
               <dd>{{ renderable.meshRef ?? 'none' }}</dd>
               <dt>material asset</dt>
-              <dd>{{ renderable.materialRef ?? 'none' }}</dd>
+              <dd>
+                @if (renderable.materialRef; as materialId) {
+                  <button type="button" (click)="store.navigateProjectContentReference('material', materialId)">
+                    {{ materialId }}
+                  </button>
+                } @else {
+                  none
+                }
+              </dd>
               <dt>selection source</dt>
               <dd>{{ store.selectedEntity()?.sceneObjectId ?? 'asset projection' }}</dd>
             </dl>
@@ -2836,6 +2852,20 @@ export class StudioInspectorPanelComponent {
                     <dt>document</dt>
                     <dd>{{ entry.documentId }}</dd>
                   </dl>
+                  @if (entry.status === 'rust-validated') {
+                    @if (browser.selectedWriteAuthorization; as authorization) {
+                      <section
+                        class="project-content-message"
+                        [attr.data-project-content-write-authorization]="authorization.allowed ? 'allowed' : 'denied'"
+                      >
+                        @if (authorization.allowed) {
+                          Save target authorized by {{ authorization.operationKind }}.
+                        } @else {
+                          Save disabled by the project manifest: {{ authorization.diagnostic }}
+                        }
+                      </section>
+                    }
+                  }
                   @if (entry.documentKind === 'scene') {
                     <button type="button" (click)="openProjectContentScene(entry.sourcePath)">
                       Open Stored Scene

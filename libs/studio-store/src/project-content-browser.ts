@@ -9,6 +9,11 @@ import type {
   ProjectContentFieldMetadata,
   ProjectContentReferenceKind,
 } from '@asha/contracts';
+import {
+  resolveAshaAuthoringWriteTarget,
+  type AshaAuthoringOperationKind,
+  type AshaGameManifest,
+} from '@asha/game-workspace';
 
 export type StudioProjectContentRootKind =
   | 'scene'
@@ -92,6 +97,18 @@ export interface StudioProjectContentReferenceOptionReadModel {
   readonly label: string;
 }
 
+export interface StudioProjectContentWriteAuthorizationReadModel {
+  readonly allowed: boolean;
+  readonly operationKind: AshaAuthoringOperationKind;
+  readonly normalizedPath: string | null;
+  readonly diagnostic: string | null;
+}
+
+export interface StudioProjectContentSceneSource {
+  readonly path: string;
+  readonly sourceText: string;
+}
+
 export interface StudioProjectContentEditableFieldReadModel {
   readonly documentId: string;
   readonly configurationId: string;
@@ -122,6 +139,7 @@ export interface StudioProjectContentBrowserReadModel {
   readonly diagnostics: readonly ProjectContentDiagnostic[];
   readonly dirtyDocumentIds: readonly string[];
   readonly canSaveSelected: boolean;
+  readonly selectedWriteAuthorization: StudioProjectContentWriteAuthorizationReadModel | null;
   readonly staleSourcePath: string | null;
 }
 
@@ -134,8 +152,10 @@ export interface StudioProjectContentBrowserInput {
   readonly selectedEntryId: string | null;
   readonly dirtyDocumentIds: readonly string[];
   readonly staleSourcePath: string | null;
+  readonly manifest: AshaGameManifest | null;
   readonly activeScenePath: string | null;
   readonly activeScene: FlatSceneDocument;
+  readonly projectScenes: readonly FlatSceneDocument[];
 }
 
 const CATEGORY_LABELS: Readonly<Record<StudioProjectContentCategoryId, string>> = {
@@ -285,8 +305,14 @@ export function buildStudioProjectContentBrowserReadModel(
     ?? null;
   const editableFields = selectedEntry === null || input.codec === null
     ? []
-    : editableFieldsForDocument(selectedEntry.documentId, input.codec, input.activeScene);
+    : editableFieldsForDocument(selectedEntry.documentId, input.codec, input.projectScenes);
   const dirtyIds = [...input.dirtyDocumentIds];
+  const selectedFile = selectedEntry === null
+    ? null
+    : input.files.find(file => file.documentId === selectedEntry.documentId) ?? null;
+  const selectedWriteAuthorization = selectedFile === null || input.manifest === null
+    ? null
+    : resolveStudioProjectContentWriteAuthorization(selectedFile, input.manifest);
   return {
     status: input.status,
     message: input.message,
@@ -301,9 +327,69 @@ export function buildStudioProjectContentBrowserReadModel(
     dirtyDocumentIds: dirtyIds,
     canSaveSelected: selectedEntry !== null
       && dirtyIds.includes(selectedEntry.documentId)
-      && input.staleSourcePath === null,
+      && input.staleSourcePath === null
+      && selectedWriteAuthorization?.allowed === true,
+    selectedWriteAuthorization,
     staleSourcePath: input.staleSourcePath,
   };
+}
+
+export function resolveStudioProjectContentWriteAuthorization(
+  file: StudioProjectContentFileDescriptor,
+  manifest: AshaGameManifest,
+): StudioProjectContentWriteAuthorizationReadModel {
+  const operationKind = projectContentAuthoringOperation(file.rootKind);
+  const resolution = resolveAshaAuthoringWriteTarget(manifest, {
+    operationKind,
+    relativePath: file.relativePath,
+  });
+  if (!resolution.ok) {
+    return {
+      allowed: false,
+      operationKind,
+      normalizedPath: null,
+      diagnostic: resolution.diagnostics.map(diagnostic => diagnostic.message).join(' '),
+    };
+  }
+  return {
+    allowed: true,
+    operationKind,
+    normalizedPath: resolution.normalizedPath,
+    diagnostic: null,
+  };
+}
+
+export function selectStudioProjectContentSceneSources(
+  files: readonly StudioProjectContentLoadedFile[],
+  activeScenePath: string | null,
+  activeSceneCanonicalJson: string | null,
+): readonly StudioProjectContentSceneSource[] {
+  const sources = files
+    .filter(file => file.sourceClass === 'stored-scene')
+    .map(file => ({ path: file.path, sourceText: file.text }));
+  if (activeScenePath === null || activeSceneCanonicalJson === null) {
+    return sources;
+  }
+  return sources.map(source => sameHostPath(source.path, activeScenePath)
+    ? { path: source.path, sourceText: activeSceneCanonicalJson }
+    : source,
+  );
+}
+
+export function formatProjectContentPrefabPartReference(prefabId: number, role: string): string {
+  return `${String(prefabId)}:${role}`;
+}
+
+function projectContentAuthoringOperation(
+  rootKind: StudioProjectContentRootKind,
+): AshaAuthoringOperationKind {
+  switch (rootKind) {
+    case 'scene': return 'authoring.scene.save_source';
+    case 'prefab': return 'authoring.prefab.save_source';
+    case 'asset': return 'authoring.asset.save_source';
+    case 'catalog': return 'authoring.catalog.save_source';
+    case 'policy': return 'authoring.policy.save_source';
+  }
 }
 
 export function projectContentNavigationKey(
@@ -619,11 +705,18 @@ function typedDocumentEntry(
           `${document.document.bindings.length} bindings · ${document.document.overrides.length} overrides`,
           `${document.document.triggers.length} trigger definitions`,
         ],
-        relationships: document.document.triggers.map(trigger => ({
-          label: `trigger scope ${trigger.scope} on ${trigger.sceneInstanceId}`,
-          navigationKind: 'sceneInstance' as const,
-          targetId: trigger.sceneInstanceId,
-        })),
+        relationships: [
+          ...document.document.bindings.map(binding => ({
+            label: `binding ${binding.bindingId} · ${binding.moduleId} · ${binding.configurationId}`,
+            navigationKind: 'binding' as const,
+            targetId: binding.bindingId,
+          })),
+          ...document.document.triggers.map(trigger => ({
+            label: `trigger scope ${trigger.scope} on ${trigger.sceneInstanceId}`,
+            navigationKind: 'sceneInstance' as const,
+            targetId: trigger.sceneInstanceId,
+          })),
+        ],
         navigationKeys: sourceNavigationKeys(file, [
           ...document.document.configurations.map(configuration =>
             projectContentNavigationKey('configuration', configuration.configurationId),
@@ -796,6 +889,9 @@ function rejectedCandidateSummary(file: StudioProjectContentLoadedFile): {
       const id = stringField(entry, 'id');
       if (id === null) continue;
       navigationKeys.push(projectContentNavigationKey('asset', id));
+      if (entry['material'] !== null && entry['material'] !== undefined) {
+        navigationKeys.push(projectContentNavigationKey('material', id));
+      }
       details.push(`declared asset · ${id}`);
     }
   }
@@ -806,7 +902,14 @@ function rejectedCandidateSummary(file: StudioProjectContentLoadedFile): {
     }
     for (const binding of recordArrayField(parsed, 'bindings')) {
       const id = stringField(binding, 'bindingId');
-      if (id !== null) navigationKeys.push(projectContentNavigationKey('binding', id));
+      if (id !== null) {
+        navigationKeys.push(projectContentNavigationKey('binding', id));
+        relationships.push({
+          label: `binding ${id}`,
+          navigationKind: 'binding',
+          targetId: id,
+        });
+      }
     }
     for (const trigger of recordArrayField(parsed, 'triggers')) {
       const instanceId = stringField(trigger, 'sceneInstanceId');
@@ -826,13 +929,13 @@ function rejectedCandidateSummary(file: StudioProjectContentLoadedFile): {
 function editableFieldsForDocument(
   documentId: string,
   codec: ProjectContentCodecResult,
-  activeScene: FlatSceneDocument,
+  projectScenes: readonly FlatSceneDocument[],
 ): readonly StudioProjectContentEditableFieldReadModel[] {
   const document = codec.documents.find(candidate => candidate.documentId === documentId);
   if (document?.kind !== 'gameplayConfiguration') {
     return [];
   }
-  const options = referenceOptions(codec.documents, activeScene);
+  const options = referenceOptions(codec.documents, projectScenes);
   return document.document.configurations.flatMap(configuration => {
     const schema = codec.providerSchemas.find(candidate =>
       candidate.schemaId === configuration.schemaId
@@ -884,7 +987,7 @@ function metadataForField(
 
 function referenceOptions(
   documents: readonly ProjectContentDocument[],
-  activeScene: FlatSceneDocument,
+  projectScenes: readonly FlatSceneDocument[],
 ): Readonly<Record<ProjectContentReferenceKind, readonly StudioProjectContentReferenceOptionReadModel[]>> {
   const entityDefinitions = documents.flatMap(document =>
     document.kind === 'entityDefinition'
@@ -903,7 +1006,7 @@ function referenceOptions(
     document.kind === 'prefabRegistry'
       ? document.registry.definitions.flatMap(definition =>
           definition.partRoles.map(role => ({
-            value: `${String(definition.id)}#${role.role}`,
+            value: formatProjectContentPrefabPartReference(definition.id, role.role),
             label: `${definition.displayName} · ${role.role}`,
           })),
         )
@@ -923,11 +1026,14 @@ function referenceOptions(
       ? document.catalog.resources.map(resource => ({ value: resource.resourceId, label: resource.resourceId }))
       : [],
   );
-  const sceneInstances = activeScene.nodes.flatMap(node =>
+  const sceneInstances = [...new Map(projectScenes.flatMap(scene => scene.nodes.flatMap(node =>
     node.kind.kind === 'entityInstance'
-      ? [{ value: node.kind.instance.instanceId, label: node.label ?? node.kind.instance.instanceId }]
+      ? [[node.kind.instance.instanceId, {
+          value: node.kind.instance.instanceId,
+          label: node.label ?? node.kind.instance.instanceId,
+        }] as const]
       : [],
-  );
+  ))).values()];
   return {
     asset: assets,
     entityDefinition: entityDefinitions,

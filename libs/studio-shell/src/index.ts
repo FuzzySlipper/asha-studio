@@ -96,7 +96,7 @@ export * from './host-file-dialog-focus';
               <section class="menu-popover__notice" aria-label="Unsaved scene changes">
                 <strong>Unsaved changes</strong>
                 <span>{{ prompt.message }}</span>
-                <button type="button" (click)="confirmDiscardUnsavedScene()">Discard and continue</button>
+                <button type="button" (click)="confirmDiscardUnsavedScene()">{{ prompt.confirmLabel }}</button>
                 <button type="button" (click)="cancelDiscardUnsavedScene()">Cancel</button>
               </section>
             }
@@ -226,6 +226,14 @@ export * from './host-file-dialog-focus';
                 <button type="button" (click)="openProject()">Open Project</button>
                 <button type="button" (click)="createProject()">Create Project</button>
               </div>
+              @if (store.unsavedScenePrompt(); as prompt) {
+                <section class="menu-popover__notice" aria-label="Unsaved project content changes">
+                  <strong>Reconciliation required</strong>
+                  <span>{{ prompt.message }}</span>
+                  <button type="button" (click)="confirmDiscardUnsavedScene()">{{ prompt.confirmLabel }}</button>
+                  <button type="button" (click)="cancelDiscardUnsavedScene()">Cancel</button>
+                </section>
+              }
               <small>{{ store.projectSettingsReadout().message }}</small>
             </div>
             <div class="project-connect" data-visual-id="studio-running-project-picker">
@@ -586,7 +594,7 @@ export * from './host-file-dialog-focus';
                 <section class="host-file-dialog__notice" aria-label="Unsaved scene changes">
                   <strong>Unsaved changes</strong>
                   <span>{{ prompt.message }}</span>
-                  <button type="button" (click)="confirmDiscardUnsavedScene()">Discard and continue</button>
+                  <button type="button" (click)="confirmDiscardUnsavedScene()">{{ prompt.confirmLabel }}</button>
                   <button type="button" (click)="cancelDiscardUnsavedScene()">Keep editing</button>
                 </section>
               }
