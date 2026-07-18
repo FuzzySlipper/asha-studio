@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 
 const baseUrl = process.env.BASE_URL ?? 'http://127.0.0.1:4212';
@@ -39,11 +41,48 @@ async function expandSceneHierarchy(page) {
   await page.locator('button[title="Expand hierarchy"]').click();
 }
 
+async function expectStoredVoxelProjection(page) {
+  const viewport = page.locator('[data-visual-id="studio-viewport"]');
+  await expect(viewport).toHaveAttribute('data-workspace-authoring-projection', 'present', {
+    timeout: 30_000,
+  });
+  await expect.poll(async () => Number(
+    await viewport.getAttribute('data-workspace-authoring-mesh-payload-ops'),
+  ), { timeout: 30_000 }).toBeGreaterThan(0);
+}
+
+async function expectOneStoredEnvironment() {
+  const scene = JSON.parse(await readFile(
+    join(demoRoot, 'levels/scenes/generated-tunnel-room.scene.json'),
+    'utf8',
+  ));
+  const environments = scene.nodes.filter(node => node.tags.includes('procedural-environment'));
+  if (environments.length !== 1) {
+    throw new Error(`Expected one stored procedural environment; found ${String(environments.length)}.`);
+  }
+  const environment = environments[0];
+  const generatedMarkers = scene.nodes.filter(node =>
+    node.parent === environment.id && node.tags.includes('generated-marker'),
+  );
+  if (generatedMarkers.length !== 2) {
+    throw new Error(`Expected two stored generated markers; found ${String(generatedMarkers.length)}.`);
+  }
+  const asset = JSON.parse(await readFile(
+    join(demoRoot, 'assets/voxels/generated-tunnel.avxl.json'),
+    'utf8',
+  ));
+  if (!asset.provenance?.[0]?.uri?.includes('seed=23&')) {
+    throw new Error('Stored voxel asset does not retain the edited seed 23 provenance.');
+  }
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   await page.goto(`${baseUrl}/?project=${encodeURIComponent(demoRoot)}`, { waitUntil: 'networkidle' });
   await openDemoScene(page);
   await expandSceneHierarchy(page);
+  await expectStoredVoxelProjection(page);
+  await expect(page.getByText('Generated tunnel environment', { exact: true })).toHaveCount(1);
   await expect(page.getByText('Directional Light', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Point Light', { exact: true }).first()).toBeVisible();
 
@@ -59,6 +98,7 @@ try {
   const environment = page.locator('[data-visual-id="studio-environment-authoring"]');
   await expect(environment).toBeVisible({ timeout: 30_000 });
   await environment.locator('summary').click();
+  await environment.getByRole('spinbutton', { name: 'Seed' }).fill('23');
   const placement = environment.getByRole('group', { name: 'Scene placement' });
   await placement.locator('input').first().fill('-4');
   const materialBindings = environment.getByRole('group', { name: 'Material catalog bindings' });
@@ -92,9 +132,12 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await openDemoScene(page);
   await expandSceneHierarchy(page);
-  await expect(page.getByText('Generated tunnel environment', { exact: true }).first()).toBeVisible({
+  await expect(page.getByText('Generated tunnel environment', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('Generated tunnel environment', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
+  await expectStoredVoxelProjection(page);
+  await expectOneStoredEnvironment();
   await expect(page.getByText('Directional Light', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Point Light', { exact: true }).first()).toBeVisible();
   await expect(viewport).toBeVisible();

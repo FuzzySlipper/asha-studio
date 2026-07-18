@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ViewChild,
+  computed,
   effect,
   inject,
   signal,
@@ -732,7 +733,13 @@ function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly
   selector: 'asha-studio-viewport',
   standalone: true,
   template: `
-    <section class="viewport-scene" data-visual-id="studio-viewport">
+    <section
+      class="viewport-scene"
+      data-visual-id="studio-viewport"
+      [attr.data-workspace-authoring-projection]="workspaceAuthoringProjectionEvidence().status"
+      [attr.data-workspace-authoring-projection-hash]="workspaceAuthoringProjectionEvidence().projectionHash"
+      [attr.data-workspace-authoring-mesh-payload-ops]="workspaceAuthoringProjectionEvidence().meshPayloadOpCount"
+    >
       <div class="viewport-scene__header">
         <span>4 · 3D Viewport / Scene View</span>
         <strong>{{ store.viewportAdapter().sceneId }}</strong>
@@ -1081,6 +1088,14 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   readonly store = inject(StudioWorkspaceStore);
   readonly viewportReadout = signal<AshaRendererEditorViewportReadout | null>(null);
   readonly viewportMountDiagnostic = signal<string | null>(null);
+  readonly workspaceAuthoringProjectionEvidence = computed(() => {
+    const projection = this.store.workspaceAuthoringProjection();
+    return {
+      status: projection === null ? 'missing' : 'present',
+      projectionHash: projection?.projectionHash ?? null,
+      meshPayloadOpCount: projection?.studioMetrics.meshPayloadOpCount ?? 0,
+    };
+  });
 
   @ViewChild('host', { static: true }) private hostRef?: ElementRef<HTMLDivElement>;
   @ViewChild('canvas', { static: true }) private canvasRef?: ElementRef<HTMLCanvasElement>;

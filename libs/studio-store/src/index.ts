@@ -195,6 +195,10 @@ import {
   type StudioWorkspaceProjectionDelivery,
 } from './workspace-projection-delivery.js';
 import {
+  readStudioStoredProceduralEnvironmentRecipe,
+  selectStudioProceduralEnvironmentTarget,
+} from './procedural-environment-target.js';
+import {
   appendStudioWorkspaceProjectionSample,
   buildStudioWorkspaceProjectionPerformanceReadModel,
   type StudioWorkspaceProjectionRenderSample,
@@ -258,6 +262,16 @@ export {
   type StudioWorkspaceAuthoringSaveRequest,
   type StudioWorkspaceAuthoringSaveResult,
 } from './workspace-authoring-save.js';
+
+export {
+  readStudioStoredProceduralEnvironmentRecipe,
+  selectStudioProceduralEnvironmentTarget,
+  type StudioStoredProceduralEnvironmentRecipe,
+  type StudioProceduralEnvironmentMarkerTarget,
+  type StudioProceduralEnvironmentTargetRejection,
+  type StudioProceduralEnvironmentTargetResult,
+  type StudioProceduralEnvironmentTargetSelection,
+} from './procedural-environment-target.js';
 
 import {
   resolveAshaAuthoringWriteTarget,
@@ -9456,8 +9470,9 @@ export class StudioWorkspaceStore {
         ?.slice('asha-studio:voxel-asset-path:'.length);
       const assetName = assetId.split('/').filter(Boolean).at(-1) ?? 'generated';
       const assetPath = taggedPath ?? `assets/voxels/${assetName}.${VOXEL_ASSET_EXTENSION}`;
+      const hostAssetPath = this.resolveSceneVoxelAssetHostPath(assetPath);
       try {
-        const stored = await this.readHostVoxelAsset(assetPath);
+        const stored = await this.readHostVoxelAsset(hostAssetPath);
         const asset = JSON.parse(stored.text) as VoxelVolumeAsset;
         const coordinateAssessment = assessStudioVoxelAssetCoordinateSystem(asset);
         if (!coordinateAssessment.compatible) {
@@ -9484,6 +9499,7 @@ export class StudioWorkspaceStore {
         this.activeVoxelAssetFileHashState.set(stored.sha256);
         this.activeVoxelAssetIdState.set(receipt.requestAssetId);
         this.setVoxelBrushPaletteFromAsset(asset);
+        this.syncProceduralEnvironmentDraftFromStoredAsset(node, asset, assetPath);
         this.refreshWorkspaceAuthoringState(facade);
         this.voxelAssetWorkflowControlState.update(current => ({
           ...current,
@@ -9509,6 +9525,49 @@ export class StudioWorkspaceStore {
       }
     }
     return reconnected;
+  }
+
+  private syncProceduralEnvironmentDraftFromStoredAsset(
+    node: FlatSceneDocument['nodes'][number],
+    asset: VoxelVolumeAsset,
+    assetPath: string,
+  ): void {
+    const recipe = readStudioStoredProceduralEnvironmentRecipe(asset);
+    if (recipe === null || node.kind.kind !== 'voxelVolume') return;
+    this.proceduralEnvironmentDraftState.set({
+      providerId: recipe.providerId,
+      presetId: recipe.presetId,
+      seed: recipe.seed,
+      assetId: asset.assetId,
+      assetPath: normalizeProjectFilePath(assetPath),
+      voxelLabel: node.label ?? asset.authoring.label ?? 'Generated environment',
+      translation: node.transform.translation,
+      materialPalette: asset.materialPalette.map(binding => ({
+        voxelMaterial: binding.voxelMaterial,
+        displayName: binding.displayName ?? `Voxel material ${String(binding.voxelMaterial)}`,
+        paletteEntryId: binding.paletteEntryId,
+        materialAssetId: binding.materialAssetId,
+        materialCatalogBindingId: binding.materialCatalogBindingId ?? '',
+      })),
+    });
+  }
+
+  private resolveSceneVoxelAssetHostPath(assetPath: string): string {
+    const normalizedPath = normalizeProjectFilePath(assetPath);
+    if (normalizedPath.startsWith('/') || /^[A-Za-z]:\//u.test(normalizedPath)) {
+      return normalizedPath;
+    }
+    const discovered = this.projectContentDescriptorsState().find(descriptor =>
+      descriptor.rootKind === 'asset'
+        && normalizeProjectFilePath(descriptor.relativePath) === normalizedPath,
+    );
+    if (discovered !== undefined) {
+      return normalizeProjectFilePath(discovered.path);
+    }
+    const workspace = this.gameWorkspace();
+    return workspace === null
+      ? normalizedPath
+      : joinProjectFilePath(workspace.workspaceRoot, normalizedPath);
   }
 
   saveSceneFile(): void {
@@ -10097,6 +10156,7 @@ export class StudioWorkspaceStore {
     }
     this.projectContentMessageState.set('Discarding the current project-content working set and reopening host files.');
     await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
+    await this.reconnectSceneVoxelAssets(this.workspaceState().flatSceneDocument);
   }
 
   setProceduralEnvironmentTextField(
@@ -10180,14 +10240,10 @@ export class StudioWorkspaceStore {
       if (!sceneCodec.accepted || sceneCodec.contentHash === null) {
         throw new Error(this.sceneCodecDiagnostic(sceneCodec));
       }
-      const maxNodeId = document.nodes.reduce(
-        (maximum, node) => Math.max(maximum, node.id as number),
-        0,
-      );
-      const voxelNodeId = maxNodeId + 1;
-      const rootChildOrder = document.nodes
-        .filter(node => node.parent === null)
-        .reduce((maximum, node) => Math.max(maximum, node.childOrder), -1) + 1;
+      const target = selectStudioProceduralEnvironmentTarget(document, draft.assetId.trim());
+      if (!target.ok) {
+        throw new Error(target.diagnostic);
+      }
       const result = facade.previewProceduralEnvironment({
         expectedWorkspaceId: authority.identity.project.workspaceId,
         expectedGeneration: authority.identity.generation,
@@ -10201,26 +10257,16 @@ export class StudioWorkspaceStore {
           scenePath,
           assetId: draft.assetId.trim(),
           assetPath: normalizeProjectFilePath(draft.assetPath.trim()),
-          voxelNodeId: sceneNodeId(voxelNodeId),
-          voxelParentId: null,
-          voxelChildOrder: rootChildOrder,
+          voxelNodeId: target.voxelNodeId,
+          voxelParentId: target.voxelParentId,
+          voxelChildOrder: target.voxelChildOrder,
           voxelLabel: draft.voxelLabel.trim().length === 0 ? null : draft.voxelLabel.trim(),
           voxelTransform: {
             translation: draft.translation,
             rotation: [0, 0, 0, 1],
             scale: [1, 1, 1],
           },
-          markerTargets: [{
-            sourceMarkerId: 'player_start',
-            nodeId: sceneNodeId(voxelNodeId + 1),
-            markerId: 'spawn/player-start',
-            childOrder: 0,
-          }, {
-            sourceMarkerId: 'exit_hint',
-            nodeId: sceneNodeId(voxelNodeId + 2),
-            markerId: 'navigation/exit-hint',
-            childOrder: 1,
-          }],
+          markerTargets: target.markerTargets,
         },
         materialPalette: draft.materialPalette.map(material => ({
           voxelMaterial: material.voxelMaterial,
@@ -10252,7 +10298,7 @@ export class StudioWorkspaceStore {
       }
       this.proceduralEnvironmentStatusState.set('previewed');
       this.proceduralEnvironmentMessageState.set(
-        `Previewed ${String(result.candidate.sources.solidVoxelCount)} solid voxels without mutating workspace revision ${authority.workingRevision}.`,
+        `Previewed ${target.mode} of ${String(result.candidate.sources.solidVoxelCount)} solid voxels without mutating workspace revision ${authority.workingRevision}.`,
       );
       this.menuMessageState.set('Environment preview is renderer-local; Accept Materialization commits it to Rust authoring authority.');
     } catch (error) {
