@@ -8782,6 +8782,17 @@ export class StudioWorkspaceStore {
     return `Discard or reload ${parts.join(', ')} and ${action}?`;
   }
 
+  private projectContentReconciliationMessage(action: string): string {
+    const parts: string[] = [];
+    if (this.dirtyProjectContentDocumentIdsState().length > 0) {
+      parts.push(`Rust-accepted project-content edits for ${this.dirtyProjectContentDocumentIdsState().join(', ')}`);
+    }
+    if (this.staleProjectContentSourcePathState() !== null) {
+      parts.push(`unreconciled external changes to ${this.staleProjectContentSourcePathState()}`);
+    }
+    return `${action} will discard or reload ${parts.join(', ')} from disk. Continue?`;
+  }
+
   newWorkspace(): void {
     if (this.sceneDirty() || this.workspaceAuthoringDirty() || this.projectContentNeedsReconciliation()) {
       this.unsavedScenePromptState.set({
@@ -9481,6 +9492,15 @@ export class StudioWorkspaceStore {
   reloadSceneFileAfterConflict(): void {
     const conflict = this.sceneFileConflictState();
     if (conflict === null) {
+      return;
+    }
+    if (this.projectContentNeedsReconciliation()) {
+      this.unsavedScenePromptState.set({
+        action: 'open',
+        path: conflict.path,
+        message: this.projectContentReconciliationMessage(`Reloading ${conflict.path} from the Studio host`),
+        confirmLabel: 'Reload project content and scene',
+      });
       return;
     }
     this.sceneFileConflictState.set(null);

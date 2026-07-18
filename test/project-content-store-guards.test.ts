@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import '@angular/compiler';
 import { createEnvironmentInjector, inject, runInInjectionContext } from '@angular/core';
-import { loadStudioGameWorkspaceManifest } from '@asha-studio/domain';
+import {
+  buildInitialWorkspaceReadModel,
+  loadStudioGameWorkspaceManifest,
+} from '@asha-studio/domain';
 import {
   StudioPreferencesStore,
   StudioWorkspaceStore,
   inspectStudioProjectContentFile,
   type StudioProjectContentLoadedFile,
+  type StudioSceneFileConflictReadModel,
 } from '@asha-studio/store';
 import type { ProjectContentCodecResult, ProjectContentDocument } from '@asha/contracts';
 import type { WorkspaceAuthoringFacade } from '@asha/runtime-session';
@@ -69,6 +73,7 @@ interface ProjectContentStoreInternals {
   readonly selectedProjectContentEntryIdState: MutableSignalForTest<string | null>;
   readonly dirtyProjectContentDocumentIdsState: MutableSignalForTest<readonly string[]>;
   readonly staleProjectContentSourcePathState: MutableSignalForTest<string | null>;
+  readonly sceneFileConflictState: MutableSignalForTest<StudioSceneFileConflictReadModel | null>;
   readonly workspaceAuthoringFacadeState: MutableSignalForTest<WorkspaceAuthoringFacade | null>;
   stageHostAuthoringFile(path: string, text: string, expectedHash: string | null): Promise<never>;
 }
@@ -158,6 +163,39 @@ test('scene and project navigation preserve accepted project-content edits until
     assert.deepEqual(internals.dirtyProjectContentDocumentIdsState(), [
       'gameplay-configuration:catalogs/catalog.json',
     ]);
+  });
+});
+
+test('scene-conflict reload cannot consume unrelated project-content reconciliation state', async () => {
+  await withStore((store, internals) => {
+    const documentId = 'gameplay-configuration:catalogs/catalog.json';
+    const stalePath = '/projects/demo/catalogs/catalog.json';
+    const conflict = {
+      path: '/projects/demo/scenes/current.scene.json',
+      expectedHash: 'sha256:expected-scene',
+      actualHash: 'sha256:changed-scene',
+      canonicalJson: '{}',
+      document: buildInitialWorkspaceReadModel().flatSceneDocument,
+    };
+    internals.dirtyProjectContentDocumentIdsState.set([documentId]);
+    internals.staleProjectContentSourcePathState.set(stalePath);
+    internals.sceneFileConflictState.set(conflict);
+
+    store.reloadSceneFileAfterConflict();
+
+    assert.equal(store.unsavedScenePrompt()?.action, 'open');
+    assert.equal(store.unsavedScenePrompt()?.path, conflict.path);
+    assert.match(store.unsavedScenePrompt()?.message ?? '', /Rust-accepted project-content edits/);
+    assert.match(store.unsavedScenePrompt()?.message ?? '', /unreconciled external changes/);
+    assert.equal(store.unsavedScenePrompt()?.confirmLabel, 'Reload project content and scene');
+    assert.deepEqual(internals.dirtyProjectContentDocumentIdsState(), [documentId]);
+    assert.equal(internals.staleProjectContentSourcePathState(), stalePath);
+    assert.deepEqual(internals.sceneFileConflictState(), conflict);
+
+    store.cancelDiscardUnsavedScene();
+    assert.deepEqual(internals.sceneFileConflictState(), conflict);
+    assert.deepEqual(internals.dirtyProjectContentDocumentIdsState(), [documentId]);
+    assert.equal(internals.staleProjectContentSourcePathState(), stalePath);
   });
 });
 
