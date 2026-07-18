@@ -7,7 +7,10 @@ import type {
   WorkspaceAuthoringFacade,
   WorkspaceAuthoringStateSummary,
 } from '@asha/runtime-session';
-import { persistStudioWorkspaceAuthoringCandidate } from '@asha-studio/store';
+import {
+  persistStudioWorkspaceAuthoringArtifactSet,
+  persistStudioWorkspaceAuthoringCandidate,
+} from '@asha-studio/store';
 import {
   discardStudioHostFileStage,
   finalizeStudioHostFileStage,
@@ -483,5 +486,101 @@ test('Rust confirmation rejection after promotion rolls the host target back', a
   assert.equal(authority.readState().dirty, true);
   assert.equal(authority.readState().storedRevision, 0);
   assert.equal(confirmationCount, 1);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('a Rust-issued scene and voxel artifact set confirms only after both files are promoted', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-artifact-set-'));
+  const scenePath = join(root, 'scene.json');
+  const assetPath = join(root, 'asset.avxl.json');
+  await writeFile(scenePath, 'stored-before');
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => authoringState(12), () => { confirmationCount += 1; });
+  const artifact = (
+    path: string,
+    text: string,
+    expectedHash: string | null,
+  ) => ({
+    hostPath: path,
+    stage: async () => {
+      const receipt = await stageStudioHostFile(root, { path, text, expectedHash }) as {
+        readonly ok: boolean;
+        readonly token: string;
+        readonly path: string;
+        readonly sha256: string;
+      };
+      assert.equal(receipt.ok, true);
+      return receipt;
+    },
+    promote: async (token: string) => promoteStudioHostFileStage({ token }) as Promise<{
+      readonly path: string;
+      readonly sha256: string;
+    }>,
+    finalize: async (token: string) => { await finalizeStudioHostFileStage({ token }); },
+    discard: async (token: string) => { await discardStudioHostFileStage({ token }); },
+  });
+  const result = await persistStudioWorkspaceAuthoringArtifactSet({
+    authority,
+    currentAuthority: () => authority,
+    confirmationHostPath: root,
+    canonicalJsonHash: 'sha256:artifact-set',
+    artifacts: [
+      artifact(scenePath, 'scene-after', studioHostFileSha256('stored-before')),
+      artifact(assetPath, 'asset-after', null),
+    ],
+  });
+  assert.equal(await readFile(scenePath, 'utf8'), 'scene-after');
+  assert.equal(await readFile(assetPath, 'utf8'), 'asset-after');
+  assert.equal(result.artifacts.length, 2);
+  assert.equal(result.storedRevision, 12);
+  assert.equal(confirmationCount, 1);
+  await rm(root, { recursive: true, force: true });
+});
+
+test('a partial artifact-set promotion is rolled back before Rust confirmation', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'asha-studio-artifact-set-rollback-'));
+  const scenePath = join(root, 'scene.json');
+  const assetPath = join(root, 'asset.avxl.json');
+  await writeFile(scenePath, 'scene-before');
+  let confirmationCount = 0;
+  const authority = fakeAuthority(() => authoringState(13), () => { confirmationCount += 1; });
+  const sceneStage = await stageStudioHostFile(root, {
+    path: scenePath,
+    text: 'scene-after',
+    expectedHash: studioHostFileSha256('scene-before'),
+  }) as { readonly token: string; readonly path: string; readonly sha256: string };
+  const assetStage = await stageStudioHostFile(root, {
+    path: assetPath,
+    text: 'asset-after',
+    expectedHash: null,
+  }) as { readonly token: string; readonly path: string; readonly sha256: string };
+  await assert.rejects(
+    persistStudioWorkspaceAuthoringArtifactSet({
+      authority,
+      currentAuthority: () => authority,
+      confirmationHostPath: root,
+      canonicalJsonHash: 'sha256:artifact-set',
+      artifacts: [{
+        hostPath: scenePath,
+        stage: async () => sceneStage,
+        promote: async token => promoteStudioHostFileStage({ token }) as Promise<{
+          readonly path: string;
+          readonly sha256: string;
+        }>,
+        finalize: async () => assert.fail('failed sets must not finalize'),
+        discard: async token => { await discardStudioHostFileStage({ token }); },
+      }, {
+        hostPath: assetPath,
+        stage: async () => assetStage,
+        promote: async () => { throw new Error('asset promotion failed'); },
+        finalize: async () => assert.fail('failed sets must not finalize'),
+        discard: async token => { await discardStudioHostFileStage({ token }); },
+      }],
+    }),
+    /asset promotion failed/,
+  );
+  assert.equal(await readFile(scenePath, 'utf8'), 'scene-before');
+  await assert.rejects(readFile(assetPath, 'utf8'), { code: 'ENOENT' });
+  assert.equal(confirmationCount, 0);
   await rm(root, { recursive: true, force: true });
 });

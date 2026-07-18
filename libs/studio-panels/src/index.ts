@@ -2786,6 +2786,154 @@ export class StudioInspectorPanelComponent {
       } @else if (store.bottomPanelTab() === 'project-content') {
         <div class="project-content-browser" data-visual-id="studio-project-content-browser">
           @if (store.projectContentBrowser(); as browser) {
+            @if (store.proceduralEnvironment(); as environment) {
+              <details class="environment-authoring" data-visual-id="studio-environment-authoring">
+                <summary>
+                  <strong>Environment Authoring</strong>
+                  <span [attr.data-environment-status]="environment.status">{{ environment.status }}</span>
+                  <small>Preview → Accept → Save canonical scene + voxel asset</small>
+                </summary>
+                <div class="environment-authoring__body">
+                  <section class="environment-authoring__fields">
+                    <label>
+                      <span>Provider</span>
+                      <select
+                        [value]="environment.draft.providerId"
+                        [disabled]="environment.status === 'applied'"
+                        (change)="store.setProceduralEnvironmentTextField('providerId', $any($event.target).value)"
+                      >
+                        <option value="asha.tunnel.enclosed.v2">Enclosed Tunnel</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Preset</span>
+                      <select
+                        [value]="environment.draft.presetId"
+                        [disabled]="environment.status === 'applied'"
+                        (change)="store.setProceduralEnvironmentTextField('presetId', $any($event.target).value)"
+                      >
+                        <option value="tiny-enclosed">Tiny Enclosed</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Seed</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        [value]="environment.draft.seed"
+                        [disabled]="environment.status === 'applied'"
+                        (change)="store.setProceduralEnvironmentSeed($any($event.target).valueAsNumber)"
+                      />
+                    </label>
+                    <label>
+                      <span>Target scene</span>
+                      <input type="text" readonly [value]="environment.targetScenePath ?? 'Open a stored scene'" />
+                    </label>
+                    <label>
+                      <span>Voxel asset ID</span>
+                      <input
+                        type="text"
+                        [value]="environment.draft.assetId"
+                        [disabled]="environment.status === 'applied'"
+                        (change)="store.setProceduralEnvironmentTextField('assetId', $any($event.target).value)"
+                      />
+                    </label>
+                    <label>
+                      <span>Voxel asset path</span>
+                      <input
+                        type="text"
+                        [value]="environment.draft.assetPath"
+                        [disabled]="environment.status === 'applied'"
+                        (change)="store.setProceduralEnvironmentTextField('assetPath', $any($event.target).value)"
+                      />
+                    </label>
+                    <fieldset>
+                      <legend>Scene placement</legend>
+                      @for (axis of ['X', 'Y', 'Z']; track axis; let axisIndex = $index) {
+                        <label>
+                          <span>{{ axis }}</span>
+                          <input
+                            type="number"
+                            step="0.25"
+                            [value]="environment.draft.translation[axisIndex]"
+                            [disabled]="environment.status === 'applied'"
+                            (change)="store.setProceduralEnvironmentTranslation($any(axisIndex), $any($event.target).valueAsNumber)"
+                          />
+                        </label>
+                      }
+                    </fieldset>
+                    <fieldset>
+                      <legend>Material catalog bindings</legend>
+                      @for (material of environment.draft.materialPalette; track material.voxelMaterial; let materialIndex = $index) {
+                        <label>
+                          <span>{{ material.voxelMaterial }} · {{ material.displayName }}</span>
+                          <input
+                            type="text"
+                            [value]="material.materialAssetId"
+                            [disabled]="environment.status === 'applied'"
+                            (change)="store.setProceduralEnvironmentMaterialAsset(materialIndex, $any($event.target).value)"
+                          />
+                        </label>
+                      }
+                    </fieldset>
+                  </section>
+                  <section class="environment-authoring__inspection">
+                    <p [attr.data-environment-message]="environment.status">{{ environment.message }}</p>
+                    <div class="environment-authoring__actions">
+                      <button type="button" [disabled]="!environment.canPreview" (click)="store.previewProceduralEnvironment()">
+                        Preview
+                      </button>
+                      <button type="button" [disabled]="!environment.canApply" (click)="store.applyProceduralEnvironment()">
+                        Accept Materialization
+                      </button>
+                      <button type="button" [disabled]="!environment.canSave" (click)="store.saveProceduralEnvironment()">
+                        Save Canonical Artifacts
+                      </button>
+                    </div>
+                    @if (environment.candidate; as candidate) {
+                      <dl data-environment-candidate="present">
+                        <dt>candidate</dt>
+                        <dd>{{ candidate.candidateHash }}</dd>
+                        <dt>provider</dt>
+                        <dd>{{ candidate.provenance.providerId }} v{{ candidate.provenance.providerVersion }}</dd>
+                        <dt>recipe</dt>
+                        <dd>{{ candidate.provenance.presetId }} · seed {{ candidate.provenance.seed }}</dd>
+                        <dt>output</dt>
+                        <dd>{{ candidate.provenance.outputHash }}</dd>
+                        <dt>bounds</dt>
+                        <dd>
+                          [{{ candidate.asset.bounds.min.x }}, {{ candidate.asset.bounds.min.y }}, {{ candidate.asset.bounds.min.z }}]
+                          → [{{ candidate.asset.bounds.max.x }}, {{ candidate.asset.bounds.max.y }}, {{ candidate.asset.bounds.max.z }}]
+                        </dd>
+                        <dt>source</dt>
+                        <dd>{{ candidate.sources.solidVoxelCount }} solid · {{ candidate.sources.walkableVoxelCount }} walkable</dd>
+                        <dt>collision</dt>
+                        <dd>{{ candidate.sources.collisionSourceHash }}</dd>
+                        <dt>navigation</dt>
+                        <dd>{{ candidate.sources.navigationSourceHash }}</dd>
+                        <dt>markers</dt>
+                        <dd>{{ candidate.markers.length }}</dd>
+                        <dt>references</dt>
+                        <dd>
+                          {{ environment.unresolvedAssetIds.length === 0
+                            ? 'resolved for preview'
+                            : 'unresolved: ' + environment.unresolvedAssetIds.join(', ') }}
+                        </dd>
+                      </dl>
+                    }
+                    @if (environment.diagnostics.length > 0) {
+                      <div class="project-content-diagnostics" data-environment-diagnostics="present">
+                        <strong>Rust diagnostics</strong>
+                        @for (diagnostic of environment.diagnostics; track diagnostic.code + ':' + diagnostic.path) {
+                          <span>{{ diagnostic.path }} · {{ diagnostic.message }}</span>
+                        }
+                      </div>
+                    }
+                  </section>
+                </div>
+              </details>
+            }
             <header class="project-content-toolbar">
               <div>
                 <strong>Stored Project Content</strong>
@@ -3528,9 +3676,115 @@ export class StudioInspectorPanelComponent {
       .project-content-browser {
         display: grid;
         gap: 0.5rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-template-rows: auto auto minmax(0, 1fr);
         min-height: 0;
         overflow: hidden;
+      }
+
+      .environment-authoring {
+        background: var(--asha-color-control);
+        border: 1px solid var(--asha-color-border);
+        max-height: min(25rem, 48vh);
+        overflow: auto;
+      }
+
+      .project-content-toolbar {
+        grid-column: 2;
+      }
+
+      .project-content-message,
+      .project-content-stale,
+      .project-content-grid {
+        grid-column: 1 / -1;
+      }
+
+      .environment-authoring > summary {
+        align-items: center;
+        cursor: pointer;
+        display: grid;
+        gap: 0.2rem 0.55rem;
+        grid-template-columns: max-content max-content minmax(0, 1fr);
+        padding: 0.45rem 0.55rem;
+      }
+
+      .environment-authoring > summary small,
+      .environment-authoring__inspection,
+      .environment-authoring__fields span {
+        color: var(--asha-color-muted);
+      }
+
+      .environment-authoring__body {
+        border-top: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.65rem;
+        grid-template-columns: minmax(28rem, 1.25fr) minmax(22rem, 1fr);
+        padding: 0.55rem;
+      }
+
+      .environment-authoring__fields {
+        display: grid;
+        gap: 0.4rem;
+        grid-template-columns: repeat(3, minmax(9rem, 1fr));
+      }
+
+      .environment-authoring__fields > label,
+      .environment-authoring__fields fieldset label {
+        display: grid;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+
+      .environment-authoring__fields input,
+      .environment-authoring__fields select {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .environment-authoring__fields fieldset {
+        border: 1px solid var(--asha-color-border);
+        display: grid;
+        gap: 0.35rem;
+        grid-column: span 3;
+        grid-template-columns: repeat(3, minmax(9rem, 1fr));
+        margin: 0;
+        min-width: 0;
+      }
+
+      .environment-authoring__inspection {
+        display: grid;
+        gap: 0.45rem;
+        grid-auto-rows: max-content;
+      }
+
+      .environment-authoring__inspection p {
+        border: 1px solid var(--asha-color-border);
+        margin: 0;
+        padding: 0.4rem;
+      }
+
+      .environment-authoring__inspection p[data-environment-message='rejected'] {
+        border-color: var(--asha-color-warning);
+        color: var(--asha-color-warning-text);
+      }
+
+      .environment-authoring__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+
+      .environment-authoring__inspection dl {
+        display: grid;
+        font-size: 0.72rem;
+        gap: 0.2rem 0.45rem;
+        grid-template-columns: max-content minmax(0, 1fr);
+        margin: 0;
+      }
+
+      .environment-authoring__inspection dd {
+        margin: 0;
+        overflow-wrap: anywhere;
       }
 
       .project-content-toolbar {

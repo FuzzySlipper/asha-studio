@@ -110,6 +110,10 @@ import {
   type ModelMaterialPreviewRequest,
   type ModelMaterialPreviewSnapshot,
   type PickResult,
+  type ProceduralEnvironmentApplyResult,
+  type ProceduralEnvironmentArtifactCandidate,
+  type ProceduralEnvironmentDiagnostic,
+  type ProceduralEnvironmentPreviewResult,
   type ProjectConfigurationValue,
   type ProjectContentCodecResult,
   type EntityId,
@@ -204,6 +208,7 @@ import {
 } from './voxel-instance-authoring.js';
 import { StudioWorkspaceAuthoringOpenLifecycle } from './workspace-authoring-lifecycle.js';
 import {
+  persistStudioWorkspaceAuthoringArtifactSet,
   persistStudioWorkspaceAuthoringCandidate,
   type StudioHostFilePromotion,
   type StudioHostFileStage,
@@ -243,14 +248,23 @@ export {
 } from './project-content-browser.js';
 
 export {
+  persistStudioWorkspaceAuthoringArtifactSet,
   persistStudioWorkspaceAuthoringCandidate,
+  type StudioWorkspaceAuthoringArtifactSaveRequest,
+  type StudioWorkspaceAuthoringArtifactSetSaveRequest,
+  type StudioWorkspaceAuthoringArtifactSetSaveResult,
   type StudioHostFilePromotion,
   type StudioHostFileStage,
   type StudioWorkspaceAuthoringSaveRequest,
   type StudioWorkspaceAuthoringSaveResult,
 } from './workspace-authoring-save.js';
 
-import type { AshaGameAssetCatalog, AshaGameAssetCatalogEntry, AshaGameAssetKind } from '@asha/game-workspace';
+import {
+  resolveAshaAuthoringWriteTarget,
+  type AshaGameAssetCatalog,
+  type AshaGameAssetCatalogEntry,
+  type AshaGameAssetKind,
+} from '@asha/game-workspace';
 import type {
   NativeBrowserHostProviderScope,
   NativeBrowserHostRuntimeBridge,
@@ -3599,6 +3613,67 @@ export interface StudioSceneTransformCommitResult {
   readonly revision: string;
 }
 
+export interface StudioProceduralEnvironmentMaterialDraft {
+  readonly voxelMaterial: number;
+  readonly displayName: string;
+  readonly paletteEntryId: string;
+  readonly materialAssetId: string;
+  readonly materialCatalogBindingId: string;
+}
+
+export interface StudioProceduralEnvironmentDraft {
+  readonly providerId: string;
+  readonly presetId: string;
+  readonly seed: number;
+  readonly assetId: string;
+  readonly assetPath: string;
+  readonly voxelLabel: string;
+  readonly translation: readonly [number, number, number];
+  readonly materialPalette: readonly StudioProceduralEnvironmentMaterialDraft[];
+}
+
+export interface StudioProceduralEnvironmentReadModel {
+  readonly status: 'idle' | 'previewed' | 'applied' | 'saved' | 'rejected';
+  readonly message: string;
+  readonly draft: StudioProceduralEnvironmentDraft;
+  readonly targetScenePath: string | null;
+  readonly candidate: ProceduralEnvironmentArtifactCandidate | null;
+  readonly diagnostics: readonly ProceduralEnvironmentDiagnostic[];
+  readonly unresolvedAssetIds: readonly string[];
+  readonly canPreview: boolean;
+  readonly canApply: boolean;
+  readonly canSave: boolean;
+}
+
+const INITIAL_PROCEDURAL_ENVIRONMENT_DRAFT: StudioProceduralEnvironmentDraft = {
+  providerId: 'asha.tunnel.enclosed.v2',
+  presetId: 'tiny-enclosed',
+  seed: 17,
+  assetId: 'voxel-volume/generated-tunnel',
+  assetPath: 'assets/voxels/generated-tunnel.avxl.json',
+  voxelLabel: 'Generated tunnel environment',
+  translation: [-3.5, -1, -5.5],
+  materialPalette: [{
+    voxelMaterial: 1,
+    displayName: 'Tunnel floor',
+    paletteEntryId: 'voxel-material/tunnel-floor',
+    materialAssetId: 'material/tunnel-floor',
+    materialCatalogBindingId: 'catalog-binding/tunnel-floor',
+  }, {
+    voxelMaterial: 2,
+    displayName: 'Tunnel wall',
+    paletteEntryId: 'voxel-material/tunnel-wall',
+    materialAssetId: 'material/tunnel-wall',
+    materialCatalogBindingId: 'catalog-binding/tunnel-wall',
+  }, {
+    voxelMaterial: 3,
+    displayName: 'Tunnel accent',
+    paletteEntryId: 'voxel-material/tunnel-accent',
+    materialAssetId: 'material/tunnel-accent',
+    materialCatalogBindingId: 'catalog-binding/tunnel-accent',
+  }],
+};
+
 @Injectable({ providedIn: 'root' })
 export class StudioWorkspaceStore {
   private readonly preferencesStore = inject(StudioPreferencesStore);
@@ -3693,6 +3768,16 @@ export class StudioWorkspaceStore {
   private readonly selectedProjectContentEntryIdState = signal<string | null>(null);
   private readonly dirtyProjectContentDocumentIdsState = signal<readonly string[]>([]);
   private readonly staleProjectContentSourcePathState = signal<string | null>(null);
+  private readonly proceduralEnvironmentDraftState = signal<StudioProceduralEnvironmentDraft>(
+    INITIAL_PROCEDURAL_ENVIRONMENT_DRAFT,
+  );
+  private readonly proceduralEnvironmentPreviewState = signal<ProceduralEnvironmentPreviewResult | null>(null);
+  private readonly proceduralEnvironmentApplyState = signal<ProceduralEnvironmentApplyResult | null>(null);
+  private readonly proceduralEnvironmentPreviewFrameState = signal<RenderFrameDiff | null>(null);
+  private readonly proceduralEnvironmentStatusState = signal<StudioProceduralEnvironmentReadModel['status']>('idle');
+  private readonly proceduralEnvironmentMessageState = signal(
+    'Choose a provider, preset, seed, asset identity, and placement; Preview does not mutate stored authority.',
+  );
   private readonly workspaceAuthoringProjectionState = signal<StudioWorkspaceProjectionDelivery | null>(null);
   private workspaceAuthoringProjectionAcknowledgedHash: string | null = null;
   private readonly workspaceAuthoringProjectionTimings = new Map<string, StudioWorkspaceProjectionTiming>();
@@ -4001,6 +4086,44 @@ export class StudioWorkspaceStore {
       projectScenes: this.projectContentSceneDocumentsState(),
     }),
   );
+  readonly proceduralEnvironment = computed<StudioProceduralEnvironmentReadModel>(() => {
+    const preview = this.proceduralEnvironmentPreviewState();
+    const applied = this.proceduralEnvironmentApplyState();
+    const candidate = applied?.candidate ?? preview?.candidate ?? null;
+    const diagnostics = applied?.diagnostics ?? preview?.diagnostics ?? [];
+    const targetScenePath = this.activeProjectSceneRelativePath();
+    const catalogAssetIds = this.catalogSourceState().entries.map(entry => entry.id);
+    const unresolvedAssetIds = candidate === null
+      ? []
+      : [
+          ...findUnresolvedSceneAssetIds(candidate.scene, [candidate.asset.assetId, ...catalogAssetIds]),
+          ...candidate.asset.materialPalette
+            .map(binding => binding.materialAssetId)
+            .filter(materialAssetId => !catalogAssetIds.includes(materialAssetId)),
+        ].filter((assetId, index, all) => all.indexOf(assetId) === index);
+    const authority = this.workspaceAuthoringStateSummaryState();
+    return {
+      status: this.proceduralEnvironmentStatusState(),
+      message: this.proceduralEnvironmentMessageState(),
+      draft: this.proceduralEnvironmentDraftState(),
+      targetScenePath,
+      candidate,
+      diagnostics,
+      unresolvedAssetIds,
+      canPreview: this.gameWorkspace() !== null
+        && targetScenePath !== null
+        && authority?.status === 'open'
+        && this.proceduralEnvironmentStatusState() !== 'applied',
+      canApply: preview?.accepted === true
+        && preview.candidate !== null
+        && this.proceduralEnvironmentStatusState() === 'previewed',
+      canSave: applied?.accepted === true
+        && applied.saveCandidateHash !== null
+        && applied.candidate !== null
+        && this.proceduralEnvironmentStatusState() === 'applied',
+    };
+  });
+  readonly proceduralEnvironmentPreviewFrame = this.proceduralEnvironmentPreviewFrameState.asReadonly();
   readonly runtimeSessions = computed(() => {
     const workspace = this.gameWorkspace();
     return workspace === null
@@ -8175,6 +8298,13 @@ export class StudioWorkspaceStore {
     this.workspaceAuthoringBridgeState.set(null);
     this.workspaceAuthoringStateSummaryState.set(null);
     this.projectContentSceneDocumentsState.set([]);
+    this.proceduralEnvironmentPreviewState.set(null);
+    this.proceduralEnvironmentApplyState.set(null);
+    this.proceduralEnvironmentPreviewFrameState.set(null);
+    this.proceduralEnvironmentStatusState.set('idle');
+    this.proceduralEnvironmentMessageState.set(
+      'Choose a provider, preset, seed, asset identity, and placement; Preview does not mutate stored authority.',
+    );
     this.clearWorkspaceAuthoringProjectionDelivery();
     this.voxelProjectionBindingReceiptState.set(null);
     this.voxelAuthoringModeState.set(INITIAL_VOXEL_AUTHORING_MODE);
@@ -9717,6 +9847,22 @@ export class StudioWorkspaceStore {
     );
   }
 
+  private activeProjectSceneRelativePath(): string | null {
+    const activePath = this.activeSceneFilePathState();
+    const workspace = this.gameWorkspace();
+    if (activePath === null || workspace === null) return null;
+    const normalizedActive = normalizeProjectFilePath(activePath);
+    const loaded = this.projectContentFilesState().find(
+      file => normalizeProjectFilePath(file.path) === normalizedActive,
+    );
+    if (loaded !== undefined) return loaded.relativePath;
+    const root = normalizeProjectFilePath(workspace.workspaceRoot).replace(/\/$/u, '');
+    const prefix = `${root}/`;
+    return normalizedActive.startsWith(prefix)
+      ? normalizedActive.slice(prefix.length)
+      : null;
+  }
+
   setProjectRootDraft(path: string): void {
     this.projectRootDraftState.set(normalizeProjectFilePath(path));
   }
@@ -9951,6 +10097,360 @@ export class StudioWorkspaceStore {
     }
     this.projectContentMessageState.set('Discarding the current project-content working set and reopening host files.');
     await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
+  }
+
+  setProceduralEnvironmentTextField(
+    field: 'providerId' | 'presetId' | 'assetId' | 'assetPath' | 'voxelLabel',
+    value: string,
+  ): void {
+    this.updateProceduralEnvironmentDraft(draft => ({ ...draft, [field]: value }));
+  }
+
+  setProceduralEnvironmentSeed(value: number): void {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set('Environment seed must be a non-negative safe integer.');
+      return;
+    }
+    this.updateProceduralEnvironmentDraft(draft => ({ ...draft, seed: value }));
+  }
+
+  setProceduralEnvironmentTranslation(axis: 0 | 1 | 2, value: number): void {
+    if (!Number.isFinite(value)) return;
+    this.updateProceduralEnvironmentDraft(draft => ({
+      ...draft,
+      translation: tupleWithIndex(draft.translation, axis, value),
+    }));
+  }
+
+  setProceduralEnvironmentMaterialAsset(index: number, value: string): void {
+    this.updateProceduralEnvironmentDraft(draft => ({
+      ...draft,
+      materialPalette: draft.materialPalette.map((material, materialIndex) =>
+        materialIndex === index ? { ...material, materialAssetId: value } : material,
+      ),
+    }));
+  }
+
+  private updateProceduralEnvironmentDraft(
+    update: (draft: StudioProceduralEnvironmentDraft) => StudioProceduralEnvironmentDraft,
+  ): void {
+    if (this.proceduralEnvironmentStatusState() === 'applied') {
+      this.proceduralEnvironmentMessageState.set(
+        'Save or reload the accepted materialization before changing its recipe.',
+      );
+      return;
+    }
+    this.proceduralEnvironmentDraftState.update(update);
+    this.proceduralEnvironmentPreviewState.set(null);
+    this.proceduralEnvironmentApplyState.set(null);
+    this.proceduralEnvironmentPreviewFrameState.set(null);
+    this.proceduralEnvironmentStatusState.set('idle');
+    this.proceduralEnvironmentMessageState.set(
+      'Draft changed locally. Choose Preview when the provider, seed, asset, materials, and placement are ready.',
+    );
+  }
+
+  previewProceduralEnvironment(): void {
+    const facade = this.workspaceAuthoringFacadeState();
+    const authority = this.workspaceAuthoringStateSummaryState();
+    const workspace = this.gameWorkspace();
+    const scenePath = this.activeProjectSceneRelativePath();
+    const document = this.workspaceState().flatSceneDocument;
+    if (facade === null || authority === null || workspace === null || scenePath === null) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set(
+        'Open a project SceneDocument and wait for Rust workspace authoring before previewing an environment.',
+      );
+      return;
+    }
+    const draft = this.proceduralEnvironmentDraftState();
+    if (
+      draft.providerId.trim().length === 0
+      || draft.presetId.trim().length === 0
+      || draft.assetId.trim().length === 0
+      || draft.assetPath.trim().length === 0
+    ) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set('Provider, preset, asset identity, and asset path are required.');
+      return;
+    }
+    try {
+      const sceneCodec = facade.decodeSceneDocument({ sourceText: JSON.stringify(document) });
+      if (!sceneCodec.accepted || sceneCodec.contentHash === null) {
+        throw new Error(this.sceneCodecDiagnostic(sceneCodec));
+      }
+      const maxNodeId = document.nodes.reduce(
+        (maximum, node) => Math.max(maximum, node.id as number),
+        0,
+      );
+      const voxelNodeId = maxNodeId + 1;
+      const rootChildOrder = document.nodes
+        .filter(node => node.parent === null)
+        .reduce((maximum, node) => Math.max(maximum, node.childOrder), -1) + 1;
+      const result = facade.previewProceduralEnvironment({
+        expectedWorkspaceId: authority.identity.project.workspaceId,
+        expectedGeneration: authority.identity.generation,
+        expectedWorkingRevision: authority.workingRevision,
+        expectedSceneContentHash: sceneCodec.contentHash,
+        providerId: draft.providerId.trim(),
+        presetId: draft.presetId.trim(),
+        seed: draft.seed,
+        target: {
+          sceneId: document.id,
+          scenePath,
+          assetId: draft.assetId.trim(),
+          assetPath: normalizeProjectFilePath(draft.assetPath.trim()),
+          voxelNodeId: sceneNodeId(voxelNodeId),
+          voxelParentId: null,
+          voxelChildOrder: rootChildOrder,
+          voxelLabel: draft.voxelLabel.trim().length === 0 ? null : draft.voxelLabel.trim(),
+          voxelTransform: {
+            translation: draft.translation,
+            rotation: [0, 0, 0, 1],
+            scale: [1, 1, 1],
+          },
+          markerTargets: [{
+            sourceMarkerId: 'player_start',
+            nodeId: sceneNodeId(voxelNodeId + 1),
+            markerId: 'spawn/player-start',
+            childOrder: 0,
+          }, {
+            sourceMarkerId: 'exit_hint',
+            nodeId: sceneNodeId(voxelNodeId + 2),
+            markerId: 'navigation/exit-hint',
+            childOrder: 1,
+          }],
+        },
+        materialPalette: draft.materialPalette.map(material => ({
+          voxelMaterial: material.voxelMaterial,
+          paletteEntryId: material.paletteEntryId,
+          displayName: material.displayName,
+          materialAssetId: material.materialAssetId.trim(),
+          materialCatalogBindingId: material.materialCatalogBindingId,
+        })),
+        authoring: {
+          label: draft.voxelLabel,
+          createdBy: 'asha-studio',
+          sourceTool: 'studio-environment-authoring',
+        },
+        limits: {
+          maxVoxels: 100_000,
+          maxSparseRuns: 32_768,
+          maxMarkers: 16,
+        },
+      });
+      this.proceduralEnvironmentPreviewState.set(result);
+      this.proceduralEnvironmentApplyState.set(null);
+      this.proceduralEnvironmentPreviewFrameState.set(result.previewFrame);
+      if (!result.accepted || result.candidate === null) {
+        this.proceduralEnvironmentStatusState.set('rejected');
+        this.proceduralEnvironmentMessageState.set(
+          result.diagnostics.at(0)?.message ?? 'Rust rejected the procedural environment preview.',
+        );
+        return;
+      }
+      this.proceduralEnvironmentStatusState.set('previewed');
+      this.proceduralEnvironmentMessageState.set(
+        `Previewed ${String(result.candidate.sources.solidVoxelCount)} solid voxels without mutating workspace revision ${authority.workingRevision}.`,
+      );
+      this.menuMessageState.set('Environment preview is renderer-local; Accept Materialization commits it to Rust authoring authority.');
+    } catch (error) {
+      this.proceduralEnvironmentPreviewState.set(null);
+      this.proceduralEnvironmentPreviewFrameState.set(null);
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set(`Environment preview rejected: ${errorMessage(error)}`);
+    }
+  }
+
+  applyProceduralEnvironment(): void {
+    const facade = this.workspaceAuthoringFacadeState();
+    const preview = this.proceduralEnvironmentPreviewState();
+    const candidate = preview?.candidate ?? null;
+    const activeScenePath = this.activeSceneFilePathState();
+    if (facade === null || preview?.accepted !== true || candidate === null || activeScenePath === null) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set('Create an accepted preview before materializing the environment.');
+      return;
+    }
+    try {
+      const authority = facade.readState();
+      const result = facade.applyProceduralEnvironment({
+        expectedWorkspaceId: authority.identity.project.workspaceId,
+        expectedGeneration: authority.identity.generation,
+        expectedWorkingRevision: authority.workingRevision,
+        candidateHash: candidate.candidateHash,
+      });
+      this.proceduralEnvironmentApplyState.set(result);
+      if (!result.accepted || result.candidate === null || result.saveCandidateHash === null) {
+        this.proceduralEnvironmentStatusState.set('rejected');
+        this.proceduralEnvironmentMessageState.set(
+          result.diagnostics.at(0)?.message ?? 'Rust rejected procedural environment materialization.',
+        );
+        return;
+      }
+      const applied = result.candidate;
+      this.workspaceState.set(applyCanonicalSceneDocumentReadModel(
+        this.workspaceState(),
+        applied.scene,
+        activeScenePath,
+      ));
+      this.sceneDocumentContentHashState.set(applied.sceneFile.contentHash);
+      this.projectContentSceneDocumentsState.update(documents => [
+        ...documents.filter(document => document.id !== applied.scene.id),
+        applied.scene,
+      ]);
+      this.activeVoxelAssetIdState.set(applied.asset.assetId);
+      this.setVoxelBrushPaletteFromAsset(applied.asset);
+      this.proceduralEnvironmentPreviewFrameState.set(null);
+      this.refreshWorkspaceAuthoringState(facade);
+      this.proceduralEnvironmentStatusState.set('applied');
+      this.proceduralEnvironmentMessageState.set(
+        `Rust accepted revision ${result.workingRevision}; save both canonical files to commit artifact set ${applied.artifactSetHash}.`,
+      );
+      this.menuMessageState.set('Environment materialized in workspace authority. Save Canonical Artifacts to persist it.');
+    } catch (error) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set(`Environment materialization rejected: ${errorMessage(error)}`);
+    }
+  }
+
+  async saveProceduralEnvironment(): Promise<void> {
+    const facade = this.workspaceAuthoringFacadeState();
+    const applied = this.proceduralEnvironmentApplyState();
+    const candidate = applied?.candidate ?? null;
+    const workspace = this.gameWorkspace();
+    if (
+      facade === null
+      || applied?.accepted !== true
+      || applied.saveCandidateHash === null
+      || candidate === null
+      || workspace === null
+    ) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set('Accept a materialized environment before saving its artifacts.');
+      return;
+    }
+    const sceneAuthorization = resolveAshaAuthoringWriteTarget(workspace.manifest, {
+      operationKind: 'authoring.scene.save_source',
+      relativePath: candidate.sceneFile.path,
+    });
+    const assetAuthorization = resolveAshaAuthoringWriteTarget(workspace.manifest, {
+      operationKind: 'authoring.asset.save_source',
+      relativePath: candidate.voxelFile.path,
+    });
+    if (!sceneAuthorization.ok || !assetAuthorization.ok) {
+      const diagnostic = [
+        ...(sceneAuthorization.ok ? [] : sceneAuthorization.diagnostics),
+        ...(assetAuthorization.ok ? [] : assetAuthorization.diagnostics),
+      ].at(0);
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set(
+        diagnostic?.message ?? 'The project manifest does not authorize both environment artifact targets.',
+      );
+      return;
+    }
+    const scenePath = joinProjectFilePath(workspace.workspaceRoot, sceneAuthorization.normalizedPath);
+    const assetPath = joinProjectFilePath(workspace.workspaceRoot, assetAuthorization.normalizedPath);
+    const loadedScene = this.projectContentFilesState().find(
+      file => file.relativePath === sceneAuthorization.normalizedPath,
+    );
+    const loadedAsset = this.projectContentFilesState().find(
+      file => file.relativePath === assetAuthorization.normalizedPath,
+    );
+    try {
+      const stored = await persistStudioWorkspaceAuthoringArtifactSet({
+        authority: facade,
+        currentAuthority: () => this.workspaceAuthoringFacadeState(),
+        confirmationHostPath: workspace.workspaceRoot,
+        canonicalJsonHash: applied.saveCandidateHash,
+        artifacts: [{
+          hostPath: scenePath,
+          stage: () => this.stageHostAuthoringFile(
+            scenePath,
+            candidate.sceneFile.canonicalJson,
+            loadedScene?.sha256 ?? this.activeSceneFileHashState(),
+          ),
+          promote: token => this.promoteHostAuthoringFile(token),
+          finalize: token => this.finalizeHostAuthoringFileStage(token),
+          discard: token => this.discardHostAuthoringFileStage(token),
+        }, {
+          hostPath: assetPath,
+          stage: () => this.stageHostAuthoringFile(
+            assetPath,
+            candidate.voxelFile.canonicalJson,
+            loadedAsset?.sha256 ?? null,
+          ),
+          promote: token => this.promoteHostAuthoringFile(token),
+          finalize: token => this.finalizeHostAuthoringFileStage(token),
+          discard: token => this.discardHostAuthoringFileStage(token),
+        }],
+      });
+      const storedScene = stored.artifacts.find(
+        artifact => normalizeProjectFilePath(artifact.path) === normalizeProjectFilePath(scenePath),
+      );
+      const storedAsset = stored.artifacts.find(
+        artifact => normalizeProjectFilePath(artifact.path) === normalizeProjectFilePath(assetPath),
+      );
+      if (storedScene === undefined || storedAsset === undefined) {
+        throw new Error('Host storage did not return both promoted environment artifacts.');
+      }
+      const now = Date.now();
+      const sceneDescriptor: StudioProjectContentFileDescriptor = loadedScene ?? {
+        path: scenePath,
+        relativePath: sceneAuthorization.normalizedPath,
+        rootKind: 'scene',
+        size: candidate.sceneFile.canonicalJson.length,
+        mtimeMs: now,
+      };
+      const assetDescriptor: StudioProjectContentFileDescriptor = loadedAsset ?? {
+        path: assetPath,
+        relativePath: assetAuthorization.normalizedPath,
+        rootKind: 'asset',
+        size: candidate.voxelFile.canonicalJson.length,
+        mtimeMs: now,
+      };
+      const nextFiles = this.projectContentFilesState().filter(file =>
+        file.relativePath !== sceneAuthorization.normalizedPath
+        && file.relativePath !== assetAuthorization.normalizedPath,
+      );
+      this.projectContentFilesState.set([
+        ...nextFiles,
+        inspectStudioProjectContentFile(sceneDescriptor, candidate.sceneFile.canonicalJson, storedScene.sha256),
+        inspectStudioProjectContentFile(assetDescriptor, candidate.voxelFile.canonicalJson, storedAsset.sha256),
+      ]);
+      this.projectContentDescriptorsState.set([
+        ...this.projectContentDescriptorsState().filter(descriptor =>
+          descriptor.relativePath !== sceneAuthorization.normalizedPath
+          && descriptor.relativePath !== assetAuthorization.normalizedPath,
+        ),
+        sceneDescriptor,
+        assetDescriptor,
+      ]);
+      this.activeSceneFilePathState.set(scenePath);
+      this.activeSceneFileHashState.set(storedScene.sha256);
+      this.activeVoxelAssetFilePathState.set(assetPath);
+      this.activeVoxelAssetFileHashState.set(storedAsset.sha256);
+      this.cleanSceneDocumentHashState.set(
+        stableBrowserHash(JSON.stringify(this.workspaceState().flatSceneDocument)),
+      );
+      this.workspaceAuthoringStateSummaryState.set(facade.readState());
+      this.proceduralEnvironmentStatusState.set('saved');
+      const cleanup = stored.cleanupDiagnostics.length === 0
+        ? ''
+        : ` Backup cleanup: ${stored.cleanupDiagnostics.join(' ')}`;
+      this.proceduralEnvironmentMessageState.set(
+        `Saved scene and voxel asset at Rust stored revision ${stored.storedRevision}.${cleanup}`,
+      );
+      this.projectContentStatusState.set('ready');
+      this.projectContentMessageState.set(
+        `Stored materialized environment at ${sceneAuthorization.normalizedPath} and ${assetAuthorization.normalizedPath}.`,
+      );
+      this.menuMessageState.set('Canonical environment artifacts saved. Close and reopen the scene to inspect stored truth.');
+    } catch (error) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set(`Environment artifact set was not committed: ${errorMessage(error)}`);
+    }
   }
 
   applyProjectConfigurationField(

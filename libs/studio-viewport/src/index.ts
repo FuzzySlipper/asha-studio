@@ -366,6 +366,7 @@ function renderableNode(
 function buildViewportProjectionFrame(
   adapter: StudioViewportAdapterReadModel,
   materialPreviewFrame: RenderFrameDiff | null,
+  environmentPreviewFrame: RenderFrameDiff | null,
   lightingFrame: RenderFrameDiff,
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
@@ -392,6 +393,9 @@ function buildViewportProjectionFrame(
   }
   if (materialPreviewFrame !== null) {
     ops.push(...remapRenderFrameHandles(materialPreviewFrame, 2_000_000).ops);
+  }
+  if (environmentPreviewFrame !== null) {
+    ops.push(...remapRenderFrameHandles(environmentPreviewFrame, 3_000_000).ops);
   }
   ops.push(...lightingFrame.ops);
   return { ops };
@@ -1134,6 +1138,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     if (!voxelBrush.enabled) this.voxelBrushOverlay = null;
     const runtimeProjection = this.store.runtimeViewportProjection();
     const authoringProjection = this.store.workspaceAuthoringProjection();
+    const environmentPreview = this.store.proceduralEnvironmentPreviewFrame();
     const lightingProjection = this.store.lightingProjection();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
@@ -1143,6 +1148,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
       authoringProjection,
+      environmentPreview,
       lightingProjection.frame,
     );
   });
@@ -1180,6 +1186,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.resizeViewport();
     const runtimeProjection = this.store.runtimeViewportProjection();
     const authoringProjection = this.store.workspaceAuthoringProjection();
+    const environmentPreview = this.store.proceduralEnvironmentPreviewFrame();
     const lightingProjection = this.store.lightingProjection();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
@@ -1189,6 +1196,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
       authoringProjection,
+      environmentPreview,
       lightingProjection.frame,
     );
   }
@@ -1256,6 +1264,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     materialPreviewFrame: RenderFrameDiff | null,
     runtimeCamera: CameraSnapshot | null,
     authoringProjection: StudioWorkspaceProjectionDelivery | null,
+    environmentPreviewFrame: RenderFrameDiff | null,
     lightingFrame: RenderFrameDiff,
   ): void {
     const viewport = this.viewport;
@@ -1285,7 +1294,12 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       adapter.tool.activeTool,
       this.dragState !== null || this.transformDragState !== null,
     );
-    const baseFrame = buildViewportProjectionFrame(adapter, materialPreviewFrame, lightingFrame);
+    const baseFrame = buildViewportProjectionFrame(
+      adapter,
+      materialPreviewFrame,
+      environmentPreviewFrame,
+      lightingFrame,
+    );
     const sceneKey = JSON.stringify(baseFrame);
     const projectionKey = authoringProjection === null
       ? null
@@ -1436,6 +1450,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private syncCurrentViewport(): void {
     const runtimeProjection = this.store.runtimeViewportProjection();
     const authoringProjection = this.store.workspaceAuthoringProjection();
+    const environmentPreview = this.store.proceduralEnvironmentPreviewFrame();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
     this.syncViewport(
       this.store.viewportAdapter(),
@@ -1444,6 +1459,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       runtimeEvidence.materialPreview?.previewDiff ?? null,
       runtimeEvidence.camera,
       authoringProjection,
+      environmentPreview,
       this.store.lightingProjection().frame,
     );
   }

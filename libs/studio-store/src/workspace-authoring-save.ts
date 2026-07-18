@@ -30,6 +30,28 @@ export interface StudioWorkspaceAuthoringSaveResult extends StudioHostFilePromot
   readonly cleanupDiagnostic: string | null;
 }
 
+export interface StudioWorkspaceAuthoringArtifactSaveRequest {
+  readonly hostPath: string;
+  readonly stage: () => Promise<StudioHostFileStage>;
+  readonly promote: (token: string) => Promise<StudioHostFilePromotion>;
+  readonly finalize: (token: string) => Promise<void>;
+  readonly discard: (token: string) => Promise<void>;
+}
+
+export interface StudioWorkspaceAuthoringArtifactSetSaveRequest {
+  readonly authority: WorkspaceAuthoringFacade;
+  readonly currentAuthority: () => WorkspaceAuthoringFacade | null;
+  readonly confirmationHostPath: string;
+  readonly canonicalJsonHash: string;
+  readonly artifacts: readonly StudioWorkspaceAuthoringArtifactSaveRequest[];
+}
+
+export interface StudioWorkspaceAuthoringArtifactSetSaveResult {
+  readonly artifacts: readonly StudioHostFilePromotion[];
+  readonly storedRevision: number;
+  readonly cleanupDiagnostics: readonly string[];
+}
+
 function sameAuthoritySnapshot(
   before: WorkspaceAuthoringStateSummary,
   after: WorkspaceAuthoringStateSummary,
@@ -107,5 +129,103 @@ export async function persistStudioWorkspaceAuthoringCandidate(
       }
     }
     throw error;
+  }
+}
+
+/**
+ * Persists one Rust-issued artifact set without exposing a partially promoted
+ * set as accepted stored truth. Every file is staged first, every promotion is
+ * identity checked, and Rust confirms the set hash only after all promotions
+ * succeed. Any failure before confirmation rolls every allocated stage back in
+ * reverse order, including stages whose target files were already promoted.
+ */
+export async function persistStudioWorkspaceAuthoringArtifactSet(
+  request: StudioWorkspaceAuthoringArtifactSetSaveRequest,
+): Promise<StudioWorkspaceAuthoringArtifactSetSaveResult> {
+  if (request.artifacts.length === 0) {
+    throw new Error('Workspace artifact-set save requires at least one artifact.');
+  }
+  const candidateState = request.authority.readState();
+  const staged: Array<{
+    readonly request: StudioWorkspaceAuthoringArtifactSaveRequest;
+    readonly stage: StudioHostFileStage;
+  }> = [];
+  let confirmed = false;
+  try {
+    for (const artifact of request.artifacts) {
+      const stage = await artifact.stage();
+      staged.push({ request: artifact, stage });
+    }
+    requireCurrentArtifactSetAuthority(request, candidateState, 'staged');
+
+    const promoted: StudioHostFilePromotion[] = [];
+    for (const artifact of staged) {
+      const promotion = await artifact.request.promote(artifact.stage.token);
+      if (
+        promotion.path !== artifact.stage.path
+        || promotion.sha256 !== artifact.stage.sha256
+      ) {
+        throw new Error(
+          `Host promotion did not preserve staged candidate identity for ${artifact.request.hostPath}.`,
+        );
+      }
+      promoted.push(promotion);
+    }
+    requireCurrentArtifactSetAuthority(request, candidateState, 'promoted');
+
+    const confirmation = request.authority.confirmStored({
+      expectedWorkspaceId: candidateState.identity.project.workspaceId,
+      expectedGeneration: candidateState.identity.generation,
+      hostPath: request.confirmationHostPath,
+      canonicalJsonHash: request.canonicalJsonHash,
+    });
+    confirmed = true;
+    const cleanupDiagnostics: string[] = [];
+    for (const artifact of staged) {
+      try {
+        await artifact.request.finalize(artifact.stage.token);
+      } catch (error) {
+        cleanupDiagnostics.push(
+          `${artifact.request.hostPath}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    return {
+      artifacts: promoted,
+      storedRevision: confirmation.storedRevision,
+      cleanupDiagnostics,
+    };
+  } catch (error) {
+    if (!confirmed) {
+      const rollbackErrors: unknown[] = [];
+      for (const artifact of [...staged].reverse()) {
+        try {
+          await artifact.request.discard(artifact.stage.token);
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (rollbackErrors.length > 0) {
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          'Workspace artifact-set save failed and one or more tentative host promotions could not be rolled back.',
+        );
+      }
+    }
+    throw error;
+  }
+}
+
+function requireCurrentArtifactSetAuthority(
+  request: StudioWorkspaceAuthoringArtifactSetSaveRequest,
+  candidateState: WorkspaceAuthoringStateSummary,
+  phase: 'staged' | 'promoted',
+): void {
+  if (request.currentAuthority() !== request.authority) {
+    throw new Error(`Workspace authoring authority changed while the artifact set was ${phase}.`);
+  }
+  const currentState = request.authority.readState();
+  if (!sameAuthoritySnapshot(candidateState, currentState)) {
+    throw new Error(`Workspace authoring state changed while the artifact set was ${phase}.`);
   }
 }
