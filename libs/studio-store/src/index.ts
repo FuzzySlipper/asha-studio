@@ -189,7 +189,6 @@ import {
   type VoxelModelWindowReadout,
   type VoxelModelWindowRequest,
   type VoxelSelectionSnapshot,
-  type WorkspaceAuthoringProjectBundleRef,
 } from '@asha/contracts';
 import {
   retainStudioWorkspaceProjection,
@@ -223,7 +222,6 @@ import {
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
   resolveStudioProjectContentWriteAuthorization,
-  selectStudioProjectContentSceneSources,
   updateProjectConfigurationField,
   type StudioProjectContentBrowserReadModel,
   type StudioProjectContentEditableFieldReadModel,
@@ -275,6 +273,8 @@ export {
 } from './procedural-environment-target.js';
 
 import {
+  ASHA_PROJECT_BUNDLE_MANIFEST_PATH,
+  createMemoryAshaProjectSource,
   resolveAshaAuthoringWriteTarget,
   type AshaProjectSourceReader,
   type AshaGameAssetCatalog,
@@ -1588,23 +1588,6 @@ interface StudioVoxelAssetWorkflowTarget {
   readonly derivedAssetPath: string;
   readonly customProjectBundle: boolean;
   readonly customAssetPath: boolean;
-}
-
-function workspaceAuthoringProjectBundle(
-  projectIdentity: string,
-  document: FlatSceneDocument,
-): WorkspaceAuthoringProjectBundleRef {
-  const identity = `${projectIdentity}|${String(document.id)}|${document.schemaVersion}`;
-  let sceneId = 2_166_136_261;
-  for (const character of identity) {
-    sceneId ^= character.codePointAt(0) ?? 0;
-    sceneId = Math.imul(sceneId, 16_777_619) >>> 0;
-  }
-  return {
-    bundleSchemaVersion: 1,
-    protocolVersion: 1,
-    sceneId,
-  };
 }
 
 const STUDIO_RUNTIME_MODEL_PREVIEW_REQUEST: ModelMaterialPreviewRequest = {
@@ -3288,6 +3271,61 @@ function createStudioHostProjectSource(workspaceRoot: string): AshaProjectSource
       return new Uint8Array(await response.arrayBuffer());
     },
   };
+}
+
+function createStudioScratchProjectSource(
+  document: FlatSceneDocument,
+  canonicalSceneJson: string,
+): AshaProjectSourceReader {
+  const encoder = new TextEncoder();
+  const scenePath = 'scenes/scratch.scene.json';
+  const assetLockPath = 'assets/lock.json';
+  const sceneBytes = encoder.encode(canonicalSceneJson);
+  const assetLockBytes = encoder.encode('{"assets":[]}\n');
+  const manifest = {
+    bundleSchemaVersion: 2,
+    protocolVersion: 1,
+    project: { id: Number(document.id), name: 'Studio scratch project' },
+    entryScene: Number(document.id),
+    scenes: [{
+      id: Number(document.id),
+      schemaVersion: document.schemaVersion,
+      artifact: scenePath,
+    }],
+    assetLock: { artifact: assetLockPath, assetCount: 0 },
+    generationProvenance: null,
+    artifacts: [
+      {
+        path: assetLockPath,
+        class: 'durable',
+        role: 'assetLock',
+        contentHash: projectBundleContentHash(assetLockBytes),
+      },
+      {
+        path: scenePath,
+        class: 'durable',
+        role: 'sceneDocument',
+        contentHash: projectBundleContentHash(sceneBytes),
+      },
+    ],
+  };
+  return createMemoryAshaProjectSource(
+    `memory:studio-scratch:${String(document.id)}:${document.schemaVersion}`,
+    new Map([
+      [ASHA_PROJECT_BUNDLE_MANIFEST_PATH, encoder.encode(`${JSON.stringify(manifest)}\n`)],
+      [assetLockPath, assetLockBytes],
+      [scenePath, sceneBytes],
+    ]),
+  );
+}
+
+function projectBundleContentHash(bytes: Uint8Array): string {
+  let hash = 14_695_981_039_346_656_037n;
+  for (const byte of bytes) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 1_099_511_628_211n);
+  }
+  return hash.toString(16).padStart(16, '0');
 }
 
 function normalizeProjectFilePath(path: string): string {
@@ -8202,44 +8240,37 @@ export class StudioWorkspaceStore {
         disconnectStudioBrowserHostRuntimeBridge(attach.bridge);
         return;
       }
-      const projectBundle = workspaceAuthoringProjectBundle(
-        project.workspaceId,
-        document,
-      );
-      const state = attach.facade.open({
-        authoringId: `workspace-authoring:${project.gameId}:studio`,
-        seed: projectBundle.sceneId,
-        project,
-        projectBundle,
-      });
       const sceneCodecBridge = await this.sceneDocumentCodecBridge();
       const encodedScene = sceneCodecBridge.encodeSceneDocument({ document });
       if (!encodedScene.accepted || encodedScene.canonicalJson === null) {
         throw new Error(this.sceneCodecDiagnostic(encodedScene));
       }
-      const sceneSources = workspace === null
-        ? [{ path: 'scratch.scene.json', sourceText: encodedScene.canonicalJson }]
-        : selectStudioProjectContentSceneSources(
-            projectContentFiles,
-            this.activeSceneFilePathState(),
-            encodedScene.canonicalJson,
-          );
-      const sceneDocuments: FlatSceneDocument[] = [];
-      const sceneDiagnostics: string[] = [];
-      for (const sceneSource of sceneSources) {
-        const installedScene = attach.facade.decodeSceneDocument({ sourceText: sceneSource.sourceText });
-        if (!installedScene.accepted || installedScene.document === null) {
-          sceneDiagnostics.push(`${sceneSource.path}: ${this.sceneCodecDiagnostic(installedScene)}`);
-          continue;
-        }
-        sceneDocuments.push(installedScene.document);
-      }
+      const source = workspace === null
+        ? createStudioScratchProjectSource(document, encodedScene.canonicalJson)
+        : createStudioHostProjectSource(workspace.workspaceRoot);
+      const opened = await attach.facade.openProject({
+        authoringId: `workspace-authoring:${project.gameId}:studio`,
+        seed: Number(document.id),
+        workspaceId: project.workspaceId,
+        source,
+      });
+      const state = opened.state;
       this.workspaceAuthoringBridgeState.set(attach.bridge);
       this.workspaceAuthoringFacadeState.set(attach.facade);
       this.workspaceAuthoringStateSummaryState.set(state);
-      this.projectContentSceneDocumentsState.set(sceneDocuments);
+      this.projectContentSceneDocumentsState.set(opened.sceneDocuments);
       if (workspace !== null) {
-        this.decodeProjectContentFiles(attach.facade, projectContentFiles, sceneDiagnostics);
+        this.projectContentCodecState.set(opened.projectContent);
+        this.projectContentStatusState.set('ready');
+        this.projectContentMessageState.set(
+          opened.projectContent === null
+            ? `Discovered ${projectContentFiles.length} stored sources; none yet use a canonical project-content document shape.`
+            : `Rust validated ${opened.projectContent.documents.length} project-content documents against ${opened.sceneDocuments.length} manifest scenes.`,
+        );
+        const browser = this.projectContentBrowser();
+        if (browser.selectedEntryId !== null) {
+          this.selectedProjectContentEntryIdState.set(browser.selectedEntryId);
+        }
       }
       if (options.reconcileProjectContent === true) {
         this.dirtyProjectContentDocumentIdsState.set([]);
@@ -8270,54 +8301,6 @@ export class StudioWorkspaceStore {
         : 'Workspace authoring authority failed to start.';
       this.workspaceAuthoringMessageState.set(message);
       this.menuMessageState.set(`Workspace authoring failed: ${message}`);
-    }
-  }
-
-  private decodeProjectContentFiles(
-    facade: WorkspaceAuthoringFacade,
-    files: readonly StudioProjectContentLoadedFile[],
-    sceneDiagnostics: readonly string[],
-  ): void {
-    const sources = files.flatMap(file =>
-      file.sourceClass === 'canonical-candidate' && file.sourceKind !== null
-        ? [{
-            sourcePath: file.relativePath,
-            documentId: file.documentId,
-            kind: file.sourceKind,
-            sourceText: file.text,
-          }]
-        : [],
-    );
-    if (sources.length === 0) {
-      this.projectContentCodecState.set(null);
-      this.projectContentStatusState.set(sceneDiagnostics.length === 0 ? 'ready' : 'degraded');
-      this.projectContentMessageState.set(
-        sceneDiagnostics.length === 0
-          ? `Discovered ${files.length} stored sources; none yet use a canonical project-content document shape.`
-          : `Rust rejected manifest scene sources: ${sceneDiagnostics.join(' ')}`,
-      );
-      return;
-    }
-    const codec = facade.decodeProjectContent({ sources });
-    this.projectContentCodecState.set(codec);
-    this.refreshWorkspaceAuthoringState(facade);
-    const accepted = codec.accepted && sceneDiagnostics.length === 0;
-    this.projectContentStatusState.set(accepted ? 'ready' : 'degraded');
-    this.projectContentMessageState.set(
-      accepted
-        ? `Rust validated ${codec.documents.length} project-content documents against ${this.projectContentSceneDocumentsState().length} manifest scenes.`
-        : [
-            ...(sceneDiagnostics.length === 0
-              ? []
-              : [`Rust rejected manifest scene sources: ${sceneDiagnostics.join(' ')}`]),
-            ...(codec.accepted
-              ? []
-              : [`Rust rejected ${codec.diagnostics.length} project-content fields or references.`]),
-          ].join(' '),
-    );
-    const browser = this.projectContentBrowser();
-    if (browser.selectedEntryId !== null) {
-      this.selectedProjectContentEntryIdState.set(browser.selectedEntryId);
     }
   }
 
