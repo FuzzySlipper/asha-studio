@@ -188,6 +188,57 @@ test('manifest-discovered files are classified without encoding a Demo directory
   assert.equal(legacySpawn.legacyCategory, 'scenes-and-spawns');
 });
 
+test('canonical ProjectContent envelopes route every document kind without inspecting document shape', () => {
+  const cases = [
+    ['entityDefinition', 'demo.actor'],
+    ['assetCatalog', 'demo.assets'],
+    ['prefabRegistry', 'demo.prefabs'],
+    ['gameplayConfiguration', 'demo.gameplay'],
+    ['presentationCatalog', 'demo.presentation'],
+  ] as const;
+
+  for (const [documentKind, documentId] of cases) {
+    const sourceText = JSON.stringify({
+      schemaVersion: 1,
+      documentId,
+      documentKind,
+      document: { deliberatelyOpaqueToStudio: true },
+    });
+    const source = inspectStudioProjectContentFile(
+      {
+        ...DESCRIPTOR,
+        path: `/projects/demo/catalogs/${documentId}.json`,
+        relativePath: `catalogs/${documentId}.json`,
+      },
+      sourceText,
+      `sha256:${documentId}`,
+    );
+
+    assert.equal(source.sourceClass, 'canonical-candidate');
+    assert.equal(source.sourceKind, documentKind);
+    assert.equal(source.documentId, documentId);
+    assert.equal(source.text, sourceText);
+    assert.equal(source.parseDiagnostic, null);
+  }
+});
+
+test('asset lock is not inferred to be an asset catalog merely because it has entries', () => {
+  const source = inspectStudioProjectContentFile(
+    {
+      ...DESCRIPTOR,
+      rootKind: 'asset',
+      path: '/projects/demo/assets/lock.json',
+      relativePath: 'assets/lock.json',
+    },
+    JSON.stringify({ schemaVersion: 1, entries: [] }),
+    'sha256:asset-lock',
+  );
+
+  assert.equal(source.sourceClass, 'unrecognized');
+  assert.equal(source.sourceKind, null);
+  assert.equal(source.parseDiagnostic, null);
+});
+
 test('provider schemas produce typed fields and reference navigation without property paths', () => {
   const codec = gameplayCodec();
   const source = inspectStudioProjectContentFile(

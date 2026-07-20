@@ -8261,7 +8261,12 @@ export class StudioWorkspaceStore {
   ): void {
     const sources = files.flatMap(file =>
       file.sourceClass === 'canonical-candidate' && file.sourceKind !== null
-        ? [{ documentId: file.documentId, kind: file.sourceKind, sourceText: file.text }]
+        ? [{
+            sourcePath: file.relativePath,
+            documentId: file.documentId,
+            kind: file.sourceKind,
+            sourceText: file.text,
+          }]
         : [],
     );
     if (sources.length === 0) {
@@ -10516,12 +10521,21 @@ export class StudioWorkspaceStore {
     const facade = this.workspaceAuthoringFacadeState();
     const codec = this.projectContentCodecState();
     const browser = this.projectContentBrowser();
+    const sourceFile = this.projectContentFilesState().find(candidate =>
+      candidate.documentId === documentId,
+    );
     const field = browser.editableFields.find(candidate =>
       candidate.documentId === documentId
       && candidate.configurationId === configurationId
       && candidate.fieldId === fieldId,
     );
-    if (facade === null || codec === null || codec.setHash === null || field === undefined) {
+    if (
+      facade === null
+      || codec === null
+      || codec.setHash === null
+      || field === undefined
+      || sourceFile === undefined
+    ) {
       this.projectContentStatusState.set('degraded');
       this.projectContentMessageState.set('The selected field is not backed by an open Rust project-content set.');
       return;
@@ -10557,7 +10571,7 @@ export class StudioWorkspaceStore {
         expectedGeneration: authorityState.identity.generation,
         expectedWorkingRevision: authorityState.workingRevision,
         expectedSetHash: codec.setHash,
-        command: { kind: 'upsert', document },
+        command: { kind: 'upsert', sourcePath: sourceFile.relativePath, document },
       });
       this.refreshWorkspaceAuthoringState(facade);
       if (!result.accepted || result.setHash === null) {

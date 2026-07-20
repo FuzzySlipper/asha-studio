@@ -168,6 +168,14 @@ const CATEGORY_LABELS: Readonly<Record<StudioProjectContentCategoryId, string>> 
 
 const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS) as readonly StudioProjectContentCategoryId[];
 
+const PROJECT_CONTENT_DOCUMENT_KINDS = new Set<ProjectContentDocumentKind>([
+  'entityDefinition',
+  'assetCatalog',
+  'prefabRegistry',
+  'gameplayConfiguration',
+  'presentationCatalog',
+]);
+
 export function inspectStudioProjectContentFile(
   descriptor: StudioProjectContentFileDescriptor,
   text: string,
@@ -204,6 +212,46 @@ export function inspectStudioProjectContentFile(
   if (descriptor.relativePath.endsWith('.scene.json') && Array.isArray(parsed['nodes'])) {
     return classifiedFile(descriptor, text, sha256, null, descriptor.relativePath, 'stored-scene', null);
   }
+
+  const artifactIdentity = inspectCanonicalArtifactIdentity(parsed);
+  if (artifactIdentity !== null) {
+    if ('diagnostic' in artifactIdentity) {
+      return {
+        ...classifiedFile(
+          descriptor,
+          text,
+          sha256,
+          null,
+          descriptor.relativePath,
+          'unrecognized',
+          null,
+        ),
+        parseDiagnostic: artifactIdentity.diagnostic,
+      };
+    }
+    return classifiedFile(
+      descriptor,
+      text,
+      sha256,
+      artifactIdentity.documentKind,
+      artifactIdentity.documentId,
+      'canonical-candidate',
+      null,
+    );
+  }
+
+  if (isAssetLockFile(descriptor, parsed)) {
+    return classifiedFile(
+      descriptor,
+      text,
+      sha256,
+      null,
+      descriptor.relativePath,
+      'unrecognized',
+      null,
+    );
+  }
+
   if (typeof parsed['stableId'] === 'string' && Array.isArray(parsed['capabilities'])) {
     return classifiedFile(
       descriptor,
@@ -286,6 +334,45 @@ export function inspectStudioProjectContentFile(
     'unrecognized',
     null,
   );
+}
+
+function inspectCanonicalArtifactIdentity(
+  parsed: Record<string, unknown>,
+): { readonly documentId: string; readonly documentKind: ProjectContentDocumentKind }
+  | { readonly diagnostic: string }
+  | null {
+  const hasEnvelopeIdentity = Object.hasOwn(parsed, 'documentId')
+    || Object.hasOwn(parsed, 'documentKind')
+    || Object.hasOwn(parsed, 'document');
+  if (!hasEnvelopeIdentity) return null;
+
+  const documentId = parsed['documentId'];
+  if (typeof documentId !== 'string' || documentId.trim().length === 0) {
+    return { diagnostic: 'Canonical project-content artifact documentId must be a non-empty string.' };
+  }
+  const documentKind = parsed['documentKind'];
+  if (typeof documentKind !== 'string' || !isProjectContentDocumentKind(documentKind)) {
+    return { diagnostic: 'Canonical project-content artifact documentKind is not supported.' };
+  }
+  if (!Object.hasOwn(parsed, 'document')) {
+    return { diagnostic: 'Canonical project-content artifact must contain document.' };
+  }
+  return { documentId, documentKind };
+}
+
+function isProjectContentDocumentKind(value: string): value is ProjectContentDocumentKind {
+  return PROJECT_CONTENT_DOCUMENT_KINDS.has(value as ProjectContentDocumentKind);
+}
+
+function isAssetLockFile(
+  descriptor: StudioProjectContentFileDescriptor,
+  parsed: Record<string, unknown>,
+): boolean {
+  const normalizedPath = descriptor.relativePath.replaceAll('\\', '/');
+  return descriptor.rootKind === 'asset'
+    && normalizedPath.endsWith('/lock.json')
+    && typeof parsed['schemaVersion'] === 'number'
+    && Array.isArray(parsed['entries']);
 }
 
 export function buildStudioProjectContentBrowserReadModel(
