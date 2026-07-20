@@ -189,6 +189,7 @@ import {
   type VoxelModelWindowReadout,
   type VoxelModelWindowRequest,
   type VoxelSelectionSnapshot,
+  type WorkspaceAuthoringProjectBundleRef,
 } from '@asha/contracts';
 import {
   retainStudioWorkspaceProjection,
@@ -275,6 +276,7 @@ export {
 
 import {
   resolveAshaAuthoringWriteTarget,
+  type AshaProjectSourceReader,
   type AshaGameAssetCatalog,
   type AshaGameAssetCatalogEntry,
   type AshaGameAssetKind,
@@ -291,7 +293,6 @@ import {
   createWorkspaceAuthoringFacade,
   resolveNativeRustRuntimeBridgeProvider,
   type CameraCreateRequest,
-  type ProjectBundleLoadRequest,
   type RuntimeBridge,
   type RuntimeBufferHandle,
   type VoxelMeshEvidenceSnapshot,
@@ -304,7 +305,6 @@ import type {
   RuntimeSessionAutonomousPolicyTickReadout,
   RuntimeSessionEncounterTransitionReceipt,
   RuntimeSessionFacade,
-  RuntimeSessionGeneratedTunnelOperationReceipt,
   RuntimeSessionLifecycleRestartReceipt,
   RuntimeSessionLifecycleStatusReadout,
   RuntimeSessionProjectionSummary,
@@ -1590,16 +1590,10 @@ interface StudioVoxelAssetWorkflowTarget {
   readonly customAssetPath: boolean;
 }
 
-const LIVE_RUNTIME_FIXTURE_PROJECT_BUNDLE: ProjectBundleLoadRequest = {
-  bundleSchemaVersion: 1,
-  protocolVersion: 1,
-  sceneId: 4103,
-};
-
 function workspaceAuthoringProjectBundle(
   projectIdentity: string,
   document: FlatSceneDocument,
-): ProjectBundleLoadRequest {
+): WorkspaceAuthoringProjectBundleRef {
   const identity = `${projectIdentity}|${String(document.id)}|${document.schemaVersion}`;
   let sceneId = 2_166_136_261;
   for (const character of identity) {
@@ -3277,6 +3271,25 @@ function projectFileApiBase(): string {
   return `${protocol}//${hostname}:4300`;
 }
 
+function createStudioHostProjectSource(workspaceRoot: string): AshaProjectSourceReader {
+  const normalizedRoot = normalizeProjectFilePath(workspaceRoot);
+  return {
+    kind: 'development-directory',
+    identity: `development-directory:${normalizedRoot}`,
+    read: async relativePath => {
+      const absolutePath = joinProjectFilePath(normalizedRoot, relativePath);
+      const response = await fetch(
+        `${projectFileApiBase()}/api/host-files/bytes?path=${encodeURIComponent(absolutePath)}`,
+      );
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(`Host project source read failed for ${relativePath}: ${message}`);
+      }
+      return new Uint8Array(await response.arrayBuffer());
+    },
+  };
+}
+
 function normalizeProjectFilePath(path: string): string {
   const normalized = path.replaceAll('\\', '/').replace(/\/+/g, '/');
   if (normalized === '/') {
@@ -3815,7 +3828,6 @@ export class StudioWorkspaceStore {
     seed: 17,
   });
   private readonly generatedTunnelReadoutState = signal<GeneratedTunnelReadout | null>(null);
-  private readonly generatedTunnelRegenerateReceiptState = signal<RuntimeSessionGeneratedTunnelOperationReceipt | null>(null);
   private readonly generatedTunnelNavProjectionState = signal<NavProjectionReadout | null>(null);
   private readonly gameplayPresetDraftState = signal<StudioFpsGameplayPresetDraft>(
     buildDefaultStudioFpsGameplayPresetDraft(),
@@ -4165,7 +4177,6 @@ export class StudioWorkspaceStore {
       restartReceipt: this.playableLoopRestartReceiptState(),
       generatedLevelPreset: this.generatedLevelPresetDraftState(),
       generatedTunnelReadout: this.generatedTunnelReadoutState(),
-      generatedTunnelRegenerateReceipt: this.generatedTunnelRegenerateReceiptState(),
       navProjection: this.generatedTunnelNavProjectionState(),
       gameplayPresetDraft: this.gameplayPresetDraftState(),
       encounterDirector: this.playableLoopEncounterDirectorState(),
@@ -8116,8 +8127,16 @@ export class StudioWorkspaceStore {
           gameId: workspace.gameId,
           workspaceId: workspace.workspaceHash,
         },
-        projectBundle: LIVE_RUNTIME_FIXTURE_PROJECT_BUNDLE,
       });
+      const projectReceipt = await facade.loadProject({
+        source: createStudioHostProjectSource(workspace.workspaceRoot),
+      });
+      if (!projectReceipt.accepted || projectReceipt.activeProject === null) {
+        throw new Error(
+          projectReceipt.diagnostics.map(diagnostic => diagnostic.message).join('; ')
+          || 'Rust rejected the selected workspace as a canonical runtime project.',
+        );
+      }
       assertNativeRustRuntimeAuthority(facade, attach.bridge);
       this.runtimeSessionFacadeState.set(facade);
       this.runtimeSessionStateSummaryState.set(initialized);
@@ -8129,7 +8148,7 @@ export class StudioWorkspaceStore {
       this.refreshRuntimeViewportEvidence(attach.bridge, facade);
       this.refreshRuntimeSessionInspectionReadout(facade);
       this.runtimeConnectionMessageState.set(
-        `Rust RuntimeSession attached through ${attach.browserHost.compatibilityVersion}: ${initialized.sessionHash}.`,
+        `Rust RuntimeSession loaded project ${projectReceipt.activeProject.projectId} through ${attach.browserHost.compatibilityVersion}: ${initialized.sessionHash}.`,
       );
       this.menuMessageState.set('Live Runtime Inspection attached through the public one-cell browser host.');
     } catch (error) {
@@ -8502,7 +8521,6 @@ export class StudioWorkspaceStore {
         ? state
         : {
             ...state,
-            composition: tick.composition,
             sequenceId: tick.sequenceId,
             tick: tick.tick,
             sessionHash: tick.sessionHash,
@@ -8531,7 +8549,6 @@ export class StudioWorkspaceStore {
         ? state
         : {
             ...state,
-            composition: restarted.composition,
             sequenceId: restarted.sequenceId,
             tick: restarted.tick,
             sessionHash: restarted.sessionHash,
@@ -8595,7 +8612,6 @@ export class StudioWorkspaceStore {
         ? state
         : {
             ...state,
-            composition: readout.step.composition,
             sequenceId: encounterTransitionReceipt?.sequenceId ?? readout.sequenceIdAfter,
             tick: readout.tick,
             sessionHash: encounterTransitionReceipt?.hashes.sessionHashAfter ?? readout.sessionHashAfter,
@@ -8638,7 +8654,6 @@ export class StudioWorkspaceStore {
         ? state
         : {
             ...state,
-            composition: telemetry.composition,
             sequenceId: telemetry.sequenceId,
             tick: telemetry.tick,
             sessionHash: telemetry.sessionHash,
@@ -8669,7 +8684,6 @@ export class StudioWorkspaceStore {
         presetId: value,
       };
     });
-    this.generatedTunnelRegenerateReceiptState.set(null);
     this.menuMessageState.set('Generated-level preset draft updated in Definition Authoring.');
   }
 
@@ -8713,52 +8727,13 @@ export class StudioWorkspaceStore {
     );
   }
 
-  requestGeneratedLevelRegenerate(): void {
-    const facade = this.runtimeSessionFacadeState();
-    const draft = this.generatedLevelPresetDraftState();
-    if (facade === null) {
-      this.runtimeConnectionMessageState.set('Attach RuntimeSession before requesting generated-level regenerate.');
-      return;
-    }
-    if (draft.presetId !== 'tiny-enclosed' || draft.seed !== 17) {
-      this.runtimeConnectionMessageState.set('Generated-level preset draft must validate before regenerate.');
-      return;
-    }
-
-    try {
-      const receipt = facade.requestGeneratedTunnelOperation({
-        operation: 'regenerate',
-        presetId: draft.presetId,
-        seed: draft.seed,
-      });
-      this.generatedTunnelRegenerateReceiptState.set(receipt);
-      this.runtimeSessionStateSummaryState.update(state => state === null
-        ? state
-        : {
-            ...state,
-            sequenceId: receipt.sequenceId,
-            sessionHash: receipt.sessionHashAfter,
-          });
-      this.refreshRuntimeSessionInspectionReadout(facade);
-      this.runtimeConnectionMessageState.set(
-        receipt.status === 'unsupported'
-          ? `Generated-level regenerate unsupported: ${receipt.reason}.`
-          : 'Generated-level regenerate applied.',
-      );
-      this.menuMessageState.set('Generated-level regenerate used typed public RuntimeSession control.');
-    } catch (error) {
-      this.runtimeConnectionMessageState.set(
-        error instanceof Error ? error.message : 'Generated-level regenerate request failed.',
-      );
-    }
-  }
-
   setHierarchyFilter(filter: string): void {
     this.hierarchyFilterState.set(filter);
   }
 
   private clearRuntimeSessionInspection(): void {
     const bridge = this.runtimeSessionBridgeState();
+    const facade = this.runtimeSessionFacadeState();
     this.runtimeSessionBridgeState.set(null);
     this.runtimeSessionFacadeState.set(null);
     this.runtimeSessionStateSummaryState.set(null);
@@ -8767,7 +8742,6 @@ export class StudioWorkspaceStore {
     this.runtimeViewportEvidenceState.set(MISSING_RUNTIME_VIEWPORT_EVIDENCE);
     this.runtimeSessionPausedState.set(false);
     this.generatedTunnelReadoutState.set(null);
-    this.generatedTunnelRegenerateReceiptState.set(null);
     this.generatedTunnelNavProjectionState.set(null);
     this.playableLoopEncounterDirectorState.set(null);
     this.playableLoopEncounterTransitionReceiptState.set(null);
@@ -8776,15 +8750,15 @@ export class StudioWorkspaceStore {
     this.playableLoopLifecycleState.set(null);
     this.playableLoopRestartReceiptState.set(null);
     if (bridge !== null) {
-      let unloadFailure: unknown = null;
+      let closeFailure: unknown = null;
       try {
-        bridge.unloadProjectBundle();
+        facade?.closeProject();
       } catch (error) {
-        unloadFailure = error;
+        closeFailure = error;
       }
       disconnectStudioBrowserHostRuntimeBridge(bridge);
-      if (unloadFailure !== null) {
-        throw new Error(`Runtime ProjectBundle unload failed before browser-host disconnect: ${errorMessage(unloadFailure)}`);
+      if (closeFailure !== null) {
+        throw new Error(`Runtime project close failed before browser-host disconnect: ${errorMessage(closeFailure)}`);
       }
     }
   }
@@ -8794,20 +8768,8 @@ export class StudioWorkspaceStore {
     this.runtimeSessionTelemetryState.set(facade.readTelemetry());
     this.playableLoopLifecycleState.set(facade.readLifecycleStatus());
     this.playableLoopEncounterDirectorState.set(facade.readEncounterDirector());
-    const draft = this.generatedLevelPresetDraftState();
-    try {
-      if (draft.presetId !== 'tiny-enclosed' || draft.seed !== 17) {
-        throw new Error('Generated-level preset draft is outside the public fixture surface.');
-      }
-      this.generatedTunnelReadoutState.set(facade.readGeneratedTunnelReadout({
-        presetId: 'tiny-enclosed',
-        seed: 17,
-      }));
-      this.generatedTunnelNavProjectionState.set(facade.readNavProjection());
-    } catch {
-      this.generatedTunnelReadoutState.set(null);
-      this.generatedTunnelNavProjectionState.set(null);
-    }
+    this.generatedTunnelReadoutState.set(null);
+    this.generatedTunnelNavProjectionState.set(facade.readNavProjection());
   }
 
   async refreshRunningProjectSessions(): Promise<void> {

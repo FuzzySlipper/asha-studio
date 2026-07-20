@@ -30,6 +30,14 @@ export interface StudioHostFileWriteRequest {
   readonly expectedHash?: string | null;
 }
 
+export type StudioHostFileBytesRead =
+  | StudioHostFileFailure
+  | {
+      readonly ok: true;
+      readonly path: string;
+      readonly bytes: Uint8Array;
+    };
+
 export type StudioHostFileStageRequest = StudioHostFileWriteRequest;
 
 interface StudioHostFileStageReservation {
@@ -158,6 +166,26 @@ export async function readStudioHostFile(startDirectory: string, path: string): 
     };
   } catch (error) {
     return hostFileFailure(error, 'Reading file', resolved.absolutePath);
+  }
+}
+
+export async function readStudioHostFileBytes(
+  startDirectory: string,
+  path: string,
+): Promise<StudioHostFileBytesRead> {
+  const resolved = resolveStudioHostFilePath(startDirectory, path);
+  if (!resolved.ok) {
+    return resolved;
+  }
+  try {
+    const bytes = await readFile(resolved.absolutePath);
+    return {
+      ok: true,
+      path: resolved.absolutePath,
+      bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+    };
+  } catch (error) {
+    return hostFileFailure(error, 'Reading file bytes', resolved.absolutePath);
   }
 }
 

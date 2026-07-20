@@ -7,6 +7,7 @@ import {
   listStudioHostDir,
   promoteStudioHostFileStage,
   readStudioHostFile,
+  readStudioHostFileBytes,
   stageStudioHostFile,
   writeStudioHostFile,
 } from './studio-project-file-service';
@@ -60,6 +61,22 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'GET' && url.pathname === '/api/host-files/file') {
       sendJson(response, 200, await readStudioHostFile(startDirectory, url.searchParams.get('path') ?? ''));
+      return;
+    }
+    if (request.method === 'GET' && url.pathname === '/api/host-files/bytes') {
+      const readback = await readStudioHostFileBytes(
+        startDirectory,
+        url.searchParams.get('path') ?? '',
+      );
+      if (!readback.ok) {
+        sendJson(response, 400, readback);
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-length': String(readback.bytes.byteLength),
+      });
+      response.end(readback.bytes);
       return;
     }
     if (request.method === 'PUT' && url.pathname === '/api/host-files/file') {

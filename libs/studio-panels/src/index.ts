@@ -325,20 +325,7 @@ export { StudioVoxelToolsMenuComponent } from './voxel-tools-menu';
               </div>
               <div class="generated-level-inspection__actions">
                 <button type="button" (click)="store.validateGeneratedLevelPreset()">Validate Preset</button>
-                <button
-                  type="button"
-                  [disabled]="!store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.available"
-                  (click)="store.requestGeneratedLevelRegenerate()"
-                >
-                  Regenerate
-                </button>
-                <small data-generated-level="regenerate-status">
-                  @if (store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.lastReceipt; as receipt) {
-                    {{ receipt.status }} · {{ receipt.reason || 'accepted' }}
-                  } @else {
-                    {{ store.runtimeSessionInspection().generatedLevel.liveInspection.regenerate.disabledReason || 'ready' }}
-                  }
-                </small>
+                <small>Generation is materialized and saved during authoring, before runtime inspection.</small>
               </div>
             </section>
 

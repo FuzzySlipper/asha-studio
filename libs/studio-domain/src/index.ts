@@ -55,7 +55,6 @@ import type {
   NavProjectionReadout,
   RuntimeSessionAutonomousPolicyTickReadout,
   RuntimeSessionEncounterTransitionReceipt,
-  RuntimeSessionGeneratedTunnelOperationReceipt,
   RuntimeSessionLifecycleRestartReceipt,
   RuntimeSessionLifecycleStatusReadout,
   RuntimeSessionProjectionSummary,
@@ -1184,18 +1183,6 @@ export interface StudioGeneratedLevelLiveReadModel {
     readonly voxel: readonly [number, number, number];
     readonly world: readonly [number, number, number];
   }[];
-  readonly regenerate: {
-    readonly commandId: 'runtime.generated_tunnel.regenerate';
-    readonly available: boolean;
-    readonly disabledReason: string | null;
-    readonly lastReceipt: {
-      readonly operation: 'regenerate' | 'apply_to_runtime_world';
-      readonly status: 'applied' | 'unsupported';
-      readonly reason: string | null;
-      readonly sequenceId: number;
-      readonly sessionHashAfter: string;
-    } | null;
-  };
 }
 
 export interface StudioGeneratedLevelInspectionReadModel {
@@ -2542,7 +2529,6 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
   readonly restartReceipt?: RuntimeSessionLifecycleRestartReceipt | null;
   readonly generatedLevelPreset?: StudioGeneratedLevelPresetDraft;
   readonly generatedTunnelReadout?: GeneratedTunnelReadout | null;
-  readonly generatedTunnelRegenerateReceipt?: RuntimeSessionGeneratedTunnelOperationReceipt | null;
   readonly navProjection?: NavProjectionReadout | null;
   readonly gameplayPresetDraft?: StudioFpsGameplayPresetDraft;
   readonly encounterDirector?: EncounterDirectorReadout | null;
@@ -2604,7 +2590,6 @@ export function buildStudioRuntimeSessionInspectionReadModel(input: {
       seed: input.generatedTunnelReadout?.generator.seed ?? 17,
     },
     liveReadout: input.generatedTunnelReadout ?? null,
-    regenerateReceipt: input.generatedTunnelRegenerateReceipt ?? null,
     navProjection: input.navProjection ?? null,
   });
   const playableLoop = buildStudioPlayableLoopInspectionReadModel({
@@ -3307,7 +3292,6 @@ export function buildStudioGeneratedLevelInspectionReadModel(input: {
   readonly gameWorkspace: StudioGameWorkspaceReadModel | null;
   readonly presetDraft: StudioGeneratedLevelPresetDraft;
   readonly liveReadout: GeneratedTunnelReadout | null;
-  readonly regenerateReceipt: RuntimeSessionGeneratedTunnelOperationReceipt | null;
   readonly navProjection: NavProjectionReadout | null;
 }): StudioGeneratedLevelInspectionReadModel {
   const validationErrors: string[] = [];
@@ -3400,7 +3384,6 @@ export function buildStudioGeneratedLevelInspectionReadModel(input: {
     },
   };
 
-  const regenerateAvailable = input.attached && validationStatus === 'valid';
   const liveInspection: StudioGeneratedLevelLiveReadModel = {
     liveVersion: 'studio-generated-level-live.v0',
     studioMode: input.attached ? 'live_runtime_inspection' : 'definition_authoring',
@@ -3432,28 +3415,6 @@ export function buildStudioGeneratedLevelInspectionReadModel(input: {
       voxel: marker.voxel,
       world: marker.world,
     })) ?? [],
-    regenerate: {
-      commandId: 'runtime.generated_tunnel.regenerate',
-      available: regenerateAvailable,
-      disabledReason: regenerateAvailable
-        ? null
-        : input.gameWorkspace === null
-          ? 'workspace_not_open'
-          : input.attached
-            ? 'preset_validation_failed'
-            : 'runtime_session_not_attached',
-      lastReceipt: input.regenerateReceipt === null
-        ? null
-        : {
-            operation: input.regenerateReceipt.operation,
-            status: input.regenerateReceipt.status,
-            reason: input.regenerateReceipt.status === 'unsupported'
-              ? input.regenerateReceipt.reason
-              : null,
-            sequenceId: input.regenerateReceipt.sequenceId,
-            sessionHashAfter: input.regenerateReceipt.sessionHashAfter,
-          },
-    },
   };
 
   const body = {
