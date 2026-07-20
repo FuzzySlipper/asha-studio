@@ -7,11 +7,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { launchNativeBrowserHost } from '@asha/browser-host';
+import {
+  ASHA_STUDIO_NATIVE_PROVIDER_PATH,
+  resolveStudioNativeProviderPath,
+} from './studio-native-provider';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const builtUiRoot = join(repoRoot, 'dist/apps/studio-app/browser');
 const host = process.env['HOST']?.trim() || '0.0.0.0';
 const port = parsePort(process.env['PORT']);
+const nativeProviderPath = await resolveStudioNativeProviderPath(
+  process.env[ASHA_STUDIO_NATIVE_PROVIDER_PATH],
+  repoRoot,
+);
 
 await buildStudio();
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'asha-studio-native-host-'));
@@ -24,6 +32,13 @@ const server = await launchNativeBrowserHost({
   host,
   port,
   healthProject: 'asha-studio',
+  ...(nativeProviderPath === null
+    ? {}
+    : {
+        provider: {
+          nativeModulePath: nativeProviderPath,
+        },
+      }),
 });
 
 try {
@@ -32,6 +47,11 @@ try {
     throw new Error(`ASHA Studio native authority failed to start: ${message}`);
   }
   console.log(`ASHA Studio native host listening at ${server.url}`);
+  console.log(
+    nativeProviderPath === null
+      ? 'Rust composition: generic ASHA Engine provider.'
+      : `Rust composition: project provider ${nativeProviderPath}`,
+  );
   console.log('The trusted host-file service is a separate process; use `pnpm run studio:lan` for both.');
   await waitForShutdown();
 } finally {

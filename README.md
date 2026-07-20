@@ -30,6 +30,18 @@ editor with the public native Rust browser host. `studio:lan` starts that host
 plus the trusted host-filesystem service used by Open and Save dialogs. LAN
 clients always read and write files on the machine running Studio.
 
+Projects with provider-owned gameplay configuration must run Studio against
+their composed Rust provider so offline authoring uses the same codecs as the
+game. Provider selection is an explicit trusted-host setting; project content
+and LAN browsers cannot choose a native module:
+
+```bash
+ASHA_STUDIO_NATIVE_PROVIDER_PATH=/path/to/project-runtime-provider.node pnpm run studio:lan
+```
+
+Omit `ASHA_STUDIO_NATIVE_PROVIDER_PATH` for the generic ASHA Engine
+composition. An invalid configured path stops the host before Studio is served.
+
 ## Validate changes
 
 ```bash

@@ -7,6 +7,11 @@
 | `pnpm run dev:files` | Start the trusted host-filesystem service. |
 | `pnpm run studio:lan` | Start native Studio and the file service together for trusted LAN use. |
 | `pnpm run check:live-editor` | Exercise lighting and voxel authoring through the visible editor against a running native host. |
+
+Set `ASHA_STUDIO_NATIVE_PROVIDER_PATH` when a project owns gameplay codecs in a
+downstream composed Rust provider. The native host validates this host-controlled
+`.node` path before serving and uses that provider for every Studio authority
+cell. Without it, Studio uses the generic ASHA Engine composition.
 | `pnpm run build` | Build all workspace projects. |
 | `pnpm run check` | Run lint, type checks, and focused tests. |
 | `pnpm run verify` | Run structural checks, focused tests, and build. |
