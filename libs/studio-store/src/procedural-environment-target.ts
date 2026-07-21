@@ -112,7 +112,7 @@ export function selectStudioProceduralEnvironmentTarget(
       diagnostic: 'A procedural-environment tag is attached to a non-voxel scene node.',
     };
   }
-  const assetMatches = tagged.filter(node =>
+  const assetMatches = document.nodes.filter(node =>
     node.kind.kind === 'voxelVolume' && node.kind.asset.id === requestedAssetId,
   );
   if (assetMatches.length > 1) {

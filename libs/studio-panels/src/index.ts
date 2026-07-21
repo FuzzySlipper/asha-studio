@@ -2810,7 +2810,7 @@ export class StudioInspectorPanelComponent {
                         step="1"
                         [value]="environment.draft.seed"
                         [disabled]="environment.status === 'applied'"
-                        (change)="store.setProceduralEnvironmentSeed($any($event.target).valueAsNumber)"
+                        (input)="store.setProceduralEnvironmentSeed($any($event.target).value)"
                       />
                     </label>
                     <label>

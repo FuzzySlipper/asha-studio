@@ -213,7 +213,6 @@ import {
 import { StudioWorkspaceAuthoringOpenLifecycle } from './workspace-authoring-lifecycle.js';
 import {
   persistStudioCanonicalProjectWrite,
-  persistStudioWorkspaceAuthoringArtifactSet,
   persistStudioWorkspaceAuthoringCandidate,
   type StudioHostFilePromotion,
   type StudioHostFileStage,
@@ -7160,12 +7159,18 @@ export class StudioWorkspaceStore {
         return;
       }
 
+      const requestedHostPath = this.voxelAssetHostSavePathOverrideState()
+        ?? (target.customAssetPath
+          ? this.resolveSceneVoxelAssetHostPath(target.assetPath)
+          : this.activeVoxelAssetFilePathState() ?? this.resolveSceneVoxelAssetHostPath(target.assetPath));
+      const canonicalContext = this.canonicalProjectWriteContext(requestedHostPath, 'asset');
+      const targetAssetPath = canonicalContext?.relativePath ?? target.assetPath;
       const saveResult = this.runAgentVoxelWorkflowOperation({
         kind: 'save_voxel_volume_asset',
         saveRequest: {
           exportRequest,
           targetProjectBundle: target.projectBundle,
-          targetAssetPath: target.assetPath,
+          targetAssetPath,
           representationKind: 'sparse_runs',
           expectedExistingCanonicalJsonHash: null,
           expectedCanonicalJsonHash: exportResult.voxelVolumeExport.canonicalJsonHash,
@@ -7184,40 +7189,51 @@ export class StudioWorkspaceStore {
       }
       let storageCleanupDiagnostic: string | null = null;
       try {
-        const hostAssetPath = this.voxelAssetHostSavePathOverrideState() ?? target.assetPath;
-        const expectedHostHash = this.activeVoxelAssetFilePathState() === hostAssetPath
+        const expectedHostHash = this.activeVoxelAssetFilePathState() === requestedHostPath
           ? this.activeVoxelAssetFileHashState()
           : undefined;
         const facade = this.workspaceAuthoringFacadeState();
         if (facade === null) {
           throw new Error('Workspace authoring authority closed before storage confirmation.');
         }
-        const stored = await persistStudioWorkspaceAuthoringCandidate({
-          authority: facade,
-          currentAuthority: () => this.workspaceAuthoringFacadeState(),
-          hostPath: hostAssetPath,
-          canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
-          stage: () => this.stageHostAuthoringFile(
-            hostAssetPath,
-            saveReadout.serializedAsset ?? '',
-            expectedHostHash,
-          ),
-          promote: token => this.promoteHostAuthoringFile(token),
-          finalize: token => this.finalizeHostAuthoringFileStage(token),
-          discard: token => this.discardHostAuthoringFileStage(token),
-        });
-        this.activeVoxelAssetFilePathState.set(stored.path);
-        this.activeVoxelAssetFileHashState.set(stored.sha256);
-        storageCleanupDiagnostic = stored.cleanupDiagnostic;
-        this.workspaceAuthoringStateSummaryState.set(facade.readState());
         const attached = this.attachVoxelAssetToScene({
           ...target,
-          assetPath: stored.path,
+          assetPath: canonicalContext?.relativePath ?? requestedHostPath,
           customAssetPath: true,
         });
         if (!attached) {
           throw new Error('Rust rejected the saved voxel asset scene attachment.');
         }
+        if (canonicalContext !== null) {
+          await persistStudioCanonicalProjectWrite({
+            authority: facade,
+            currentAuthority: () => this.workspaceAuthoringFacadeState(),
+            bridge: canonicalContext.bridge,
+            projectRoot: canonicalContext.projectRoot,
+          });
+          const readback = await this.readHostVoxelAsset(requestedHostPath);
+          this.activeVoxelAssetFilePathState.set(readback.path);
+          this.activeVoxelAssetFileHashState.set(readback.sha256);
+        } else {
+          const stored = await persistStudioWorkspaceAuthoringCandidate({
+            authority: facade,
+            currentAuthority: () => this.workspaceAuthoringFacadeState(),
+            hostPath: requestedHostPath,
+            canonicalJsonHash: saveReadout.nextCanonicalJsonHash,
+            stage: () => this.stageHostAuthoringFile(
+              requestedHostPath,
+              saveReadout.serializedAsset ?? '',
+              expectedHostHash,
+            ),
+            promote: token => this.promoteHostAuthoringFile(token),
+            finalize: token => this.finalizeHostAuthoringFileStage(token),
+            discard: token => this.discardHostAuthoringFileStage(token),
+          });
+          this.activeVoxelAssetFilePathState.set(stored.path);
+          this.activeVoxelAssetFileHashState.set(stored.sha256);
+          storageCleanupDiagnostic = stored.cleanupDiagnostic;
+        }
+        this.workspaceAuthoringStateSummaryState.set(facade.readState());
       } catch (error) {
         this.recordVoxelAssetWorkflowControl({
           action,
@@ -9594,6 +9610,30 @@ export class StudioWorkspaceStore {
       if (!result.accepted || result.document === null || result.canonicalJson === null) {
         throw new Error(this.sceneCodecDiagnostic(result));
       }
+      const canonicalContext = this.canonicalProjectWriteContext(normalizedPath, 'scene');
+      if (canonicalContext !== null) {
+        const activePath = this.activeSceneFilePathState();
+        if (activePath === null || normalizeProjectFilePath(activePath) !== normalizedPath) {
+          throw new Error(
+            'Save Scene As cannot replace a different canonical ProjectBundle scene; open that scene before editing it.',
+          );
+        }
+        await persistStudioCanonicalProjectWrite({
+          authority: canonicalContext.authority,
+          currentAuthority: () => this.workspaceAuthoringFacadeState(),
+          bridge: canonicalContext.bridge,
+          projectRoot: canonicalContext.projectRoot,
+        });
+        const readback = await this.readHostVoxelAsset(normalizedPath);
+        const decoded = bridge.decodeSceneDocument({ sourceText: readback.text });
+        if (!decoded.accepted || decoded.document === null) {
+          throw new Error('The canonical project was stored but its scene could not be reopened through Rust.');
+        }
+        this.workspaceAuthoringStateSummaryState.set(canonicalContext.authority.readState());
+        this.commitSceneFileSave(readback.path, readback.sha256, decoded.document, saveAs);
+        await this.refreshProjectFiles(parentProjectDir(readback.path));
+        return;
+      }
       const expectedHash = saveAs ? null : this.activeSceneFileHashState();
       const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
         method: 'PUT',
@@ -9664,6 +9704,10 @@ export class StudioWorkspaceStore {
   }
 
   private async persistConflictOverwrite(conflict: StudioSceneFileConflictReadModel): Promise<void> {
+    if (this.canonicalProjectWriteContext(conflict.path, 'scene') !== null) {
+      await this.writeSceneFile(conflict.path, false);
+      return;
+    }
     try {
       const response = await fetch(`${projectFileApiBase()}/api/host-files/file`, {
         method: 'PUT',
@@ -9862,9 +9906,14 @@ export class StudioWorkspaceStore {
 
   private activeProjectSceneRelativePath(): string | null {
     const activePath = this.activeSceneFilePathState();
+    if (activePath === null) return null;
+    return this.projectRelativePath(activePath);
+  }
+
+  private projectRelativePath(path: string): string | null {
     const workspace = this.gameWorkspace();
-    if (activePath === null || workspace === null) return null;
-    const normalizedActive = normalizeProjectFilePath(activePath);
+    if (workspace === null) return null;
+    const normalizedActive = normalizeProjectFilePath(path);
     const loaded = this.projectContentFilesState().find(
       file => normalizeProjectFilePath(file.path) === normalizedActive,
     );
@@ -9874,6 +9923,34 @@ export class StudioWorkspaceStore {
     return normalizedActive.startsWith(prefix)
       ? normalizedActive.slice(prefix.length)
       : null;
+  }
+
+  private canonicalProjectWriteContext(
+    path: string,
+    rootKind: Extract<StudioProjectContentFileDescriptor['rootKind'], 'scene' | 'asset'>,
+  ): {
+    readonly authority: WorkspaceAuthoringFacade;
+    readonly bridge: NativeBrowserHostRuntimeBridge;
+    readonly projectRoot: string;
+    readonly relativePath: string;
+  } | null {
+    const authority = this.workspaceAuthoringFacadeState();
+    const bridge = this.workspaceAuthoringBridgeState();
+    const workspace = this.gameWorkspace();
+    const normalizedPath = normalizeProjectFilePath(path);
+    const descriptor = this.projectContentDescriptorsState().find(candidate =>
+      candidate.rootKind === rootKind
+      && normalizeProjectFilePath(candidate.path) === normalizedPath,
+    );
+    if (authority === null || bridge === null || workspace === null || descriptor === undefined) {
+      return null;
+    }
+    return {
+      authority,
+      bridge,
+      projectRoot: workspace.workspaceRoot,
+      relativePath: descriptor.relativePath,
+    };
   }
 
   setProjectRootDraft(path: string): void {
@@ -10110,7 +10187,12 @@ export class StudioWorkspaceStore {
     }
     this.projectContentMessageState.set('Discarding the current project-content working set and reopening host files.');
     await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
+    if (this.projectContentStatusState() !== 'ready') return;
+    this.projectContentStatusState.set('loading');
+    this.projectContentMessageState.set('Reconnecting manifest-discovered voxel assets to the reopened Rust workspace.');
     await this.reconnectSceneVoxelAssets(this.workspaceState().flatSceneDocument);
+    this.projectContentStatusState.set('ready');
+    this.projectContentMessageState.set('Reloaded project content and reconnected stored voxel assets from disk.');
   }
 
   setProceduralEnvironmentTextField(
@@ -10120,13 +10202,19 @@ export class StudioWorkspaceStore {
     this.updateProceduralEnvironmentDraft(draft => ({ ...draft, [field]: value }));
   }
 
-  setProceduralEnvironmentSeed(value: number): void {
-    if (!Number.isSafeInteger(value) || value < 0) {
+  setProceduralEnvironmentSeed(value: number | string): void {
+    if (typeof value === 'string' && value.trim().length === 0) {
       this.proceduralEnvironmentStatusState.set('rejected');
       this.proceduralEnvironmentMessageState.set('Environment seed must be a non-negative safe integer.');
       return;
     }
-    this.updateProceduralEnvironmentDraft(draft => ({ ...draft, seed: value }));
+    const seed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isSafeInteger(seed) || seed < 0) {
+      this.proceduralEnvironmentStatusState.set('rejected');
+      this.proceduralEnvironmentMessageState.set('Environment seed must be a non-negative safe integer.');
+      return;
+    }
+    this.updateProceduralEnvironmentDraft(draft => ({ ...draft, seed }));
   }
 
   setProceduralEnvironmentTranslation(axis: 0 | 1 | 2, value: number): void {
@@ -10306,9 +10394,9 @@ export class StudioWorkspaceStore {
       this.refreshWorkspaceAuthoringState(facade);
       this.proceduralEnvironmentStatusState.set('applied');
       this.proceduralEnvironmentMessageState.set(
-        `Rust accepted revision ${result.workingRevision}; save both canonical files to commit artifact set ${applied.artifactSetHash}.`,
+        `Rust accepted revision ${result.workingRevision}; save the canonical project closure for artifact set ${applied.artifactSetHash}.`,
       );
-      this.menuMessageState.set('Environment materialized in workspace authority. Save Canonical Artifacts to persist it.');
+      this.menuMessageState.set('Environment materialized in workspace authority. Save Canonical Artifacts to publish the project closure.');
     } catch (error) {
       this.proceduralEnvironmentStatusState.set('rejected');
       this.proceduralEnvironmentMessageState.set(`Environment materialization rejected: ${errorMessage(error)}`);
@@ -10359,41 +10447,25 @@ export class StudioWorkspaceStore {
       file => file.relativePath === assetAuthorization.normalizedPath,
     );
     try {
-      const stored = await persistStudioWorkspaceAuthoringArtifactSet({
+      const bridge = this.workspaceAuthoringBridgeState();
+      if (bridge === null) {
+        throw new Error('Workspace authoring transport closed before canonical environment publication.');
+      }
+      const stored = await persistStudioCanonicalProjectWrite({
         authority: facade,
         currentAuthority: () => this.workspaceAuthoringFacadeState(),
-        confirmationHostPath: workspace.workspaceRoot,
-        canonicalJsonHash: applied.saveCandidateHash,
-        artifacts: [{
-          hostPath: scenePath,
-          stage: () => this.stageHostAuthoringFile(
-            scenePath,
-            candidate.sceneFile.canonicalJson,
-            loadedScene?.sha256 ?? this.activeSceneFileHashState(),
-          ),
-          promote: token => this.promoteHostAuthoringFile(token),
-          finalize: token => this.finalizeHostAuthoringFileStage(token),
-          discard: token => this.discardHostAuthoringFileStage(token),
-        }, {
-          hostPath: assetPath,
-          stage: () => this.stageHostAuthoringFile(
-            assetPath,
-            candidate.voxelFile.canonicalJson,
-            loadedAsset?.sha256 ?? null,
-          ),
-          promote: token => this.promoteHostAuthoringFile(token),
-          finalize: token => this.finalizeHostAuthoringFileStage(token),
-          discard: token => this.discardHostAuthoringFileStage(token),
-        }],
+        bridge,
+        projectRoot: workspace.workspaceRoot,
       });
-      const storedScene = stored.artifacts.find(
-        artifact => normalizeProjectFilePath(artifact.path) === normalizeProjectFilePath(scenePath),
-      );
-      const storedAsset = stored.artifacts.find(
-        artifact => normalizeProjectFilePath(artifact.path) === normalizeProjectFilePath(assetPath),
-      );
-      if (storedScene === undefined || storedAsset === undefined) {
-        throw new Error('Host storage did not return both promoted environment artifacts.');
+      const [storedScene, storedAsset] = await Promise.all([
+        this.readHostVoxelAsset(scenePath),
+        this.readHostVoxelAsset(assetPath),
+      ]);
+      if (
+        storedScene.text !== candidate.sceneFile.canonicalJson
+        || storedAsset.text !== candidate.voxelFile.canonicalJson
+      ) {
+        throw new Error('Canonical environment readback differs from the accepted Rust materialization.');
       }
       const now = Date.now();
       const sceneDescriptor: StudioProjectContentFileDescriptor = loadedScene ?? {
@@ -10436,11 +10508,8 @@ export class StudioWorkspaceStore {
       );
       this.workspaceAuthoringStateSummaryState.set(facade.readState());
       this.proceduralEnvironmentStatusState.set('saved');
-      const cleanup = stored.cleanupDiagnostics.length === 0
-        ? ''
-        : ` Backup cleanup: ${stored.cleanupDiagnostics.join(' ')}`;
       this.proceduralEnvironmentMessageState.set(
-        `Saved scene and voxel asset at Rust stored revision ${stored.storedRevision}.${cleanup}`,
+        `Saved scene, voxel asset, and ProjectBundle manifest as canonical store revision ${stored.storedRevision}.`,
       );
       this.projectContentStatusState.set('ready');
       this.projectContentMessageState.set(

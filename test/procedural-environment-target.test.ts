@@ -70,6 +70,21 @@ test('committed procedural environment reuses its voxel and marker identities', 
   );
 });
 
+test('stored generated asset without a management tag reuses its exact voxel identity', () => {
+  const document = committedEnvironmentScene();
+  const nodes = document.nodes.map(node => node.id === sceneNodeId(23)
+    ? { ...node, tags: [] }
+    : node);
+  const target = selectStudioProceduralEnvironmentTarget(
+    { ...document, nodes },
+    'voxel-volume/generated-tunnel',
+  );
+  assert.equal(target.ok, true);
+  if (!target.ok) return;
+  assert.equal(target.mode, 'replace');
+  assert.equal(target.voxelNodeId, sceneNodeId(23));
+});
+
 test('scene without a managed environment allocates one collision-free subtree', () => {
   const document = buildInitialWorkspaceReadModel().flatSceneDocument;
   const target = selectStudioProceduralEnvironmentTarget(

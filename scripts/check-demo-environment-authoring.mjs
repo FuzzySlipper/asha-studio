@@ -7,6 +7,10 @@ const baseUrl = process.env.BASE_URL ?? 'http://127.0.0.1:4212';
 const demoRoot = process.env.ASHA_DEMO_ROOT ?? '/home/dev/asha-demo';
 const executablePath = process.env.CHROMIUM_PATH ?? '/usr/bin/chromium';
 const screenshotPath = process.env.SCREENSHOT_PATH;
+const targetSeed = Number(process.env.TARGET_SEED ?? '23');
+if (!Number.isSafeInteger(targetSeed) || targetSeed < 0) {
+  throw new Error('TARGET_SEED must be a non-negative safe integer.');
+}
 
 const browser = await chromium.launch({
   executablePath,
@@ -71,8 +75,8 @@ async function expectOneStoredEnvironment() {
     join(demoRoot, 'assets/voxels/generated-tunnel.avxl.json'),
     'utf8',
   ));
-  if (!asset.provenance?.[0]?.uri?.includes('seed=23&')) {
-    throw new Error('Stored voxel asset does not retain the edited seed 23 provenance.');
+  if (!asset.provenance?.[0]?.uri?.includes(`seed=${String(targetSeed)}&`)) {
+    throw new Error(`Stored voxel asset does not retain the edited seed ${String(targetSeed)} provenance.`);
   }
 }
 
@@ -95,14 +99,28 @@ try {
   await page.getByRole('button', { name: 'Project Content', exact: true }).click();
   const browserPanel = page.locator('[data-visual-id="studio-project-content-browser"]');
   await browserPanel.getByRole('button', { name: 'Reload from Disk', exact: true }).click();
+  const projectContentStatus = browserPanel.locator('[data-project-content-status]');
+  await expect(projectContentStatus).toHaveAttribute('data-project-content-status', 'loading');
+  await expect(projectContentStatus).toHaveAttribute('data-project-content-status', 'ready', {
+    timeout: 30_000,
+  });
   const environment = page.locator('[data-visual-id="studio-environment-authoring"]');
   await expect(environment).toBeVisible({ timeout: 30_000 });
   await environment.locator('summary').click();
-  await environment.getByRole('spinbutton', { name: 'Seed' }).fill('23');
+  const seedInput = environment.getByRole('spinbutton', { name: 'Seed' });
+  await seedInput.focus();
+  await seedInput.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await seedInput.pressSequentially(String(targetSeed));
+  await page.waitForTimeout(100);
+  await expect(seedInput).toHaveValue(String(targetSeed));
   const placement = environment.getByRole('group', { name: 'Scene placement' });
-  await placement.locator('input').first().fill('-4');
+  const placementX = placement.locator('input').first();
+  await placementX.fill('-4');
+  await placementX.press('Tab');
   const materialBindings = environment.getByRole('group', { name: 'Material catalog bindings' });
-  await materialBindings.locator('input').nth(2).fill('material/tunnel-highlight');
+  const highlightMaterial = materialBindings.locator('input').nth(2);
+  await highlightMaterial.fill('material/tunnel-highlight');
+  await highlightMaterial.press('Tab');
 
   await environment.getByRole('button', { name: 'Preview', exact: true }).click();
   const environmentStatus = environment.locator('[data-environment-status]');
@@ -111,6 +129,9 @@ try {
     throw new Error(await environment.locator('[data-environment-message]').textContent() ?? 'Environment preview rejected.');
   }
   await expect(environmentStatus).toHaveText('previewed');
+  await expect(environment.locator('[data-environment-candidate="present"]')).toContainText(
+    `seed ${String(targetSeed)}`,
+  );
   await expect(environment.locator('[data-environment-candidate="present"]')).toContainText('solid');
   await expect(environment).toContainText('unresolved: material/tunnel-floor');
   const viewport = page.locator('canvas[aria-label="ASHA engine renderer viewport"]');
@@ -127,7 +148,7 @@ try {
   await expect(environment.locator('[data-environment-status]')).toHaveText('saved', {
     timeout: 30_000,
   });
-  await expect(environment).toContainText('Saved scene and voxel asset');
+  await expect(environment).toContainText('Saved scene, voxel asset, and ProjectBundle manifest');
 
   await page.reload({ waitUntil: 'networkidle' });
   await openDemoScene(page);
