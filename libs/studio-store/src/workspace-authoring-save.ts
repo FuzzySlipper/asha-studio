@@ -2,6 +2,7 @@ import type {
   WorkspaceAuthoringFacade,
   WorkspaceAuthoringStateSummary,
 } from '@asha/runtime-session';
+import type { NativeBrowserHostRuntimeBridge } from '@asha/browser-host';
 
 export interface StudioHostFileStage {
   readonly token: string;
@@ -52,6 +53,18 @@ export interface StudioWorkspaceAuthoringArtifactSetSaveResult {
   readonly cleanupDiagnostics: readonly string[];
 }
 
+export interface StudioCanonicalProjectWriteRequest {
+  readonly authority: WorkspaceAuthoringFacade;
+  readonly currentAuthority: () => WorkspaceAuthoringFacade | null;
+  readonly bridge: NativeBrowserHostRuntimeBridge;
+  readonly projectRoot: string;
+}
+
+export interface StudioCanonicalProjectWriteResult {
+  readonly candidateHash: string;
+  readonly storedRevision: number;
+}
+
 function sameAuthoritySnapshot(
   before: WorkspaceAuthoringStateSummary,
   after: WorkspaceAuthoringStateSummary,
@@ -63,6 +76,72 @@ function sameAuthoritySnapshot(
     && before.workingRevision === after.workingRevision
     && before.authoritySnapshotHash === after.authoritySnapshotHash
     && before.lifecycleHash === after.lifecycleHash;
+}
+
+/**
+ * Persists the complete Rust-owned ProjectBundle closure through the trusted
+ * browser host. Observation happens before Rust prepares the candidate; the
+ * host then performs one reversible directory swap and confirms that exact
+ * publication with the same Rust authority cell.
+ */
+export async function persistStudioCanonicalProjectWrite(
+  request: StudioCanonicalProjectWriteRequest,
+): Promise<StudioCanonicalProjectWriteResult> {
+  const beforeObservation = request.authority.readState();
+  const observed = await request.bridge.browserHostProjectStore.observe(request.projectRoot);
+  requireCurrentCanonicalProjectAuthority(request, beforeObservation, 'observed');
+
+  const prepared = request.authority.prepareProjectWrite({
+    observedPrior: observed.identity,
+    priorManifestJson: observed.manifestJson,
+  });
+  if (!prepared.accepted || prepared.candidate === null) {
+    const diagnostic = prepared.diagnostics.at(0);
+    throw new Error(
+      diagnostic === undefined
+        ? 'Rust rejected the canonical project write without a diagnostic.'
+        : `${diagnostic.code}${diagnostic.path === null ? '' : ` (${diagnostic.path})`}: ${diagnostic.message}`,
+    );
+  }
+  requireCurrentCanonicalProjectAuthority(request, beforeObservation, 'prepared');
+
+  const stored = await request.bridge.browserHostProjectStore.apply({
+    projectRoot: request.projectRoot,
+    candidate: prepared.candidate,
+  });
+  if (stored.candidateHash !== prepared.candidate.candidateHash) {
+    throw new Error('Browser host returned a different canonical project candidate identity.');
+  }
+  const afterConfirmation = request.authority.readState();
+  if (
+    request.currentAuthority() !== request.authority
+    || afterConfirmation.status !== 'open'
+    || afterConfirmation.identity.project.workspaceId
+      !== beforeObservation.identity.project.workspaceId
+    || afterConfirmation.identity.generation !== beforeObservation.identity.generation
+    || afterConfirmation.workingRevision !== beforeObservation.workingRevision
+    || afterConfirmation.storedRevision !== beforeObservation.workingRevision
+    || afterConfirmation.dirty
+  ) {
+    throw new Error('Canonical project publication did not settle the originating Rust authority revision.');
+  }
+  return {
+    candidateHash: stored.candidateHash,
+    storedRevision: stored.published.revision,
+  };
+}
+
+function requireCurrentCanonicalProjectAuthority(
+  request: StudioCanonicalProjectWriteRequest,
+  expected: WorkspaceAuthoringStateSummary,
+  phase: 'observed' | 'prepared',
+): void {
+  if (request.currentAuthority() !== request.authority) {
+    throw new Error(`Workspace authoring authority changed while the project write was ${phase}.`);
+  }
+  if (!sameAuthoritySnapshot(expected, request.authority.readState())) {
+    throw new Error(`Workspace authoring state changed while the project write was ${phase}.`);
+  }
 }
 
 /**

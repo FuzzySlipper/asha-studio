@@ -7,7 +7,9 @@ import type {
   WorkspaceAuthoringFacade,
   WorkspaceAuthoringStateSummary,
 } from '@asha/runtime-session';
+import type { NativeBrowserHostRuntimeBridge } from '@asha/browser-host';
 import {
+  persistStudioCanonicalProjectWrite,
   persistStudioWorkspaceAuthoringArtifactSet,
   persistStudioWorkspaceAuthoringCandidate,
 } from '@asha-studio/store';
@@ -73,6 +75,108 @@ function fakeAuthority(
     },
   } as unknown as WorkspaceAuthoringFacade;
 }
+
+test('canonical project save prepares from observed host truth and settles the Rust revision', async () => {
+  let state = authoringState(15);
+  const candidate = {
+    candidateHash: 'candidate:canonical-project',
+    expectedPrior: {
+      revision: 3,
+      manifestHash: 'manifest:prior',
+      contentSetHash: 'content:prior',
+      indexHash: null,
+    },
+    expectedNext: {
+      revision: 4,
+      manifestHash: 'manifest:next',
+      contentSetHash: 'content:next',
+      indexHash: null,
+    },
+    expectedPriorArtifacts: [],
+    expectedNextArtifacts: [],
+    manifestJson: '{"bundleSchemaVersion":2}\n',
+    writes: [],
+    moves: [],
+    deletes: [],
+    indexReplacement: null,
+  };
+  let prepared = 0;
+  let applied = 0;
+  const authority = {
+    readState: () => state,
+    prepareProjectWrite: (input: unknown) => {
+      prepared += 1;
+      assert.deepEqual(input, {
+        observedPrior: candidate.expectedPrior,
+        priorManifestJson: '{"bundleSchemaVersion":2}\n',
+      });
+      return { accepted: true, candidate, diagnostics: [] };
+    },
+  } as unknown as WorkspaceAuthoringFacade;
+  const bridge = {
+    browserHostProjectStore: {
+      observe: async () => ({
+        identity: candidate.expectedPrior,
+        manifestJson: '{"bundleSchemaVersion":2}\n',
+      }),
+      apply: async (input: unknown) => {
+        applied += 1;
+        assert.deepEqual(input, { projectRoot: '/projects/demo', candidate });
+        state = { ...state, storedRevision: state.workingRevision, dirty: false };
+        return { candidateHash: candidate.candidateHash, published: candidate.expectedNext };
+      },
+    },
+  } as unknown as NativeBrowserHostRuntimeBridge;
+
+  const result = await persistStudioCanonicalProjectWrite({
+    authority,
+    currentAuthority: () => authority,
+    bridge,
+    projectRoot: '/projects/demo',
+  });
+  assert.deepEqual(result, { candidateHash: candidate.candidateHash, storedRevision: 4 });
+  assert.equal(prepared, 1);
+  assert.equal(applied, 1);
+});
+
+test('authority drift while observing the host rejects before Rust prepares a write', async () => {
+  let state = authoringState(21);
+  let prepared = 0;
+  const authority = {
+    readState: () => state,
+    prepareProjectWrite: () => {
+      prepared += 1;
+      throw new Error('must not prepare stale observation');
+    },
+  } as unknown as WorkspaceAuthoringFacade;
+  const bridge = {
+    browserHostProjectStore: {
+      observe: async () => {
+        state = authoringState(22);
+        return {
+          identity: {
+            revision: 0,
+            manifestHash: 'manifest',
+            contentSetHash: 'content',
+            indexHash: null,
+          },
+          manifestJson: '{}',
+        };
+      },
+    },
+  } as unknown as NativeBrowserHostRuntimeBridge;
+
+  await assert.rejects(
+    persistStudioCanonicalProjectWrite({
+      authority,
+      currentAuthority: () => authority,
+      bridge,
+      projectRoot: '/projects/demo',
+    }),
+    /state changed while the project write was observed/u,
+  );
+  assert.equal(prepared, 0);
+});
 
 async function stagedReceipt(root: string, path: string, text: string) {
   const receipt = await stageStudioHostFile(root, {

@@ -14,6 +14,7 @@ import {
   type StudioSceneFileConflictReadModel,
 } from '@asha-studio/store';
 import type { ProjectContentCodecResult, ProjectContentDocument } from '@asha/contracts';
+import type { NativeBrowserHostRuntimeBridge } from '@asha/browser-host';
 import type { WorkspaceAuthoringFacade } from '@asha/runtime-session';
 
 const READ_ONLY_CATALOG_MANIFEST = `[asha]
@@ -75,7 +76,7 @@ interface ProjectContentStoreInternals {
   readonly staleProjectContentSourcePathState: MutableSignalForTest<string | null>;
   readonly sceneFileConflictState: MutableSignalForTest<StudioSceneFileConflictReadModel | null>;
   readonly workspaceAuthoringFacadeState: MutableSignalForTest<WorkspaceAuthoringFacade | null>;
-  stageHostAuthoringFile(path: string, text: string, expectedHash: string | null): Promise<never>;
+  readonly workspaceAuthoringBridgeState: MutableSignalForTest<NativeBrowserHostRuntimeBridge | null>;
 }
 
 function readOnlyWorkspace() {
@@ -223,7 +224,7 @@ test('a stale project-content source stays sticky and blocks subsequent field ed
   });
 });
 
-test('project-content save rejects a read-only manifest root before host staging', async () => {
+test('project-content save rejects a read-only manifest root before host publication', async () => {
   await withStore(async (store, internals) => {
     const workspace = readOnlyWorkspace();
     assert.equal(workspace.ok, true);
@@ -235,15 +236,23 @@ test('project-content save rejects a read-only manifest root before host staging
     internals.selectedProjectContentEntryIdState.set(`document:${document.documentId}`);
     internals.dirtyProjectContentDocumentIdsState.set([document.documentId]);
     internals.workspaceAuthoringFacadeState.set({} as WorkspaceAuthoringFacade);
-    let stageCalls = 0;
-    internals.stageHostAuthoringFile = async () => {
-      stageCalls += 1;
-      throw new Error('host staging must not be reached');
-    };
+    let hostCalls = 0;
+    internals.workspaceAuthoringBridgeState.set({
+      browserHostProjectStore: {
+        observe: async () => {
+          hostCalls += 1;
+          throw new Error('host observation must not be reached');
+        },
+        apply: async () => {
+          hostCalls += 1;
+          throw new Error('host publication must not be reached');
+        },
+      },
+    } as NativeBrowserHostRuntimeBridge);
 
     await store.saveSelectedProjectContent();
 
-    assert.equal(stageCalls, 0);
+    assert.equal(hostCalls, 0);
     assert.equal(store.projectContentBrowser().canSaveSelected, false);
     assert.match(store.projectContentBrowser().message, /outside allowed roots/);
   });

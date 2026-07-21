@@ -212,6 +212,7 @@ import {
 } from './voxel-instance-authoring.js';
 import { StudioWorkspaceAuthoringOpenLifecycle } from './workspace-authoring-lifecycle.js';
 import {
+  persistStudioCanonicalProjectWrite,
   persistStudioWorkspaceAuthoringArtifactSet,
   persistStudioWorkspaceAuthoringCandidate,
   type StudioHostFilePromotion,
@@ -251,11 +252,14 @@ export {
 } from './project-content-browser.js';
 
 export {
+  persistStudioCanonicalProjectWrite,
   persistStudioWorkspaceAuthoringArtifactSet,
   persistStudioWorkspaceAuthoringCandidate,
   type StudioWorkspaceAuthoringArtifactSaveRequest,
   type StudioWorkspaceAuthoringArtifactSetSaveRequest,
   type StudioWorkspaceAuthoringArtifactSetSaveResult,
+  type StudioCanonicalProjectWriteRequest,
+  type StudioCanonicalProjectWriteResult,
   type StudioHostFilePromotion,
   type StudioHostFileStage,
   type StudioWorkspaceAuthoringSaveRequest,
@@ -10546,10 +10550,18 @@ export class StudioWorkspaceStore {
 
   async saveSelectedProjectContent(): Promise<void> {
     const facade = this.workspaceAuthoringFacadeState();
+    const bridge = this.workspaceAuthoringBridgeState();
     const codec = this.projectContentCodecState();
     const selected = this.projectContentBrowser().selectedEntry;
     const workspace = this.gameWorkspace();
-    if (facade === null || codec === null || codec.setHash === null || selected === null || workspace === null) {
+    if (
+      facade === null
+      || bridge === null
+      || codec === null
+      || codec.setHash === null
+      || selected === null
+      || workspace === null
+    ) {
       this.projectContentMessageState.set('Select a Rust-validated changed document before saving.');
       return;
     }
@@ -10577,36 +10589,25 @@ export class StudioWorkspaceStore {
       );
       return;
     }
-    const authorizedHostPath = joinProjectFilePath(
-      workspace.workspaceRoot,
-      writeAuthorization.normalizedPath,
-    );
     try {
-      const stored = await persistStudioWorkspaceAuthoringCandidate({
+      const stored = await persistStudioCanonicalProjectWrite({
         authority: facade,
         currentAuthority: () => this.workspaceAuthoringFacadeState(),
-        hostPath: authorizedHostPath,
-        canonicalJsonHash: codec.setHash,
-        stage: () => this.stageHostAuthoringFile(authorizedHostPath, canonical.canonicalJson, file.sha256),
-        promote: token => this.promoteHostAuthoringFile(token),
-        finalize: token => this.finalizeHostAuthoringFileStage(token),
-        discard: token => this.discardHostAuthoringFileStage(token),
+        bridge,
+        projectRoot: workspace.workspaceRoot,
       });
-      this.projectContentFilesState.update(files => files.map(candidate =>
-        candidate.documentId === selected.documentId
-          ? { ...candidate, path: stored.path, text: canonical.canonicalJson, sha256: stored.sha256 }
-          : candidate,
-      ));
       this.dirtyProjectContentDocumentIdsState.set([]);
       this.staleProjectContentSourcePathState.set(null);
       this.workspaceAuthoringStateSummaryState.set(facade.readState());
+      await this.refreshProjectContentBrowser({ reconcileFromDisk: true });
+      if (this.workspaceAuthoringFacadeState() === null || this.projectContentCodecState() === null) {
+        throw new Error('The canonical project was stored but Studio could not reopen its published content.');
+      }
       this.projectContentStatusState.set('ready');
       this.projectContentMessageState.set(
-        stored.cleanupDiagnostic === null
-          ? `Saved and confirmed ${file.relativePath} at Rust revision ${stored.storedRevision}.`
-          : `Saved ${file.relativePath}; host backup cleanup needs attention: ${stored.cleanupDiagnostic}`,
+        `Saved ${file.relativePath} with its updated ProjectBundle manifest at store revision ${stored.storedRevision}.`,
       );
-      this.menuMessageState.set(`Saved typed project content ${file.relativePath}.`);
+      this.menuMessageState.set(`Saved and reopened canonical project content ${file.relativePath}.`);
     } catch (error) {
       const message = errorMessage(error);
       const stale = /changed since|stale_file_hash|expectedHash/iu.test(message);
