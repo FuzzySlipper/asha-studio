@@ -89,6 +89,36 @@ interface ProjectContentStoreInternals {
   readonly activeSceneFileHashState: MutableSignalForTest<string | null>;
 }
 
+interface VoxelAssetSaveSeams {
+  runAgentVoxelWorkflowOperation: (
+    operation: Readonly<{ kind: string }>,
+  ) => unknown;
+  voxelAssetWorkflowTargetForCurrentDraft: () => Readonly<{
+    grid: number;
+    volumeAssetId: string;
+    targetAssetId: string;
+    projectBundle: string;
+    assetPath: string;
+    derivedProjectBundle: string;
+    derivedAssetPath: string;
+    customProjectBundle: boolean;
+    customAssetPath: boolean;
+  }>;
+  voxelAssetWorkflowExportRequest: () => unknown;
+  attachVoxelAssetToScene: (target: Readonly<{ assetPath: string }>) => boolean;
+  stageHostAuthoringFile: (
+    path: string,
+    canonicalJson: string,
+    expectedHash?: string,
+  ) => Promise<Readonly<{ token: string; path: string; sha256: string }>>;
+  promoteHostAuthoringFile: (
+    token: string,
+  ) => Promise<Readonly<{ path: string; sha256: string }>>;
+  finalizeHostAuthoringFileStage: (token: string) => Promise<void>;
+  discardHostAuthoringFileStage: (token: string) => Promise<void>;
+  refreshProjectFiles: (path?: string) => Promise<void>;
+}
+
 function readOnlyWorkspace() {
   return loadStudioGameWorkspaceManifest({
     workspaceRoot: '/projects/demo',
@@ -388,5 +418,178 @@ test('saving an active canonical scene publishes the whole project and never wri
     assert.equal(applied, 1);
     assert.equal(directWrites, 0);
     assert.equal(internals.activeSceneFileHashState(), 'sha256:canonical-scene');
+  });
+});
+
+test('non-manifest Save Voxel Asset As confirms exact Rust bytes before scene attachment mutates authority', async () => {
+  await withStore(async (store, internals) => {
+    const targetPath = '/projects/demo/exports/house.avxl.json';
+    const serializedAsset = '{"assetId":"asset/house","content":"rust-canonical"}\n';
+    let state = {
+      kind: 'workspace_authoring.state.v0',
+      status: 'open',
+      identity: {
+        kind: 'workspace_authoring.identity.v0',
+        authoringId: 'studio-external-voxel-save',
+        mode: 'rust',
+        generation: 7,
+        seed: 42,
+        project: { gameId: 'demo', workspaceId: 'workspace:demo' },
+        nonClaims: [],
+      },
+      composition: { loadedProjectBundle: 1, fatalCount: 0, totalCount: 0, blocksLoad: false },
+      workingRevision: 4,
+      storedRevision: 3,
+      dirty: true,
+      lastStoredCanonicalJsonHash: null,
+      authoritySnapshotHash: 'authority:4',
+      lifecycleHash: 'lifecycle:4',
+    } as unknown as WorkspaceAuthoringStateSummary;
+    let pendingSaveCandidate = false;
+    let stagedBytes: string | null = null;
+    let discarded = false;
+    const order: string[] = [];
+    const authority = {
+      readState: () => state,
+      confirmStored: (request: Readonly<{
+        expectedWorkspaceId: string;
+        expectedGeneration: number;
+        hostPath: string;
+        canonicalJsonHash: string;
+      }>) => {
+        order.push('confirm');
+        assert.equal(pendingSaveCandidate, true, 'the Rust save candidate must still be pending');
+        assert.deepEqual(request, {
+          expectedWorkspaceId: 'workspace:demo',
+          expectedGeneration: 7,
+          hostPath: targetPath,
+          canonicalJsonHash: 'sha256:canonical-asset',
+        });
+        pendingSaveCandidate = false;
+        state = {
+          ...state,
+          storedRevision: state.workingRevision,
+          dirty: false,
+          lifecycleHash: 'lifecycle:4-stored',
+        };
+        return {
+          kind: 'workspace_authoring.stored_confirmation.v0',
+          accepted: true,
+          workspaceId: 'workspace:demo',
+          generation: 7,
+          hostPath: targetPath,
+          canonicalJsonHash: 'sha256:canonical-asset',
+          storedRevision: 4,
+          lifecycleHash: state.lifecycleHash,
+        };
+      },
+    } as unknown as WorkspaceAuthoringFacade;
+    internals.workspaceAuthoringFacadeState.set(authority);
+
+    const seams = store as unknown as VoxelAssetSaveSeams;
+    seams.voxelAssetWorkflowTargetForCurrentDraft = () => ({
+      grid: 1,
+      volumeAssetId: 'volume/house',
+      targetAssetId: 'asset/house',
+      projectBundle: 'project/demo',
+      assetPath: 'assets/house.avxl.json',
+      derivedProjectBundle: 'project/demo',
+      derivedAssetPath: 'assets/house.avxl.json',
+      customProjectBundle: false,
+      customAssetPath: false,
+    });
+    seams.voxelAssetWorkflowExportRequest = () => ({});
+    seams.runAgentVoxelWorkflowOperation = operation => {
+      if (operation.kind === 'get_model_info') {
+        return {
+          accepted: true,
+          diagnostic: null,
+          modelInfo: {
+            modelId: 'model/house',
+            volumeAssetId: 'volume/house',
+            voxelCount: 27,
+            materialCounts: [{ material: 1, voxelCount: 27 }],
+            sessionHash: 'sha256:session',
+            diagnostics: [],
+          },
+        };
+      }
+      if (operation.kind === 'export_voxel_volume_asset') {
+        return {
+          accepted: true,
+          diagnostic: null,
+          voxelVolumeExport: {
+            asset: { assetId: 'asset/house' },
+            canonicalJsonHash: 'sha256:canonical-asset',
+            voxelDataHash: 'sha256:voxel-data',
+          },
+        };
+      }
+      assert.equal(operation.kind, 'save_voxel_volume_asset');
+      order.push('candidate');
+      pendingSaveCandidate = true;
+      return {
+        accepted: true,
+        diagnostic: null,
+        voxelVolumeSave: {
+          asset: { assetId: 'asset/house' },
+          assetId: 'asset/house',
+          serializedAsset,
+          nextCanonicalJsonHash: 'sha256:canonical-asset',
+          nextVoxelDataHash: 'sha256:voxel-data',
+          voxelCount: 27,
+          materialCount: 1,
+          validationDiagnosticCodes: [],
+        },
+      };
+    };
+    seams.stageHostAuthoringFile = async (path, canonicalJson) => {
+      order.push('stage');
+      stagedBytes = canonicalJson;
+      return { token: 'stage:house', path, sha256: 'sha256:host-file' };
+    };
+    seams.promoteHostAuthoringFile = async token => {
+      assert.equal(token, 'stage:house');
+      order.push('promote');
+      return { path: targetPath, sha256: 'sha256:host-file' };
+    };
+    seams.finalizeHostAuthoringFileStage = async token => {
+      assert.equal(token, 'stage:house');
+      order.push('finalize');
+    };
+    seams.discardHostAuthoringFileStage = async () => {
+      discarded = true;
+    };
+    seams.attachVoxelAssetToScene = target => {
+      order.push('attach');
+      assert.equal(target.assetPath, targetPath);
+      assert.equal(pendingSaveCandidate, false, 'attachment must follow candidate consumption');
+      assert.equal(state.storedRevision, 4);
+      state = {
+        ...state,
+        workingRevision: 5,
+        dirty: true,
+        authoritySnapshotHash: 'authority:5',
+        lifecycleHash: 'lifecycle:5',
+      };
+      return true;
+    };
+    seams.refreshProjectFiles = async () => undefined;
+
+    await store.saveVoxelAssetFileAs(targetPath);
+
+    assert.equal(
+      stagedBytes,
+      serializedAsset,
+      JSON.stringify({ order, control: store.voxelAssetWorkflowControl() }),
+    );
+    assert.equal(discarded, false);
+    assert.deepEqual(order, ['candidate', 'stage', 'promote', 'confirm', 'finalize', 'attach']);
+    assert.equal(store.voxelAssetWorkflowControl().status, 'accepted');
+    assert.equal(store.activeVoxelAssetFilePath(), targetPath);
+    assert.equal(store.workspaceAuthoringState()?.storedRevision, 4);
+    assert.equal(store.workspaceAuthoringState()?.workingRevision, 5);
+    assert.equal(store.workspaceAuthoringState()?.dirty, true);
+    assert.equal(store.projectFileDialog().lastResult?.status, 'accepted');
   });
 });

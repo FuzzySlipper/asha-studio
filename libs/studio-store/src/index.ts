@@ -7196,15 +7196,15 @@ export class StudioWorkspaceStore {
         if (facade === null) {
           throw new Error('Workspace authoring authority closed before storage confirmation.');
         }
-        const attached = this.attachVoxelAssetToScene({
-          ...target,
-          assetPath: canonicalContext?.relativePath ?? requestedHostPath,
-          customAssetPath: true,
-        });
-        if (!attached) {
-          throw new Error('Rust rejected the saved voxel asset scene attachment.');
-        }
         if (canonicalContext !== null) {
+          const attached = this.attachVoxelAssetToScene({
+            ...target,
+            assetPath: canonicalContext.relativePath,
+            customAssetPath: true,
+          });
+          if (!attached) {
+            throw new Error('Rust rejected the saved voxel asset scene attachment.');
+          }
           await persistStudioCanonicalProjectWrite({
             authority: facade,
             currentAuthority: () => this.workspaceAuthoringFacadeState(),
@@ -7232,6 +7232,14 @@ export class StudioWorkspaceStore {
           this.activeVoxelAssetFilePathState.set(stored.path);
           this.activeVoxelAssetFileHashState.set(stored.sha256);
           storageCleanupDiagnostic = stored.cleanupDiagnostic;
+          const attached = this.attachVoxelAssetToScene({
+            ...target,
+            assetPath: stored.path,
+            customAssetPath: true,
+          });
+          if (!attached) {
+            throw new Error('Rust rejected the saved voxel asset scene attachment.');
+          }
         }
         this.workspaceAuthoringStateSummaryState.set(facade.readState());
       } catch (error) {
