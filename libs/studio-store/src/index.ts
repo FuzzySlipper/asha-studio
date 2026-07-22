@@ -229,6 +229,7 @@ import {
   type StudioProjectContentLoadedFile,
   type StudioProjectContentNavigationKind,
 } from './project-content-browser.js';
+import { buildStudioEntityAppearancePreview } from './entity-appearance-authoring.js';
 
 export {
   buildStudioProjectContentBrowserReadModel,
@@ -249,6 +250,13 @@ export {
   type StudioProjectContentSceneSource,
   type StudioProjectContentWriteAuthorizationReadModel,
 } from './project-content-browser.js';
+
+export {
+  buildStudioEntityAppearancePreview,
+  type StudioEntityAppearanceInstanceReadModel,
+  type StudioEntityAppearancePreviewReadModel,
+  type StudioEntityAppearanceResourceReadModel,
+} from './entity-appearance-authoring.js';
 
 export {
   persistStudioCanonicalProjectWrite,
@@ -4153,6 +4161,11 @@ export class StudioWorkspaceStore {
       projectScenes: this.projectContentSceneDocumentsState(),
     }),
   );
+  readonly entityAppearancePreview = computed(() => buildStudioEntityAppearancePreview({
+    codec: this.projectContentCodecState(),
+    projectRoot: this.gameWorkspace()?.workspaceRoot ?? null,
+    scene: this.workspaceState().flatSceneDocument,
+  }));
   readonly proceduralEnvironment = computed<StudioProceduralEnvironmentReadModel>(() => {
     const preview = this.proceduralEnvironmentPreviewState();
     const applied = this.proceduralEnvironmentApplyState();

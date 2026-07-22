@@ -75,7 +75,8 @@ export type StudioProjectContentNavigationKind =
   | 'spawnMarker'
   | 'sceneInstance'
   | 'configuration'
-  | 'binding';
+  | 'binding'
+  | 'presentationResource';
 
 export interface StudioProjectContentRelationshipReadModel {
   readonly label: string;
@@ -122,7 +123,7 @@ export interface StudioProjectContentSceneSource {
 }
 
 export interface StudioProjectContentEditableFieldReadModel {
-  readonly authoringKind: 'gameplayConfiguration' | 'material' | 'presentationCue';
+  readonly authoringKind: 'gameplayConfiguration' | 'material' | 'presentationCue' | 'entityAppearance';
   readonly documentId: string;
   readonly configurationId: string;
   readonly schemaId: string;
@@ -626,6 +627,9 @@ export function updateProjectContentField(
       value,
     );
   }
+  if (field.authoringKind === 'entityAppearance') {
+    return updateEntityAppearanceField(documents, field, value);
+  }
   const numericValue = value.kind === 'number' || value.kind === 'integer' ? value.value : null;
   if (numericValue === null) return null;
   if (field.authoringKind === 'material') {
@@ -667,7 +671,18 @@ function entriesForFile(
   }
   const document = input.codec?.documents.find(candidate => candidate.documentId === file.documentId) ?? null;
   if (document !== null) {
-    return [typedDocumentEntry(file, document, input.codec?.diagnostics ?? [])];
+    const documentEntry = typedDocumentEntry(file, document, input.codec?.diagnostics ?? []);
+    return document.kind === 'presentationCatalog'
+      ? [
+          documentEntry,
+          ...document.catalog.resources.map(resource => presentationResourceEntry(
+            file,
+            document,
+            resource.resourceId,
+            input.codec?.diagnostics ?? [],
+          )),
+        ]
+      : [documentEntry];
   }
   if (file.sourceClass === 'legacy-source' && file.legacyCategory !== null) {
     return [legacyEntry(file)];
@@ -840,7 +855,12 @@ function typedDocumentEntry(
     diagnostics: diagnosticsForFile(file, allDiagnostics),
   };
   switch (document.kind) {
-    case 'entityDefinition':
+    case 'entityDefinition': {
+      const appearances = document.definition.capabilities.flatMap(capability => (
+        capability.kind === 'renderProjection' && capability.appearance !== null
+          ? [{ projectionId: capability.projectionId, appearance: capability.appearance }]
+          : []
+      ));
       return {
         ...common,
         categoryId: 'entity-definitions',
@@ -851,12 +871,21 @@ function typedDocumentEntry(
           `${document.definition.capabilities.length} capabilities`,
           `${document.definition.tags.length} tags`,
           ...document.definition.capabilities.map(capability => `capability · ${capability.kind}`),
+          ...appearances.map(({ projectionId, appearance }) => (
+            `appearance · ${projectionId} → ${appearance.resourceId} · clip ${appearance.initialClipId ?? 'default'} · scale ${appearance.modelScale.join(', ')}`
+          )),
+          ...(appearances.length === 0 ? ['appearance · no canonical visual bound'] : []),
         ],
-        relationships: [],
+        relationships: appearances.map(({ appearance }) => ({
+          label: `appearance resource ${appearance.resourceId}`,
+          navigationKind: 'presentationResource' as const,
+          targetId: appearance.resourceId,
+        })),
         navigationKeys: sourceNavigationKeys(file, [
           projectContentNavigationKey('entityDefinition', document.definition.stableId),
         ]),
       };
+    }
     case 'prefabRegistry': {
       const relationships: StudioProjectContentRelationshipReadModel[] = [];
       for (const definition of document.registry.definitions) {
@@ -969,20 +998,90 @@ function typedDocumentEntry(
         title: 'Presentation Catalog',
         subtitle: `${document.catalog.resources.length} resources · ${document.catalog.cues.length} cues`,
         details: [
-          ...document.catalog.resources.map(resource => `${resource.kind} · ${resource.resourceId}`),
+          ...document.catalog.resources.flatMap(resource => [
+            `${resource.kind} · ${resource.resourceId} · asset ${resource.assetId}`,
+            `source ${resource.sourcePath} · content ${resource.contentHash}`,
+            `license ${resource.licensePath ?? 'not declared'}`,
+            ...(resource.animatedMesh === null ? [] : [
+              `mesh ${resource.animatedMesh.asset} · ${resource.animatedMesh.runtimeFormat} · bounds ${resource.animatedMesh.bounds.min.join(', ')} → ${resource.animatedMesh.bounds.max.join(', ')}`,
+              `clips ${resource.animatedMesh.clips.map(clip => clip.id).join(', ') || 'none'} · default ${resource.animatedMesh.defaultClip ?? 'none'}`,
+              `materials ${resource.animatedMesh.materialSlots.map(slot => `${slot.slot}:${slot.material}`).join(', ') || 'none'}`,
+            ]),
+          ]),
           ...document.catalog.cues.map(cue => `${cue.kind} cue · ${cue.cueId}`),
         ],
-        relationships: document.catalog.resources.map(resource => ({
-          label: `${resource.resourceId} uses ${resource.assetId}`,
-          navigationKind: 'asset' as const,
-          targetId: resource.assetId,
-        })),
+        relationships: document.catalog.resources.flatMap(resource => [
+          {
+            label: `${resource.resourceId} uses ${resource.assetId}`,
+            navigationKind: 'asset' as const,
+            targetId: resource.assetId,
+          },
+          ...(resource.animatedMesh?.materialSlots.map(slot => ({
+            label: `${resource.resourceId} material slot ${slot.slot} uses ${slot.material}`,
+            navigationKind: 'material' as const,
+            targetId: slot.material,
+          })) ?? []),
+        ]),
         navigationKeys: sourceNavigationKeys(
           file,
           document.catalog.resources.map(resource => projectContentNavigationKey('asset', resource.assetId)),
         ),
       };
   }
+}
+
+function presentationResourceEntry(
+  file: StudioProjectContentLoadedFile,
+  document: Extract<ProjectContentDocument, { readonly kind: 'presentationCatalog' }>,
+  resourceId: string,
+  diagnostics: readonly ProjectContentDiagnostic[],
+): StudioProjectContentEntryReadModel {
+  const resource = document.catalog.resources.find(candidate => candidate.resourceId === resourceId);
+  if (resource === undefined) {
+    throw new Error(`presentation resource ${resourceId} disappeared while projecting admitted content`);
+  }
+  const animatedMesh = resource.animatedMesh;
+  return {
+    entryId: `presentation-resource:${resource.resourceId}`,
+    categoryId: 'assets-and-materials',
+    documentId: document.documentId,
+    documentKind: document.kind,
+    title: resource.resourceId,
+    subtitle: `${resource.kind} · ${resource.assetId}`,
+    sourcePath: file.path,
+    status: 'rust-validated',
+    details: [
+      `manifest source · ${resource.sourcePath}`,
+      `content identity · ${resource.contentHash}`,
+      `license/source metadata · ${resource.licensePath ?? 'not declared'}`,
+      ...(animatedMesh === null ? [
+        `preview capability · ${resource.kind} is not supported in the ordinary 3D viewport`,
+      ] : [
+        `runtime asset · ${animatedMesh.asset} · ${animatedMesh.runtimeFormat}`,
+        `supported clips · ${animatedMesh.clips.map(clip => clip.id).join(', ') || 'none'}`,
+        `default clip · ${animatedMesh.defaultClip ?? 'none'}`,
+        `bounds · ${animatedMesh.bounds.min.join(', ')} → ${animatedMesh.bounds.max.join(', ')}`,
+        `material bindings · ${animatedMesh.materialSlots.map(slot => `${slot.slot}:${slot.material}`).join(', ') || 'none'}`,
+      ]),
+    ],
+    relationships: [
+      {
+        label: `asset ${resource.assetId}`,
+        navigationKind: 'asset',
+        targetId: resource.assetId,
+      },
+      ...(animatedMesh?.materialSlots.map(slot => ({
+        label: `material slot ${slot.slot} · ${slot.material}`,
+        navigationKind: 'material' as const,
+        targetId: slot.material,
+      })) ?? []),
+    ],
+    diagnostics: diagnosticsForFile(file, diagnostics),
+    navigationKeys: sourceNavigationKeys(file, [
+      projectContentNavigationKey('presentationResource', resource.resourceId),
+      projectContentNavigationKey('asset', resource.assetId),
+    ]),
+  };
 }
 
 function legacyEntry(file: StudioProjectContentLoadedFile): StudioProjectContentEntryReadModel {
@@ -1166,6 +1265,9 @@ function editableFieldsForDocument(
   if (document === undefined) {
     return [];
   }
+  if (document.kind === 'entityDefinition') {
+    return entityAppearanceFields(document, codec);
+  }
   if (document.kind === 'assetCatalog') {
     return typedMetadataFields(documentId, codec, 'asha.material.v1', metadata => (
       readMaterialField(document, metadata.path)
@@ -1214,6 +1316,144 @@ function editableFieldsForDocument(
       }];
     });
   });
+}
+
+function entityAppearanceFields(
+  document: Extract<ProjectContentDocument, { readonly kind: 'entityDefinition' }>,
+  codec: ProjectContentCodecResult,
+): readonly StudioProjectContentEditableFieldReadModel[] {
+  const resources = codec.documents.flatMap(candidate => (
+    candidate.kind === 'presentationCatalog'
+      ? candidate.catalog.resources.filter(resource => resource.kind === 'animatedMesh' && resource.animatedMesh !== null)
+      : []
+  ));
+  return document.definition.capabilities.flatMap((capability, capabilityIndex) => {
+    if (capability.kind !== 'renderProjection') return [];
+    const appearance = capability.appearance;
+    const selectedResource = resources.find(resource => resource.resourceId === appearance?.resourceId) ?? null;
+    const base = `definition.capabilities[${capabilityIndex}].appearance`;
+    const common = {
+      authoringKind: 'entityAppearance' as const,
+      documentId: document.documentId,
+      configurationId: capability.projectionId,
+      schemaId: 'asha.entity-appearance.v1',
+      required: true,
+      integerMin: null,
+      integerMax: null,
+    };
+    const resourceField: StudioProjectContentEditableFieldReadModel = {
+      ...common,
+      fieldId: 'resourceId',
+      path: `${base}.resourceId`,
+      label: 'Appearance resource',
+      valueKind: 'reference',
+      value: appearance?.resourceId ?? '',
+      referenceKind: 'presentationResource',
+      numberMin: null,
+      numberMax: null,
+      options: resources.map(resource => ({
+        value: resource.resourceId,
+        label: `${resource.resourceId} · ${resource.assetId}`,
+      })),
+    };
+    if (appearance === null || selectedResource?.animatedMesh === null || selectedResource === null) {
+      return [resourceField];
+    }
+    const clipField: StudioProjectContentEditableFieldReadModel = {
+      ...common,
+      fieldId: 'initialClipId',
+      path: `${base}.initialClipId`,
+      label: 'Initial animation clip',
+      valueKind: 'string',
+      value: appearance.initialClipId ?? '',
+      required: false,
+      referenceKind: null,
+      numberMin: null,
+      numberMax: null,
+      options: [
+        { value: '', label: `Resource default (${selectedResource.animatedMesh.defaultClip ?? 'none'})` },
+        ...selectedResource.animatedMesh.clips.map(clip => ({
+          value: clip.id,
+          label: clip.name === null ? clip.id : `${clip.id} · ${clip.name}`,
+        })),
+      ],
+    };
+    const scaleFields = appearance.modelScale.map((scale, axis): StudioProjectContentEditableFieldReadModel => ({
+      ...common,
+      fieldId: `modelScale${['X', 'Y', 'Z'][axis] ?? axis}`,
+      path: `${base}.modelScale[${axis}]`,
+      label: `Model scale ${['X', 'Y', 'Z'][axis] ?? axis}`,
+      valueKind: 'number',
+      value: scale,
+      referenceKind: null,
+      numberMin: 0.0001,
+      numberMax: 1000,
+      options: [],
+    }));
+    return [resourceField, clipField, ...scaleFields];
+  });
+}
+
+function updateEntityAppearanceField(
+  documents: readonly ProjectContentDocument[],
+  field: StudioProjectContentEditableFieldReadModel,
+  value: ProjectConfigurationValue,
+): ProjectContentDocument | null {
+  const target = documents.find(candidate => (
+    candidate.kind === 'entityDefinition' && candidate.documentId === field.documentId
+  ));
+  if (target?.kind !== 'entityDefinition') return null;
+  const resources = documents.flatMap(candidate => (
+    candidate.kind === 'presentationCatalog' ? candidate.catalog.resources : []
+  ));
+  let changed = false;
+  const capabilities = target.definition.capabilities.map(capability => {
+    if (capability.kind !== 'renderProjection' || capability.projectionId !== field.configurationId) {
+      return capability;
+    }
+    if (field.fieldId === 'resourceId' && value.kind === 'reference') {
+      const resource = resources.find(candidate => (
+        candidate.resourceId === value.targetId
+        && candidate.kind === 'animatedMesh'
+        && candidate.animatedMesh !== null
+      ));
+      if (resource === undefined || resource.animatedMesh === null) return capability;
+      changed = true;
+      const retainedClip = capability.appearance?.initialClipId ?? null;
+      return {
+        ...capability,
+        appearance: {
+          resourceId: resource.resourceId,
+          initialClipId: retainedClip !== null
+              && resource.animatedMesh.clips.some(clip => clip.id === retainedClip)
+            ? retainedClip
+            : resource.animatedMesh.defaultClip,
+          modelScale: capability.appearance?.modelScale ?? [1, 1, 1],
+        },
+      };
+    }
+    if (capability.appearance === null) return capability;
+    if (field.fieldId === 'initialClipId' && value.kind === 'string') {
+      changed = true;
+      return {
+        ...capability,
+        appearance: { ...capability.appearance, initialClipId: value.value.length === 0 ? null : value.value },
+      };
+    }
+    const axis = /^modelScale([XYZ])$/u.exec(field.fieldId)?.[1];
+    if (axis !== undefined && value.kind === 'number' && value.value > 0) {
+      const axisIndex = { X: 0, Y: 1, Z: 2 }[axis] ?? -1;
+      if (axisIndex < 0) return capability;
+      const modelScale = [...capability.appearance.modelScale] as [number, number, number];
+      modelScale[axisIndex] = value.value;
+      changed = true;
+      return { ...capability, appearance: { ...capability.appearance, modelScale } };
+    }
+    return capability;
+  });
+  return changed
+    ? { ...target, definition: { ...target.definition, capabilities } }
+    : null;
 }
 
 function typedMetadataFields(

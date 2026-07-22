@@ -3045,7 +3045,7 @@ export class StudioInspectorPanelComponent {
                               [checked]="field.value"
                               (change)="store.applyProjectContentField(field.documentId, field.configurationId, field.path, $any($event.target).checked)"
                             />
-                          } @else if (field.valueKind === 'reference') {
+                          } @else if (field.options.length > 0 && (field.valueKind === 'reference' || field.valueKind === 'string')) {
                             <select
                               [value]="field.value"
                               (change)="store.applyProjectContentField(field.documentId, field.configurationId, field.path, $any($event.target).value)"

@@ -32,6 +32,7 @@ import {
 } from '@asha/editor-tools';
 import type {
   AshaRendererEditorViewport,
+  AshaRendererAnimatedMeshResourceDescriptor,
   AshaRendererEditorViewportCamera,
   AshaRendererEditorViewportPickHint,
   AshaRendererEditorViewportReadout,
@@ -56,6 +57,7 @@ import {
 } from '@asha-studio/domain';
 import {
   StudioWorkspaceStore,
+  type StudioEntityAppearancePreviewReadModel,
   type StudioWorkspaceProjectionDelivery,
 } from '@asha-studio/store';
 import { applyStudioTranslationGridSnap } from './grid-snapping.js';
@@ -369,8 +371,12 @@ function buildViewportProjectionFrame(
   materialPreviewFrame: RenderFrameDiff | null,
   environmentPreviewFrame: RenderFrameDiff | null,
   lightingFrame: RenderFrameDiff,
+  appearancePreview: StudioEntityAppearancePreviewReadModel,
 ): RenderFrameDiff {
   const ops: RenderDiff[] = [];
+  const representedRenderables = new Set(
+    appearancePreview.instances.map(instance => instance.renderableId),
+  );
   let handle = 1_000_001;
   for (const renderable of adapter.renderables) {
     if (!renderable.visible) {
@@ -379,6 +385,9 @@ function buildViewportProjectionFrame(
     // VoxelVolume scene nodes are durable references. Their geometry arrives
     // through WorkspaceAuthoringFacade.readProjection(), never a Studio cube.
     if (renderable.kind === 'voxel_grid') {
+      continue;
+    }
+    if (representedRenderables.has(renderable.renderableId)) {
       continue;
     }
     if (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost') {
@@ -398,8 +407,34 @@ function buildViewportProjectionFrame(
   if (environmentPreviewFrame !== null) {
     ops.push(...remapRenderFrameHandles(environmentPreviewFrame, 3_000_000).ops);
   }
+  ops.push(...appearancePreview.frame.ops);
   ops.push(...lightingFrame.ops);
   return { ops };
+}
+
+function withoutAppearanceInstances(
+  preview: StudioEntityAppearancePreviewReadModel,
+): StudioEntityAppearancePreviewReadModel {
+  return {
+    ...preview,
+    instances: [],
+    frame: { ops: [] },
+  };
+}
+
+async function readStudioHostAnimatedMesh(
+  descriptor: AshaRendererAnimatedMeshResourceDescriptor,
+): Promise<ArrayBuffer> {
+  const locationLike = globalThis.location;
+  const protocol = locationLike?.protocol ?? 'http:';
+  const hostname = locationLike?.hostname ?? '127.0.0.1';
+  const response = await fetch(
+    `${protocol}//${hostname}:4300/api/host-files/bytes?path=${encodeURIComponent(descriptor.resourceUrl)}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Studio host could not read ${descriptor.resourceUrl}: ${await response.text()}`);
+  }
+  return response.arrayBuffer();
 }
 
 function remapRenderFrameHandles(frame: RenderFrameDiff, offset: number): RenderFrameDiff {
@@ -650,12 +685,21 @@ function manipulatorCamera(
 function renderableHandle(
   adapter: StudioViewportAdapterReadModel,
   renderableId: string,
+  appearancePreview: StudioEntityAppearancePreviewReadModel,
 ): RenderHandle | null {
+  const appearance = appearancePreview.instances.find(
+    instance => instance.renderableId === renderableId,
+  );
+  if (appearance !== undefined) return appearance.handle;
+  const representedRenderables = new Set(
+    appearancePreview.instances.map(instance => instance.renderableId),
+  );
   let handle = 1_000_001;
   for (const renderable of adapter.renderables) {
     if (
       !renderable.visible
       || renderable.kind === 'voxel_grid'
+      || representedRenderables.has(renderable.renderableId)
       || (!adapter.renderSettings.showPreviewGhosts && renderable.kind === 'preview_ghost')
     ) {
       continue;
@@ -783,6 +827,14 @@ function voxelCoordKey(coord: { readonly x: number; readonly y: number; readonly
                 {{ diagnostic }}
               </small>
             }
+            @if (appearancePreviewDiagnostic(); as diagnostic) {
+              <small data-entity-appearance-preview="failed" class="viewport-classification__diagnostic">
+                {{ diagnostic }}
+              </small>
+            }
+            <small [attr.data-entity-appearance-preview-status]="store.entityAppearancePreview().status">
+              {{ store.entityAppearancePreview().message }}
+            </small>
             <small [attr.data-runtime-viewport-evidence-status]="store.runtimeViewportEvidence().status">
               {{ store.runtimeViewportEvidence().status }}
               · scene {{ store.runtimeViewportEvidence().scene?.documentHash ?? 'n/a' }}
@@ -1088,6 +1140,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   readonly store = inject(StudioWorkspaceStore);
   readonly viewportReadout = signal<AshaRendererEditorViewportReadout | null>(null);
   readonly viewportMountDiagnostic = signal<string | null>(null);
+  readonly appearancePreviewDiagnostic = signal<string | null>(null);
   readonly workspaceAuthoringProjectionEvidence = computed(() => {
     const projection = this.store.workspaceAuthoringProjection();
     return {
@@ -1146,6 +1199,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
   private readonly pressedCameraMovementCodes = new Set<string>();
   private cameraMovementFrameRequest: number | null = null;
   private lastCameraMovementFrameAt: number | null = null;
+  private requestedAppearanceResourceKey: string | null = null;
+  private mountedAppearanceResources = false;
+  private viewportMountGeneration = 0;
 
   private readonly adapterEffect = effect(() => {
     const adapter = this.store.viewportAdapter();
@@ -1155,7 +1211,15 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     const authoringProjection = this.store.workspaceAuthoringProjection();
     const environmentPreview = this.store.proceduralEnvironmentPreviewFrame();
     const lightingProjection = this.store.lightingProjection();
+    const appearancePreview = this.store.entityAppearancePreview();
     const runtimeEvidence = this.store.runtimeViewportEvidence();
+    if (
+      this.canvasElement !== null
+      && appearancePreview.resourceKey !== this.requestedAppearanceResourceKey
+    ) {
+      void this.mountViewportForAppearance(appearancePreview);
+      return;
+    }
     this.syncViewport(
       adapter,
       runtimeProjection?.frame ?? null,
@@ -1165,6 +1229,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       authoringProjection,
       environmentPreview,
       lightingProjection.frame,
+      appearancePreview,
     );
   });
 
@@ -1178,42 +1243,9 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.hostElement = hostElement;
     this.canvasElement = canvasElement;
     this.installInputListeners(canvasElement);
-    let viewport: AshaRendererEditorViewport;
-    try {
-      viewport = await mountAshaRendererEditorViewport(canvasElement, {
-        autoStart: true,
-        initialCamera: buildEditorViewportCamera(this.store.viewportAdapter()),
-        pixelRatio: Math.min(globalThis.devicePixelRatio ?? 1, 2),
-      });
-    } catch (error) {
-      this.viewportMountDiagnostic.set(
-        `Engine renderer host mount failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return;
-    }
-    if (this.destroyed) {
-      viewport.dispose();
-      return;
-    }
-    this.viewport = viewport;
     this.resizeObserver = new ResizeObserver(() => this.resizeViewport());
     this.resizeObserver.observe(hostElement);
-    this.resizeViewport();
-    const runtimeProjection = this.store.runtimeViewportProjection();
-    const authoringProjection = this.store.workspaceAuthoringProjection();
-    const environmentPreview = this.store.proceduralEnvironmentPreviewFrame();
-    const lightingProjection = this.store.lightingProjection();
-    const runtimeEvidence = this.store.runtimeViewportEvidence();
-    this.syncViewport(
-      this.store.viewportAdapter(),
-      runtimeProjection?.frame ?? null,
-      runtimeProjection?.projectionHash ?? null,
-      runtimeEvidence.materialPreview?.previewDiff ?? null,
-      runtimeEvidence.camera,
-      authoringProjection,
-      environmentPreview,
-      lightingProjection.frame,
-    );
+    await this.mountViewportForAppearance(this.store.entityAppearancePreview());
   }
 
   ngOnDestroy(): void {
@@ -1236,6 +1268,82 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     this.viewport?.dispose();
     this.viewport = null;
     this.viewportReadout.set(null);
+    this.authoredBaseHandles = [];
+    this.authoredVoxelPickIndex.clear();
+  }
+
+  private async mountViewportForAppearance(
+    appearancePreview: StudioEntityAppearancePreviewReadModel,
+  ): Promise<void> {
+    const canvas = this.canvasElement;
+    if (canvas === null || this.destroyed) return;
+    this.requestedAppearanceResourceKey = appearancePreview.resourceKey;
+    const generation = this.viewportMountGeneration + 1;
+    this.viewportMountGeneration = generation;
+    this.viewport?.dispose();
+    this.viewport = null;
+    this.viewportReadout.set(null);
+    this.resetRenderedProjectionState();
+
+    const manifest = {
+      kind: 'asha_renderer_animated_mesh_resources.v0' as const,
+      resources: appearancePreview.resources.map(resource => ({
+        asset: resource.asset,
+        resourceUrl: resource.sourcePath,
+        contentHash: resource.contentHash,
+        clipIds: resource.clipIds,
+        licenseUrl: resource.licensePath,
+      })),
+    };
+    let viewport: AshaRendererEditorViewport;
+    try {
+      viewport = await mountAshaRendererEditorViewport(canvas, {
+        autoStart: true,
+        initialCamera: buildEditorViewportCamera(this.store.viewportAdapter()),
+        pixelRatio: Math.min(globalThis.devicePixelRatio ?? 1, 2),
+        ...(manifest.resources.length === 0
+          ? {}
+          : {
+              animatedMeshManifest: manifest,
+              resolveAnimatedMeshResource: readStudioHostAnimatedMesh,
+            }),
+      });
+      this.mountedAppearanceResources = true;
+      this.appearancePreviewDiagnostic.set(null);
+    } catch (appearanceError) {
+      this.mountedAppearanceResources = false;
+      this.appearancePreviewDiagnostic.set(
+        `Canonical appearance preview unavailable: ${appearanceError instanceof Error ? appearanceError.message : String(appearanceError)}`,
+      );
+      try {
+        viewport = await mountAshaRendererEditorViewport(canvas, {
+          autoStart: true,
+          initialCamera: buildEditorViewportCamera(this.store.viewportAdapter()),
+          pixelRatio: Math.min(globalThis.devicePixelRatio ?? 1, 2),
+        });
+      } catch (error) {
+        this.viewportMountDiagnostic.set(
+          `Engine renderer host mount failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      }
+    }
+    if (this.destroyed || generation !== this.viewportMountGeneration) {
+      viewport.dispose();
+      return;
+    }
+    this.viewport = viewport;
+    this.viewportMountDiagnostic.set(null);
+    this.resizeViewport();
+    this.syncCurrentViewport();
+  }
+
+  private resetRenderedProjectionState(): void {
+    this.renderedSceneKey = null;
+    this.renderedRuntimeKey = null;
+    this.renderedAuthoringProjectionKey = null;
+    this.renderedOverlayKey = null;
+    this.renderedGridKey = null;
     this.authoredBaseHandles = [];
     this.authoredVoxelPickIndex.clear();
   }
@@ -1281,6 +1389,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
     authoringProjection: StudioWorkspaceProjectionDelivery | null,
     environmentPreviewFrame: RenderFrameDiff | null,
     lightingFrame: RenderFrameDiff,
+    appearancePreview: StudioEntityAppearancePreviewReadModel,
   ): void {
     const viewport = this.viewport;
     const canvas = this.canvasElement;
@@ -1314,6 +1423,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       materialPreviewFrame,
       environmentPreviewFrame,
       lightingFrame,
+      this.mountedAppearanceResources ? appearancePreview : withoutAppearanceInstances(appearancePreview),
     );
     const sceneKey = JSON.stringify(baseFrame);
     const projectionKey = authoringProjection === null
@@ -1476,6 +1586,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
       authoringProjection,
       environmentPreview,
       this.store.lightingProjection().frame,
+      this.store.entityAppearancePreview(),
     );
   }
 
@@ -1629,7 +1740,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
           });
         }
       } else if (renderable !== undefined) {
-        const handle = renderableHandle(adapter, renderable.renderableId);
+        const handle = renderableHandle(adapter, renderable.renderableId, this.store.entityAppearancePreview());
         if (handle !== null) {
           ops.push({
             op: 'update',
@@ -1669,7 +1780,7 @@ export class StudioViewportComponent implements AfterViewInit, OnDestroy {
           ops.push({ op: 'update', handle: projection.handle, transform: projection.transform, material: null, visible: null, metadata: null });
         }
       } else if (renderable !== undefined) {
-        const handle = renderableHandle(adapter, renderable.renderableId);
+        const handle = renderableHandle(adapter, renderable.renderableId, this.store.entityAppearancePreview());
         if (handle !== null) {
           ops.push({ op: 'update', handle, transform: renderableTransform(renderable), material: null, visible: null, metadata: null });
         }
