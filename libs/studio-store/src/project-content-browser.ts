@@ -35,9 +35,19 @@ export interface StudioProjectContentLoadedFile extends StudioProjectContentFile
   readonly sha256: string;
   readonly sourceKind: ProjectContentDocumentKind | null;
   readonly documentId: string;
-  readonly sourceClass: 'canonical-candidate' | 'stored-scene' | 'legacy-source' | 'unrecognized';
+  readonly sourceClass: 'canonical-candidate' | 'stored-scene' | 'stored-voxel-asset' | 'legacy-source' | 'unrecognized';
   readonly legacyCategory: StudioProjectContentCategoryId | null;
   readonly parseDiagnostic: string | null;
+  readonly voxelAsset?: StudioStoredVoxelAssetReadout;
+}
+
+export interface StudioStoredVoxelAssetReadout {
+  readonly assetId: string;
+  readonly materialPalette: readonly {
+    readonly displayName: string | null;
+    readonly materialAssetId: string;
+    readonly voxelMaterial: number;
+  }[];
 }
 
 export type StudioProjectContentCategoryId =
@@ -52,6 +62,7 @@ export type StudioProjectContentEntryStatus =
   | 'rust-rejected'
   | 'stored-scene'
   | 'migration-required'
+  | 'stored-voxel-asset'
   | 'unrecognized';
 
 export type StudioProjectContentNavigationKind =
@@ -59,6 +70,7 @@ export type StudioProjectContentNavigationKind =
   | 'entityDefinition'
   | 'prefab'
   | 'asset'
+  | 'voxelAsset'
   | 'material'
   | 'spawnMarker'
   | 'sceneInstance'
@@ -75,7 +87,7 @@ export interface StudioProjectContentEntryReadModel {
   readonly entryId: string;
   readonly categoryId: StudioProjectContentCategoryId;
   readonly documentId: string;
-  readonly documentKind: ProjectContentDocumentKind | 'scene' | 'legacy' | 'unknown';
+  readonly documentKind: ProjectContentDocumentKind | 'scene' | 'voxelAsset' | 'legacy' | 'unknown';
   readonly title: string;
   readonly subtitle: string;
   readonly sourcePath: string;
@@ -215,6 +227,28 @@ export function inspectStudioProjectContentFile(
     return classifiedFile(descriptor, text, sha256, null, descriptor.relativePath, 'stored-scene', null);
   }
 
+  const voxelAsset = inspectStoredVoxelAsset(parsed);
+  if (voxelAsset !== null) {
+    if ('diagnostic' in voxelAsset) {
+      return {
+        ...classifiedFile(descriptor, text, sha256, null, descriptor.relativePath, 'unrecognized', null),
+        parseDiagnostic: voxelAsset.diagnostic,
+      };
+    }
+    return {
+      ...classifiedFile(
+        descriptor,
+        text,
+        sha256,
+        null,
+        voxelAsset.assetId,
+        'stored-voxel-asset',
+        null,
+      ),
+      voxelAsset,
+    };
+  }
+
   const artifactIdentity = inspectCanonicalArtifactIdentity(parsed);
   if (artifactIdentity !== null) {
     if ('diagnostic' in artifactIdentity) {
@@ -336,6 +370,44 @@ export function inspectStudioProjectContentFile(
     'unrecognized',
     null,
   );
+}
+
+function inspectStoredVoxelAsset(
+  parsed: Record<string, unknown>,
+): StudioStoredVoxelAssetReadout | { readonly diagnostic: string } | null {
+  const mediaType = parsed['mediaType'];
+  if (typeof mediaType !== 'string' || !mediaType.startsWith('application/vnd.asha.voxel-volume+json')) {
+    return null;
+  }
+  const assetId = parsed['assetId'];
+  const materialPalette = parsed['materialPalette'];
+  if (typeof assetId !== 'string' || assetId.trim().length === 0 || !Array.isArray(materialPalette)) {
+    return { diagnostic: 'Canonical voxel-volume asset requires assetId and materialPalette.' };
+  }
+  const bindings: StudioStoredVoxelAssetReadout['materialPalette'][number][] = [];
+  for (const [index, candidate] of materialPalette.entries()) {
+    if (!isRecord(candidate)) {
+      return { diagnostic: `Canonical voxel material binding ${index} must be an object.` };
+    }
+    const voxelMaterial = candidate['voxelMaterial'];
+    const materialAssetId = candidate['materialAssetId'];
+    const displayName = candidate['displayName'];
+    if (
+      typeof voxelMaterial !== 'number'
+      || !Number.isSafeInteger(voxelMaterial)
+      || typeof materialAssetId !== 'string'
+      || materialAssetId.trim().length === 0
+      || (displayName !== null && displayName !== undefined && typeof displayName !== 'string')
+    ) {
+      return { diagnostic: `Canonical voxel material binding ${index} is malformed.` };
+    }
+    bindings.push({
+      voxelMaterial,
+      materialAssetId,
+      displayName: typeof displayName === 'string' ? displayName : null,
+    });
+  }
+  return { assetId, materialPalette: bindings };
 }
 
 function inspectCanonicalArtifactIdentity(
@@ -590,6 +662,9 @@ function entriesForFile(
   if (file.sourceClass === 'stored-scene') {
     return [sceneEntry(file, input)];
   }
+  if (file.sourceClass === 'stored-voxel-asset' && file.voxelAsset !== undefined) {
+    return [voxelAssetEntry(file, file.voxelAsset)];
+  }
   const document = input.codec?.documents.find(candidate => candidate.documentId === file.documentId) ?? null;
   if (document !== null) {
     return [typedDocumentEntry(file, document, input.codec?.diagnostics ?? [])];
@@ -646,14 +721,18 @@ function sceneEntry(
   input: StudioProjectContentBrowserInput,
 ): StudioProjectContentEntryReadModel {
   const active = input.activeScenePath !== null && sameHostPath(input.activeScenePath, file.path);
+  const storedSceneId = parseRecord(file.text)['id'];
+  const scene = active
+    ? input.activeScene
+    : input.projectScenes.find(candidate => Number(candidate.id) === storedSceneId) ?? null;
   const relationships: StudioProjectContentRelationshipReadModel[] = [];
   const details: string[] = [];
   const navigationKeys = [
     projectContentNavigationKey('source', file.path),
     projectContentNavigationKey('source', file.relativePath),
   ];
-  if (active) {
-    for (const node of input.activeScene.nodes) {
+  if (scene !== null) {
+    for (const node of scene.nodes) {
       if (node.kind.kind === 'entityInstance') {
         const instance = node.kind.instance;
         navigationKeys.push(projectContentNavigationKey('sceneInstance', instance.instanceId));
@@ -674,6 +753,13 @@ function sceneEntry(
           });
         }
       }
+      if (node.kind.kind === 'voxelVolume') {
+        relationships.push({
+          label: `${node.label ?? `voxel node ${String(node.id)}`} uses ${node.kind.asset.id}`,
+          navigationKind: 'voxelAsset',
+          targetId: node.kind.asset.id,
+        });
+      }
       if (node.kind.kind === 'bootstrap') {
         for (const catalog of node.kind.bindings.catalogs) {
           relationships.push({
@@ -684,9 +770,15 @@ function sceneEntry(
         }
       }
     }
-    const instances = input.activeScene.nodes.filter(node => node.kind.kind === 'entityInstance').length;
-    const lights = input.activeScene.nodes.filter(node => node.kind.kind === 'light').length;
-    details.push(`${input.activeScene.nodes.length} stored nodes`, `${instances} entity instances`, `${lights} authored lights`);
+    const instances = scene.nodes.filter(node => node.kind.kind === 'entityInstance').length;
+    const lights = scene.nodes.filter(node => node.kind.kind === 'light').length;
+    const voxelVolumes = scene.nodes.filter(node => node.kind.kind === 'voxelVolume').length;
+    details.push(
+      `${scene.nodes.length} stored nodes`,
+      `${instances} entity instances`,
+      `${lights} authored lights`,
+      `${voxelVolumes} voxel volumes`,
+    );
   } else {
     details.push('Open this scene to inspect its typed hierarchy and navigate its relationships.');
   }
@@ -703,6 +795,35 @@ function sceneEntry(
     relationships,
     diagnostics: [],
     navigationKeys,
+  };
+}
+
+function voxelAssetEntry(
+  file: StudioProjectContentLoadedFile,
+  asset: StudioStoredVoxelAssetReadout,
+): StudioProjectContentEntryReadModel {
+  return {
+    entryId: `voxel-asset:${asset.assetId}`,
+    categoryId: 'assets-and-materials',
+    documentId: asset.assetId,
+    documentKind: 'voxelAsset',
+    title: asset.assetId,
+    subtitle: `Stored voxel volume · ${asset.materialPalette.length} material bindings`,
+    sourcePath: file.path,
+    status: 'stored-voxel-asset',
+    details: asset.materialPalette.map(binding => (
+      `voxel ${binding.voxelMaterial} · ${binding.displayName ?? binding.materialAssetId}`
+    )),
+    relationships: asset.materialPalette.map(binding => ({
+      label: `voxel ${binding.voxelMaterial} uses ${binding.materialAssetId}`,
+      navigationKind: 'material',
+      targetId: binding.materialAssetId,
+    })),
+    diagnostics: [],
+    navigationKeys: sourceNavigationKeys(file, [
+      projectContentNavigationKey('voxelAsset', asset.assetId),
+      projectContentNavigationKey('asset', asset.assetId),
+    ]),
   };
 }
 
@@ -1317,9 +1438,17 @@ function referenceOptions(
         }] as const]
       : [],
   ))).values()];
+  const instantiatedDefinitionIds = new Set(projectScenes.flatMap(scene => scene.nodes.flatMap(node =>
+    node.kind.kind === 'entityInstance' && node.kind.instance.reference.kind === 'entityDefinition'
+      ? [node.kind.instance.reference.stableId]
+      : [],
+  )));
   return {
     asset: assets,
     entityDefinition: entityDefinitions,
+    instantiatedEntityDefinition: entityDefinitions.filter(option => (
+      instantiatedDefinitionIds.has(option.value)
+    )),
     sceneInstance: sceneInstances,
     prefab: prefabs,
     prefabPart: prefabParts,

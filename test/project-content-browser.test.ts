@@ -3,6 +3,9 @@ import test from 'node:test';
 import {
   prefabId,
   prefabPartId,
+  sceneId,
+  sceneNodeId,
+  type FlatSceneDocument,
   type ProjectContentCodecResult,
   type ProjectContentDocument,
 } from '@asha/contracts';
@@ -624,4 +627,145 @@ test('manifest scene admission includes every stored scene and ignores an active
   assert.deepEqual(sources.map(source => source.path), [sceneA.path, sceneB.path]);
   assert.equal(sources[0]?.sourceText, sceneA.text);
   assert.equal(sources[1]?.sourceText, sceneB.text);
+});
+
+test('saved scene navigation reaches its canonical voxel asset and every bound material', () => {
+  const scene: FlatSceneDocument = {
+    schemaVersion: 4,
+    id: sceneId(4103),
+    metadata: { name: 'Saved tunnel', authoringFormatVersion: 4 },
+    dependencies: [{ id: 'voxel-volume/generated-tunnel', version: { req: 'any' }, hash: null }],
+    nodes: [{
+      id: sceneNodeId(1),
+      parent: null,
+      childOrder: 0,
+      label: 'Generated tunnel',
+      tags: [],
+      transform: {
+        translation: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+        scale: [1, 1, 1],
+      },
+      kind: {
+        kind: 'voxelVolume',
+        asset: { id: 'voxel-volume/generated-tunnel', version: { req: 'any' }, hash: null },
+      },
+    }],
+  };
+  const materialIds = [
+    'material/tunnel-floor',
+    'material/tunnel-wall',
+    'material/tunnel-highlight',
+  ];
+  const materialDocument: ProjectContentDocument = {
+    kind: 'assetCatalog',
+    documentId: 'catalog/materials',
+    catalog: {
+      entries: materialIds.map((id) => ({
+        id,
+        version: 1,
+        hash: null,
+        sourcePath: null,
+        label: id,
+        dependencies: [],
+        material: {
+          authority: {
+            solid: true,
+            collidable: true,
+            occludes: true,
+            structuralClass: 'structural',
+          },
+          style: {
+            color: { r: 0.4, g: 0.4, b: 0.4, a: 1 },
+            texture: null,
+            roughness: 0.8,
+            textureTint: { r: 1, g: 1, b: 1, a: 1 },
+            emissionColor: { r: 0, g: 0, b: 0, a: 1 },
+            emissive: 0,
+            uvStrategy: 'flat',
+          },
+        },
+      })),
+    },
+  };
+  const sceneFile = inspectStudioProjectContentFile(
+    {
+      ...DESCRIPTOR,
+      path: '/projects/demo/levels/scenes/tunnel.scene.json',
+      relativePath: 'levels/scenes/tunnel.scene.json',
+      rootKind: 'scene',
+    },
+    JSON.stringify(scene),
+    'sha256:scene',
+  );
+  const voxelFile = inspectStudioProjectContentFile(
+    {
+      ...DESCRIPTOR,
+      path: '/projects/demo/assets/voxels/tunnel.avxl.json',
+      relativePath: 'assets/voxels/tunnel.avxl.json',
+      rootKind: 'asset',
+    },
+    JSON.stringify({
+      assetId: 'voxel-volume/generated-tunnel',
+      mediaType: 'application/vnd.asha.voxel-volume+json;version=1',
+      materialPalette: materialIds.map((materialAssetId, index) => ({
+        voxelMaterial: index + 1,
+        displayName: `Tunnel material ${index + 1}`,
+        materialAssetId,
+      })),
+    }),
+    'sha256:voxel',
+  );
+  const materialFile = inspectStudioProjectContentFile(
+    { ...DESCRIPTOR, relativePath: 'catalogs/materials.json' },
+    JSON.stringify({
+      schemaVersion: 1,
+      documentId: materialDocument.documentId,
+      documentKind: 'assetCatalog',
+      document: { entries: [] },
+    }),
+    'sha256:materials',
+  );
+  const codec: ProjectContentCodecResult = {
+    ...gameplayCodec(),
+    documents: [materialDocument],
+    canonicalFiles: [],
+    providerSchemas: [],
+    fieldMetadata: [],
+  };
+  const browser = buildStudioProjectContentBrowserReadModel({
+    status: 'ready',
+    message: 'ready',
+    projectRoot: '/projects/demo',
+    files: [sceneFile, voxelFile, materialFile],
+    codec,
+    selectedEntryId: sceneFile.documentId,
+    dirtyDocumentIds: [],
+    staleSourcePath: null,
+    manifest: manifest(),
+    activeScenePath: null,
+    activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [scene],
+  });
+
+  const sceneEntry = browser.categories
+    .flatMap(category => category.entries)
+    .find(entry => entry.documentKind === 'scene');
+  assert.equal(sceneEntry?.relationships[0]?.navigationKind, 'voxelAsset');
+  const voxelEntry = findStudioProjectContentEntryByReference(
+    browser,
+    'voxelAsset',
+    'voxel-volume/generated-tunnel',
+  );
+  assert.equal(voxelEntry?.status, 'stored-voxel-asset');
+  assert.deepEqual(
+    voxelEntry?.relationships.map(relationship => relationship.targetId),
+    materialIds,
+  );
+  for (const materialId of materialIds) {
+    assert.equal(
+      findStudioProjectContentEntryByReference(browser, 'material', materialId)?.documentId,
+      materialDocument.documentId,
+    );
+  }
 });
