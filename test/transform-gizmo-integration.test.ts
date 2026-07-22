@@ -39,6 +39,7 @@ import {
   StudioWorkspaceStore,
 } from '@asha-studio/store';
 import { applyStudioTranslationGridSnap } from '../libs/studio-viewport/src/grid-snapping.js';
+import { projectedPreviewTransform } from '../libs/studio-viewport/src/transform-preview.js';
 
 const repoRoot = process.cwd();
 const sourceTransform = {
@@ -98,6 +99,29 @@ test('Studio consumes the public camera-aware manipulator candidate contract', (
   assert.equal(coarse.revision, 'scene-revision-7');
   assert.ok(Math.abs(coarse.transform.translation[0]) > Math.abs(fine.transform.translation[0]));
   assert.deepEqual(cancelTransformManipulatorDrag(drag).transform, sourceTransform);
+});
+
+test('appearance manipulation preview and cancel preserve renderer-realized model scale', () => {
+  const rendered: Transform = {
+    translation: [13, 2, -2],
+    rotation: [0, 0, 0, 1],
+    scale: [0.5, 2, 1],
+  };
+  const source: Transform = {
+    translation: [13, 2, -2],
+    rotation: [0, 0, 0, 1],
+    scale: [1, 1, 1],
+  };
+  const moved: Transform = {
+    ...source,
+    translation: [14, 2, -2],
+  };
+
+  assert.deepEqual(projectedPreviewTransform(rendered, source, moved), {
+    ...rendered,
+    translation: [14, 2, -2],
+  });
+  assert.deepEqual(projectedPreviewTransform(rendered, source, source), rendered);
 });
 
 test('Studio gizmo path previews per frame and settles through one revision-bound command', () => {

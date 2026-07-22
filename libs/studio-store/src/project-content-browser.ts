@@ -1,7 +1,9 @@
 import type {
+  EntityAppearanceBinding,
   FlatSceneDocument,
   ProjectConfigurationField,
   ProjectConfigurationValue,
+  ProjectContentAuthoringCommand,
   ProjectContentCodecResult,
   ProjectContentDiagnostic,
   ProjectContentDocument,
@@ -627,15 +629,54 @@ export function updateProjectContentField(
       value,
     );
   }
-  if (field.authoringKind === 'entityAppearance') {
-    return updateEntityAppearanceField(documents, field, value);
-  }
+  if (field.authoringKind === 'entityAppearance') return null;
   const numericValue = value.kind === 'number' || value.kind === 'integer' ? value.value : null;
   if (numericValue === null) return null;
   if (field.authoringKind === 'material') {
     return updateMaterialField(documents, field.documentId, field.path, numericValue);
   }
   return updatePresentationCueField(documents, field.documentId, field.path, numericValue);
+}
+
+export function projectContentAuthoringCommandForField(
+  documents: readonly ProjectContentDocument[],
+  field: StudioProjectContentEditableFieldReadModel,
+  value: ProjectConfigurationValue,
+  sourcePath: string,
+): ProjectContentAuthoringCommand | null {
+  if (field.authoringKind === 'entityAppearance') {
+    if (field.fieldId === 'resourceId' && value.kind === 'reference') {
+      return {
+        kind: 'updateEntityAppearance',
+        documentId: field.documentId,
+        projectionId: field.configurationId,
+        update: { kind: 'resource', resourceId: value.targetId },
+      };
+    }
+    if (field.fieldId === 'initialClipId' && value.kind === 'string') {
+      return {
+        kind: 'updateEntityAppearance',
+        documentId: field.documentId,
+        projectionId: field.configurationId,
+        update: {
+          kind: 'initialClip',
+          initialClipId: value.value.length === 0 ? null : value.value,
+        },
+      };
+    }
+    const scaleAxis = entityAppearanceScaleAxis(field.fieldId);
+    if (scaleAxis !== null && value.kind === 'number') {
+      return {
+        kind: 'updateEntityAppearance',
+        documentId: field.documentId,
+        projectionId: field.configurationId,
+        update: { kind: 'modelScale', axis: scaleAxis, value: value.value },
+      };
+    }
+    return null;
+  }
+  const document = updateProjectContentField(documents, field, value);
+  return document === null ? null : { kind: 'upsert', sourcePath, document };
 }
 
 function classifiedFile(
@@ -1322,138 +1363,69 @@ function entityAppearanceFields(
   document: Extract<ProjectContentDocument, { readonly kind: 'entityDefinition' }>,
   codec: ProjectContentCodecResult,
 ): readonly StudioProjectContentEditableFieldReadModel[] {
-  const resources = codec.documents.flatMap(candidate => (
-    candidate.kind === 'presentationCatalog'
-      ? candidate.catalog.resources.filter(resource => resource.kind === 'animatedMesh' && resource.animatedMesh !== null)
-      : []
-  ));
-  return document.definition.capabilities.flatMap((capability, capabilityIndex) => {
-    if (capability.kind !== 'renderProjection') return [];
-    const appearance = capability.appearance;
-    const selectedResource = resources.find(resource => resource.resourceId === appearance?.resourceId) ?? null;
-    const base = `definition.capabilities[${capabilityIndex}].appearance`;
-    const common = {
+  const fields = codec.fieldMetadata.flatMap(metadata => {
+    if (
+      metadata.documentId !== document.documentId
+      || metadata.configurationId === null
+      || metadata.schemaId === null
+      || !metadata.editable
+    ) {
+      return [];
+    }
+    const capability = document.definition.capabilities.find(candidate => (
+      candidate.kind === 'renderProjection'
+      && candidate.projectionId === metadata.configurationId
+    ));
+    if (capability?.kind !== 'renderProjection') return [];
+    const value = readEntityAppearanceField(capability.appearance, metadata);
+    if (value === null) return [];
+    return [{
       authoringKind: 'entityAppearance' as const,
       documentId: document.documentId,
-      configurationId: capability.projectionId,
-      schemaId: 'asha.entity-appearance.v1',
-      required: true,
-      integerMin: null,
-      integerMax: null,
-    };
-    const resourceField: StudioProjectContentEditableFieldReadModel = {
-      ...common,
-      fieldId: 'resourceId',
-      path: `${base}.resourceId`,
-      label: 'Appearance resource',
-      valueKind: 'reference',
-      value: appearance?.resourceId ?? '',
-      referenceKind: 'presentationResource',
-      numberMin: null,
-      numberMax: null,
-      options: resources.map(resource => ({
-        value: resource.resourceId,
-        label: `${resource.resourceId} · ${resource.assetId}`,
+      configurationId: metadata.configurationId,
+      schemaId: metadata.schemaId,
+      fieldId: metadata.fieldId,
+      path: metadata.path,
+      label: metadata.label,
+      valueKind: metadata.valueKind,
+      value,
+      required: metadata.required,
+      referenceKind: metadata.referenceKind,
+      integerMin: metadata.integerMin,
+      integerMax: metadata.integerMax,
+      numberMin: metadata.numberMin,
+      numberMax: metadata.numberMax,
+      options: metadata.referenceOptions.map(option => ({
+        value: option.targetId,
+        label: option.label,
       })),
-    };
-    if (appearance === null || selectedResource?.animatedMesh === null || selectedResource === null) {
-      return [resourceField];
-    }
-    const clipField: StudioProjectContentEditableFieldReadModel = {
-      ...common,
-      fieldId: 'initialClipId',
-      path: `${base}.initialClipId`,
-      label: 'Initial animation clip',
-      valueKind: 'string',
-      value: appearance.initialClipId ?? '',
-      required: false,
-      referenceKind: null,
-      numberMin: null,
-      numberMax: null,
-      options: [
-        { value: '', label: `Resource default (${selectedResource.animatedMesh.defaultClip ?? 'none'})` },
-        ...selectedResource.animatedMesh.clips.map(clip => ({
-          value: clip.id,
-          label: clip.name === null ? clip.id : `${clip.id} · ${clip.name}`,
-        })),
-      ],
-    };
-    const scaleFields = appearance.modelScale.map((scale, axis): StudioProjectContentEditableFieldReadModel => ({
-      ...common,
-      fieldId: `modelScale${['X', 'Y', 'Z'][axis] ?? axis}`,
-      path: `${base}.modelScale[${axis}]`,
-      label: `Model scale ${['X', 'Y', 'Z'][axis] ?? axis}`,
-      valueKind: 'number',
-      value: scale,
-      referenceKind: null,
-      numberMin: 0.0001,
-      numberMax: 1000,
-      options: [],
-    }));
-    return [resourceField, clipField, ...scaleFields];
+    }];
+  });
+  const layoutOrder = ['resourceId', 'initialClipId', 'modelScaleX', 'modelScaleY', 'modelScaleZ'];
+  return fields.sort((left, right) => {
+    const leftOrder = layoutOrder.indexOf(left.fieldId);
+    const rightOrder = layoutOrder.indexOf(right.fieldId);
+    return (leftOrder < 0 ? Number.MAX_SAFE_INTEGER : leftOrder)
+      - (rightOrder < 0 ? Number.MAX_SAFE_INTEGER : rightOrder);
   });
 }
 
-function updateEntityAppearanceField(
-  documents: readonly ProjectContentDocument[],
-  field: StudioProjectContentEditableFieldReadModel,
-  value: ProjectConfigurationValue,
-): ProjectContentDocument | null {
-  const target = documents.find(candidate => (
-    candidate.kind === 'entityDefinition' && candidate.documentId === field.documentId
-  ));
-  if (target?.kind !== 'entityDefinition') return null;
-  const resources = documents.flatMap(candidate => (
-    candidate.kind === 'presentationCatalog' ? candidate.catalog.resources : []
-  ));
-  let changed = false;
-  const capabilities = target.definition.capabilities.map(capability => {
-    if (capability.kind !== 'renderProjection' || capability.projectionId !== field.configurationId) {
-      return capability;
-    }
-    if (field.fieldId === 'resourceId' && value.kind === 'reference') {
-      const resource = resources.find(candidate => (
-        candidate.resourceId === value.targetId
-        && candidate.kind === 'animatedMesh'
-        && candidate.animatedMesh !== null
-      ));
-      if (resource === undefined || resource.animatedMesh === null) return capability;
-      changed = true;
-      const retainedClip = capability.appearance?.initialClipId ?? null;
-      return {
-        ...capability,
-        appearance: {
-          resourceId: resource.resourceId,
-          initialClipId: retainedClip !== null
-              && resource.animatedMesh.clips.some(clip => clip.id === retainedClip)
-            ? retainedClip
-            : resource.animatedMesh.defaultClip,
-          modelScale: capability.appearance?.modelScale ?? [1, 1, 1],
-        },
-      };
-    }
-    if (capability.appearance === null) return capability;
-    if (field.fieldId === 'initialClipId' && value.kind === 'string') {
-      changed = true;
-      return {
-        ...capability,
-        appearance: { ...capability.appearance, initialClipId: value.value.length === 0 ? null : value.value },
-      };
-    }
-    const axis = /^modelScale([XYZ])$/u.exec(field.fieldId)?.[1];
-    if (axis !== undefined && value.kind === 'number' && value.value > 0) {
-      const axisIndex = { X: 0, Y: 1, Z: 2 }[axis] ?? -1;
-      if (axisIndex < 0) return capability;
-      const modelScale = [...capability.appearance.modelScale] as [number, number, number];
-      modelScale[axisIndex] = value.value;
-      changed = true;
-      return { ...capability, appearance: { ...capability.appearance, modelScale } };
-    }
-    return capability;
-  });
-  return changed
-    ? { ...target, definition: { ...target.definition, capabilities } }
-    : null;
+function readEntityAppearanceField(
+  appearance: EntityAppearanceBinding | null,
+  metadata: ProjectContentFieldMetadata,
+): string | number | null {
+  if (metadata.fieldId === 'resourceId') return appearance?.resourceId ?? '';
+  if (appearance === null) return null;
+  if (metadata.fieldId === 'initialClipId') return appearance.initialClipId ?? '';
+  const scaleAxis = entityAppearanceScaleAxis(metadata.fieldId);
+  return scaleAxis === null ? null : appearance.modelScale[scaleAxis] ?? null;
+}
+
+function entityAppearanceScaleAxis(fieldId: string): number | null {
+  if (fieldId === 'modelScaleX') return 0;
+  if (fieldId === 'modelScaleY') return 1;
+  if (fieldId === 'modelScaleZ') return 2;
+  return null;
 }
 
 function typedMetadataFields(

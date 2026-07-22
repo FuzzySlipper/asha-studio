@@ -22,6 +22,10 @@ export interface StudioEntityAppearanceInstanceReadModel {
   readonly sceneNodeId: number;
   readonly handle: RenderHandle;
   readonly resourceId: string;
+  /// The exact renderer-neutral transform realized by the normal preview,
+  /// including the appearance model scale. Manipulation previews reuse this
+  /// value so beginning or cancelling a drag cannot drop presentation scale.
+  readonly transform: Transform;
 }
 
 export interface StudioEntityAppearancePreviewReadModel {
@@ -120,11 +124,17 @@ export function buildStudioEntityAppearancePreview(options: {
     const handle = renderHandle(nextHandle);
     nextHandle += 1;
     const renderableId = `scene-node-renderable:${node.id}`;
+    const effectiveClip = appearance.initialClipId ?? descriptor.defaultClip;
+    const realizedTransform = applyModelScale(
+      transformContext.worldTransform,
+      appearance.modelScale,
+    );
     instances.push({
       renderableId,
       sceneNodeId: node.id as number,
       handle,
       resourceId: resource.resourceId,
+      transform: realizedTransform,
     });
     instanceOps.push({
       op: 'createAnimatedMeshInstance',
@@ -132,13 +142,13 @@ export function buildStudioEntityAppearancePreview(options: {
       parent: null,
       instance: {
         asset: descriptor.asset,
-        transform: applyModelScale(transformContext.worldTransform, appearance.modelScale),
+        transform: realizedTransform,
         materialOverrides: [],
-        playback: appearance.initialClipId === null
+        playback: effectiveClip === null
           ? null
           : {
               action: 'play',
-              clip: appearance.initialClipId,
+              clip: effectiveClip,
               loop: 'repeat',
               speed: 1,
               weight: 1,

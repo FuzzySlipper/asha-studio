@@ -12,14 +12,17 @@ import {
   buildStudioProjectContentBrowserReadModel,
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
-  updateProjectContentField,
+  projectContentAuthoringCommandForField,
   type StudioProjectContentFileDescriptor,
 } from '@asha-studio/store';
 
 const ENTITY_DOCUMENT_ID = 'demo.entity.enemy';
 const RESOURCE_ID = 'demo.character.medium';
 
-function entityDocument(appearanceResourceId: string | null = RESOURCE_ID): ProjectContentDocument {
+function entityDocument(
+  appearanceResourceId: string | null = RESOURCE_ID,
+  initialClipId: string | null = 'idle',
+): ProjectContentDocument {
   return {
     kind: 'entityDefinition',
     documentId: ENTITY_DOCUMENT_ID,
@@ -35,7 +38,7 @@ function entityDocument(appearanceResourceId: string | null = RESOURCE_ID): Proj
         visible: true,
         appearance: appearanceResourceId === null ? null : {
           resourceId: appearanceResourceId,
-          initialClipId: 'idle',
+          initialClipId,
           modelScale: [0.5, 2, 1],
         },
       }],
@@ -81,8 +84,55 @@ function codec(entity = entityDocument()): ProjectContentCodecResult {
     canonicalFiles: [],
     setHash: 'sha256:set',
     providerSchemas: [],
-    fieldMetadata: [],
+    fieldMetadata: [
+      appearanceMetadata('resourceId', 'reference', 'Appearance resource', true, 'presentationResource', [
+        { targetId: RESOURCE_ID, label: `${RESOURCE_ID} · mesh/demo-character` },
+      ], null, null),
+      appearanceMetadata('initialClipId', 'string', 'Initial animation clip', false, null, [
+        { targetId: '', label: 'Resource default (idle)' },
+        { targetId: 'idle', label: 'idle · Idle' },
+        { targetId: 'run', label: 'run · Run' },
+      ], null, null),
+      appearanceMetadata('modelScaleX', 'number', 'Model scale X', true, null, [], 0.0001, 1000, 0),
+      appearanceMetadata('modelScaleY', 'number', 'Model scale Y', true, null, [], 0.0001, 1000, 1),
+      appearanceMetadata('modelScaleZ', 'number', 'Model scale Z', true, null, [], 0.0001, 1000, 2),
+    ],
     diagnostics: [],
+  };
+}
+
+function appearanceMetadata(
+  fieldId: string,
+  valueKind: 'reference' | 'string' | 'number',
+  label: string,
+  required: boolean,
+  referenceKind: 'presentationResource' | null,
+  referenceOptions: readonly { readonly targetId: string; readonly label: string }[],
+  numberMin: number | null,
+  numberMax: number | null,
+  scaleAxis?: number,
+): ProjectContentCodecResult['fieldMetadata'][number] {
+  const suffix = scaleAxis === undefined ? fieldId : `modelScale[${scaleAxis}]`;
+  return {
+    documentId: ENTITY_DOCUMENT_ID,
+    fieldId,
+    path: `definition.capabilities[0].appearance.${suffix}`,
+    label,
+    valueKind,
+    required,
+    editable: true,
+    referenceKind,
+    referenceOptions,
+    configurationId: 'enemy.visual',
+    schemaId: 'asha.entity-appearance.v1',
+    moduleId: null,
+    providerId: 'provider.asha.entity-appearance',
+    contract: null,
+    codecId: 'svc-project-content.entity-appearance.v1',
+    integerMin: null,
+    integerMax: null,
+    numberMin,
+    numberMax,
   };
 }
 
@@ -144,6 +194,18 @@ test('admitted appearance projects an animated mesh at the composed stored trans
   assert.equal(instance.instance.metadata.label, 'scene-node-renderable:2');
 });
 
+test('null authored clip resolves to the admitted resource default like RuntimeSession', () => {
+  const preview = buildStudioEntityAppearancePreview({
+    codec: codec(entityDocument(RESOURCE_ID, null)),
+    projectRoot: '/projects/demo',
+    scene: scene(),
+  });
+  const instance = preview.frame.ops.find(operation => operation.op === 'createAnimatedMeshInstance');
+  assert.ok(instance?.op === 'createAnimatedMeshInstance');
+  assert.equal(instance.instance.playback?.action, 'play');
+  assert.equal(instance.instance.playback?.clip, 'idle');
+});
+
 test('missing and unsupported appearance bindings remain explicit instead of becoming claimed mesh previews', () => {
   const missing = buildStudioEntityAppearancePreview({
     codec: codec(entityDocument(null)),
@@ -155,7 +217,7 @@ test('missing and unsupported appearance bindings remain explicit instead of bec
   assert.match(missing.diagnostics[0] ?? '', /no canonical appearance is bound/u);
 });
 
-test('entity inspector exposes compatible resource, clip, and scale controls and updates canonical documents', () => {
+test('entity inspector consumes Rust field metadata and emits the generated Rust update command', () => {
   const entity = entityDocument();
   const presentation = presentationDocument();
   const files = [
@@ -195,11 +257,18 @@ test('entity inspector exposes compatible resource, clip, and scale controls and
 
   const scaleField = browser.editableFields.find(field => field.fieldId === 'modelScaleY');
   assert.ok(scaleField);
-  const updated = updateProjectContentField(codec(entity).documents, scaleField, { kind: 'number', value: 3 });
-  assert.ok(updated?.kind === 'entityDefinition');
-  const projection = updated.definition.capabilities.find(capability => capability.kind === 'renderProjection');
-  assert.equal(projection?.kind, 'renderProjection');
-  assert.deepEqual(projection?.kind === 'renderProjection' ? projection.appearance?.modelScale : null, [0.5, 3, 1]);
+  const command = projectContentAuthoringCommandForField(
+    codec(entity).documents,
+    scaleField,
+    { kind: 'number', value: 3 },
+    'catalogs/enemy.entity.json',
+  );
+  assert.deepEqual(command, {
+    kind: 'updateEntityAppearance',
+    documentId: ENTITY_DOCUMENT_ID,
+    projectionId: 'enemy.visual',
+    update: { kind: 'modelScale', axis: 1, value: 3 },
+  });
 });
 
 function canonicalSource(

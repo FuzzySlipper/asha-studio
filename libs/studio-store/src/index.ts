@@ -221,8 +221,8 @@ import {
   buildStudioProjectContentBrowserReadModel,
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
+  projectContentAuthoringCommandForField,
   resolveStudioProjectContentWriteAuthorization,
-  updateProjectContentField,
   type StudioProjectContentBrowserReadModel,
   type StudioProjectContentEditableFieldReadModel,
   type StudioProjectContentFileDescriptor,
@@ -236,6 +236,7 @@ export {
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
   formatProjectContentPrefabPartReference,
+  projectContentAuthoringCommandForField,
   projectContentNavigationKey,
   resolveStudioProjectContentWriteAuthorization,
   selectStudioProjectContentSceneSources,
@@ -10592,8 +10593,13 @@ export class StudioWorkspaceStore {
       this.projectContentMessageState.set(`${field.label} has an invalid ${field.valueKind} value.`);
       return;
     }
-    const document = updateProjectContentField(codec.documents, field, value);
-    if (document === null) {
+    const command = projectContentAuthoringCommandForField(
+      codec.documents,
+      field,
+      value,
+      sourceFile.relativePath,
+    );
+    if (command === null) {
       this.projectContentMessageState.set('The typed stored field no longer exists in the current document revision.');
       return;
     }
@@ -10604,7 +10610,7 @@ export class StudioWorkspaceStore {
         expectedGeneration: authorityState.identity.generation,
         expectedWorkingRevision: authorityState.workingRevision,
         expectedSetHash: codec.setHash,
-        command: { kind: 'upsert', sourcePath: sourceFile.relativePath, document },
+        command,
       });
       this.refreshWorkspaceAuthoringState(facade);
       if (!result.accepted || result.setHash === null) {
