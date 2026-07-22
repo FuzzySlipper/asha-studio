@@ -302,6 +302,124 @@ test('provider schemas produce typed fields and reference navigation without pro
   );
 });
 
+test('bounded instantiated entity references offer only directly usable definitions', () => {
+  const documents: ProjectContentDocument[] = [
+    {
+      kind: 'entityDefinition',
+      documentId: 'entity/player',
+      definition: {
+        stableId: 'actor/player',
+        displayName: 'Player',
+        source: { projectBundle: 'demo', relativePath: 'actors/player.json' },
+        tags: [],
+        metadata: [],
+        capabilities: [{ kind: 'bounds', min: [-0.25, -0.7, -0.25], max: [0.25, 0.7, 0.25] }],
+      },
+    },
+    {
+      kind: 'entityDefinition',
+      documentId: 'entity/missing-bounds',
+      definition: {
+        stableId: 'actor/missing-bounds',
+        displayName: 'Missing bounds',
+        source: { projectBundle: 'demo', relativePath: 'actors/missing-bounds.json' },
+        tags: [],
+        metadata: [],
+        capabilities: [],
+      },
+    },
+    {
+      kind: 'entityDefinition',
+      documentId: 'entity/zero-width',
+      definition: {
+        stableId: 'actor/zero-width',
+        displayName: 'Zero width',
+        source: { projectBundle: 'demo', relativePath: 'actors/zero-width.json' },
+        tags: [],
+        metadata: [],
+        capabilities: [{ kind: 'bounds', min: [0, -1, -1], max: [0, 1, 1] }],
+      },
+    },
+  ];
+  const gameplay = gameplayCodec().documents[0]!;
+  assert.equal(gameplay.kind, 'gameplayConfiguration');
+  if (gameplay.kind !== 'gameplayConfiguration') throw new Error('gameplay fixture kind');
+  gameplay.document.configurations[0]!.values[1] = {
+    fieldId: 'actor',
+    value: {
+      kind: 'reference',
+      referenceKind: 'instantiatedBoundedEntityDefinition',
+      targetId: 'actor/player',
+    },
+  };
+  documents.push(gameplay);
+  const scene: FlatSceneDocument = {
+    schemaVersion: 4,
+    id: sceneId(71),
+    metadata: { name: 'Actors', authoringFormatVersion: 4 },
+    dependencies: [],
+    nodes: documents
+      .filter((document): document is Extract<ProjectContentDocument, { kind: 'entityDefinition' }> => (
+        document.kind === 'entityDefinition'
+      ))
+      .map((document, index) => ({
+        id: sceneNodeId(index + 1),
+        parent: null,
+        childOrder: index,
+        label: document.definition.displayName,
+        tags: [],
+        transform: {
+          translation: [0, 0, 0],
+          rotation: [0, 0, 0, 1],
+          scale: [1, 1, 1],
+        },
+        kind: {
+          kind: 'entityInstance',
+          instance: {
+            instanceId: `instance.${index}`,
+            reference: { kind: 'entityDefinition', stableId: document.definition.stableId },
+            spawnMarkerId: null,
+          },
+        },
+      })),
+  };
+  const source = inspectStudioProjectContentFile(
+    DESCRIPTOR,
+    JSON.stringify({ configurations: [], bindings: [], overrides: [], triggers: [] }),
+    'sha256:source',
+  );
+  const baseCodec = gameplayCodec();
+  const codec: ProjectContentCodecResult = {
+    ...baseCodec,
+    documents,
+    providerSchemas: [{
+      ...baseCodec.providerSchemas[0]!,
+      fields: baseCodec.providerSchemas[0]!.fields.map(field => field.fieldId === 'actor'
+        ? { ...field, referenceKind: 'instantiatedBoundedEntityDefinition' }
+        : field),
+    }],
+  };
+  const browser = buildStudioProjectContentBrowserReadModel({
+    status: 'ready',
+    message: 'ready',
+    projectRoot: '/projects/demo',
+    files: [source],
+    codec,
+    selectedEntryId: `document:${source.documentId}`,
+    dirtyDocumentIds: [],
+    staleSourcePath: null,
+    manifest: manifest(),
+    activeScenePath: null,
+    activeScene: scene,
+    projectScenes: [scene],
+  });
+
+  assert.deepEqual(
+    browser.editableFields.find(field => field.fieldId === 'actor')?.options,
+    [{ value: 'actor/player', label: 'Player' }],
+  );
+});
+
 test('Rust field metadata exposes material and presentation values through one typed editor path', () => {
   const materialDocument: ProjectContentDocument = {
     kind: 'assetCatalog',

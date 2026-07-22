@@ -1443,11 +1443,29 @@ function referenceOptions(
       ? [node.kind.instance.reference.stableId]
       : [],
   )));
+  const usableBoundsDefinitionIds = new Set(documents.flatMap(document => {
+    if (document.kind !== 'entityDefinition') return [];
+    const usable = document.definition.capabilities.some(capability => (
+      capability.kind === 'bounds'
+      && capability.min.every((minimum, axis) => {
+        const maximum = capability.max[axis];
+        return maximum !== undefined
+          && Number.isFinite(minimum)
+          && Number.isFinite(maximum)
+          && minimum < maximum;
+      })
+    ));
+    return usable ? [document.definition.stableId] : [];
+  }));
   return {
     asset: assets,
     entityDefinition: entityDefinitions,
     instantiatedEntityDefinition: entityDefinitions.filter(option => (
       instantiatedDefinitionIds.has(option.value)
+    )),
+    instantiatedBoundedEntityDefinition: entityDefinitions.filter(option => (
+      instantiatedDefinitionIds.has(option.value)
+      && usableBoundsDefinitionIds.has(option.value)
     )),
     sceneInstance: sceneInstances,
     prefab: prefabs,
