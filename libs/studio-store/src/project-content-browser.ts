@@ -110,10 +110,12 @@ export interface StudioProjectContentSceneSource {
 }
 
 export interface StudioProjectContentEditableFieldReadModel {
+  readonly authoringKind: 'gameplayConfiguration' | 'material' | 'presentationCue';
   readonly documentId: string;
   readonly configurationId: string;
   readonly schemaId: string;
   readonly fieldId: string;
+  readonly path: string;
   readonly label: string;
   readonly valueKind: ProjectConfigurationField['valueKind'];
   readonly value: boolean | number | string;
@@ -536,6 +538,28 @@ export function updateProjectConfigurationField(
       }),
     },
   };
+}
+
+export function updateProjectContentField(
+  documents: readonly ProjectContentDocument[],
+  field: StudioProjectContentEditableFieldReadModel,
+  value: ProjectConfigurationValue,
+): ProjectContentDocument | null {
+  if (field.authoringKind === 'gameplayConfiguration') {
+    return updateProjectConfigurationField(
+      documents,
+      field.documentId,
+      field.configurationId,
+      field.fieldId,
+      value,
+    );
+  }
+  const numericValue = value.kind === 'number' || value.kind === 'integer' ? value.value : null;
+  if (numericValue === null) return null;
+  if (field.authoringKind === 'material') {
+    return updateMaterialField(documents, field.documentId, field.path, numericValue);
+  }
+  return updatePresentationCueField(documents, field.documentId, field.path, numericValue);
 }
 
 function classifiedFile(
@@ -1019,9 +1043,20 @@ function editableFieldsForDocument(
   projectScenes: readonly FlatSceneDocument[],
 ): readonly StudioProjectContentEditableFieldReadModel[] {
   const document = codec.documents.find(candidate => candidate.documentId === documentId);
-  if (document?.kind !== 'gameplayConfiguration') {
+  if (document === undefined) {
     return [];
   }
+  if (document.kind === 'assetCatalog') {
+    return typedMetadataFields(documentId, codec, 'asha.material.v1', metadata => (
+      readMaterialField(document, metadata.path)
+    ), 'material');
+  }
+  if (document.kind === 'presentationCatalog') {
+    return typedMetadataFields(documentId, codec, 'asha.presentation-cue.v1', metadata => (
+      readPresentationCueField(document, metadata.path)
+    ), 'presentationCue');
+  }
+  if (document.kind !== 'gameplayConfiguration') return [];
   const options = referenceOptions(codec.documents, projectScenes);
   return document.document.configurations.flatMap(configuration => {
     const schema = codec.providerSchemas.find(candidate =>
@@ -1038,10 +1073,12 @@ function editableFieldsForDocument(
         return [];
       }
       return [{
+        authoringKind: 'gameplayConfiguration' as const,
         documentId,
         configurationId: configuration.configurationId,
         schemaId: schema.schemaId,
         fieldId: field.fieldId,
+        path: metadata?.path ?? `document.configurations.${configuration.configurationId}.${field.fieldId}`,
         label: metadata?.label ?? field.label,
         valueKind: field.valueKind,
         value: projectConfigurationValue(current),
@@ -1055,6 +1092,165 @@ function editableFieldsForDocument(
       }];
     });
   });
+}
+
+function typedMetadataFields(
+  documentId: string,
+  codec: ProjectContentCodecResult,
+  schemaId: string,
+  readValue: (metadata: ProjectContentFieldMetadata) => boolean | number | string | null,
+  authoringKind: 'material' | 'presentationCue',
+): readonly StudioProjectContentEditableFieldReadModel[] {
+  return codec.fieldMetadata.flatMap(metadata => {
+    if (
+      metadata.documentId !== documentId
+      || metadata.schemaId !== schemaId
+      || metadata.configurationId === null
+      || !metadata.editable
+    ) {
+      return [];
+    }
+    const value = readValue(metadata);
+    if (value === null) return [];
+    return [{
+      authoringKind,
+      documentId,
+      configurationId: metadata.configurationId,
+      schemaId,
+      fieldId: metadata.path.split('.').at(-1) ?? metadata.path,
+      path: metadata.path,
+      label: metadata.label,
+      valueKind: metadata.valueKind,
+      value,
+      required: metadata.required,
+      referenceKind: metadata.referenceKind,
+      integerMin: metadata.integerMin,
+      integerMax: metadata.integerMax,
+      numberMin: metadata.numberMin,
+      numberMax: metadata.numberMax,
+      options: [],
+    }];
+  });
+}
+
+function readMaterialField(
+  document: Extract<ProjectContentDocument, { readonly kind: 'assetCatalog' }>,
+  path: string,
+): number | null {
+  const match = /^catalog\.entries\[(\d+)\]\.material\.style\.(.+)$/u.exec(path);
+  if (match === null) return null;
+  const entry = document.catalog.entries[Number(match[1])];
+  const style = entry?.material?.style;
+  if (style === undefined) return null;
+  switch (match[2]) {
+    case 'color.r': return style.color.r;
+    case 'color.g': return style.color.g;
+    case 'color.b': return style.color.b;
+    case 'color.a': return style.color.a;
+    case 'roughness': return style.roughness;
+    case 'emissionColor.r': return style.emissionColor.r;
+    case 'emissionColor.g': return style.emissionColor.g;
+    case 'emissionColor.b': return style.emissionColor.b;
+    case 'emissionColor.a': return style.emissionColor.a;
+    case 'emissive': return style.emissive;
+    default: return null;
+  }
+}
+
+function updateMaterialField(
+  documents: readonly ProjectContentDocument[],
+  documentId: string,
+  path: string,
+  value: number,
+): ProjectContentDocument | null {
+  const target = documents.find(document => (
+    document.kind === 'assetCatalog' && document.documentId === documentId
+  ));
+  if (target?.kind !== 'assetCatalog') return null;
+  const match = /^catalog\.entries\[(\d+)\]\.material\.style\.(.+)$/u.exec(path);
+  if (match === null) return null;
+  const entryIndex = Number(match[1]);
+  const entry = target.catalog.entries[entryIndex];
+  const material = entry?.material;
+  if (material === null || material === undefined) return null;
+  const style = updatedMaterialStyle(material.style, match[2] ?? '', value);
+  if (style === null) return null;
+  return {
+    ...target,
+    catalog: {
+      ...target.catalog,
+      entries: target.catalog.entries.map((candidate, index) => index === entryIndex
+        ? { ...candidate, material: { ...material, style } }
+        : candidate),
+    },
+  };
+}
+
+function updatedMaterialStyle(
+  style: NonNullable<Extract<ProjectContentDocument, { readonly kind: 'assetCatalog' }>['catalog']['entries'][number]['material']>['style'],
+  field: string,
+  value: number,
+): typeof style | null {
+  switch (field) {
+    case 'color.r': return { ...style, color: { ...style.color, r: value } };
+    case 'color.g': return { ...style, color: { ...style.color, g: value } };
+    case 'color.b': return { ...style, color: { ...style.color, b: value } };
+    case 'color.a': return { ...style, color: { ...style.color, a: value } };
+    case 'roughness': return { ...style, roughness: value };
+    case 'emissionColor.r': return { ...style, emissionColor: { ...style.emissionColor, r: value } };
+    case 'emissionColor.g': return { ...style, emissionColor: { ...style.emissionColor, g: value } };
+    case 'emissionColor.b': return { ...style, emissionColor: { ...style.emissionColor, b: value } };
+    case 'emissionColor.a': return { ...style, emissionColor: { ...style.emissionColor, a: value } };
+    case 'emissive': return { ...style, emissive: value };
+    default: return null;
+  }
+}
+
+function readPresentationCueField(
+  document: Extract<ProjectContentDocument, { readonly kind: 'presentationCatalog' }>,
+  path: string,
+): number | null {
+  const match = /^catalog\.cues\[(\d+)\]\.(atSeconds|gain|scale)$/u.exec(path);
+  if (match === null) return null;
+  const cue = document.catalog.cues[Number(match[1])];
+  const field = match[2];
+  if (cue?.kind === 'animation' && field === 'atSeconds') return cue.atSeconds;
+  if (cue?.kind === 'audio' && field === 'gain') return cue.gain;
+  if (cue?.kind === 'particle' && field === 'scale') return cue.scale;
+  return null;
+}
+
+function updatePresentationCueField(
+  documents: readonly ProjectContentDocument[],
+  documentId: string,
+  path: string,
+  value: number,
+): ProjectContentDocument | null {
+  const target = documents.find(document => (
+    document.kind === 'presentationCatalog' && document.documentId === documentId
+  ));
+  if (target?.kind !== 'presentationCatalog') return null;
+  const match = /^catalog\.cues\[(\d+)\]\.(atSeconds|gain|scale)$/u.exec(path);
+  if (match === null) return null;
+  const cueIndex = Number(match[1]);
+  const field = match[2];
+  const cue = target.catalog.cues[cueIndex];
+  if (cue === undefined) return null;
+  const updated = cue.kind === 'animation' && field === 'atSeconds'
+    ? { ...cue, atSeconds: value }
+    : cue.kind === 'audio' && field === 'gain'
+      ? { ...cue, gain: value }
+      : cue.kind === 'particle' && field === 'scale'
+        ? { ...cue, scale: value }
+        : null;
+  if (updated === null) return null;
+  return {
+    ...target,
+    catalog: {
+      ...target.catalog,
+      cues: target.catalog.cues.map((candidate, index) => index === cueIndex ? updated : candidate),
+    },
+  };
 }
 
 function metadataForField(

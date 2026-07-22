@@ -2861,6 +2861,12 @@ export class StudioInspectorPanelComponent {
                             [disabled]="environment.status === 'applied'"
                             (change)="store.setProceduralEnvironmentMaterialAsset(materialIndex, $any($event.target).value)"
                           />
+                          <button
+                            type="button"
+                            (click)="store.navigateProjectContentReference('material', material.materialAssetId)"
+                          >
+                            Open material
+                          </button>
                         </label>
                       }
                     </fieldset>
@@ -3029,20 +3035,20 @@ export class StudioInspectorPanelComponent {
                   }
                   @if (browser.editableFields.length > 0) {
                     <section class="project-content-fields" data-project-content-typed-fields>
-                      <strong>Provider-owned Configuration</strong>
-                      @for (field of browser.editableFields; track field.configurationId + ':' + field.fieldId) {
+                      <strong>Typed Stored Fields</strong>
+                      @for (field of browser.editableFields; track field.path) {
                         <label>
                           <span>{{ field.label }}{{ field.required ? ' *' : '' }}</span>
                           @if (field.valueKind === 'boolean') {
                             <input
                               type="checkbox"
                               [checked]="field.value"
-                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).checked)"
+                              (change)="store.applyProjectContentField(field.documentId, field.configurationId, field.path, $any($event.target).checked)"
                             />
                           } @else if (field.valueKind === 'reference') {
                             <select
                               [value]="field.value"
-                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).value)"
+                              (change)="store.applyProjectContentField(field.documentId, field.configurationId, field.path, $any($event.target).value)"
                             >
                               @for (option of field.options; track option.value) {
                                 <option [value]="option.value">{{ option.label }}</option>
@@ -3055,13 +3061,13 @@ export class StudioInspectorPanelComponent {
                               [min]="field.integerMin ?? field.numberMin"
                               [max]="field.integerMax ?? field.numberMax"
                               [value]="field.value"
-                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).valueAsNumber)"
+                              (change)="store.applyProjectContentField(field.documentId, field.configurationId, field.path, $any($event.target).valueAsNumber)"
                             />
                           } @else {
                             <input
                               type="text"
                               [value]="field.value"
-                              (change)="store.applyProjectConfigurationField(field.documentId, field.configurationId, field.fieldId, $any($event.target).value)"
+                              (change)="store.applyProjectContentField(field.documentId, field.configurationId, field.path, $any($event.target).value)"
                             />
                           }
                           <small>{{ field.configurationId }} · {{ field.fieldId }}</small>

@@ -222,7 +222,7 @@ import {
   findStudioProjectContentEntryByReference,
   inspectStudioProjectContentFile,
   resolveStudioProjectContentWriteAuthorization,
-  updateProjectConfigurationField,
+  updateProjectContentField,
   type StudioProjectContentBrowserReadModel,
   type StudioProjectContentEditableFieldReadModel,
   type StudioProjectContentFileDescriptor,
@@ -238,7 +238,7 @@ export {
   projectContentNavigationKey,
   resolveStudioProjectContentWriteAuthorization,
   selectStudioProjectContentSceneSources,
-  updateProjectConfigurationField,
+  updateProjectContentField,
   type StudioProjectContentBrowserReadModel,
   type StudioProjectContentCategoryId,
   type StudioProjectContentEditableFieldReadModel,
@@ -10530,10 +10530,10 @@ export class StudioWorkspaceStore {
     }
   }
 
-  applyProjectConfigurationField(
+  applyProjectContentField(
     documentId: string,
     configurationId: string,
-    fieldId: string,
+    path: string,
     rawValue: string | number | boolean,
   ): void {
     const staleSourcePath = this.staleProjectContentSourcePathState();
@@ -10553,7 +10553,7 @@ export class StudioWorkspaceStore {
     const field = browser.editableFields.find(candidate =>
       candidate.documentId === documentId
       && candidate.configurationId === configurationId
-      && candidate.fieldId === fieldId,
+      && candidate.path === path,
     );
     if (
       facade === null
@@ -10579,15 +10579,9 @@ export class StudioWorkspaceStore {
       this.projectContentMessageState.set(`${field.label} has an invalid ${field.valueKind} value.`);
       return;
     }
-    const document = updateProjectConfigurationField(
-      codec.documents,
-      documentId,
-      configurationId,
-      fieldId,
-      value,
-    );
+    const document = updateProjectContentField(codec.documents, field, value);
     if (document === null) {
-      this.projectContentMessageState.set('The provider-owned field no longer exists in the current document revision.');
+      this.projectContentMessageState.set('The typed stored field no longer exists in the current document revision.');
       return;
     }
     const authorityState = facade.readState();

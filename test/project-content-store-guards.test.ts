@@ -245,10 +245,10 @@ test('a stale project-content source stays sticky and blocks subsequent field ed
     internals.dirtyProjectContentDocumentIdsState.set(['gameplay-configuration:catalogs/catalog.json']);
     internals.staleProjectContentSourcePathState.set('/projects/demo/catalogs/catalog.json');
 
-    store.applyProjectConfigurationField(
+    store.applyProjectContentField(
       'gameplay-configuration:catalogs/catalog.json',
       'configuration.demo',
-      'speed',
+      'document.configurations.configuration.demo.speed',
       7,
     );
 

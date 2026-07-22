@@ -14,7 +14,7 @@ import {
   formatProjectContentPrefabPartReference,
   inspectStudioProjectContentFile,
   selectStudioProjectContentSceneSources,
-  updateProjectConfigurationField,
+  updateProjectContentField,
   type StudioProjectContentFileDescriptor,
 } from '@asha-studio/store';
 
@@ -284,19 +284,176 @@ test('provider schemas produce typed fields and reference navigation without pro
   assert.equal(stale.canSaveSelected, false);
   assert.equal(stale.staleSourcePath, source.path);
 
-  const updated = updateProjectConfigurationField(
-    codec.documents,
-    source.documentId,
-    'demo.movement',
-    'speed',
-    { kind: 'number', value: 6 },
-  );
+  const speedField = browser.editableFields.find(field => field.fieldId === 'speed');
+  assert.ok(speedField);
+  const updated = updateProjectContentField(codec.documents, speedField, {
+    kind: 'number',
+    value: 6,
+  });
   assert.equal(updated?.kind, 'gameplayConfiguration');
   assert.deepEqual(
     updated?.kind === 'gameplayConfiguration'
       ? updated.document.configurations[0]?.values[0]
       : null,
     { fieldId: 'speed', value: { kind: 'number', value: 6 } },
+  );
+});
+
+test('Rust field metadata exposes material and presentation values through one typed editor path', () => {
+  const materialDocument: ProjectContentDocument = {
+    kind: 'assetCatalog',
+    documentId: 'catalog/materials',
+    catalog: {
+      entries: [{
+        id: 'material/tunnel-wall',
+        version: 1,
+        hash: null,
+        sourcePath: null,
+        label: 'Tunnel wall',
+        dependencies: [],
+        material: {
+          authority: {
+            solid: true,
+            collidable: true,
+            occludes: true,
+            structuralClass: 'structural',
+          },
+          style: {
+            color: { r: 0.4, g: 0.3, b: 0.2, a: 1 },
+            texture: null,
+            roughness: 0.8,
+            textureTint: { r: 1, g: 1, b: 1, a: 1 },
+            emissionColor: { r: 0, g: 0, b: 0, a: 1 },
+            emissive: 0,
+            uvStrategy: 'flat',
+          },
+        },
+      }],
+    },
+  };
+  const presentationDocument: ProjectContentDocument = {
+    kind: 'presentationCatalog',
+    documentId: 'catalog/presentation',
+    catalog: {
+      schemaVersion: 1,
+      resources: [],
+      cues: [{
+        kind: 'audio',
+        cueId: 'primary-fire.audio',
+        signalId: 'fps.primary-fire.accepted',
+        resourceId: 'primary-fire.audio',
+        gain: 0.7,
+      }],
+    },
+  };
+  const codec: ProjectContentCodecResult = {
+    ...gameplayCodec(),
+    documents: [materialDocument, presentationDocument],
+    providerSchemas: [],
+    fieldMetadata: [
+      {
+        documentId: materialDocument.documentId,
+        path: 'catalog.entries[0].material.style.color.r',
+        label: 'Tunnel wall · Base color red',
+        valueKind: 'number',
+        required: true,
+        editable: true,
+        referenceKind: null,
+        configurationId: 'material/tunnel-wall',
+        schemaId: 'asha.material.v1',
+        moduleId: null,
+        providerId: 'provider.asha.material-catalog',
+        contract: null,
+        codecId: 'svc-project-content.material.v1',
+        integerMin: null,
+        integerMax: null,
+        numberMin: 0,
+        numberMax: 1,
+      },
+      {
+        documentId: presentationDocument.documentId,
+        path: 'catalog.cues[0].gain',
+        label: 'primary-fire.audio · Audio gain',
+        valueKind: 'number',
+        required: true,
+        editable: true,
+        referenceKind: null,
+        configurationId: 'primary-fire.audio',
+        schemaId: 'asha.presentation-cue.v1',
+        moduleId: null,
+        providerId: 'provider.asha.presentation-catalog',
+        contract: null,
+        codecId: 'svc-project-content.presentation-cue.v1',
+        integerMin: null,
+        integerMax: null,
+        numberMin: 0,
+        numberMax: 1,
+      },
+    ],
+  };
+  const materialSource = inspectStudioProjectContentFile(
+    { ...DESCRIPTOR, relativePath: 'catalogs/materials.json' },
+    JSON.stringify({
+      schemaVersion: 1,
+      documentId: materialDocument.documentId,
+      documentKind: 'assetCatalog',
+      document: { entries: [] },
+    }),
+    'sha256:material',
+  );
+  const browser = buildStudioProjectContentBrowserReadModel({
+    status: 'ready',
+    message: 'ready',
+    projectRoot: '/projects/demo',
+    files: [materialSource],
+    codec,
+    selectedEntryId: `document:${materialDocument.documentId}`,
+    dirtyDocumentIds: [],
+    staleSourcePath: null,
+    manifest: manifest(),
+    activeScenePath: null,
+    activeScene: buildInitialWorkspaceReadModel().flatSceneDocument,
+    projectScenes: [],
+  });
+
+  assert.deepEqual(
+    browser.editableFields.map(field => [field.authoringKind, field.path, field.value]),
+    [['material', 'catalog.entries[0].material.style.color.r', 0.4]],
+  );
+  const updatedMaterial = updateProjectContentField(
+    codec.documents,
+    browser.editableFields[0]!,
+    { kind: 'number', value: 0.65 },
+  );
+  assert.equal(
+    updatedMaterial?.kind === 'assetCatalog'
+      ? updatedMaterial.catalog.entries[0]?.material?.style.color.r
+      : null,
+    0.65,
+  );
+
+  const presentationField = {
+    ...browser.editableFields[0]!,
+    authoringKind: 'presentationCue' as const,
+    documentId: presentationDocument.documentId,
+    configurationId: 'primary-fire.audio',
+    schemaId: 'asha.presentation-cue.v1',
+    fieldId: 'gain',
+    path: 'catalog.cues[0].gain',
+    label: 'Audio gain',
+    value: 0.7,
+  };
+  const updatedPresentation = updateProjectContentField(
+    codec.documents,
+    presentationField,
+    { kind: 'number', value: 0.5 },
+  );
+  assert.equal(
+    updatedPresentation?.kind === 'presentationCatalog'
+      && updatedPresentation.catalog.cues[0]?.kind === 'audio'
+      ? updatedPresentation.catalog.cues[0].gain
+      : null,
+    0.5,
   );
 });
 
