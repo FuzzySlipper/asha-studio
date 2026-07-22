@@ -9815,7 +9815,7 @@ export class StudioWorkspaceStore {
   }
 
   private storedSceneAuthoringBridge(): NativeBrowserHostRuntimeBridge | null {
-    return this.sceneDocumentCodecBridgeState() ?? this.workspaceAuthoringBridgeState();
+    return this.workspaceAuthoringBridgeState() ?? this.sceneDocumentCodecBridgeState();
   }
 
   private requestStoredSceneDocumentAuthoring(

@@ -305,6 +305,7 @@ interface MutableSignalForTest<T> {
 
 interface TransformStoreInternals {
   readonly workspaceState: MutableSignalForTest<StudioWorkspaceReadModel>;
+  readonly workspaceAuthoringBridgeState: MutableSignalForTest<NativeBrowserHostRuntimeBridge | null>;
   readonly sceneDocumentCodecBridgeState: MutableSignalForTest<NativeBrowserHostRuntimeBridge | null>;
   readonly sceneDocumentContentHashState: MutableSignalForTest<string | null>;
   readonly authoredLightFrameState: MutableSignalForTest<RenderFrameDiff>;
@@ -645,6 +646,85 @@ test('drag previews never call Rust and only an accepted release mutates authori
     assert.equal(requests.length, 2);
     assert.equal(internals.workspaceState().flatSceneDocument, afterAcceptedDocument);
     assert.equal(internals.sceneTransformHistoryState(), afterAcceptedHistory);
+  } finally {
+    injector.destroy();
+  }
+});
+
+test('an open project routes scene commits through its workspace authority cell', () => {
+  const injector = createEnvironmentInjector([
+    StudioPreferencesStore,
+    StudioWorkspaceStore,
+  ]);
+  try {
+    const store = runInInjectionContext(injector, () => inject(StudioWorkspaceStore));
+    const internals = store as unknown as TransformStoreInternals;
+    const document = transformScene();
+    internals.workspaceState.set(applySelectedEntityReadModel(
+      applyCanonicalSceneDocumentReadModel(
+        buildInitialWorkspaceReadModel(),
+        document,
+        '/projects/demo/scenes/current.scene.json',
+      ),
+      'scene-node:2',
+    ));
+
+    let codecCalls = 0;
+    let workspaceCalls = 0;
+    const codecBridge = {
+      applySceneDocumentAuthoring: () => {
+        codecCalls += 1;
+        throw new Error('the detached codec authority must not receive project edits');
+      },
+    } as unknown as NativeBrowserHostRuntimeBridge;
+    const workspaceBridge = {
+      applySceneDocumentAuthoring: (
+        request: Parameters<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']>[0],
+      ): ReturnType<NativeBrowserHostRuntimeBridge['applySceneDocumentAuthoring']> => {
+        workspaceCalls += 1;
+        assert.equal(request.command.kind, 'setTransform');
+        if (request.command.kind !== 'setTransform') {
+          throw new Error('Expected one bounded project scene transform command.');
+        }
+        return {
+          accepted: true,
+          document: {
+            ...request.currentDocument,
+            nodes: request.currentDocument.nodes.map(node => (
+              node.id === request.command.id
+                ? { ...node, transform: request.command.transform }
+                : node
+            )),
+          },
+          contentHash: 'workspace-content-2',
+          authoredLightFrame: { ops: [] },
+          rejection: null,
+        };
+      },
+    } as unknown as NativeBrowserHostRuntimeBridge;
+    internals.sceneDocumentCodecBridgeState.set(codecBridge);
+    internals.workspaceAuthoringBridgeState.set(workspaceBridge);
+    internals.sceneDocumentContentHashState.set('workspace-content-1');
+    internals.authoredLightFrameState.set({ ops: [] });
+    internals.sceneTransformHistoryState.set({ entries: [], cursor: 0 });
+
+    const target = store.selectedSceneTransformTarget();
+    assert.notEqual(target, null);
+    if (target === null) return;
+    const result = store.commitSelectedSceneObjectTransform(target.revision, {
+      ...target.transform,
+      translation: [0.25, 0, 0],
+    });
+
+    assert.equal(result.accepted, true);
+    assert.equal(workspaceCalls, 1);
+    assert.equal(codecCalls, 0);
+    assert.deepEqual(
+      internals.workspaceState().flatSceneDocument.nodes.find(
+        node => node.id === sceneNodeId(2),
+      )?.transform.translation,
+      [0.25, 0, 0],
+    );
   } finally {
     injector.destroy();
   }
