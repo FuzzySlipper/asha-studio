@@ -162,7 +162,48 @@ function gameplayCodec(): ProjectContentCodecResult {
         },
       ],
     }],
-    fieldMetadata: [],
+    fieldMetadata: [
+      {
+        documentId: document.documentId,
+        path: 'document.configurations[0].values.speed',
+        label: 'Movement speed',
+        valueKind: 'number',
+        required: true,
+        editable: true,
+        referenceKind: null,
+        referenceOptions: [],
+        configurationId: 'demo.movement',
+        schemaId: 'demo.movement.v1',
+        moduleId: 'demo.movement-module',
+        providerId: 'demo.provider',
+        contract: { namespace: 'demo', name: 'movement', version: 1, schemaHash: 'schema' },
+        codecId: 'demo.movement.codec.v1',
+        integerMin: null,
+        integerMax: null,
+        numberMin: 0,
+        numberMax: 20,
+      },
+      {
+        documentId: document.documentId,
+        path: 'document.configurations[0].values.actor',
+        label: 'Actor definition',
+        valueKind: 'reference',
+        required: true,
+        editable: true,
+        referenceKind: 'entityDefinition',
+        referenceOptions: [{ targetId: 'actor/player', label: 'Player' }],
+        configurationId: 'demo.movement',
+        schemaId: 'demo.movement.v1',
+        moduleId: 'demo.movement-module',
+        providerId: 'demo.provider',
+        contract: { namespace: 'demo', name: 'movement', version: 1, schemaHash: 'schema' },
+        codecId: 'demo.movement.codec.v1',
+        integerMin: null,
+        integerMax: null,
+        numberMin: null,
+        numberMax: null,
+      },
+    ],
     diagnostics: [],
   };
 }
@@ -302,7 +343,7 @@ test('provider schemas produce typed fields and reference navigation without pro
   );
 });
 
-test('bounded instantiated entity references offer only directly usable definitions', () => {
+test('entry-scene FPS player picker consumes only Rust-resolved eligible targets', () => {
   const documents: ProjectContentDocument[] = [
     {
       kind: 'entityDefinition',
@@ -313,7 +354,25 @@ test('bounded instantiated entity references offer only directly usable definiti
         source: { projectBundle: 'demo', relativePath: 'actors/player.json' },
         tags: [],
         metadata: [],
-        capabilities: [{ kind: 'bounds', min: [-0.25, -0.7, -0.25], max: [0.25, 0.7, 0.25] }],
+        capabilities: [
+          { kind: 'bounds', min: [-0.25, -0.7, -0.25], max: [0.25, 0.7, 0.25] },
+          { kind: 'controller', controllerId: 'player_input' },
+        ],
+      },
+    },
+    {
+      kind: 'entityDefinition',
+      documentId: 'entity/enemy',
+      definition: {
+        stableId: 'actor/enemy',
+        displayName: 'Enemy',
+        source: { projectBundle: 'demo', relativePath: 'actors/enemy.json' },
+        tags: [],
+        metadata: [],
+        capabilities: [
+          { kind: 'bounds', min: [-0.25, -0.7, -0.25], max: [0.25, 0.7, 0.25] },
+          { kind: 'controller', controllerId: 'enemy_policy' },
+        ],
       },
     },
     {
@@ -348,7 +407,7 @@ test('bounded instantiated entity references offer only directly usable definiti
     fieldId: 'actor',
     value: {
       kind: 'reference',
-      referenceKind: 'instantiatedBoundedEntityDefinition',
+      referenceKind: 'entrySceneFpsPlayerEntityDefinition',
       targetId: 'actor/player',
     },
   };
@@ -395,9 +454,16 @@ test('bounded instantiated entity references offer only directly usable definiti
     providerSchemas: [{
       ...baseCodec.providerSchemas[0]!,
       fields: baseCodec.providerSchemas[0]!.fields.map(field => field.fieldId === 'actor'
-        ? { ...field, referenceKind: 'instantiatedBoundedEntityDefinition' }
+        ? { ...field, referenceKind: 'entrySceneFpsPlayerEntityDefinition' }
         : field),
     }],
+    fieldMetadata: baseCodec.fieldMetadata.map(field => field.path.endsWith('.actor')
+      ? {
+          ...field,
+          referenceKind: 'entrySceneFpsPlayerEntityDefinition',
+          referenceOptions: [{ targetId: 'actor/player', label: 'Player' }],
+        }
+      : field),
   };
   const browser = buildStudioProjectContentBrowserReadModel({
     status: 'ready',
@@ -480,6 +546,7 @@ test('Rust field metadata exposes material and presentation values through one t
         required: true,
         editable: true,
         referenceKind: null,
+        referenceOptions: [],
         configurationId: 'material/tunnel-wall',
         schemaId: 'asha.material.v1',
         moduleId: null,
@@ -499,6 +566,7 @@ test('Rust field metadata exposes material and presentation values through one t
         required: true,
         editable: true,
         referenceKind: null,
+        referenceOptions: [],
         configurationId: 'primary-fire.audio',
         schemaId: 'asha.presentation-cue.v1',
         moduleId: null,
@@ -693,6 +761,18 @@ test('prefab-part options use the canonical Rust target identity and bindings ar
         numberMax: null,
       }],
     }],
+    fieldMetadata: gameplayCodec().fieldMetadata.map(field => field.path.endsWith('.actor')
+      ? {
+          ...field,
+          path: 'document.configurations[0].values.part',
+          label: 'Prefab part',
+          referenceKind: 'prefabPart',
+          referenceOptions: [{
+            targetId: '70:interaction/body',
+            label: 'Player Prefab · interaction/body',
+          }],
+        }
+      : field),
   };
   const source = inspectStudioProjectContentFile(
     DESCRIPTOR,

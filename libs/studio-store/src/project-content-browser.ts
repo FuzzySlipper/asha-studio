@@ -466,7 +466,7 @@ export function buildStudioProjectContentBrowserReadModel(
     ?? null;
   const editableFields = selectedEntry === null || input.codec === null
     ? []
-    : editableFieldsForDocument(selectedEntry.documentId, input.codec, input.projectScenes);
+    : editableFieldsForDocument(selectedEntry.documentId, input.codec);
   const dirtyIds = [...input.dirtyDocumentIds];
   const selectedFile = selectedEntry === null
     ? null
@@ -1161,7 +1161,6 @@ function rejectedCandidateSummary(file: StudioProjectContentLoadedFile): {
 function editableFieldsForDocument(
   documentId: string,
   codec: ProjectContentCodecResult,
-  projectScenes: readonly FlatSceneDocument[],
 ): readonly StudioProjectContentEditableFieldReadModel[] {
   const document = codec.documents.find(candidate => candidate.documentId === documentId);
   if (document === undefined) {
@@ -1178,7 +1177,6 @@ function editableFieldsForDocument(
     ), 'presentationCue');
   }
   if (document.kind !== 'gameplayConfiguration') return [];
-  const options = referenceOptions(codec.documents, projectScenes);
   return document.document.configurations.flatMap(configuration => {
     const schema = codec.providerSchemas.find(candidate =>
       candidate.schemaId === configuration.schemaId
@@ -1209,7 +1207,10 @@ function editableFieldsForDocument(
         integerMax: field.integerMax,
         numberMin: field.numberMin,
         numberMax: field.numberMax,
-        options: field.referenceKind === null ? [] : options[field.referenceKind],
+        options: metadata?.referenceOptions.map(option => ({
+          value: option.targetId,
+          label: option.label,
+        })) ?? [],
       }];
     });
   });
@@ -1387,91 +1388,6 @@ function metadataForField(
     && candidate.schemaId === schemaId
     && (candidate.path.endsWith(`.${field.fieldId}`) || candidate.label === field.label),
   ) ?? null;
-}
-
-function referenceOptions(
-  documents: readonly ProjectContentDocument[],
-  projectScenes: readonly FlatSceneDocument[],
-): Readonly<Record<ProjectContentReferenceKind, readonly StudioProjectContentReferenceOptionReadModel[]>> {
-  const entityDefinitions = documents.flatMap(document =>
-    document.kind === 'entityDefinition'
-      ? [{ value: document.definition.stableId, label: document.definition.displayName }]
-      : [],
-  );
-  const prefabs = documents.flatMap(document =>
-    document.kind === 'prefabRegistry'
-      ? document.registry.definitions.map(definition => ({
-          value: String(definition.id),
-          label: definition.displayName,
-        }))
-      : [],
-  );
-  const prefabParts = documents.flatMap(document =>
-    document.kind === 'prefabRegistry'
-      ? document.registry.definitions.flatMap(definition =>
-          definition.partRoles.map(role => ({
-            value: formatProjectContentPrefabPartReference(definition.id, role.role),
-            label: `${definition.displayName} · ${role.role}`,
-          })),
-        )
-      : [],
-  );
-  const assets = documents.flatMap(document => {
-    if (document.kind === 'assetCatalog') {
-      return document.catalog.entries.map(entry => ({ value: entry.id, label: entry.label ?? entry.id }));
-    }
-    if (document.kind === 'presentationCatalog') {
-      return document.catalog.resources.map(resource => ({ value: resource.assetId, label: resource.resourceId }));
-    }
-    return [];
-  });
-  const presentationResources = documents.flatMap(document =>
-    document.kind === 'presentationCatalog'
-      ? document.catalog.resources.map(resource => ({ value: resource.resourceId, label: resource.resourceId }))
-      : [],
-  );
-  const sceneInstances = [...new Map(projectScenes.flatMap(scene => scene.nodes.flatMap(node =>
-    node.kind.kind === 'entityInstance'
-      ? [[node.kind.instance.instanceId, {
-          value: node.kind.instance.instanceId,
-          label: node.label ?? node.kind.instance.instanceId,
-        }] as const]
-      : [],
-  ))).values()];
-  const instantiatedDefinitionIds = new Set(projectScenes.flatMap(scene => scene.nodes.flatMap(node =>
-    node.kind.kind === 'entityInstance' && node.kind.instance.reference.kind === 'entityDefinition'
-      ? [node.kind.instance.reference.stableId]
-      : [],
-  )));
-  const usableBoundsDefinitionIds = new Set(documents.flatMap(document => {
-    if (document.kind !== 'entityDefinition') return [];
-    const usable = document.definition.capabilities.some(capability => (
-      capability.kind === 'bounds'
-      && capability.min.every((minimum, axis) => {
-        const maximum = capability.max[axis];
-        return maximum !== undefined
-          && Number.isFinite(minimum)
-          && Number.isFinite(maximum)
-          && minimum < maximum;
-      })
-    ));
-    return usable ? [document.definition.stableId] : [];
-  }));
-  return {
-    asset: assets,
-    entityDefinition: entityDefinitions,
-    instantiatedEntityDefinition: entityDefinitions.filter(option => (
-      instantiatedDefinitionIds.has(option.value)
-    )),
-    instantiatedBoundedEntityDefinition: entityDefinitions.filter(option => (
-      instantiatedDefinitionIds.has(option.value)
-      && usableBoundsDefinitionIds.has(option.value)
-    )),
-    sceneInstance: sceneInstances,
-    prefab: prefabs,
-    prefabPart: prefabParts,
-    presentationResource: presentationResources,
-  };
 }
 
 function projectConfigurationValue(value: ProjectConfigurationValue): boolean | number | string {
